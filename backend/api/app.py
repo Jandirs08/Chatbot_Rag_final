@@ -89,6 +89,31 @@ async def lifespan(app: FastAPI):
         )
         logger.info("ChatManager inicializado.")
 
+        # --- PDF Processor para RAG status ---
+        class PDFProcessorAdapter:
+            def __init__(self, pdf_manager, vector_store):
+                self.pdf_manager = pdf_manager
+                self.vector_store = vector_store
+
+            async def list_pdfs(self):
+                return await self.pdf_manager.list_pdfs()
+
+            def get_vector_store_info(self):
+                path = str(self.vector_store.persist_directory)
+                exists = self.vector_store.persist_directory.exists()
+                size = 0
+                if exists:
+                    try:
+                        size = sum(f.stat().st_size for f in self.vector_store.persist_directory.glob('**/*') if f.is_file())
+                    except Exception:
+                        pass
+                return {"path": path, "exists": exists, "size": size}
+
+            async def clear_pdfs(self):
+                return await self.pdf_manager.clear_all_pdfs()
+
+        app.state.pdf_processor = PDFProcessorAdapter(app.state.pdf_file_manager, app.state.vector_store)
+
     except Exception as e:
         logger.error(f"Error fatal durante la inicialización en lifespan: {e}", exc_info=True)
         raise

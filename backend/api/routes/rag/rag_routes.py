@@ -23,7 +23,7 @@ async def rag_status(request: Request):
     pdf_processor = request.app.state.pdf_processor
     # rag_retriever = request.app.state.rag_retriever # No se usa directamente en este endpoint
     try:
-        pdfs_raw = pdf_processor.list_pdfs()
+        pdfs_raw = await pdf_processor.list_pdfs()
         vector_store_info_raw = pdf_processor.get_vector_store_info()
         
         pdf_details_list = [
