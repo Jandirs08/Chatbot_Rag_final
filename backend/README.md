@@ -1,270 +1,194 @@
-# Backend del ChatBot RAG con LangChain y FastAPI
+# Backend ChatBot RAG
 
-Este directorio contiene el backend para una aplicación de ChatBot con Retrieval Augmented Generation (RAG), construido con LangChain, FastAPI y MongoDB.
+## Descripción General
 
-## Últimas Actualizaciones
+Este backend implementa una API REST para un chatbot con capacidades RAG (Retrieval-Augmented Generation), permitiendo interacción conversacional, gestión de documentos PDF, almacenamiento vectorial y recuperación de información avanzada.
 
-### Refactorización Mayor
+---
 
-- Movimiento de `utils/pdf_utils.py` a `file_system/pdf_file_manager.py`
-- Inyección de `RAGRetriever` en `ChatManager`
-- Simplificación de la lógica de configuración en `api/app.py`
-- Mejora en la gestión de settings y variables de entorno
+## Requisitos
 
-### Mejoras de Arquitectura
+- Python 3.10+
+- MongoDB (para historial de chat)
+- (Opcional) Redis (para caché)
+- Dependencias del proyecto (ver `requirements.txt`)
 
-- Eliminación de duplicidad en el procesamiento de PDFs
-- Clarificación de responsabilidades entre componentes
-- Mejor separación de concerns en el sistema RAG
-- Optimización del flujo de datos en el chat
-
-## Patrones de Diseño y Principios
-
-El backend ha sido diseñado siguiendo varios patrones y principios de diseño de software:
-
-### 1. Inyección de Dependencias (DI)
-
-- Los componentes principales (`ChatManager`, `Bot`, `RAGRetriever`, etc.) reciben sus dependencias a través del constructor.
-- La inyección se realiza en el ciclo de vida de la aplicación (`lifespan` en `api/app.py`).
-- Las dependencias se almacenan en `app.state` para su uso en los endpoints.
-
-### 2. Principio de Responsabilidad Única (SRP)
-
-Cada clase tiene una responsabilidad bien definida:
-
-- `PDFFileManager`: Gestión de archivos PDF en el sistema de archivos.
-- `PDFContentLoader`: Carga y división de contenido PDF.
-- `RAGIngestor`: Orquestación del proceso de ingesta.
-- `RAGRetriever`: Recuperación de documentos relevantes.
-- `ChatManager`: Orquestación de conversaciones y gestión de RAG.
-- `Bot`: Gestión de interacciones con LLM.
-- `ChainManager`: Gestión exclusiva de cadenas LangChain.
-
-### 3. Patrón Fachada
-
-- `ChatManager` actúa como fachada, simplificando la interacción con múltiples subsistemas (Bot, RAG, DB).
-- `RAGIngestor` es una fachada para el proceso de ingesta de documentos.
-
-### 4. Patrón Estrategia
-
-- Sistema de memoria configurable a través de `MemoryTypes`.
-- Diferentes implementaciones de embeddings y vector stores pueden intercambiarse.
-
-### 5. Patrón Factory (implícito en LangChain)
-
-- `ChainManager` actúa como factory para crear y configurar cadenas LangChain.
-- `Bot` crea instancias de agentes y ejecutores.
-
-### 6. Principio de Inversión de Dependencias (DIP)
-
-- Los componentes dependen de abstracciones (interfaces) no de implementaciones concretas.
-- Ejemplo: `VectorStore` es una abstracción que puede tener diferentes implementaciones.
-
-## Arquitectura y Componentes
-
-### Capa de API (FastAPI)
-
-- **Punto de Entrada**: `main.py` -> `api/app.py`
-- **Configuración Centralizada**: Toda la configuración de FastAPI en `api/app.py`
-- **Routers Modulares**:
-  - `api/routes/chat/`: Endpoints de chat
-  - `api/routes/pdf/`: Gestión de PDFs
-  - `api/routes/rag/`: Operaciones RAG
-  - `api/routes.py`: Health check
-
-### Capa de Servicios
-
-1. **Gestión de Chat**
-
-   - `ChatManager`: Orquestador principal
-   - `Bot`: Interacción con LLM
-   - `ChainManager`: Gestión de cadenas LangChain
-
-2. **Sistema RAG**
-
-   - `RAGIngestor`: Pipeline de ingesta
-   - `RAGRetriever`: Recuperación de contexto
-   - `PDFContentLoader`: Procesamiento de PDFs
-   - `EmbeddingManager`: Gestión de embeddings
-   - `VectorStore`: Almacenamiento vectorial
-
-3. **Gestión de Archivos**
-
-   - `PDFFileManager`: Operaciones de archivos
-   - Estructura de directorios configurable
-
-4. **Persistencia**
-   - MongoDB para historial de chat
-   - Vector store para embeddings
-   - Sistema de archivos para PDFs
-
-## Funcionalidades Principales
-
-### 1. Gestión de Documentos
-
-- Subida de PDFs
-- Listado de documentos disponibles
-- Eliminación de PDFs
-- Procesamiento automático para RAG
-
-### 2. RAG (Retrieval Augmented Generation)
-
-- Indexación automática de documentos
-- Búsqueda semántica
-- Recuperación de contexto relevante
-- Formateo de contexto para LLM
-
-### 3. Chat Inteligente
-
-- Respuestas basadas en contexto
-- Memoria de conversación
-- Streaming de respuestas
-- Persistencia de historial
-
-### 4. Configuración Flexible
-
-- Variables de entorno
-- Configuración de modelos
-- Ajustes de RAG
-- Personalización de prompts
-
-## Estructura del Proyecto
-
-\`\`\` backend/ ├── api/ # Capa de API │ ├── app.py # Configuración FastAPI │ ├── routes/ # Endpoints por contexto │ │ ├── chat/ │ │ ├── pdf/ │ │ └── rag/ │ └── schemas.py # Modelos Pydantic ├── chat/ # Gestión de chat │ └── manager.py # ChatManager ├── rag/ # Sistema RAG │ ├── embeddings/ # Gestión de embeddings │ ├── ingestion/ # Proceso de ingesta │ ├── pdf_processor/ # Procesamiento de PDFs │ ├── retrieval/ # Recuperación de documentos │ └── vector_store/ # Almacenamiento vectorial ├── file_system/ # Gestión de archivos │ └── pdf_file_manager.py # Operaciones PDF ├── database/ # Capa de persistencia ├── memory/ # Sistema de memoria ├── models/ # Tipos de modelos ├── common/ # Utilidades comunes ├── config.py # Configuración centralizada ├── bot.py # Lógica del bot └── chain.py # Gestión de cadenas \`\`\`
-
-## Configuración y Despliegue
-
-### Variables de Entorno (.env)
-
-\`\`\`env
-
-# LLM
-
-MODEL_TYPE=OPENAI OPENAI_API_KEY=tu_clave BASE_MODEL_NAME=gpt-3.5-turbo MEMORY_TYPE=MONGO
-
-# MongoDB
-
-MONGO_URI=mongodb://localhost:27017/ MONGO_DATABASE_NAME=chatbot_rag_db
-
-# Server
-
-APP_TITLE="ChatBot RAG API" APP_VERSION="1.0.0" HOST=0.0.0.0 PORT=8000 LOG_LEVEL=INFO
-
-# RAG
-
-BASE_DATA_DIR="./data_storage" VECTOR_STORE_PATH="./data_storage/vector_store/chroma_db" EMBEDDING_MODEL="sentence-transformers/all-MiniLM-L6-v2" RAG_CHUNK_SIZE=700 RAG_CHUNK_OVERLAP=150 \`\`\`
+---
 
 ## Instalación y Ejecución
 
-### Requisitos Previos
-
-- Python 3.10 o superior
-- pip (gestor de paquetes de Python)
-- MongoDB instalado y ejecutándose localmente (o acceso a una instancia remota)
-
-### Pasos de Instalación
-
-1. **Crear y activar el entorno virtual**:
-
-   ```bash
-   # Windows
-   python -m venv venv
-   .\venv\Scripts\activate
-
-   # Linux/Mac
-   python -m venv venv
-   source venv/bin/activate
-   ```
-
-2. **Instalar dependencias**:
-
+1. **Instala las dependencias:**
    ```bash
    pip install -r requirements.txt
    ```
-
-3. **Configurar variables de entorno**:
-
-   - Crea un archivo `.env` en el directorio `backend/`
-   - Copia el contenido del ejemplo de variables de entorno proporcionado más arriba
-   - Ajusta los valores según tu configuración
-
-4. **Iniciar el servidor**:
+2. **Configura las variables de entorno:**
+   - Puedes usar un archivo `.env` en la carpeta `backend/` para definir claves como `OPENAI_API_KEY`, `MONGO_URI`, etc.
+3. **Inicializa la base de datos si es necesario.**
+4. **Ejecuta el backend:**
    ```bash
-   # Desde el directorio backend/
-   python -m uvicorn main:app --reload --host 0.0.0.0 --port 8080
+   uvicorn backend.api.app:create_app --factory --reload
    ```
+   O usa los scripts `setup.sh` o `setup.bat` para entornos Linux/Windows.
 
-### Solución de Problemas Comunes
+---
 
-1. **Error "No module named uvicorn"**:
+## Endpoints Principales
 
-   ```bash
-   pip install uvicorn
-   ```
+- **/api/v1/health**: Estado de salud del backend.
+- **/api/v1/chat/**: Endpoints para interacción conversacional.
+- **/api/v1/pdfs/**: Subida, listado y borrado de PDFs.
+- **/api/v1/rag/rag-status**: Estado del sistema RAG (PDFs y vector store).
+- **/api/v1/rag/clear-rag**: Limpieza total de PDFs y vector store.
+- **/api/v1/bot/**: Configuración y control del bot.
 
-2. **Error de conexión a MongoDB**:
+> Consulta los archivos en `backend/api/routes/` para ver todos los endpoints disponibles y sus detalles.
 
-   - Verifica que MongoDB esté ejecutándose
-   - Comprueba la URI de conexión en el archivo `.env`
+---
 
-3. **Errores de dependencias**:
+## Estructura de Carpetas y Archivos
 
-   ```bash
-   # Actualizar pip
-   python -m pip install --upgrade pip
+```
+backend/
+├── api/                    # API REST y endpoints
+│   ├── routes/            # Rutas de la API (chat, pdf, rag, health, bot)
+│   ├── schemas/           # Esquemas Pydantic para validación
+│   ├── app.py             # Configuración principal de FastAPI
+│   └── __init__.py
+│
+├── core/                  # Núcleo del bot y lógica de procesamiento
+│   ├── bot.py, chain.py, prompt.py, ...
+│   └── README.md
+│
+├── rag/                   # Sistema RAG (Retrieval-Augmented Generation)
+│   ├── ingestion/         # Procesamiento e ingesta de documentos
+│   ├── embeddings/        # Gestión de embeddings
+│   ├── pdf_processor/     # Procesamiento de PDFs
+│   ├── vector_store/      # Almacenamiento vectorial (Chroma, etc.)
+│   ├── retrieval/         # Recuperación de información
+│   └── __init__.py
+│
+├── storage/               # Almacenamiento persistente
+│   ├── documents/         # PDFs y documentos procesados
+│   │   ├── pdfs/          # PDFs subidos
+│   │   └── pdf_manager.py # Lógica de gestión de PDFs
+│   └── vector_store/      # Base de datos vectorial (Chroma DB)
+│
+├── database/              # Conexión y lógica de base de datos (MongoDB)
+│   └── mongodb.py
+│
+├── models/                # Modelos y tipos de datos
+│   └── model_types.py
+│
+├── memory/                # Gestión de memoria conversacional
+│   ├── base_memory.py, custom_memory.py, mongo_memory.py, ...
+│
+├── utils/                 # Utilidades generales (caché, helpers)
+│   └── chain_cache.py
+│
+├── common/                # Código y constantes compartidas
+│   └── constants.py, objects.py
+│
+├── dev/                   # Herramientas y scripts de desarrollo/pruebas
+│   └── add_test_docs.py, performance_test.py, ...
+│
+├── config.py              # Configuración global y variables de entorno
+├── main.py                # Punto de entrada principal
+├── requirements.txt       # Dependencias del proyecto
+├── setup.bat / setup.sh   # Scripts de instalación y arranque
+├── Dockerfile             # Configuración para Docker
+└── backend_structure.md   # Documentación de la estructura (referencia)
+```
 
-   # Reinstalar dependencias
-   pip install -r requirements.txt --no-cache-dir
-   ```
+---
 
-## API Endpoints
+## Descripción de Carpetas y Archivos
 
-### Chat
+- **api/**: Lógica de la API REST, rutas y validaciones.
+- **core/**: Lógica principal del bot, gestión de prompts y cadenas de procesamiento.
+- **rag/**: Todo lo relacionado con RAG (ingesta, embeddings, vector store, recuperación).
+- **storage/**: PDFs y base de datos vectorial persistente.
+- **database/**: Conexión y operaciones con MongoDB.
+- **models/**: Tipos y modelos de datos usados en el sistema.
+- **memory/**: Implementaciones de memoria conversacional (en memoria, MongoDB, etc.).
+- **utils/**: Funciones utilitarias y caché.
+- **common/**: Constantes y objetos compartidos.
+- **dev/**: Scripts y utilidades para pruebas y desarrollo.
+- **config.py**: Configuración global, variables de entorno y validaciones.
+- **main.py**: Punto de entrada para ejecución directa.
+- **requirements.txt**: Lista de dependencias Python.
+- **setup.bat / setup.sh**: Scripts de instalación y arranque rápido.
+- **Dockerfile**: Configuración para contenedores Docker.
+- **backend_structure.md**: Referencia visual de la estructura del backend.
 
-- `POST /api/v1/chat/stream_log`: Envía mensaje y recibe respuesta en streaming
-- `POST /api/v1/chat/clear/{conversation_id}`: Limpia historial
+---
 
-### PDFs
+## Notas y Buenas Prácticas
 
-- `POST /api/v1/pdfs/upload`: Sube PDF
-- `GET /api/v1/pdfs/list-pdfs`: Lista PDFs disponibles
-- `DELETE /api/v1/pdfs/delete-pdf/{filename}`: Elimina PDF
+- **No borres manualmente archivos de `storage/vector_store/chroma_db` si el sistema está en uso.** Hazlo solo con el backend detenido.
+- Los archivos `__pycache__` y `.pyc` pueden eliminarse sin problema, Python los regenera automáticamente.
+- La carpeta `backend/data/` es obsoleta si ya migraste a `storage/`.
+- Usa el endpoint `/api/v1/rag/rag-status` para monitorear el estado del sistema y `/api/v1/rag/clear-rag` para limpiar datos.
+- Configura correctamente tu archivo `.env` para evitar errores de conexión o autenticación.
 
-### RAG
+---
 
-- `POST /api/v1/rag/clear-all-content`: Limpia vector store
-- `GET /api/v1/rag/status`: Estado del sistema RAG
+## Contacto y Soporte
 
-## Contribución
+Para dudas, sugerencias o reportes, contacta al equipo de desarrollo o revisa la documentación interna del proyecto.
 
-1. Fork el repositorio
-2. Crear rama feature (`git checkout -b feature/AmazingFeature`)
-3. Commit cambios (`git commit -m 'Add AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abrir Pull Request
+---
 
-## Licencia
+## Patrones de Diseño y Principios
 
-Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más detalles.
+- **Principio de Responsabilidad Única (SRP):** Cada módulo y clase tiene una única responsabilidad clara (por ejemplo, gestión de PDFs, embeddings, memoria, etc.).
+- **Inyección de Dependencias:** Los componentes principales (como el vector store, gestor de PDFs, embeddings) se inyectan en los controladores y servicios, facilitando pruebas y mantenimiento.
+- **Separación de Capas:** La lógica de negocio, acceso a datos, y API están claramente separadas en carpetas y módulos distintos.
+- **Uso de Pydantic:** Para validación y serialización de datos en los endpoints.
+- **Principio DRY (Don't Repeat Yourself):** Utilidades y funciones comunes están centralizadas en módulos como `utils/` y `common/`.
+- **Asincronía:** Uso intensivo de async/await para operaciones de I/O, permitiendo alta concurrencia y eficiencia.
+
+---
+
+## Arquitectura y Componentes
+
+El backend sigue una arquitectura **modular y desacoplada**, orientada a microservicios internos:
+
+- **API Layer:** (Carpeta `api/`) Expone los endpoints REST y valida las peticiones/respuestas.
+- **Core Layer:** (Carpeta `core/`) Lógica principal del bot y procesamiento de cadenas conversacionales.
+- **RAG Layer:** (Carpeta `rag/`) Encapsula todo lo relacionado con la ingesta, procesamiento, embeddings y recuperación de información.
+- **Storage Layer:** (Carpeta `storage/`) Persistencia de PDFs y base de datos vectorial.
+- **Database Layer:** (Carpeta `database/`) Abstracción de la base de datos MongoDB.
+- **Memory Layer:** (Carpeta `memory/`) Implementaciones de memoria conversacional.
+- **Utils/Common:** Funciones utilitarias, constantes y objetos compartidos.
+
+Cada componente es fácilmente intercambiable y testeable de forma aislada.
+
+---
+
+## Funcionalidades Principales
+
+- **Chat conversacional:** Interacción con el usuario usando modelos LLM y memoria contextual.
+- **RAG (Retrieval-Augmented Generation):** Recuperación de información relevante desde PDFs y base vectorial para enriquecer las respuestas.
+- **Gestión de PDFs:** Subida, listado, procesamiento y borrado de documentos PDF.
+- **Almacenamiento vectorial:** Indexación y búsqueda eficiente de fragmentos de texto usando embeddings.
+- **Historial de chat:** Persistencia de conversaciones en MongoDB.
+- **Caché:** Optimización de respuestas y reducción de latencia usando Redis o memoria local.
+- **Endpoints de salud y administración:** Monitoreo y control del estado del sistema.
+
+---
 
 ## Flujo de Datos
 
-### Proceso de Chat con RAG
-
-1. Usuario envía mensaje
-2. `ChatManager` recibe la solicitud
-3. `RAGRetriever` busca contexto relevante
-4. Contexto se antepone al mensaje del usuario
-5. `Bot` genera respuesta usando el contexto
-6. Respuesta se almacena en MongoDB
-7. Respuesta se envía al usuario
-
-### Proceso de Ingesta de Documentos
-
-1. PDF se sube vía API
-2. `PDFFileManager` gestiona el archivo
-3. `PDFContentLoader` procesa el contenido
-4. `RAGIngestor` orquesta el proceso
-5. Contenido se divide en chunks
-6. `EmbeddingManager` genera embeddings
-7. `VectorStore` almacena los vectores
+1. **Ingreso de datos:**
+   - El usuario sube un PDF o envía un mensaje al chat.
+2. **Procesamiento:**
+   - Los PDFs se procesan, dividen en fragmentos y se generan embeddings.
+   - Los fragmentos se almacenan en el vector store.
+   - Los mensajes del chat se almacenan en la base de datos y/o memoria.
+3. **Recuperación:**
+   - Cuando el usuario hace una consulta, se buscan los fragmentos más relevantes en el vector store usando embeddings.
+   - Se combinan los resultados recuperados con la respuesta generada por el modelo LLM.
+4. **Respuesta:**
+   - El sistema responde al usuario con información enriquecida y contextual.
+5. **Administración:**
+   - Los endpoints de administración permiten limpiar, monitorear y gestionar el sistema de forma sencilla.
