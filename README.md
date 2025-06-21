@@ -8,15 +8,14 @@
 ## Description
 
 - This is a chatbot implementation with Langchain framework.
-    - Base LLM: Vertex AI or OpenAI API
-    - Memory: MongoDB
-    - UI:
-        - Next.js frontend
-        - FastAPI backend
-    - Prompt versioning and tracing: LangSmith
+  - Base LLM: Vertex AI or OpenAI API
+  - Memory: MongoDB
+  - UI:
+    - Next.js frontend
+    - FastAPI backend
+  - Prompt versioning and tracing: LangSmith
 - User can custom bot's personality by setting bot information like gender, age, ...
-- Demo UI:
-  ![Demo UI](/assets/demo_ui.png)
+- Demo UI: ![Demo UI](/assets/demo_ui.png)
 
 ## System Architecture
 
@@ -57,16 +56,19 @@ The application follows a modern microservices architecture with containerized c
 ### Data Flow
 
 1. **User Interaction**:
+
    - User sends a message through the Next.js frontend
    - Frontend forwards the request to the FastAPI backend
 
 2. **Message Processing**:
+
    - Backend optionally anonymizes PII data using Presidio Anonymizer
    - LangChain framework builds the conversation chain
    - Request is sent to the selected LLM provider (OpenAI or Vertex AI)
    - Response is traced using LangSmith for monitoring
 
 3. **Conversation Storage**:
+
    - Conversations are stored in MongoDB for history
    - Each user session has a unique conversation ID
 
@@ -184,20 +186,24 @@ User        Frontend        Backend        LangChain       LLM        MongoDB
 **Key Steps in the Sequence:**
 
 1. **User Interaction:**
+
    - User types a message in the chat interface
    - Frontend captures the input and sends to backend API
 
 2. **Backend Processing:**
+
    - Backend loads conversation history from MongoDB
    - If enabled, PII is anonymized using Presidio
    - The conversation chain is constructed with LangChain
 
 3. **LLM Interaction:**
+
    - The prompt with history and user message is sent to the LLM
    - LLM processes the request and returns a response
    - If PII protection is enabled, the response is de-anonymized
 
 4. **Response Handling:**
+
    - The conversation is stored in MongoDB
    - Response is returned to the frontend
    - Frontend displays the message to the user
@@ -209,20 +215,20 @@ User        Frontend        Backend        LangChain       LLM        MongoDB
 ### PII for chatbot
 
 - [Data anonymization with Microsoft Presidio](https://python.langchain.com/docs/guides/privacy/presidio_data_anonymization/)
-- To protect personally identifiable information (PII), we add `PresidioAnonymizer` to my bot to replace PIIs before
-  pass to LLM api. View code in [Anonymizer](//utils/anonymizer.py)
+- To protect personally identifiable information (PII), we add `PresidioAnonymizer` to my bot to replace PIIs before pass to LLM api. View code in [Anonymizer](//utils/anonymizer.py)
 - Steps when using it:
-    - User message after anonymize:
 
-      ![anonymized message](/assets/anonymized_output.png)
+  - User message after anonymize:
 
-    - Anonymized prompt before input to LLM:
+    ![anonymized message](/assets/anonymized_output.png)
 
-      ![anonymized_prompt](/assets/anonymized_prompt.png)
+  - Anonymized prompt before input to LLM:
 
-    - De-anonymized response to user after LLM call:
-  
-      ![de-anonymized_output.png](/assets/de-anonymized-output.png)
+    ![anonymized_prompt](/assets/anonymized_prompt.png)
+
+  - De-anonymized response to user after LLM call:
+
+    ![de-anonymized_output.png](/assets/de-anonymized-output.png)
 
 ## How to use
 
@@ -231,11 +237,13 @@ User        Frontend        Backend        LangChain       LLM        MongoDB
 The easiest way to run the entire application is using our setup script:
 
 1. **Make the script executable**:
+
    ```bash
    chmod +x setup.sh
    ```
 
 2. **Run the setup script**:
+
    ```bash
    ./setup.sh
    ```
@@ -252,21 +260,24 @@ For Windows users, use `setup.bat` instead.
 If you prefer to run the commands manually:
 
 1. **Set up environment variables**:
+
    ```bash
    # For backend
    cp backend/.env.example backend/.env
    # Edit the .env file to add your OpenAI API key
-   
+
    # For frontend
    cp frontend/.env.example frontend/.env
    ```
 
 2. **Start the application**:
+
    ```bash
    docker-compose up -d
    ```
 
 3. **Access the application**:
+
    - Frontend: http://localhost:3000
    - Backend API: http://localhost:8080
    - API documentation: http://localhost:8080/docs
@@ -290,26 +301,26 @@ If you prefer to run the commands manually:
 ### Running Locally (without Docker)
 
 0. Download the models for the languages to use in anonymizer. PII support.
-    1. `python -m spacy download en_core_web_md`
+   1. `python -m spacy download en_core_web_md`
 1. RUN backend
-    1. Clone repo: `git clone https://github.com/btrcm00/chatbot-with-langchain.git`
-    2. Add google-cloud-platform credential file to `secure/vertexai.json` or set up OpenAI API key
-    3. `cd backend`
-    4. Install required packages: `pip install -r requirements.txt`
-    5. Create MongoDB database and config environment variables to connect Mongo
-    6. Run: `python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8080`
+   1. Clone repo: `git clone https://github.com/btrcm00/chatbot-with-langchain.git`
+   2. Add google-cloud-platform credential file to `secure/vertexai.json` or set up OpenAI API key
+   3. `cd backend`
+   4. Install required packages: `pip install -r requirements.txt`
+   5. Create MongoDB database and config environment variables to connect Mongo
+   6. Run: `python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8080`
 2. RUN frontend
-    1. `cd frontend`
-    2. Install packages: `npm install`
-    3. Start frontend: `npm run dev`
+   1. `cd frontend`
+   2. Install packages: `npm install`
+   3. Start frontend: `npm run dev`
 
 ## Development
 
 For development purposes, you can use the Makefile commands:
+
 ```bash
 make setup  # Set up environment files
 make start  # Start all services
 make stop   # Stop all services
 make logs   # View logs from all containers
 ```
-
