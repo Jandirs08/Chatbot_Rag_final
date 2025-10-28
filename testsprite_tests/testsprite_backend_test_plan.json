@@ -1,0 +1,52 @@
+[
+  {
+    "id": "TC001",
+    "title": "verify_health_api_returns_correct_status_version_environment",
+    "description": "Test the /api/v1/health/health GET endpoint to ensure it returns the current system status, version, and environment information correctly without errors."
+  },
+  {
+    "id": "TC002",
+    "title": "verify_pdf_upload_endpoint_handles_file_upload_and_size_limit",
+    "description": "Test the /api/v1/pdfs/upload POST endpoint to verify successful PDF file upload, correct storage, registration in the RAG ingestion system, and proper error handling for files exceeding size limits."
+  },
+  {
+    "id": "TC003",
+    "title": "verify_pdf_list_endpoint_returns_all_pdfs",
+    "description": "Test the /api/v1/pdfs/list GET endpoint to ensure it returns a complete and accurate list of all uploaded PDFs with correct metadata."
+  },
+  {
+    "id": "TC004",
+    "title": "verify_pdf_delete_endpoint_removes_specified_pdf",
+    "description": "Test the /api/v1/pdfs/{filename} DELETE endpoint to confirm that the specified PDF file is deleted successfully and the response message is accurate."
+  },
+  {
+    "id": "TC005",
+    "title": "verify_rag_status_endpoint_returns_correct_vector_store_and_pdf_status",
+    "description": "Test the /api/v1/rag/rag-status GET endpoint to verify it returns the current status of the RAG vector store, details of ingested PDFs, and total document count accurately."
+  },
+  {
+    "id": "TC006",
+    "title": "verify_rag_clear_endpoint_clears_vector_store_and_updates_status",
+    "description": "Test the /api/v1/rag/clear-rag POST endpoint to ensure it correctly clears the RAG vector store, updates the status of remaining PDFs, and returns the appropriate response with status and message."
+  },
+  {
+    "id": "TC007",
+    "title": "verify_chat_stream_log_endpoint_streams_responses_and_handles_invalid_input",
+    "description": "Test the /api/v1/chat/stream_log POST endpoint to verify it streams chat responses correctly and handles invalid input with appropriate error responses."
+  },
+  {
+    "id": "TC008",
+    "title": "verify_chat_clear_endpoint_clears_conversation_history",
+    "description": "Test the /api/v1/chat/clear/{conversation_id} POST endpoint to confirm it clears the conversation history for the given conversation ID and returns a success message."
+  },
+  {
+    "id": "TC009",
+    "title": "verify_chat_export_conversations_endpoint_generates_excel_file",
+    "description": "Test the /api/v1/chat/export-conversations GET endpoint to ensure it exports conversations to an Excel file correctly and handles cases where no data is available."
+  },
+  {
+    "id": "TC010",
+    "title": "verify_bot_state_endpoints_get_and_toggle_bot_activity",
+    "description": "Test the /api/v1/bot/state GET and /api/v1/bot/toggle POST endpoints to verify the bot's current activity state is retrieved correctly and toggling the bot state updates and reflects accurately in the response."
+  }
+]

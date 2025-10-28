@@ -1,0 +1,394 @@
+[
+  {
+    "id": "TC001",
+    "title": "Health API returns valid system status",
+    "description": "Verify that the health API endpoint returns the current service status, version, and environment information correctly without errors.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send GET request to /api/v1/health/health"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response status code is 200"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response contains JSON object with keys: status, version, and environment"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify 'status' is a non-empty string indicating service status"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify 'version' matches current application version format"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify 'environment' is a non-empty string"
+      }
+    ]
+  },
+  {
+    "id": "TC002",
+    "title": "Upload PDF - valid file",
+    "description": "Test uploading a valid PDF file to the PDF management endpoint and ensure it is stored and registered correctly.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send POST request to /api/v1/pdfs/upload with a valid PDF file less than size limit"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response status code is 200"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response JSON contains 'message', 'file_path', and 'pdfs_in_directory' keys"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the uploaded file is listed in 'pdfs_in_directory'"
+      }
+    ]
+  },
+  {
+    "id": "TC003",
+    "title": "Upload PDF - file too large",
+    "description": "Attempt uploading a PDF that exceeds the allowed file size and verify proper error handling.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send POST request to /api/v1/pdfs/upload with a PDF file exceeding the size limit"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response status code is 413 indicating file too large"
+      }
+    ]
+  },
+  {
+    "id": "TC004",
+    "title": "List all PDFs",
+    "description": "Retrieve the list of all uploaded PDFs and verify the correctness of the response data structure and content.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send GET request to /api/v1/pdfs/list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response status code is 200"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response JSON contains 'pdfs' array"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify each item in 'pdfs' has filename, path, size, and last_modified fields"
+      }
+    ]
+  },
+  {
+    "id": "TC005",
+    "title": "Delete an existing PDF",
+    "description": "Delete a previously uploaded PDF and verify that it is removed from storage and the PDF list.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Upload a valid PDF file to obtain a filename"
+      },
+      {
+        "type": "action",
+        "description": "Send DELETE request to /api/v1/pdfs/{filename} with the uploaded file's filename"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response status code is 200"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response message indicates successful deletion"
+      },
+      {
+        "type": "action",
+        "description": "Send GET request to /api/v1/pdfs/list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the deleted filename is no longer in the PDF list"
+      }
+    ]
+  },
+  {
+    "id": "TC006",
+    "title": "Retrieve RAG system status",
+    "description": "Verify that the RAG status endpoint returns accurate metadata about PDFs, vector store, and total documents.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send GET request to /api/v1/rag/rag-status"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response status code is 200"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response JSON contains 'pdfs', 'vector_store', and 'total_documents'"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify 'pdfs' is an array with items containing filename, path, size, last_modified"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify 'vector_store' contains path, exists boolean, and size"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify 'total_documents' is an integer >= 0"
+      }
+    ]
+  },
+  {
+    "id": "TC007",
+    "title": "Clear RAG vector store and files",
+    "description": "Test the RAG cleanup endpoint to ensure vector store and ingested PDFs are cleaned up correctly and status is updated.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Ensure there are ingested PDFs and a populated vector store"
+      },
+      {
+        "type": "action",
+        "description": "Send POST request to /api/v1/rag/clear-rag"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response status code is 200"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response JSON contains status, message, remaining_pdfs, and vector_store_size"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify remaining_pdfs and vector_store_size reflect the cleanup operation"
+      }
+    ]
+  },
+  {
+    "id": "TC008",
+    "title": "Chat streaming success with valid input",
+    "description": "Send chat requests with valid input and verify streaming chat responses are delivered correctly.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send POST request to /api/v1/chat/stream_log with valid JSON input containing 'input' text"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response status code is 200"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify streaming response is returned as SSE stream with valid streamed_output data"
+      }
+    ]
+  },
+  {
+    "id": "TC009",
+    "title": "Chat streaming handles invalid input",
+    "description": "Send chat requests with invalid or malformed input and verify the service returns appropriate validation errors.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send POST request to /api/v1/chat/stream_log with missing or invalid 'input' field"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response status code is 422 Unprocessable Entity"
+      }
+    ]
+  },
+  {
+    "id": "TC010",
+    "title": "Clear chat conversation history with valid ID",
+    "description": "Clear conversation history successfully for a valid conversation ID using the chat API.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send POST request to /api/v1/chat/clear/{conversation_id} with existing conversation ID"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response status code is 200"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response JSON contains message confirming clearance"
+      }
+    ]
+  },
+  {
+    "id": "TC011",
+    "title": "Clear chat conversation history with invalid ID",
+    "description": "Attempt to clear chat history with a non-existent or invalid conversation ID and verify error handling.",
+    "category": "error handling",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send POST request to /api/v1/chat/clear/{conversation_id} with invalid conversation ID"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify appropriate error response or validation message indicating failure"
+      }
+    ]
+  },
+  {
+    "id": "TC012",
+    "title": "Export conversations to Excel when data exists",
+    "description": "Export user conversations via the chat API endpoint and verify an Excel file is returned correctly.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Ensure user has one or more chat conversations saved"
+      },
+      {
+        "type": "action",
+        "description": "Send GET request to /api/v1/chat/export-conversations"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response status code is 200"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response content-type is an Excel file"
+      }
+    ]
+  },
+  {
+    "id": "TC013",
+    "title": "Export conversations returns 404 when no data",
+    "description": "Attempt to export conversations when none exist and verify the API returns a 404 not found status.",
+    "category": "error handling",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Ensure user has no chat conversations"
+      },
+      {
+        "type": "action",
+        "description": "Send GET request to /api/v1/chat/export-conversations"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response status code is 404"
+      }
+    ]
+  },
+  {
+    "id": "TC014",
+    "title": "Retrieve chat usage statistics",
+    "description": "Query the chat statistics endpoint and validate the returned metrics data structure and correctness.",
+    "category": "functional",
+    "priority": "Low",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send GET request to /api/v1/chat/stats"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response status code is 200"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response returns valid JSON statistics data"
+      }
+    ]
+  },
+  {
+    "id": "TC015",
+    "title": "Get current bot activity state",
+    "description": "Retrieve the current active or inactive state of the bot and validate the response data.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send GET request to /api/v1/bot/state"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response status code is 200"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response contains JSON with is_active boolean and message string"
+      }
+    ]
+  },
+  {
+    "id": "TC016",
+    "title": "Toggle bot state and verify change",
+    "description": "Toggle the bot state via API and ensure the state changes persist and are reflected in subsequent queries.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send GET request to /api/v1/bot/state to record initial state"
+      },
+      {
+        "type": "action",
+        "description": "Send POST request to /api/v1/bot/toggle to change bot state"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response status code is 200"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response shows updated bot state opposite to initial"
+      },
+      {
+        "type": "action",
+        "description": "Send GET request to /api/v1/bot/state"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify current bot state matches toggled state"
+      }
+    ]
+  }
+]
