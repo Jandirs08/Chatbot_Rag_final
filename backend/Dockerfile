@@ -1,5 +1,6 @@
-# Usa una imagen base de Python ligera
-FROM python:3.11-slim
+# Usa imagen base de Python con herramientas de compilación incluidas
+# python:3.11 (no slim) ya incluye herramientas de compilación básicas
+FROM python:3.11
 
 # Establece el directorio de trabajo dentro del contenedor
 WORKDIR /app
@@ -7,12 +8,6 @@ WORKDIR /app
 # Establece variables de entorno para Python
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-
-# Instala dependencias del sistema necesarias para algunas librerías de Python
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
 
 # Copia solo el archivo de requerimientos para aprovechar el cache de Docker
 COPY requirements.txt .

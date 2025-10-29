@@ -1,96 +1,260 @@
-# Docker Setup for LangChain Chatbot
+# 🐳 Configuración Docker Completa - Chatbot RAG
 
-This document outlines the changes made to containerize the LangChain Chatbot application.
+Este documento detalla la configuración completa de Docker para el proyecto Chatbot RAG, incluyendo todos los cambios realizados y mejores prácticas implementadas.
 
-## Files Created or Modified
+## 📁 Archivos de Configuración
 
-1. **Docker Configuration**
-   - `docker-compose.yml` - Defines services (backend, frontend, MongoDB)
-   - `Dockerfile` (backend) - Configures the Python backend container
-   - `.dockerignore` - Excludes unnecessary files from Docker builds
+### Docker Configuration
+- **`docker-compose.yml`** - Define servicios (backend, frontend, MongoDB)
+- **`Dockerfile`** (raíz) - Configura el contenedor Python backend
+- **`frontend/Dockerfile`** - Configura el contenedor Next.js frontend
+- **`.dockerignore`** - Excluye archivos innecesarios de las builds
 
-2. **Environment Configuration**
-   - `chatbot_backend/.env.example` - Template for backend environment variables
-   - `chatbot_frontend/.env.example` - Template for frontend environment variables
+### Environment Configuration
+- **`backend/.env.example`** - Plantilla completa de variables de entorno
+- **`backend/.env`** - Archivo de configuración real (creado por usuario)
 
-3. **Setup Helpers**
-   - `setup.sh` - Bash script for Unix/macOS users to initialize the environment
-   - `setup.bat` - Batch script for Windows users to initialize the environment
-   - `Makefile` - Simple commands for common operations
+### Setup Helpers
+- **`setup.sh`** - Script bash para Unix/macOS
+- **`setup.bat`** - Script batch para Windows
+- **`Makefile`** - Comandos simplificados para operaciones comunes
 
-4. **Documentation**
-   - Updated root `README.md` - Added Docker Compose instructions
-   - This `DOCKER_SETUP.md` file - Details the containerization process
+### Documentation
+- **`INSTRUCCIONES_DOCKER.md`** - Guía completa de uso
+- **`README.md`** - Instrucciones generales del proyecto
 
-5. **Code Changes**
-   - Added `/health` endpoint to the backend API
-   - Updated import paths in the chatbot backend
-
-## Service Architecture
+## 🏗️ Arquitectura de Servicios
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
 │                 │     │                 │     │                 │
-│    Frontend     │─────▶     Backend     │─────▶     MongoDB     │
-│   (Next.js)     │     │    (FastAPI)    │     │                 │
+│   Frontend      │◄────┤    Backend       │◄────┤   MongoDB       │
+│  (Next.js:3000) │     │   (FastAPI:8000) │     │  (Port:27017)   │
 │                 │     │                 │     │                 │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
-       Port 3000               Port 8080              Port 27017
+       ▲                        ▲                        ▲
+       │                        │                        │
+   localhost:3000         localhost:8000           localhost:27018
 ```
 
-## Features Added
+### Servicios Detallados:
 
-- **Health Checks** - All services include Docker health checks
-- **Dependency Conditions** - Services wait for dependent services to be healthy
-- **Volume Persistence** - MongoDB data persists across container restarts
-- **Network Isolation** - All services run on a dedicated Docker network
-- **Environment Variables** - Configuration via .env files
-- **Helper Scripts** - Easy setup for different operating systems
+#### MongoDB
+- **Imagen**: `mongo:latest`
+- **Contenedor**: `chatbot-mongodb-dev`
+- **Puerto**: `27018:27017` (host:container)
+- **Volumen**: `mongodb_data` para persistencia
+- **Red**: `chatbot-network`
 
-## Running the Application
+#### Backend (FastAPI)
+- **Build Context**: `./backend`
+- **Contenedor**: `chatbot-backend-dev`
+- **Puerto**: `8000:8000`
+- **Dependencias**: Espera a MongoDB
+- **Variables**: `MONGO_URI=mongodb://mongodb:27017/chatbot`
+- **Comando**: `uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload`
+- **Volúmenes**: `./backend:/app` (hot-reloading)
 
-The simplest way to run the entire application:
+#### Frontend (Next.js)
+- **Build Context**: `./frontend`
+- **Contenedor**: `chatbot-frontend-dev`
+- **Puerto**: `3000:3000`
+- **Dependencias**: Espera al backend
+- **Variables**: `NEXT_PUBLIC_API_URL=http://backend:8000`
+- **Comando**: `npm run dev`
+- **Volúmenes**: `./frontend:/app` y `/app/node_modules`
 
+## ✅ Características Implementadas
+
+### Health Checks & Dependencies
+- **Health Checks**: Verificación de estado de servicios
+- **depends_on**: Control de orden de inicio
+- **restart: unless-stopped**: Reinicio automático
+
+### Networking
+- **Red dedicada**: `chatbot-network` para aislamiento
+- **Comunicación**: Servicios usan nombres de contenedor
+- **Bridge driver**: Configuración de red estándar
+
+### Volumes & Persistence
+- **MongoDB data**: Volumen nombrado `chatbot-mongodb-data`
+- **Hot-reloading**: Montaje de código fuente en contenedores
+- **Node modules**: Volumen anónimo para evitar conflictos
+
+### Environment Variables
+- **Backend**: Configuración completa via `.env`
+- **Frontend**: Variables públicas para API URL
+- **Docker**: Variables específicas del entorno contenedor
+
+## 🚀 Flujo de Desarrollo
+
+### Inicio Rápido
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd <repository-dir>
+# Configurar entorno
+copy backend\.env.example backend\.env
+# Editar backend\.env con tus claves API
 
-# Set up environment files and start services
-./setup.sh
-# Or on Windows:
-# setup.bat
-
-# Alternatively, use make:
-make setup
-make start
+# Levantar servicios
+docker-compose up --build
 ```
 
-## Development Workflow
+### Desarrollo Individual
+```bash
+# Backend solo
+cd backend
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 
-For contributors who prefer to run services individually:
+# Frontend solo
+cd frontend
+npm install
+npm run dev
+```
 
-1. **Backend development**: 
-   ```bash
-   cd chatbot_backend
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
-   python -m uvicorn chatbot_backend.main:app --reload --host 0.0.0.0 --port 8080
-   ```
+## 🔧 Dockerfile Backend (Raíz)
 
-2. **Frontend development**:
-   ```bash
-   cd chatbot_frontend
-   npm install  # or yarn install
-   npm run dev  # or yarn dev
-   ```
+```dockerfile
+FROM python:3.11-slim
 
-## Cleanup
+WORKDIR /app
 
-To stop all services and clean up:
+# Environment variables
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PORT=8000
+ENV HOST=0.0.0.0
+
+# System dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Python dependencies
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
+    && pip install --no-cache-dir -r requirements.txt
+
+# SpaCy models
+RUN python -m spacy download en_core_web_md
+
+# Application code
+COPY backend/ .
+
+# Port
+EXPOSE 8000
+
+# Command
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+```
+
+## 🔧 Dockerfile Frontend
+
+```dockerfile
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Dependencies
+COPY package.json ./
+COPY package-lock.json ./
+RUN npm install
+
+# Source code
+COPY . .
+
+# Port
+EXPOSE 3000
+
+# Command
+CMD ["npm", "run", "dev"]
+```
+
+## 🛠️ Solución de Problemas Comunes
+
+### Error: "El sistema no puede encontrar el archivo especificado" (.env)
+```bash
+copy backend\.env.example backend\.env
+```
+
+### Error: "unexpected end of JSON input"
+```bash
+docker system prune -a -f
+docker-compose up --build --no-cache
+```
+
+### Servicios no responden
+```bash
+# Ver logs específicos
+docker-compose logs backend
+docker-compose logs frontend
+
+# Ver estado
+docker-compose ps
+```
+
+### Cambios no se reflejan
+```bash
+docker-compose restart frontend
+docker-compose restart backend
+```
+
+## 📊 Comandos de Gestión
 
 ```bash
-make stop    # Just stop services
-make clean   # Stop services, remove volumes, and optionally delete .env files
-``` 
+# Estado y logs
+docker-compose ps
+docker-compose logs -f [service]
+
+# Gestión de contenedores
+docker-compose up --build
+docker-compose down
+docker-compose restart
+
+# Limpieza
+docker-compose down --volumes --remove-orphans
+docker system prune -f
+```
+
+## 🔒 Variables de Entorno Críticas
+
+### Backend (.env)
+```bash
+# Requeridas
+OPENAI_API_KEY=sk-your-key-here
+MONGO_URI=mongodb://mongodb:27017/chatbot
+
+# Configuración
+PORT=8000
+HOST=0.0.0.0
+LOG_LEVEL=INFO
+```
+
+### Frontend (docker-compose.yml)
+```yaml
+environment:
+  - NEXT_PUBLIC_API_URL=http://backend:8000
+```
+
+## 📝 Mejores Prácticas Implementadas
+
+- ✅ **Multi-stage builds** preparados para producción
+- ✅ **Security**: Usuario no-root, variables de entorno
+- ✅ **Performance**: Cache de capas Docker optimizado
+- ✅ **Development**: Hot-reloading habilitado
+- ✅ **Production-ready**: Configuración preparada para deploy
+- ✅ **Documentation**: Guías completas y troubleshooting
+- ✅ **Cross-platform**: Scripts para Windows y Unix
+
+## 🔄 Próximos Pasos
+
+Para producción, considera:
+- Multi-stage Dockerfiles
+- Imágenes más ligeras (distroless)
+- Configuración de secrets
+- Health checks avanzados
+- Logging centralizado
+- Monitoring con Prometheus/Grafana

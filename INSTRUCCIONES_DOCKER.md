@@ -1,63 +1,172 @@
-# 🚀 Guía de Inicio Rápido con Docker (Entorno de Desarrollo)
+# 🚀 Guía Completa de Docker para Chatbot RAG
 
-Esta guía explica cómo configurar y ejecutar el proyecto Chatbot RAG en un entorno de desarrollo local utilizando Docker y Docker Compose.
-
-Este setup está optimizado para el desarrollo, con **hot-reloading** habilitado tanto para el backend como para el frontend. Esto significa que cualquier cambio que hagas en el código se reflejará automáticamente en los contenedores en ejecución sin necesidad de reconstruir las imágenes.
+Esta guía unificada explica cómo configurar y ejecutar el proyecto Chatbot RAG en un entorno de desarrollo local utilizando Docker y Docker Compose.
 
 ## ✅ Prerrequisitos
 
-- **Docker**: Asegúrate de tener Docker instalado y en ejecución en tu sistema.
-- **Docker Compose**: Generalmente viene incluido con Docker Desktop.
-- **Git**: Para clonar el repositorio.
+- **Docker Desktop**: Asegúrate de tener Docker Desktop instalado y ejecutándose
+- **Docker Compose**: Viene incluido con Docker Desktop
+- **Git**: Para clonar el repositorio
 
 ## ⚙️ Configuración Inicial
 
-Antes de levantar los servicios, necesitas configurar las variables de entorno.
+### 1. Clonar el repositorio
+```bash
+git clone [URL_DEL_REPO]
+cd [NOMBRE_DEL_PROYECTO]
+```
 
-1.  **Clonar el repositorio** (si aún no lo has hecho):
+### 2. Configurar variables de entorno
 
-    ```bash
-    git clone [URL_DEL_REPO]
-    cd [NOMBRE_DEL_PROYECTO]
-    ```
+**Backend:**
+```bash
+# Copiar archivo de ejemplo
+copy backend\.env.example backend\.env
+```
 
-2.  **Configurar el Backend**:
+Edita `backend/.env` y configura las variables críticas:
+- `OPENAI_API_KEY`: Tu clave de OpenAI
+- `MONGO_URI`: Ya configurado para Docker (mongodb://mongodb:27017/chatbot)
+- `PORT`: 8000 (consistente con Docker)
+- `HOST`: 0.0.0.0
 
-    - Navega a la carpeta `backend`.
-    - Copia el archivo de ejemplo `.env.example` a un nuevo archivo llamado `.env`.
-      ```bash
-      cp backend/.env.example backend/.env
-      ```
-    - Abre `backend/.env` y añade tus claves de API (como `OPENAI_API_KEY`) y cualquier otra configuración que necesites.
+**Frontend:**
+No requiere configuración adicional - la URL del backend se configura en `docker-compose.yml`.
 
-3.  **Configurar el Frontend**:
-    - El frontend no requiere un archivo `.env` para este setup de Docker, ya que la URL del backend se configura directamente en `docker-compose.yml`.
+## 🚀 Levantar el Entorno de Desarrollo
 
-## 🚀 Levantar el Entorno
-
-Una vez configurado, puedes iniciar todos los servicios con un solo comando desde la raíz del proyecto:
-
+### Comando principal:
 ```bash
 docker-compose up --build
 ```
 
-- `up`: Crea e inicia los contenedores.
-- `--build`: Fuerza la reconstrucción de las imágenes si los `Dockerfile` o los archivos de dependencias (`requirements.txt`, `package.json`) han cambiado.
+Este comando:
+- Construye las imágenes de backend y frontend
+- Inicia MongoDB, backend y frontend
+- Habilita hot-reloading para desarrollo
+- Monta volúmenes para cambios en tiempo real
 
-Verás los logs de todos los servicios (MongoDB, Backend, Frontend) en tu terminal.
+### Servicios disponibles:
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000
+- **API Docs**: http://localhost:8000/docs
+- **MongoDB**: localhost:27018 (desde host)
 
-## 🌐 Acceder a la Aplicación
+## 🏗️ Arquitectura de Servicios
 
-- **Frontend (Interfaz de Chat)**: http://localhost:3000
-- **Backend (API Docs)**: http://localhost:8000/docs
-- **Base de Datos (MongoDB)**: Accesible en el puerto `27018` desde tu máquina local.
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│                 │     │                 │     │                 │
+│   Frontend      │◄────┤    Backend       │◄────┤   MongoDB       │
+│  (Next.js:3000) │     │   (FastAPI:8000) │     │  (Port:27017)   │
+│                 │     │                 │     │                 │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+       ▲                        ▲                        ▲
+       │                        │                        │
+   localhost:3000         localhost:8000           localhost:27018
+```
 
-## 🛑 Detener el Entorno
+### Características del setup:
+- ✅ **Hot-reloading**: Cambios automáticos sin reconstruir
+- ✅ **Red dedicada**: Servicios se comunican por nombre
+- ✅ **Volúmenes persistentes**: Datos de MongoDB sobreviven restarts
+- ✅ **Dependencias**: Frontend espera al backend
+- ✅ **Variables de entorno**: Configuración externa
 
-Para detener todos los contenedores, presiona `Ctrl + C` en la terminal donde ejecutaste `docker-compose up`.
+## 🛑 Gestión del Entorno
 
-Si quieres detenerlos y eliminar los contenedores (pero no los volúmenes de datos), puedes ejecutar:
-
+### Detener servicios:
 ```bash
+# Solo detener (presiona Ctrl+C en terminal activa)
 docker-compose down
 ```
+
+### Limpiar completamente:
+```bash
+# Detener y eliminar contenedores + redes
+docker-compose down --volumes --remove-orphans
+
+# Limpiar imágenes no utilizadas
+docker system prune -f
+```
+
+### Reiniciar servicios:
+```bash
+# Reconstruir y reiniciar
+docker-compose up --build --force-recreate
+```
+
+## 🔧 Solución de Problemas
+
+### Problema: "El sistema no puede encontrar el archivo especificado" (.env)
+**Solución:** Copia el archivo de ejemplo:
+```bash
+copy backend\.env.example backend\.env
+```
+
+### Problema: "unexpected end of JSON input"
+**Solución:** Limpia imágenes corruptas:
+```bash
+docker system prune -a -f
+docker-compose up --build --no-cache
+```
+
+### Problema: Servicios no responden
+**Solución:** Verifica logs:
+```bash
+docker-compose logs [servicio]
+# Ejemplos:
+docker-compose logs backend
+docker-compose logs frontend
+docker-compose logs mongodb
+```
+
+### Problema: Cambios no se reflejan
+**Solución:** Los volúmenes están montados para hot-reloading. Si no funciona:
+```bash
+docker-compose restart frontend
+# o
+docker-compose restart backend
+```
+
+## 📊 Comandos Útiles
+
+```bash
+# Ver estado de servicios
+docker-compose ps
+
+# Ver logs en tiempo real
+docker-compose logs -f
+
+# Acceder a contenedor
+docker-compose exec backend bash
+docker-compose exec frontend sh
+
+# Ver uso de recursos
+docker stats
+
+# Inspeccionar redes
+docker network ls
+docker network inspect chatbot-network
+```
+
+## 🔒 Variables de Entorno Críticas
+
+Asegúrate de configurar estas variables en `backend/.env`:
+
+```bash
+# Requeridas
+OPENAI_API_KEY=sk-your-key-here
+MONGO_URI=mongodb://mongodb:27017/chatbot
+
+# Opcionales pero recomendadas
+LOG_LEVEL=INFO
+DEBUG=True
+```
+
+## 📝 Notas de Desarrollo
+
+- El setup está optimizado para desarrollo con hot-reloading
+- Para producción, necesitarías ajustar los Dockerfiles y comandos
+- Los datos de MongoDB persisten en volúmenes nombrados
+- El frontend se comunica con el backend usando el nombre del servicio (`http://backend:8000`)

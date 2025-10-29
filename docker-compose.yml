@@ -18,8 +18,6 @@ services:
     restart: unless-stopped
     depends_on:
       - mongodb
-    env_file:
-      - backend/.env
     environment:
       - MONGO_URI=mongodb://mongodb:27017/chatbot
       - HOST=0.0.0.0
@@ -32,7 +30,7 @@ services:
     networks:
       - chatbot-network
     # Comando para iniciar el servidor en modo de desarrollo con recarga automática
-    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
   frontend:
     build:
@@ -43,7 +41,7 @@ services:
     depends_on:
       - backend
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_API_URL=http://backend:8000
     ports:
       - "3000:3000"
     volumes:
@@ -53,8 +51,6 @@ services:
       - /app/node_modules
     networks:
       - chatbot-network
-    # Comando para iniciar el servidor de desarrollo de Next.js
-    command: npm run dev
 
 networks:
   chatbot-network:
