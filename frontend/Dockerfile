@@ -1,44 +1,16 @@
-# Build stage
-FROM node:20-alpine AS build
+# Usa una imagen base de Node.js ligera (alpine)
+FROM node:20-alpine
 
+# Establece el directorio de trabajo dentro del contenedor
 WORKDIR /app
 
-# Copy package files
+# Copia los archivos de definición de paquetes para instalar dependencias
+# Esto aprovecha el cache de capas de Docker
 COPY package.json ./
+COPY package-lock.json ./
 
-# Install dependencies
+# Instala las dependencias de npm
 RUN npm install
 
-# Copy rest of the application code
-COPY . .
-
-# Set environment variable to disable ESLint during build
-ENV NEXT_DISABLE_ESLINT=1
-
-# Build the Next.js application
-RUN npm run build
-
-# Production stage
-FROM node:20-alpine AS production
-
-WORKDIR /app
-
-# Set environment variables
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-
-# Install wget for health checks
-RUN apk add --no-cache wget
-
-# Copy build output and necessary files from build stage
-COPY --from=build /app/.next ./.next
-COPY --from=build /app/public ./public
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/package.json ./package.json
-COPY --from=build /app/next.config.js ./next.config.js
-
-# Expose port
+# Expone el puerto de desarrollo de Next.js
 EXPOSE 3000
-
-# Start the application
-CMD ["npm", "start"]

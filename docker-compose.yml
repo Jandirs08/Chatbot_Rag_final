@@ -1,7 +1,7 @@
 services:
   mongodb:
     image: mongo:latest
-    container_name: chatbot-mongodb
+    container_name: chatbot-mongodb-dev
     restart: unless-stopped
     ports:
       - "27018:27017"
@@ -9,58 +9,52 @@ services:
       - mongodb_data:/data/db
     networks:
       - chatbot-network
-    healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
 
   backend:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
-    container_name: chatbot-backend
+    container_name: chatbot-backend-dev
     restart: unless-stopped
     depends_on:
-      mongodb:
-        condition: service_healthy
+      - mongodb
     env_file:
       - backend/.env
     environment:
       - MONGO_URI=mongodb://mongodb:27017/chatbot
+      - HOST=0.0.0.0
+      - PORT=8000
     ports:
-      - "8080:8080"
+      - "8000:8000"
+    volumes:
+      # Sincroniza el código local con el contenedor para hot-reloading
+      - ./backend:/app
     networks:
       - chatbot-network
-    healthcheck:
-      test: ["CMD", "python", "-c", "import http.client; conn = http.client.HTTPConnection('localhost:8080'); conn.request('GET', '/health'); response = conn.getresponse(); exit(0 if response.status == 200 else 1)"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+    # Comando para iniciar el servidor en modo de desarrollo con recarga automática
+    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: chatbot-frontend
+    container_name: chatbot-frontend-dev
     restart: unless-stopped
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend
     environment:
-      - NEXT_PUBLIC_API_URL=http://backend:8080
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
     ports:
       - "3000:3000"
+    volumes:
+      # Sincroniza el código local con el contenedor para hot-reloading
+      - ./frontend:/app
+      # Volumen anónimo para evitar que la carpeta local node_modules sobreescriba la del contenedor
+      - /app/node_modules
     networks:
       - chatbot-network
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+    # Comando para iniciar el servidor de desarrollo de Next.js
+    command: npm run dev
 
 networks:
   chatbot-network:
