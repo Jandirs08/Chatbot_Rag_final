@@ -1,7 +1,7 @@
 """Health check routes for the API."""
 from fastapi import APIRouter, status
-from ....config import get_settings
-from ....api.schemas.health import HealthResponse
+from config import get_settings
+from api.schemas.health import HealthResponse
 
 router = APIRouter()
 
@@ -13,4 +13,4 @@ async def health_check():
         status="ok",
         version=settings.app_version,
         environment=settings.environment
-    ) 
+    )

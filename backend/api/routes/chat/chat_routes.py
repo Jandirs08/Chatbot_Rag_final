@@ -9,13 +9,13 @@ from io import BytesIO
 from datetime import datetime
 
 # Importar modelos Pydantic desde el módulo centralizado
-from ...schemas import (
+from api.schemas import (
     ChatRequest,
     StreamEventData,
     ClearHistoryResponse
 )
 
-from ....database.mongodb import MongodbClient
+from database.mongodb import MongodbClient
 
 # from ..chat.manager import ChatManager # Se inyectará desde el estado de la app
 # from ..rag.retrieval.retriever import RAGRetriever # Se inyectará desde el estado de la app
@@ -222,4 +222,4 @@ async def get_stats(request: Request):
         
     except Exception as e:
         logger.error(f"Error al obtener estadísticas: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error al obtener estadísticas: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"Error al obtener estadísticas: {str(e)}")

@@ -41,7 +41,13 @@ services:
     depends_on:
       - backend
     environment:
-      - NEXT_PUBLIC_API_URL=http://backend:8000
+      # URLs públicas usadas por el código del cliente (Next.js)
+      # apiBaseUrl se usa en ChatWindow.tsx y espera host:puerto sin /api/v1
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+      # API_URL se usa en diversos servicios y espera incluir /api/v1
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+      # BACKEND_URL se usa en ragService y también espera incluir /api/v1
+      - NEXT_PUBLIC_BACKEND_URL=http://localhost:8000/api/v1
     ports:
       - "3000:3000"
     volumes:

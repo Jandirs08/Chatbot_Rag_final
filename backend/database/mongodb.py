@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorClient
 import logging
 
-from ..config import get_settings, Settings
+from config import get_settings, Settings
 
 logger = logging.getLogger(__name__)
 
@@ -95,4 +95,4 @@ class MongodbClient:
             self.client.close()
             logger.info("Conexión a MongoDB cerrada")
         except Exception as e:
-            logger.error(f"Error cerrando conexión a MongoDB: {str(e)}") 
+            logger.error(f"Error cerrando conexión a MongoDB: {str(e)}")

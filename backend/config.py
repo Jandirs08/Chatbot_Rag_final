@@ -12,6 +12,12 @@ load_dotenv(env_path)
 
 class Settings(BaseSettings):
     """Configuraciones de la aplicación."""
+    # Pydantic v2 / pydantic-settings config
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=False,
+        extra="ignore"
+    )
     
     # Configuraciones del Servidor
     host: str = Field(default="0.0.0.0", env="HOST")
@@ -116,9 +122,7 @@ class Settings(BaseSettings):
     # Configuración personalizada para cantidad máxima de documentos recuperados
     max_documents: int = Field(default=5, env="MAX_DOCUMENTS")
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
+    # Nota: Config ya no aplica en Pydantic v2; usamos model_config arriba.
 
     @validator("environment")
     def validate_environment(cls, v):

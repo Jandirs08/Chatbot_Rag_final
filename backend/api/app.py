@@ -6,10 +6,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from ..config import get_settings, settings
-from ..chat.manager import ChatManager
-from ..rag.retrieval.retriever import RAGRetriever
-from ..storage.documents import PDFManager
+from config import get_settings, settings
+from chat.manager import ChatManager
+from rag.retrieval.retriever import RAGRetriever
+from storage.documents import PDFManager
 
 # Importar Routers
 from .routes.health.health_routes import router as health_router
@@ -19,12 +19,12 @@ from .routes.chat.chat_routes import router as chat_router
 from .routes.bot.bot_routes import router as bot_router
 
 # Dependencias para inicializar managers
-from ..core.bot import Bot
-from ..memory import MemoryTypes
-from ..rag.pdf_processor.pdf_loader import PDFContentLoader
-from ..rag.embeddings.embedding_manager import EmbeddingManager
-from ..rag.vector_store.vector_store import VectorStore
-from ..rag.ingestion.ingestor import RAGIngestor
+from core.bot import Bot
+from memory import MemoryTypes
+from rag.pdf_processor.pdf_loader import PDFContentLoader
+from rag.embeddings.embedding_manager import EmbeddingManager
+from rag.vector_store.vector_store import VectorStore
+from rag.ingestion.ingestor import RAGIngestor
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

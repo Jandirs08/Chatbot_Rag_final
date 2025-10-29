@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Request, Backgro
 from typing import List
 
 # Importar modelos Pydantic desde el módulo centralizado
-from ...schemas import (
+from api.schemas import (
     PDFListResponse, 
     PDFUploadResponse, 
     PDFDeleteResponse,
@@ -120,4 +120,4 @@ async def delete_pdf(
         raise HTTPException(
             status_code=500,
             detail=f"Error interno del servidor al eliminar PDF: {str(e)}"
-        ) 
+        )

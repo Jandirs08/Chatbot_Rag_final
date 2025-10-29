@@ -14,7 +14,7 @@ import uuid
 
 from langchain_core.documents import Document
 from langchain_community.vectorstores import Chroma
-from ...config import settings
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -659,4 +659,4 @@ class VectorStore:
             if hasattr(self, 'store'):
                 pass
         except Exception as e:
-            logger.error(f"Error en limpieza de VectorStore: {str(e)}") 
+            logger.error(f"Error en limpieza de VectorStore: {str(e)}")

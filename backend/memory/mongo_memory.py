@@ -3,7 +3,7 @@ from typing import Optional
 from langchain_community.chat_message_histories.mongodb import MongoDBChatMessageHistory
 
 from .base_memory import BaseChatbotMemory
-from ..config import Settings, get_settings
+from config import Settings, get_settings
 
 logger = logging.getLogger(__name__)
 

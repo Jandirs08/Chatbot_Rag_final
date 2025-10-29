@@ -19,7 +19,7 @@ from langchain_huggingface import HuggingFaceEmbeddings # Puede ser necesario pa
 # from ...utils.pdf_utils import PDFProcessor # Eliminado, ya no se usa aquí
 # from ..embeddings.embedding_manager import EmbeddingManager # Necesario si se inicializa aquí explícitamente
 from ..vector_store.vector_store import VectorStore
-from ...config import settings
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -480,4 +480,4 @@ class RAGRetriever:
 # retriever = RAGRetriever(vector_store=vector_store_instance, embedding_manager=embedding_mgr)
 # resultados_busqueda = await retriever.retrieve_documents("mi consulta")
 # contexto_formateado = retriever.format_context_from_documents(resultados_busqueda)
-# print(contexto_formateado) 
+# print(contexto_formateado)

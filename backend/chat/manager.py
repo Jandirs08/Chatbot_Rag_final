@@ -6,12 +6,12 @@ from functools import partial
 import logging
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
-from ..config import settings
-from ..database.mongodb import MongodbClient
-from ..common.constants import USER_ROLE, ASSISTANT_ROLE
-from ..common.objects import Message as BotMessage
-from ..rag.retrieval.retriever import RAGRetriever
-from ..core.bot import Bot
+from config import settings
+from database.mongodb import MongodbClient
+from common.constants import USER_ROLE, ASSISTANT_ROLE
+from common.objects import Message as BotMessage
+from rag.retrieval.retriever import RAGRetriever
+from core.bot import Bot
 
 logger = logging.getLogger(__name__)
 

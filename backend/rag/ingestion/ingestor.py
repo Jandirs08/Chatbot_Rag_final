@@ -8,11 +8,11 @@ from concurrent.futures import ThreadPoolExecutor
 
 from langchain_core.documents import Document
 
-from ...storage.documents import PDFManager
+from storage.documents import PDFManager
 from ..pdf_processor.pdf_loader import PDFContentLoader
 from ..embeddings.embedding_manager import EmbeddingManager
 from ..vector_store.vector_store import VectorStore
-from ...config import settings
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -306,4 +306,4 @@ class RAGIngestor:
     # vector_db = VectorStore(persist_directory=Path("ruta/a/tu/vector_store"), embedding_function=embedding_mgr.get_embedding_model())
     # ingestor = RAGIngestor(pdf_manager, content_loader, embedding_mgr, vector_db)
     # resultados_ingesta = ingestor.ingest_pdfs_from_directory()
-    # print(resultados_ingesta) 
+    # print(resultados_ingesta)

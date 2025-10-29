@@ -5,7 +5,7 @@ from langchain.globals import set_llm_cache
 import redis
 import logging
 import time
-from ..config import Settings, get_settings
+from config import Settings, get_settings
 
 class CacheTypes(str, Enum):
     """Tipos de caché disponibles."""

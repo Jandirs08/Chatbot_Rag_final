@@ -19,8 +19,8 @@ else:
     print(f"Archivo .env no encontrado en: {env_path}. Asegúrate de que las variables de entorno están configuradas externamente si es necesario.")
 
 # Importar create_app después de cargar .env, ya que config.py podría usar las variables.
-from backend.api.app import create_app # Importar create_app desde la nueva ubicación centralizada
-from backend.config import settings # settings puede seguir siendo útil aquí para uvicorn
+from api.app import create_app  # Importar desde paquete raíz dentro de /app en Docker
+from config import settings  # Ajuste de import para entorno Docker
 
 # La configuración de logging, la verificación de API key y el registro de routers
 # se han movido a api/app.py dentro de create_app().

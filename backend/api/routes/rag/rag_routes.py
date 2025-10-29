@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Request
 # from ..rag.retrieval.retriever import RAGRetriever # Se inyectará desde el estado de la app
 
 # Importar modelos Pydantic desde el módulo centralizado
-from ...schemas import (
+from api.schemas import (
     RAGStatusResponse,
     ClearRAGResponse,
     RAGStatusPDFDetail,
@@ -82,4 +82,4 @@ async def clear_rag(request: Request):
         )
     except Exception as e:
         logger.error(f"Error al limpiar RAG: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor al limpiar RAG: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"Error interno del servidor al limpiar RAG: {str(e)}")

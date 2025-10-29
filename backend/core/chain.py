@@ -10,9 +10,9 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableLambda, Runnable
 # from langchain_core.tracers.context import wait_for_all_tracers # COMMENTED OUT
 
-from ..common.objects import Message
-from ..models import ModelTypes, MODEL_TO_CLASS
-from ..config import Settings, get_settings
+from common.objects import Message
+from models import ModelTypes, MODEL_TO_CLASS
+from config import Settings, get_settings
 from . import prompt as prompt_module
 
 import logging
