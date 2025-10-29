@@ -190,8 +190,7 @@ class Bot:
             "streaming": True,
         }
 
-    def reset_history(self, conversation_id: str):
-        self.memory.clear(conversation_id=conversation_id)
+    # reset_history eliminado: no se gestiona limpieza explícita de memoria por conversación
 
     def clear_cache(self):
         """Limpia el caché del bot."""

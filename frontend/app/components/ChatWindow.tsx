@@ -25,7 +25,7 @@ import {
   Text,
   Button,
 } from "@chakra-ui/react";
-import { ArrowUpIcon, DeleteIcon } from "@chakra-ui/icons";
+import { ArrowUpIcon } from "@chakra-ui/icons";
 import { Source } from "./SourceBubble";
 import { apiBaseUrl } from "../utils/constants";
 
@@ -219,25 +219,7 @@ export function ChatWindow(props: {
     await sendMessage(question);
   };
 
-  const clearConversation = async () => {
-    try {
-      const response = await fetch(`${apiBaseUrl}/clear/${conversationId}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        credentials: "include",
-      });
-      if (response.ok) {
-        setMessages([]);
-      } else {
-        console.error("Error al limpiar conversación:", await response.text());
-      }
-    } catch (error) {
-      console.error("Error limpiando conversación:", error);
-    }
-  };
+  // Limpieza de conversación eliminada: la sesión se pierde al refrescar pantalla
 
   return (
     <div className="flex flex-col h-full w-full bg-gradient-to-b from-gray-900 to-gray-800 p-4">
@@ -246,14 +228,7 @@ export function ChatWindow(props: {
         <Heading fontSize={["3xl", "4xl", "5xl"]} fontWeight={"medium"} mb={1}>
           {/* {titleText} */}
         </Heading>
-        {memoizedMessages.length > 0 && (
-          <IconButton
-            icon={<DeleteIcon />}
-            aria-label="Clear Conversation"
-            onClick={clearConversation}
-            colorScheme="whiteAlpha"
-          />
-        )}
+        {/* Botón de limpiar conversación eliminado, no se requiere persistencia */}
       </Flex>
 
       {/* Scrollable Content Area */}

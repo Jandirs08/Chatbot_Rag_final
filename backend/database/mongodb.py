@@ -59,13 +59,7 @@ class MongodbClient:
         except Exception as e:
             logger.error(f"Error al agregar mensaje: {str(e)}")
 
-    async def clear_conversation_history(self, conversation_id: str) -> None:
-        """Clear conversation history."""
-        try:
-            await self.messages.delete_many({"conversation_id": conversation_id})
-            logger.info(f"Historial de conversación {conversation_id} limpiado")
-        except Exception as e:
-            logger.error(f"Error al limpiar historial: {str(e)}")
+    # Método de limpiar historial eliminado: no requerido por la aplicación
     
     async def format_history(self, conversation_id: str) -> str:
         """Format the chat history for use in prompts.

@@ -87,12 +87,7 @@ class ChatManager:
             logger.error(f"Error generando respuesta en ChatManager: {str(e)}", exc_info=True)
             return f"Lo siento, hubo un error al procesar tu solicitud: {str(e)}"
 
-    async def clear_history(self, conversation_id: str) -> None:
-        await self.db.clear_conversation_history(conversation_id)
-        if hasattr(self.bot, 'reset_history'):
-            self.bot.reset_history(conversation_id=conversation_id)
-            logger.info(f"Memoria del Bot también limpiada para conversación {conversation_id}")
-        logger.info(f"Historial de conversación {conversation_id} limpiado en la base de datos.")
+    # Método de limpiar historial eliminado: la UI no requiere persistencia
     
     async def close(self) -> None:
         await self.db.close()

@@ -467,17 +467,4 @@ class RAGRetriever:
     #     # Si la limpieza del VectorStore se hace a través de RAGIngestor o un script separado,
     #     # este método podría no ser necesario o tener un propósito diferente.
     #     # Por ejemplo, si RAGRetriever tuviera algún caché interno:
-    #     # if self.vector_store is not None and hasattr(self.vector_store, 'clear_cache'):
-    #     #     self.vector_store.clear_cache()
-    #     logger.info("RAGRetriever no tiene estado interno que limpiar en esta versión.")
-
-# Ejemplo de instanciación (no va aquí):
-# from ..vector_store.chroma_vector_store import ChromaVectorStore # Ejemplo de implementación concreta
-# settings_instance = Settings()
-# embedding_mgr = EmbeddingManager(model_name=settings_instance.embedding_model)
-# vector_db_path = Path("ruta/a/tu/vector_store")
-# vector_store_instance = ChromaVectorStore(persist_directory=vector_db_path, embedding_function=embedding_mgr.get_embedding_model())
-# retriever = RAGRetriever(vector_store=vector_store_instance, embedding_manager=embedding_mgr)
-# resultados_busqueda = await retriever.retrieve_documents("mi consulta")
-# contexto_formateado = retriever.format_context_from_documents(resultados_busqueda)
-# print(contexto_formateado)
+        logger.info("RAGRetriever no tiene estado interno que limpiar en esta versión.")

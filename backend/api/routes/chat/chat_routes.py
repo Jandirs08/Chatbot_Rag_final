@@ -12,8 +12,7 @@ from datetime import datetime
 # Importar modelos Pydantic desde el módulo centralizado
 from api.schemas import (
     ChatRequest,
-    StreamEventData,
-    ClearHistoryResponse
+    StreamEventData
 )
 
 from database.mongodb import MongodbClient
@@ -97,25 +96,7 @@ async def chat_stream_log(request: Request):
             content={"detail": f"Error interno del servidor en chat: {str(e)}"}
         )
 
-@router.post("/clear/{conversation_id}", response_model=ClearHistoryResponse)
-async def clear_history(request: Request, conversation_id: str):
-    """Endpoint para limpiar el historial de una conversación."""
-    chat_manager = request.app.state.chat_manager
-    try:
-        if hasattr(chat_manager, 'db') and hasattr(chat_manager.db, 'clear_conversation'):
-            await chat_manager.db.clear_conversation(conversation_id)
-            return ClearHistoryResponse(message="Historial limpiado exitosamente")
-        else:
-            # No-op en desarrollo si la operación no está disponible
-            env = getattr(request.app.state.settings, 'environment', 'development')
-            if env == 'development':
-                logger.warning("clear_history no disponible en este entorno; devolviendo no-op.")
-                return ClearHistoryResponse(message="Operación no disponible en este entorno (no-op)")
-            logger.error("Error: chat_manager.db o clear_conversation no están disponibles.")
-            raise HTTPException(status_code=501, detail="Operación no implementada")
-    except Exception as e:
-        logger.error(f"Error al limpiar historial '{conversation_id}': {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor al limpiar historial: {str(e)}")
+# Endpoint de limpiar historial eliminado: la app no persiste historial en UI
 
 @router.get("/export-conversations")
 async def export_conversations(request: Request):

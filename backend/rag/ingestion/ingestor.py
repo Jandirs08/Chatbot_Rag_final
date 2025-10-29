@@ -296,14 +296,3 @@ class RAGIngestor:
         except Exception as ex:
             logger.error(f"Unexpected error during vector_store.add_documents for batch {batch_number}: {ex}", exc_info=True)
             raise ex # Re-lanzar la excepción principal si ocurre un error no manejado aquí
-
-    # Ejemplo de cómo se instanciaría (no va aquí):
-    # from ...config import Settings
-    # settings_instance = Settings()
-    # pdf_manager = PDFFileManager(base_dir=Path("ruta/a/tu/proyecto")) # Ajustar base_dir
-    # content_loader = PDFContentLoader(chunk_size=settings_instance.chunk_size, chunk_overlap=settings_instance.chunk_overlap)
-    # embedding_mgr = EmbeddingManager(model_name=settings_instance.embedding_model)
-    # vector_db = VectorStore(persist_directory=Path("ruta/a/tu/vector_store"), embedding_function=embedding_mgr.get_embedding_model())
-    # ingestor = RAGIngestor(pdf_manager, content_loader, embedding_mgr, vector_db)
-    # resultados_ingesta = ingestor.ingest_pdfs_from_directory()
-    # print(resultados_ingesta)
