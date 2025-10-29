@@ -1,12 +1,15 @@
 """FastAPI application for the chatbot."""
 import logging
+from utils.logging_utils import get_logger
 import time
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from starlette.responses import JSONResponse
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from config import get_settings, settings
+from config import settings
 from chat.manager import ChatManager
 from rag.retrieval.retriever import RAGRetriever
 from storage.documents import PDFManager
@@ -29,11 +32,11 @@ from rag.ingestion.ingestor import RAGIngestor
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan context manager for setup and teardown."""
-    logger = logging.getLogger(__name__)
+    logger = get_logger(__name__)
     logger.info("Iniciando aplicación y configurando recursos...")
     
     try:
-        s = get_settings()
+        s = settings
         app.state.settings = s
 
         # Inicializar componentes
@@ -76,7 +79,7 @@ async def lifespan(app: FastAPI):
                 logger.warning(f"Tipo de memoria '{s.memory_type}' no válido en settings. Usando BASE_MEMORY.")
 
         app.state.bot_instance = Bot(
-            settings=settings,
+            settings=s,
             memory_type=bot_memory_type,
             memory_kwargs={"conversation_id": "default_session"},
             cache=None
@@ -152,7 +155,7 @@ def create_app() -> FastAPI:
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
-    main_logger = logging.getLogger(__name__)
+    main_logger = get_logger(__name__)
     main_logger.info("Creando instancia de FastAPI...")
 
     if settings.model_type == "OPENAI" and not settings.openai_api_key:
@@ -189,7 +192,7 @@ def create_app() -> FastAPI:
         
         return response
 
-    # Configurar CORS
+    # Configurar CORS (restrictivo por defecto en desarrollo)
     cors_origins_setting = settings.cors_origins
     if cors_origins_setting:
         allow_origins_list = []
@@ -202,6 +205,10 @@ def create_app() -> FastAPI:
             allow_origins_list = ["*"]
     else:
         allow_origins_list = ["*"]
+
+    # En desarrollo, si está en abierto, restringir por defecto a localhost:3000
+    if settings.environment == "development" and allow_origins_list == ["*"]:
+        allow_origins_list = ["http://localhost:3000"]
             
     app.add_middleware(
         CORSMiddleware,
@@ -211,6 +218,22 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     main_logger.info(f"CORS configurado para orígenes: {allow_origins_list}")
+
+    # Handlers globales de excepciones
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+        main_logger.error(f"Error de validación: {exc}")
+        return JSONResponse(status_code=422, content={"detail": "Solicitud inválida", "errors": exc.errors()})
+
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request: Request, exc: HTTPException):
+        main_logger.error(f"HTTPException: {exc.detail}")
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(request: Request, exc: Exception):
+        main_logger.error(f"Error no controlado: {exc}", exc_info=True)
+        return JSONResponse(status_code=500, content={"detail": "Error interno del servidor"})
 
     # Registrar routers
     app.include_router(health_router, prefix="/api/v1", tags=["health"])

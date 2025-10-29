@@ -4,6 +4,7 @@ import os
 import asyncio
 from functools import partial
 import logging
+from utils.logging_utils import get_logger
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from config import settings
@@ -13,7 +14,7 @@ from common.objects import Message as BotMessage
 from rag.retrieval.retriever import RAGRetriever
 from core.bot import Bot
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class ChatManager:
     """Manager for chat interactions with LLMs."""

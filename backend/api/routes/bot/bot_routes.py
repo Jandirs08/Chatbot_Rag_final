@@ -1,9 +1,10 @@
 """API routes for bot state management."""
 import logging
+from utils.logging_utils import get_logger
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 router = APIRouter(tags=["bot"])
 
 class BotStateResponse(BaseModel):
@@ -42,4 +43,4 @@ async def toggle_bot_state(request: Request):
         raise HTTPException(
             status_code=500,
             detail=f"Error interno del servidor al cambiar estado del bot: {str(e)}"
-        ) 
+        )

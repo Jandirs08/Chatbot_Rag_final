@@ -5,7 +5,7 @@ from langchain.globals import set_llm_cache
 import redis
 import logging
 import time
-from config import Settings, get_settings
+from config import Settings, settings as app_settings
 
 class CacheTypes(str, Enum):
     """Tipos de caché disponibles."""
@@ -133,7 +133,7 @@ class ChatbotCache:
         Returns:
             Instancia de ChatbotCache
         """
-        effective_settings = settings if settings is not None else get_settings()
+        effective_settings = settings if settings is not None else app_settings
         return ChatbotCache(settings=effective_settings, cache_type=cache_type, **kwargs)
 
     def clear_cache(self):

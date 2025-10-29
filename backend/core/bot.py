@@ -26,7 +26,8 @@ from common.constants import *
 from .chain import ChainManager
 from . import prompt as prompt_module
 from utils import CacheTypes, ChatbotCache
-from config import Settings, get_settings
+from utils.logging_utils import get_logger
+from config import Settings, settings as app_settings
 
 
 class Bot:
@@ -38,8 +39,8 @@ class Bot:
             cache: Optional[CacheTypes] = None,
             model_type: Optional[ModelTypes] = None
     ):
-        self.settings = settings if settings is not None else get_settings()
-        self.logger = logging.getLogger(self.__class__.__name__)
+        self.settings = settings if settings is not None else app_settings
+        self.logger = get_logger(self.__class__.__name__)
         
         # Initialize cache
         self._cache = ChatbotCache.create(
@@ -321,12 +322,7 @@ class Bot:
                 role=self.settings.ai_prefix
             )
 
-    def call(self, input_data: dict) -> Message:
-        sentence = input_data.get("input") or input_data.get("sentence")
-        if not sentence:
-            raise ValueError("El diccionario de entrada debe contener la clave 'input' o 'sentence'.")
-        conversation_id = input_data.get("conversation_id")
-        return self.predict(sentence=sentence, conversation_id=conversation_id)
+
 
     def _format_history_to_string(self, history: List[Dict[str, Any]]) -> str:
         """Formatea el historial de mensajes a una cadena de texto."""

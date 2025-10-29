@@ -1,5 +1,6 @@
 """API routes for chat management."""
 import logging
+from utils.logging_utils import get_logger
 import uuid
 import json
 from fastapi import APIRouter, HTTPException, Request
@@ -20,7 +21,7 @@ from database.mongodb import MongodbClient
 # from ..chat.manager import ChatManager # Se inyectará desde el estado de la app
 # from ..rag.retrieval.retriever import RAGRetriever # Se inyectará desde el estado de la app
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 router = APIRouter()
 
 @router.post("/stream_log")
@@ -36,7 +37,11 @@ async def chat_stream_log(request: Request):
                 detail="El bot está desactivado actualmente"
             )
             
-        data = await request.json()
+        try:
+            data = await request.json()
+        except Exception as json_error:
+            logger.error(f"JSON malformado en chat_stream_log: {json_error}")
+            raise HTTPException(status_code=400, detail="JSON malformado en la solicitud")
         try:
             chat_input = ChatRequest(**data)
         except Exception as pydantic_error:
@@ -101,8 +106,13 @@ async def clear_history(request: Request, conversation_id: str):
             await chat_manager.db.clear_conversation(conversation_id)
             return ClearHistoryResponse(message="Historial limpiado exitosamente")
         else:
+            # No-op en desarrollo si la operación no está disponible
+            env = getattr(request.app.state.settings, 'environment', 'development')
+            if env == 'development':
+                logger.warning("clear_history no disponible en este entorno; devolviendo no-op.")
+                return ClearHistoryResponse(message="Operación no disponible en este entorno (no-op)")
             logger.error("Error: chat_manager.db o clear_conversation no están disponibles.")
-            raise HTTPException(status_code=500, detail="Error interno del servidor: Configuración de base de datos incorrecta.")
+            raise HTTPException(status_code=501, detail="Operación no implementada")
     except Exception as e:
         logger.error(f"Error al limpiar historial '{conversation_id}': {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error interno del servidor al limpiar historial: {str(e)}")

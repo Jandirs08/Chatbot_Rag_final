@@ -12,7 +12,7 @@ from langchain_core.runnables import RunnableLambda, Runnable
 
 from common.objects import Message
 from models import ModelTypes, MODEL_TO_CLASS
-from config import Settings, get_settings
+from config import Settings, settings as app_settings
 from . import prompt as prompt_module
 
 import logging
@@ -29,7 +29,7 @@ class ChainManager:
             custom_bot_personality_str: Optional[str] = None,
             model_kwargs_override: Optional[dict] = None
     ):
-        self.settings = settings if settings is not None else get_settings()
+        self.settings = settings if settings is not None else app_settings
         self.logger = logging.getLogger(self.__class__.__name__)
 
         # Validar que todos los componentes del prompt estén disponibles

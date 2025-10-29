@@ -4,14 +4,14 @@ from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorClient
 import logging
 
-from config import get_settings, Settings
+from config import Settings, settings as app_settings
 
 logger = logging.getLogger(__name__)
 
 class MongodbClient:
     """MongoDB client for chat history."""
     
-    def __init__(self, settings: Settings = get_settings()):
+    def __init__(self, settings: Settings = app_settings):
         """Initialize MongoDB client."""
         self.settings = settings
         try:
