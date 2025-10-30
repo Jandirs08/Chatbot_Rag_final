@@ -1,0 +1,203 @@
+# Reporte de Auditoría de Frontend
+
+Este documento detalla hallazgos y acciones para reducir tiempos de compilación en desarrollo y mejorar el rendimiento de carga en producción. Se priorizan cambios de alto impacto, especialmente en las rutas `/chat`, `/widget` y `/Documents`.
+
+## Resumen Ejecutivo
+
+- Principales causas del tamaño de bundle y compilación lenta:
+  - Uso simultáneo de dos kits de UI: Chakra UI (solo en `/chat`) y shadcn/radix + Tailwind (en el resto). Esta mezcla incrementa módulos y coste de estilos.
+  - Importaciones pesadas no utilizadas en `/chat`: `marked`, `highlight.js` y su CSS, `fast-json-patch`, además de `react-toastify`.
+  - Componentes completamente cliente (CSR) con evaluación grande en dev (especialmente `ChatWindow` y `DocumentManagement`).
+  - Toasters duplicados: `sonner` en `app/layout.tsx`, shadcn `Toaster` en `RootLayoutClient.tsx` y `react-toastify` en `/chat`.
+- Acciones inmediatas con mayor ROI:
+  - Eliminar dependencias no usadas de `/chat`.
+  - Unificar librería de notificaciones y remover `react-toastify`.
+  - Retirar Chakra UI de `/chat` y alinear todo con shadcn/Tailwind.
+  - Aplicar importaciones dinámicas en módulos de SSE y paneles de debug.
+
+## Análisis por Ruta
+
+### `/chat`
+- Archivos clave: `frontend/app/chat/page.tsx`, `frontend/app/components/ChatWindow.tsx`, `ChatMessageBubble.tsx`, `EmptyState.tsx`.
+- Importaciones pesadas detectadas:
+  - `@chakra-ui/react` y `ChakraProvider`.
+  - `marked`, `Renderer`, `highlight.js` y `highlight.js/styles/gradient-dark.css`.
+  - `react-toastify` y su CSS.
+  - `fast-json-patch` (`applyPatch`) importado pero no utilizado.
+  - `@microsoft/fetch-event-source` (SSE) — correcto, pero recomendable cargarlo bajo demanda.
+- Observación clave: El render actual de mensajes es texto plano; no se usa Markdown ni highlighting. Importaciones de `marked`/`hljs` son eliminables de inmediato.
+- Mezcla de UI frameworks: Chakra en `/chat` versus shadcn en el resto.
+
+### `/widget`
+- Archivos: `frontend/app/widget/page.tsx`, `frontend/app/components/WidgetPreview.tsx`.
+- Importaciones: shadcn UI (`card`, `button`, `input`, `label`), `lucide-react`, `useToast`.
+- Sin librerías pesadas externas. El mayor coste proviene de la evaluación en dev y de la infraestructura UI global.
+
+### `/Documents`
+- Archivos: `frontend/app/Documents/page.tsx`, `frontend/app/components/DocumentManagement.tsx`.
+- Importaciones: shadcn UI (`card`, `table`, `dialog`, `skeleton`, `progress`), `lucide-react`, `PDFService`.
+- El modal de preview usa `iframe` (sin viewer pesado). El coste viene del tamaño del componente y su evaluación en dev.
+
+## Bundle y Módulos: Causas del conteo elevado (~2700)
+
+- Mezcla de librerías UI: Chakra + shadcn/radix + Tailwind.
+- Importaciones no usadas en `/chat`: `marked`, `Renderer`, `highlight.js` + CSS, `fast-json-patch`.
+- Toasters duplicados: `sonner` (layout) + shadcn `Toaster` (RootLayoutClient) + `react-toastify` (chat).
+
+Eliminar estas importaciones y unificar UI/toasts reduce significativamente módulos y recompilaciones en dev.
+
+## Importaciones Dinámicas: Recomendaciones
+
+- `/chat`:
+  - Quitar `marked`, `Renderer`, `highlight.js` y su CSS si no se usan.
+  - Cargar `fetchEventSource` dinámicamente al enviar el primer mensaje:
+    ```ts
+    const { fetchEventSource } = await import('@microsoft/fetch-event-source');
+    ```
+  - Extraer `DebugPanel` a un componente independiente y cargarlo bajo demanda:
+    ```ts
+    const DebugPanel = dynamic(() => import('./DebugPanel'), { ssr: false });
+    ```
+  - Si se requiere Markdown en el futuro, usar `react-markdown` con `rehype-highlight` bajo demanda.
+- `/Documents`:
+  - Cargar el `Dialog` de preview de manera diferida: crear `PDFPreview` y cargarlo con `dynamic()`.
+  - Opcional: separar `DocumentTable` para dividir coste de evaluación.
+
+## Optimización de Data Fetching
+
+- `/chat`:
+  - Mantener SSE, pero cargar el módulo `fetchEventSource` on-demand.
+  - Encapsular en un hook `useChatStream` para separar lógica y habilitar code splitting.
+- `/Documents`:
+  - Usar `SWR` para listar PDFs: cache, revalidación y `mutate` tras subir/eliminar sin recargar todo.
+- `Dashboard` (`frontend/app/page.tsx`): Mantener CSR pero preferir `SWR` para estado del bot y estadísticas.
+
+## “Fast Refresh had to perform a full reload”: Causas y Mitigaciones
+
+- Causas:
+  - Importación de CSS de terceros dentro de componentes cliente (`react-toastify`, `highlight.js`).
+  - Providers UI montados por ruta (p. ej., `ChakraProvider`) y cambios frecuentes.
+  - Duplicación de toasters.
+- Mitigaciones:
+  - Mover CSS global de terceros a `app/globals.css` y evitar importarlo en componentes.
+  - Unificar librería de notificaciones (`sonner` o shadcn), eliminar `react-toastify`.
+  - Mantener providers en `app/layout.tsx`.
+  - Evitar valores efímeros a nivel de render raíz; usar `useMemo` para `uuidv4()`:
+    ```tsx
+    const conversationId = useMemo(() => uuidv4(), []);
+    ```
+
+## Componentes Monolíticos: División Recomendada
+
+- `ChatWindow.tsx`:
+  - Dividir en: `useChatStream` (SSE), `MessageList`, `ChatInput`, `DebugPanel` (dinámico) y mantener `MessageBubble`.
+- `DocumentManagement.tsx`:
+  - Dividir en: `DocumentControls`, `DocumentStats`, `DocumentTable`, `PDFPreview` (dinámico).
+
+## Recomendaciones Globales
+
+- Unificar UI: eliminar Chakra UI de `/chat` y usar shadcn/Tailwind en todo el proyecto.
+- Unificar notificaciones: mantener solo una (`sonner` o shadcn `Toaster`).
+- Eliminar importaciones no usadas en `/chat`.
+- Aplicar importaciones dinámicas donde aporten.
+- Tooling:
+  - Actualizar Browserslist DB.
+  - Probar Turbopack en dev.
+  - Evitar Docker para desarrollo Next si penaliza I/O y HMR.
+  - Revisar `vercel.json` para headers/caching en producción.
+
+## Ejemplos de Código (Acciones Concretas)
+
+- Quitar importaciones no usadas de `ChatWindow.tsx`:
+
+```ts
+// Remover si no se usan:
+import { marked } from 'marked';
+import { Renderer } from 'marked';
+import hljs from 'highlight.js';
+import 'highlight.js/styles/gradient-dark.css';
+import { applyPatch } from 'fast-json-patch';
+import 'react-toastify/dist/ReactToastify.css';
+```
+
+- Cargar SSE on-demand dentro de `sendMessage`:
+
+```ts
+const { fetchEventSource } = await import('@microsoft/fetch-event-source');
+await fetchEventSource(apiBaseUrl + '/api/v1/chat/stream_log', { /* ... */ });
+```
+
+- Usar `useMemo` para `uuid` en `chat/page.tsx`:
+
+```tsx
+export default function ChatPage() {
+  const conversationId = React.useMemo(() => uuidv4(), []);
+  return (
+    <div className="h-screen w-screen">
+      <ChatWindow titleText="Chatbot" conversationId={conversationId} />
+    </div>
+  );
+}
+```
+
+- Unificar toasters:
+  - Mantener solo `Toaster` global en `app/layout.tsx`.
+  - Quitar `Toaster` duplicado en `RootLayoutClient.tsx` y `ToastContainer` de `/chat` si no se usa.
+
+- Esbozo de hook `useChatStream`:
+
+```ts
+// useChatStream.ts
+export function useChatStream(conversationId: string) {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const sendMessage = async (message: string) => {
+    setIsLoading(true);
+    const { fetchEventSource } = await import('@microsoft/fetch-event-source');
+    await fetchEventSource(apiBaseUrl + '/api/v1/chat/stream_log', { /* ... */ });
+  };
+  return { messages, isLoading, sendMessage };
+}
+```
+
+- `/Documents`: dynamic import del modal de preview (si crece):
+
+```ts
+const PDFPreview = dynamic(() => import('./PDFPreview'), { ssr: false });
+```
+
+## Plan por PR (Alta → Baja)
+
+- **PR-1: Reducir bundle de `/chat` eliminando dependencias no usadas**
+  - Cambios: Quitar `marked`, `Renderer`, `highlight.js` + CSS, `fast-json-patch`, `react-toastify` CSS y `ToastContainer` si no hay toasts.
+  - Impacto: Alto. Reducción directa de módulos.
+
+- **PR-2: Unificar notificaciones y UI**
+  - Cambios: Mantener solo una librería de toasts; eliminar duplicados. Retirar Chakra UI de `/chat` y migrar a shadcn/Tailwind.
+  - Impacto: Alto. Menos módulos y invalidaciones HMR.
+
+- **PR-3: Migración completa de `/chat` fuera de Chakra**
+  - Cambios: Eliminar `ChakraProvider` y reemplazar componentes por equivalentes shadcn/Tailwind.
+  - Impacto: Alto. Elimina una librería UI completa del bundle.
+
+- **PR-4: Code splitting en `/chat`**
+  - Cambios: SSE on-demand, `DebugPanel` dinámico, crear `useChatStream` y subcomponentes.
+  - Impacto: Medio-Alto. Menor coste de evaluación y mejor dev UX.
+
+- **PR-5: Ajustes en `/Documents`**
+  - Cambios: Dividir en subcomponentes, usar `SWR`, `mutate` tras acciones, `PDFPreview` dinámico.
+  - Impacto: Medio.
+
+- **PR-6: CSS de terceros y HMR**
+  - Cambios: Mover CSS global a `app/globals.css`, eliminar CSS redundante.
+  - Impacto: Medio.
+
+- **PR-7: Tooling y entorno de dev**
+  - Cambios: Actualizar Browserslist, probar Turbopack, evitar Docker para Next en dev.
+  - Impacto: Medio.
+
+---
+
+Notas:
+- Prioriza PR-1, PR-2 y PR-3 para una reducción rápida y significativa del bundle y mejorar los tiempos de compilación.
+- Las divisiones y dinámicos ayudan, pero primero elimina librerías innecesarias y unifica UI/toasts.
