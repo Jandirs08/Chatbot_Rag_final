@@ -5,7 +5,7 @@ from typing import List, Optional, Dict
 from pathlib import Path
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
-from langchain_community.document_loaders import UnstructuredPDFLoader
+from langchain_community.document_loaders import UnstructuredPDFLoader, PyPDFLoader
 import logging
 
 logger = logging.getLogger(__name__)
@@ -57,34 +57,48 @@ class PDFContentLoader:
             Lista de Documents procesados y optimizados.
         """
         logger.info(f"Procesando PDF: {pdf_path.name}")
+        # Intento 1: UnstructuredPDFLoader (mejor extracción cuando está disponible)
+        documents: List[Document] = []
         try:
-            # Usar UnstructuredPDFLoader para mejor extracción
             loader = UnstructuredPDFLoader(str(pdf_path))
             documents = loader.load()
-            
-            if not documents:
-                logger.warning(f"No se pudo extraer contenido de: {pdf_path.name}")
-                return []
-                
-            logger.info(f"PDF cargado: {len(documents)} páginas desde {pdf_path.name}")
-            
-            # Pre-procesar documentos
-            processed_docs = self._preprocess_documents(documents)
-            logger.info(f"Documentos pre-procesados para {pdf_path.name}")
-            
-            # Dividir en chunks
-            chunks = self.text_splitter.split_documents(processed_docs)
-            logger.info(f"Documentos divididos en {len(chunks)} chunks iniciales")
-            
-            # Post-procesar y filtrar chunks
-            final_chunks = self._postprocess_chunks(chunks, pdf_path)
-            logger.info(f"Post-procesamiento completado. {len(final_chunks)} chunks finales")
-            
-            return final_chunks
-            
+            logger.info(f"PDF cargado con Unstructured: {len(documents)} páginas desde {pdf_path.name}")
         except Exception as e:
-            logger.error(f"Error procesando PDF {pdf_path.name}: {str(e)}", exc_info=True)
-            raise
+            # Fallback robusto si falla la pila de OCR (p.ej., libGL.so.1 ausente)
+            err_msg = str(e)
+            logger.warning(
+                f"Fallo Unstructured al procesar {pdf_path.name}: {err_msg}. "
+                f"Aplicando fallback a PyPDFLoader (extracción de texto sin OCR).",
+                exc_info=True,
+            )
+            try:
+                pdf_loader = PyPDFLoader(str(pdf_path))
+                documents = pdf_loader.load()
+                logger.info(f"PDF cargado con PyPDFLoader: {len(documents)} páginas desde {pdf_path.name}")
+            except Exception as e2:
+                logger.error(
+                    f"Error procesando PDF {pdf_path.name} con fallback PyPDFLoader: {e2}",
+                    exc_info=True,
+                )
+                return []
+
+        if not documents:
+            logger.warning(f"No se pudo extraer contenido de: {pdf_path.name}")
+            return []
+
+        # Pre-procesar documentos
+        processed_docs = self._preprocess_documents(documents)
+        logger.info(f"Documentos pre-procesados para {pdf_path.name}")
+        
+        # Dividir en chunks
+        chunks = self.text_splitter.split_documents(processed_docs)
+        logger.info(f"Documentos divididos en {len(chunks)} chunks iniciales")
+        
+        # Post-procesar y filtrar chunks
+        final_chunks = self._postprocess_chunks(chunks, pdf_path)
+        logger.info(f"Post-procesamiento completado. {len(final_chunks)} chunks finales")
+        
+        return final_chunks
 
     def _preprocess_documents(self, documents: List[Document]) -> List[Document]:
         """Mejora la calidad del texto antes de la división.
@@ -315,4 +329,4 @@ class PDFContentLoader:
     #                 logger.error(f"Error procesando archivo {pdf_file.name} en directorio: {str(e)}")
     #                 continue 
     #     logger.info(f"Directorio {directory} procesado. Total de chunks: {len(all_docs)}")
-    #     return all_docs 
+    #     return all_docs
