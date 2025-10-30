@@ -1,5 +1,3 @@
-import "react-toastify/dist/ReactToastify.css";
-import { Card, CardBody, Heading } from "@chakra-ui/react";
 import { sendFeedback } from "../utils/sendFeedback";
 
 export type Source = {
@@ -21,7 +19,7 @@ export function SourceBubble({
   runId?: string;
 }) {
   return (
-    <Card
+    <div
       onClick={async () => {
         window.open(source.url, "_blank");
         if (runId) {
@@ -33,19 +31,17 @@ export function SourceBubble({
           });
         }
       }}
-      backgroundColor={highlighted ? "rgb(58, 58, 61)" : "rgb(78,78,81)"}
+      className={`cursor-pointer h-full overflow-hidden rounded-lg transition-colors duration-200 ${
+        highlighted ? "bg-gray-600" : "bg-gray-700"
+      } hover:bg-gray-600`}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      cursor={"pointer"}
-      alignSelf={"stretch"}
-      height="100%"
-      overflow={"hidden"}
     >
-      <CardBody>
-        <Heading size={"sm"} fontWeight={"normal"} color={"white"}>
+      <div className="p-4">
+        <h3 className="text-sm font-normal text-white">
           {source.title}
-        </Heading>
-      </CardBody>
-    </Card>
+        </h3>
+      </div>
+    </div>
   );
 }

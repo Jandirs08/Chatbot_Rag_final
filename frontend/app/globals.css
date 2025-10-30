@@ -108,15 +108,15 @@
   }
 }
 
-/* Animaciones para los mensajes */
+/* Animaciones optimizadas con will-change y transform3d para mejor rendimiento */
 @keyframes slideIn {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translate3d(0, 20px, 0);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0);
   }
 }
 
@@ -129,11 +129,34 @@
   }
 }
 
-.animate-fadeIn {
-  animation: fadeIn 0.5s ease-in-out;
+@keyframes slideInChat {
+  from {
+    transform: translate3d(0, 20px, 0);
+    opacity: 0;
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
 }
 
-/* Indicador de escritura */
+/* Clases de animación optimizadas */
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+  will-change: opacity;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out;
+  will-change: opacity;
+}
+
+.animate-slide-in {
+  animation: slideInChat 0.4s ease-out;
+  will-change: transform, opacity;
+}
+
+/* Indicador de escritura optimizado */
 .typing-indicator {
   display: flex;
   align-items: center;
@@ -145,7 +168,8 @@
   height: 4px;
   background-color: #60a5fa;
   border-radius: 50%;
-  animation: typing 1s infinite ease-in-out;
+  animation: typing 1.2s infinite ease-in-out;
+  will-change: transform;
 }
 
 .typing-indicator span:nth-child(1) {
@@ -170,90 +194,47 @@
   }
 }
 
-/* Estilos para la barra de desplazamiento */
+/* Estilos optimizados para la barra de desplazamiento */
 ::-webkit-scrollbar {
   width: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #1a1a1a;
+  background: hsl(var(--muted));
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #4a5568;
+  background: hsl(var(--muted-foreground) / 0.3);
   border-radius: 4px;
+  transition: background-color 0.2s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #718096;
-}
-
-/* Añadir al final del archivo */
-@keyframes slideInChat {
-  from {
-    transform: translateY(20px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
-}
-
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
-}
-
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
-}
-
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
+  background: hsl(var(--muted-foreground) / 0.5);
 }
 
 @layer utilities {
+  /* Gradientes optimizados usando variables CSS */
   .gradient-primary {
-    background: linear-gradient(135deg, #da5b3e 0%, #fc382a 100%);
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%);
   }
 
   .gradient-secondary {
-    background: linear-gradient(135deg, #ffd26b 0%, #da5b3e 100%);
+    background: linear-gradient(135deg, hsl(var(--secondary)) 0%, hsl(var(--primary)) 100%);
   }
 
   .gradient-soft {
-    background: linear-gradient(135deg, #ffd26b20 0%, #da5b3e20 100%);
+    background: linear-gradient(135deg, hsl(var(--secondary) / 0.1) 0%, hsl(var(--primary) / 0.1) 100%);
+  }
+
+  /* Utilidades de rendimiento */
+  .gpu-accelerated {
+    transform: translate3d(0, 0, 0);
+    will-change: transform;
+  }
+
+  .smooth-transition {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
 }

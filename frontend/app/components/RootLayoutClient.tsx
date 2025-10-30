@@ -4,14 +4,12 @@ import { AppSidebar } from "./AppSidebar";
 import { SidebarProvider, SidebarTrigger, useSidebar } from "./ui/sidebar"; // Import useSidebar
 import { Button } from "./ui/button"; // Import Button
 import { PanelLeft } from "lucide-react"; // Import PanelLeft icon
-import { Toaster } from "./ui/toaster"; // Import Toaster component
 import { usePathname } from "next/navigation"; // Import usePathname
 
 export function RootLayoutClient({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
       <RootLayoutContent>{children}</RootLayoutContent>
-      <Toaster />
     </SidebarProvider>
   );
 }

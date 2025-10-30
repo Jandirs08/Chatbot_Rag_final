@@ -1,19 +1,6 @@
-import { toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
 import { emojisplosion } from "emojisplosion";
 import { useState, useRef } from "react";
 import { SourceBubble, Source } from "./SourceBubble";
-import {
-  VStack,
-  Flex,
-  Heading,
-  HStack,
-  Box,
-  Button,
-  Divider,
-  Spacer,
-  Text,
-} from "@chakra-ui/react";
 import { sendFeedback } from "../utils/sendFeedback";
 import { apiBaseUrl } from "../utils/constants";
 import { InlineCitation } from "./InlineCitation";
@@ -120,7 +107,7 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble(props: {
   const isUser = role === "user";
 
   return (
-    <Box
+    <div
       className={`w-full max-w-3xl mx-auto p-4 mb-4 rounded-2xl transform transition-all duration-300 ease-in-out hover:scale-[1.02] ${
         isUser
           ? "bg-gradient-to-r from-blue-500 to-blue-600 ml-auto"
@@ -137,48 +124,31 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble(props: {
       }}
     >
       {isUser ? (
-        <Text
-          color="white"
-          fontSize="lg"
-          className="font-medium leading-relaxed"
-        >
+        <p className="text-white text-lg font-medium leading-relaxed">
           {content}
-        </Text>
+        </p>
       ) : (
-        <VStack align="start" spacing={3} width="100%">
-          <Flex
-            align="center"
-            width="100%"
-            className="border-b border-gray-600 pb-2"
-          >
-            <Text
-              color="blue.300"
-              fontWeight="bold"
-              className="flex items-center gap-2"
-            >
+        <div className="flex flex-col items-start space-y-3 w-full">
+          <div className="flex items-center w-full border-b border-gray-600 pb-2">
+            <div className="text-blue-300 font-bold flex items-center gap-2">
               <span className="text-xl">{props.aiEmoji || "🤖"}</span>
               <span>Asistente</span>
-            </Text>
+            </div>
             {!props.messageCompleted && (
-              <Box className="ml-3">
+              <div className="ml-3">
                 <div className="typing-indicator">
                   <span></span>
                   <span></span>
                   <span></span>
                 </div>
-              </Box>
+              </div>
             )}
-          </Flex>
-          <Text
-            color="gray.100"
-            whiteSpace="pre-wrap"
-            fontSize="lg"
-            className="leading-relaxed"
-          >
+          </div>
+          <p className="text-gray-100 whitespace-pre-wrap text-lg leading-relaxed">
             {content}
-          </Text>
-        </VStack>
+          </p>
+        </div>
       )}
-    </Box>
+    </div>
   );
 });

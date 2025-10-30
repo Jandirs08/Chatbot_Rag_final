@@ -5,17 +5,8 @@ import { v4 as uuidv4 } from "uuid";
 import { EmptyState } from "../components/EmptyState";
 import { ChatMessageBubble, Message } from "../components/ChatMessageBubble";
 import { AutoResizeTextarea } from "./AutoResizeTextarea";
-
-import {
-  Heading,
-  Flex,
-  IconButton,
-  InputGroup,
-  InputRightElement,
-  Box,
-  Text,
-} from "@chakra-ui/react";
-import { ArrowUpIcon } from "@chakra-ui/icons";
+import { Button } from "./ui/button";
+import { ArrowUp } from "lucide-react";
 import { apiBaseUrl } from "../utils/constants";
 
 export function ChatWindow(props: {
@@ -216,12 +207,12 @@ export function ChatWindow(props: {
   return (
     <div className="flex flex-col h-full w-full bg-gradient-to-b from-gray-900 to-gray-800 p-4">
       {/* Header */}
-      <Flex justifyContent="space-between" width="100%" mb={4}>
-        <Heading fontSize={["3xl", "4xl", "5xl"]} fontWeight={"medium"} mb={1}>
+      <div className="flex justify-between items-center w-full mb-4">
+        <h1 className="text-3xl md:text-4xl lg:text-5xl font-medium mb-1 text-white">
           {/* {titleText} */}
-        </Heading>
+        </h1>
         {/* Botón de limpiar conversación eliminado, no se requiere persistencia */}
-      </Flex>
+      </div>
 
       {/* Scrollable Content Area */}
       <div className="flex-1 overflow-y-auto w-full" ref={messageContainerRef}>
@@ -254,7 +245,7 @@ export function ChatWindow(props: {
       </div>
 
       {/* Input Group */}
-      <InputGroup size="md" className="w-full mt-4">
+      <div className="relative w-full mt-4">
         <AutoResizeTextarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -269,19 +260,17 @@ export function ChatWindow(props: {
           pr="5rem"
           textColor="white"
         />
-        <InputRightElement height="100%" right="0.5rem">
-          <IconButton
-            colorScheme="blue"
-            aria-label="Send message"
-            icon={<ArrowUpIcon />}
+        <div className="absolute right-2 bottom-2 flex items-end h-full pb-2">
+          <Button
+            size="sm"
+            className="w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-700 text-white"
             onClick={() => sendMessage()}
-            isDisabled={isLoading}
-            width="2.5rem"
-            height="2.5rem"
-            borderRadius="full"
-          />
-        </InputRightElement>
-      </InputGroup>
+            disabled={isLoading}
+          >
+            <ArrowUp className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
       {showDebug && <DebugPanel />}
     </div>
   );
