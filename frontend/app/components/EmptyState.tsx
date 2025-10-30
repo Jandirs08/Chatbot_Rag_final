@@ -1,23 +1,42 @@
-import { MouseEvent, MouseEventHandler } from "react";
-import {
-  Heading,
-  Link,
-  Card,
-  CardHeader,
-  Flex,
-  Spacer,
-} from "@chakra-ui/react";
-import { ExternalLinkIcon } from "@chakra-ui/icons";
+import { MouseEvent } from "react";
 
-export function EmptyState(props: { onChoice: (question: string) => any }) {
+export function EmptyState(props: { onSubmit: (question: string) => any }) {
   const handleClick = (e: MouseEvent) => {
-    props.onChoice((e.target as HTMLDivElement).innerText);
+    const target = e.target as HTMLElement;
+    if (target.textContent) {
+      props.onSubmit(target.textContent);
+    }
   };
+
+  const suggestedQuestions = [
+    "¿Qué tipos de becas están disponibles?",
+    "¿Cuáles son los requisitos para aplicar?",
+    "¿Cómo puedo solicitar una beca?",
+    "¿Cuándo son las fechas límite de aplicación?"
+  ];
+
   return (
-    <div className="rounded flex flex-col items-center max-w-full md:p-1">
-      <Heading fontSize="2xl" fontWeight={"medium"} mb={1} color={"white"}>
-        Becas Grupo Romero
-      </Heading>
+    <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+      <div className="mb-8">
+        <h2 className="text-2xl font-semibold text-gray-800 mb-2">
+          Becas Grupo Romero
+        </h2>
+        <p className="text-gray-600">
+          Pregúntame sobre becas, requisitos y procesos de aplicación
+        </p>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-2xl">
+        {suggestedQuestions.map((question, index) => (
+          <button
+            key={index}
+            onClick={handleClick}
+            className="p-4 text-left bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors duration-200 shadow-sm"
+          >
+            <span className="text-gray-700">{question}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

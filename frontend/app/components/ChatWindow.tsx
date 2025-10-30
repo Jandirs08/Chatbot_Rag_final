@@ -1,13 +1,12 @@
 "use client";
 
-import React, { useRef, useState, useEffect } from "react";
-import { v4 as uuidv4 } from "uuid";
+import React, { useRef, useEffect } from "react";
 import { EmptyState } from "../components/EmptyState";
-import { ChatMessageBubble, Message } from "../components/ChatMessageBubble";
+import { ChatMessageBubble } from "../components/ChatMessageBubble";
 import { AutoResizeTextarea } from "./AutoResizeTextarea";
 import { Button } from "./ui/button";
 import { ArrowUp } from "lucide-react";
-import { apiBaseUrl } from "../utils/constants";
+import { useChatStream } from "../hooks/useChatStream";
 
 export function ChatWindow(props: {
   placeholder?: string;
@@ -15,15 +14,12 @@ export function ChatWindow(props: {
   conversationId: string;
 }) {
   const messageContainerRef = useRef<HTMLDivElement | null>(null);
-  const [messages, setMessages] = useState<Array<Message>>([]);
-  const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [showDebug, setShowDebug] = useState(false);
+  const [input, setInput] = React.useState("");
 
   const { placeholder, titleText = "An LLM", conversationId } = props;
-
-  // Memoizar los mensajes para evitar re-renders innecesarios
-  const memoizedMessages = React.useMemo(() => messages, [messages]);
+  
+  // Usar el hook personalizado para manejar el chat
+  const { messages, isLoading, sendMessage } = useChatStream(conversationId);
 
   // Función para hacer scroll al último mensaje
   const scrollToBottom = () => {
@@ -41,161 +37,16 @@ export function ChatWindow(props: {
     scrollToBottom();
   }, [messages]);
 
-  // Componente de debugging
-  const DebugPanel = () => (
-    <Box
-      position="fixed"
-      bottom="20px"
-      right="20px"
-      bg="gray.800"
-      p={4}
-      borderRadius="md"
-      maxWidth="400px"
-      maxHeight="300px"
-      overflowY="auto"
-      zIndex={1000}
-    >
-      <Text color="white" fontWeight="bold" mb={2}>
-        Debug Info:
-      </Text>
-      <Text color="white" fontSize="sm" whiteSpace="pre-wrap">
-        {JSON.stringify({ messages, isLoading }, null, 2)}
-      </Text>
-    </Box>
-  );
-
-  // Toggle para el panel de debug
-  useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key === "d") {
-        e.preventDefault();
-        setShowDebug((prev) => !prev);
-      }
-    };
-    window.addEventListener("keydown", handleKeyPress);
-    return () => window.removeEventListener("keydown", handleKeyPress);
-  }, []);
-
-  const sendMessage = async (message?: string) => {
+  const handleSendMessage = async (message?: string) => {
     if (messageContainerRef.current) {
       messageContainerRef.current.classList.add("grow");
     }
-    if (isLoading) {
-      return;
-    }
+    
     const messageValue = message ?? input;
-    if (messageValue === "") return;
+    if (messageValue.trim() === "") return;
+    
     setInput("");
-
-    // Agregar mensaje del usuario
-    const userMessage: Message = {
-      id: uuidv4(),
-      content: messageValue,
-      role: "user" as const,
-    };
-
-    console.log("Agregando mensaje del usuario:", userMessage);
-    setMessages((prevMessages) => [...prevMessages, userMessage]);
-    setIsLoading(true);
-
-    try {
-      console.log("Iniciando petición al servidor...");
-      // Carga dinámica de fetchEventSource para reducir el bundle inicial
-      const { fetchEventSource } = await import("@microsoft/fetch-event-source");
-      
-      await fetchEventSource(apiBaseUrl + "/chat/stream_log", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "text/event-stream",
-          "Access-Control-Allow-Origin": "*",
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          input: messageValue,
-          conversation_id: conversationId,
-        }),
-        openWhenHidden: true,
-        async onopen(response) {
-          console.log("Estado de la conexión:", {
-            status: response.status,
-            statusText: response.statusText,
-            headers: response.headers,
-          });
-
-          if (response.ok) {
-            console.log("Conexión exitosa");
-          } else {
-            console.error(
-              "Error en la conexión:",
-              response.status,
-              response.statusText,
-            );
-            throw new Error(
-              `Error en la conexión: ${response.status} ${response.statusText}`,
-            );
-          }
-        },
-        onerror(err) {
-          console.error("Error en la conexión:", err);
-          setIsLoading(false);
-          throw err;
-        },
-        async onmessage(msg) {
-          console.log("Mensaje recibido:", {
-            event: msg.event,
-            data: msg.data,
-          });
-
-          if (msg.data) {
-            try {
-              console.log("Mensaje raw recibido:", msg.data);
-              const chunk = JSON.parse(msg.data);
-              console.log("Chunk parseado:", chunk);
-
-              if (chunk.streamed_output) {
-                const responseText = chunk.streamed_output;
-                console.log("Texto recibido:", responseText);
-
-                // Actualizar el último mensaje del asistente o crear uno nuevo
-                setMessages((prevMessages) => {
-                  const lastMessage = prevMessages[prevMessages.length - 1];
-                  if (lastMessage && lastMessage.role === "assistant") {
-                    // Actualizar el último mensaje
-                    return [
-                      ...prevMessages.slice(0, -1),
-                      { ...lastMessage, content: responseText },
-                    ];
-                  } else {
-                    // Crear nuevo mensaje
-                    return [
-                      ...prevMessages,
-                      {
-                        id: uuidv4(),
-                        content: responseText,
-                        role: "assistant" as const,
-                      },
-                    ];
-                  }
-                });
-              }
-            } catch (e) {
-              console.error("Error procesando mensaje:", e);
-            }
-          }
-
-          if (msg.event === "end") {
-            console.log("Evento end recibido");
-            setIsLoading(false);
-          }
-        },
-      });
-    } catch (e) {
-      console.error("Error general:", e);
-      setIsLoading(false);
-      setInput(messageValue);
-      throw e;
-    }
+    await sendMessage(messageValue);
   };
 
   const sendInitialQuestion = async (question: string) => {
@@ -205,73 +56,51 @@ export function ChatWindow(props: {
   // Limpieza de conversación eliminada: la sesión se pierde al refrescar pantalla
 
   return (
-    <div className="flex flex-col h-full w-full bg-gradient-to-b from-gray-900 to-gray-800 p-4">
-      {/* Header */}
-      <div className="flex justify-between items-center w-full mb-4">
-        <h1 className="text-3xl md:text-4xl lg:text-5xl font-medium mb-1 text-white">
-          {/* {titleText} */}
-        </h1>
-        {/* Botón de limpiar conversación eliminado, no se requiere persistencia */}
-      </div>
-
-      {/* Scrollable Content Area */}
-      <div className="flex-1 overflow-y-auto w-full" ref={messageContainerRef}>
-        {memoizedMessages.length > 0 ? (
-          <div className="flex flex-col gap-4 w-full">
-            {memoizedMessages.map((m, i) => (
-              <ChatMessageBubble
-                key={m.id}
-                message={m}
-                aiEmoji="🔥"
-                isMostRecent={i === memoizedMessages.length - 1}
-                messageCompleted={!isLoading}
-              />
-            ))}
-            {isLoading && (
-              <ChatMessageBubble
-                message={{
-                  id: uuidv4(),
-                  content: "...",
-                  role: "assistant",
-                }}
-                isMostRecent={true}
-                messageCompleted={false}
-              />
-            )}
-          </div>
+    <div className="flex flex-col h-full">
+      <div
+        className="flex-1 overflow-y-auto p-4 space-y-4"
+        ref={messageContainerRef}
+      >
+        {messages.length === 0 ? (
+          <EmptyState onSubmit={handleSendMessage} />
         ) : (
-          <EmptyState onChoice={sendInitialQuestion} />
+          messages.map((message, i) => (
+            <ChatMessageBubble
+              key={message.id}
+              message={message}
+              aiEmoji="🤖"
+              isMostRecent={i === messages.length - 1}
+              messageCompleted={!isLoading || i !== messages.length - 1}
+            />
+          ))
         )}
       </div>
 
-      {/* Input Group */}
-      <div className="relative w-full mt-4">
-        <AutoResizeTextarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={placeholder ?? "What is your name?"}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              sendMessage();
-            }
-          }}
-          maxRows={5}
-          pr="5rem"
-          textColor="white"
-        />
-        <div className="absolute right-2 bottom-2 flex items-end h-full pb-2">
-          <Button
-            size="sm"
-            className="w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-700 text-white"
-            onClick={() => sendMessage()}
+      <div className="border-t p-4">
+        <div className="flex gap-2">
+          <AutoResizeTextarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSendMessage();
+              }
+            }}
+            placeholder={placeholder ?? "Type a message..."}
+            className="flex-1"
             disabled={isLoading}
+          />
+          <Button
+            onClick={() => handleSendMessage()}
+            disabled={isLoading || input.trim() === ""}
+            size="icon"
+            className="shrink-0"
           >
-            <ArrowUp className="w-4 h-4" />
+            <ArrowUp className="h-4 w-4" />
           </Button>
         </div>
       </div>
-      {showDebug && <DebugPanel />}
     </div>
   );
 }

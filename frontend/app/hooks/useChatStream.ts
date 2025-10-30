@@ -1,0 +1,149 @@
+import { useState, useCallback } from "react";
+import { v4 as uuidv4 } from "uuid";
+import { apiBaseUrl } from "../utils/constants";
+
+export interface Message {
+  id: string;
+  content: string;
+  role: "user" | "assistant" | "system" | "function";
+  createdAt?: Date;
+  runId?: string;
+  name?: string;
+  function_call?: { name: string };
+}
+
+export interface UseChatStreamReturn {
+  messages: Message[];
+  isLoading: boolean;
+  sendMessage: (message: string) => Promise<void>;
+  clearMessages: () => void;
+}
+
+export function useChatStream(conversationId: string): UseChatStreamReturn {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const sendMessage = useCallback(async (messageText: string) => {
+    if (isLoading || !messageText.trim()) {
+      return;
+    }
+
+    // Agregar mensaje del usuario
+    const userMessage: Message = {
+      id: uuidv4(),
+      content: messageText,
+      role: "user",
+      createdAt: new Date(),
+    };
+
+    setMessages((prevMessages) => [...prevMessages, userMessage]);
+    setIsLoading(true);
+
+    try {
+      // Carga dinámica de fetchEventSource para reducir el bundle inicial
+      const { fetchEventSource } = await import("@microsoft/fetch-event-source");
+      
+      await fetchEventSource(apiBaseUrl + "/chat/stream_log", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+          "Access-Control-Allow-Origin": "*",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          input: messageText,
+          conversation_id: conversationId,
+        }),
+        openWhenHidden: true,
+        async onopen(response) {
+          console.log("Estado de la conexión:", {
+            status: response.status,
+            statusText: response.statusText,
+          });
+
+          if (!response.ok) {
+            console.error(
+              "Error en la conexión:",
+              response.status,
+              response.statusText,
+            );
+            throw new Error(
+              `Error en la conexión: ${response.status} ${response.statusText}`,
+            );
+          }
+        },
+        onerror(err) {
+          console.error("Error en la conexión:", err);
+          setIsLoading(false);
+          throw err;
+        },
+        async onmessage(msg) {
+          if (msg.data) {
+            try {
+              const chunk = JSON.parse(msg.data);
+
+              if (chunk.streamed_output) {
+                const responseText = chunk.streamed_output;
+
+                // Actualizar el último mensaje del asistente o crear uno nuevo
+                setMessages((prevMessages) => {
+                  const lastMessage = prevMessages[prevMessages.length - 1];
+                  if (lastMessage && lastMessage.role === "assistant") {
+                    // Actualizar el último mensaje
+                    return [
+                      ...prevMessages.slice(0, -1),
+                      { ...lastMessage, content: responseText },
+                    ];
+                  } else {
+                    // Crear nuevo mensaje
+                    return [
+                      ...prevMessages,
+                      {
+                        id: uuidv4(),
+                        content: responseText,
+                        role: "assistant",
+                        createdAt: new Date(),
+                      },
+                    ];
+                  }
+                });
+              }
+            } catch (e) {
+              console.error("Error procesando mensaje:", e);
+            }
+          }
+
+          if (msg.event === "end") {
+            console.log("Evento end recibido");
+            setIsLoading(false);
+          }
+        },
+      });
+    } catch (error) {
+      console.error("Error general:", error);
+      setIsLoading(false);
+      
+      // Agregar mensaje de error
+      const errorMessage: Message = {
+        id: uuidv4(),
+        content: "Lo siento, ocurrió un error al procesar tu mensaje. Por favor, inténtalo de nuevo.",
+        role: "assistant",
+        createdAt: new Date(),
+      };
+      
+      setMessages((prevMessages) => [...prevMessages, errorMessage]);
+    }
+  }, [conversationId, isLoading]);
+
+  const clearMessages = useCallback(() => {
+    setMessages([]);
+  }, []);
+
+  return {
+    messages,
+    isLoading,
+    sendMessage,
+    clearMessages,
+  };
+}

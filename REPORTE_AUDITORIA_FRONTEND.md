@@ -326,12 +326,60 @@ const PDFPreview = dynamic(() => import('./PDFPreview'), { ssr: false });
 **Archivos modificados**: 4 archivos
 **Verificación**: ✅ Todas las páginas cargan correctamente con optimizaciones activas
 
+## PR-4: Code Splitting Adicional con `useChatStream` ✅ **COMPLETADO**
+
+**Estado**: ✅ Implementado y probado
+**Objetivo**: Implementar code splitting avanzado para componentes de chat y optimizar la carga de `useChatStream`
+
+### Acciones Implementadas:
+
+1. **Creación del hook `useChatStream`** ✅
+   - Extraída toda la lógica de chat de `ChatWindow.tsx` a un hook personalizado
+   - Implementada carga dinámica de `@microsoft/fetch-event-source` dentro del hook
+   - Manejo optimizado de estados de mensajes y loading
+   - Mejor separación de responsabilidades
+
+2. **Refactorización de `ChatWindow.tsx`** ✅
+   - Simplificado el componente eliminando lógica de negocio
+   - Reducidas las importaciones y dependencias
+   - Mejorada la legibilidad y mantenibilidad del código
+   - Eliminado código duplicado y optimizado el rendering
+
+3. **Optimización de `EmptyState.tsx`** ✅
+   - Migrado completamente de Chakra UI a shadcn/Tailwind
+   - Eliminadas dependencias pesadas de `@chakra-ui/react`
+   - Implementadas preguntas sugeridas interactivas
+   - Corregida la prop `onSubmit` para compatibilidad
+
+4. **Creación de `LazyFloatingChatWidget.tsx`** ✅
+   - Implementado lazy loading para `ChatWindow` con `React.lazy()`
+   - Migrado de Chakra UI a shadcn/Tailwind
+   - Añadido skeleton de carga con `React.Suspense`
+   - Optimizado el `conversationId` con `useMemo`
+
+### Impacto Medido:
+
+- ✅ **Hook `useChatStream` funcional**: Lógica de chat encapsulada y reutilizable
+- ✅ **Code splitting efectivo**: `@microsoft/fetch-event-source` se carga solo cuando es necesario
+- ✅ **Componentes optimizados**: Eliminadas dependencias de Chakra UI en componentes críticos
+- ✅ **Lazy loading implementado**: `ChatWindow` se carga bajo demanda en el widget flotante
+- ✅ **Mejor rendimiento**: Reducción del bundle inicial y carga más eficiente
+- ✅ **Chat funcionando correctamente**: Todas las funcionalidades mantienen su comportamiento
+
+**Archivos modificados**: 5 archivos
+- `frontend/app/hooks/useChatStream.ts`: Nuevo hook con lógica de chat optimizada
+- `frontend/app/components/ChatWindow.tsx`: Refactorizado para usar el hook
+- `frontend/app/components/EmptyState.tsx`: Migrado a shadcn/Tailwind
+- `frontend/app/components/LazyFloatingChatWidget.tsx`: Nuevo componente con lazy loading
+- `next.config.js`: Configuración de bundle splitting mantenida
+
+**Verificación**: ✅ Chat funcional con optimizaciones activas, lazy loading efectivo
+
 **Próximos pasos recomendados**:
-- PR-4: Implementar code splitting adicional con `useChatStream`
-- PR-5: Optimización adicional de componentes pesados
+- PR-5: Optimización adicional de componentes pesados y análisis de performance
 
 ---
 
 Notas:
-- Prioriza PR-1, PR-2 y PR-3 para una reducción rápida y significativa del bundle y mejorar los tiempos de compilación.
+- Prioriza PR-1, PR-2, PR-3 y PR-4 para una reducción rápida y significativa del bundle y mejorar los tiempos de compilación.
 - Las divisiones y dinámicos ayudan, pero primero elimina librerías innecesarias y unifica UI/toasts.
