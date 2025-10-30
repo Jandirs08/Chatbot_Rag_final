@@ -1,5 +1,20 @@
 import { API_URL } from "../constants";
 
+// Normaliza el base URL y evita duplicar el prefijo "/api/v1" al construir endpoints
+function buildApiUrl(base: string, path: string): string {
+  // Limpia barras finales y colapsa múltiples "/api/v1" en el base
+  let cleanBase = base.replace(/\/+$/, "");
+  // Si accidentalmente el base tiene "/api/v1" repetido (p. ej. "/api/v1/api/v1"), colapsa a uno solo
+  cleanBase = cleanBase.replace(/(\/api\/v1)+(?=\/|$)/, "/api/v1");
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+  // Si el base ya incluye /api/v1, evita repetirlo en el path
+  if (/\/api\/v1(?:\/|$)/.test(cleanBase)) {
+    const foldedPath = cleanPath.replace(/^\/api\/v1/, "");
+    return `${cleanBase}${foldedPath}`;
+  }
+  return `${cleanBase}${cleanPath}`;
+}
+
 export class PDFService {
   static async uploadPDF(file: File): Promise<{
     message: string;
@@ -9,7 +24,7 @@ export class PDFService {
     const formData = new FormData();
     formData.append("file", file);
 
-    const response = await fetch(`${API_URL}/api/v1/pdfs/upload`, {
+    const response = await fetch(buildApiUrl(API_URL, "/api/v1/pdfs/upload"), {
       method: "POST",
       body: formData,
     });
@@ -30,7 +45,7 @@ export class PDFService {
       last_modified: string;
     }>;
   }> {
-    const response = await fetch(`${API_URL}/api/v1/pdfs/list`);
+    const response = await fetch(buildApiUrl(API_URL, "/api/v1/pdfs/list"));
 
     if (!response.ok) {
       const error = await response.json();
@@ -41,7 +56,7 @@ export class PDFService {
   }
 
   static async deletePDF(filename: string): Promise<{ message: string }> {
-    const response = await fetch(`${API_URL}/api/v1/pdfs/${filename}`, {
+    const response = await fetch(buildApiUrl(API_URL, `/api/v1/pdfs/${filename}`), {
       method: "DELETE",
     });
 

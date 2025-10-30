@@ -149,7 +149,7 @@ class RAGIngestor:
         logger.info(f"Procesando PDFs desde: {source_dir}")
         
         # Obtener lista de PDFs
-        pdf_files = self._get_pdf_files(source_dir)
+        pdf_files = await self._get_pdf_files(source_dir)
         if not pdf_files:
             logger.warning(f"No se encontraron PDFs en {source_dir}")
             return []
@@ -199,7 +199,7 @@ class RAGIngestor:
         except Exception as e:
             return self._error_result(pdf_info["filename"], str(e))
 
-    def _get_pdf_files(self, directory: Path) -> List[Dict]:
+    async def _get_pdf_files(self, directory: Path) -> List[Dict]:
         """Obtiene lista de archivos PDF válidos."""
         if directory != self.pdf_file_manager.pdf_dir:
             return [
@@ -207,7 +207,7 @@ class RAGIngestor:
                 for p in directory.glob("*.pdf")
                 if p.is_file()
             ]
-        return self.pdf_file_manager.list_pdfs()
+        return await self.pdf_file_manager.list_pdfs()
 
     async def _is_already_processed(self, pdf_path: Path) -> bool:
         """Verifica si un PDF ya está procesado en el vector store."""
@@ -232,16 +232,26 @@ class RAGIngestor:
         content_hashes = set()
         chunk_texts = [c.page_content for c in chunks]
         embeddings = self.embedding_manager.embed_documents(chunk_texts)
-        from sklearn.metrics.pairwise import cosine_similarity
         import numpy as np
+
+        def _cosine(a: np.ndarray, b: np.ndarray) -> float:
+            denom = (np.linalg.norm(a) * np.linalg.norm(b))
+            if denom == 0:
+                return 0.0
+            return float(np.dot(a, b) / denom)
+
         for i, chunk in enumerate(chunks):
             content_hash = chunk.metadata.get('content_hash')
             if content_hash in content_hashes:
                 continue
             if unique_chunks:
                 existing_embeddings = [embeddings[chunks.index(c)] for c in unique_chunks]
-                similarities = cosine_similarity([embeddings[i]], existing_embeddings)[0]
-                if np.max(similarities) > settings.deduplication_threshold:
+                current_vec = np.array(embeddings[i], dtype=np.float32)
+                sims = [
+                    _cosine(current_vec, np.array(e, dtype=np.float32))
+                    for e in existing_embeddings
+                ]
+                if sims and max(sims) > settings.deduplication_threshold:
                     continue
             unique_chunks.append(chunk)
             unique_embeddings.append(embeddings[i])
