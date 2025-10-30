@@ -25,13 +25,20 @@ class Settings(BaseSettings):
     workers: int = Field(default=4, env="WORKERS")
     
     # Configuraciones de Seguridad
+    # JWT - Configuraciones para autenticación futura (ver FINAL3010_REFACTOR.md)
     jwt_secret: Optional[SecretStr] = Field(default=None, env="JWT_SECRET")
     jwt_algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
+    
+    # CORS - Configuraciones de origen cruzado
     cors_origins: List[str] = Field(default=["*"], env="CORS_ORIGINS")
     cors_origins_widget: List[str] = Field(default=[], env="CORS_ORIGINS_WIDGET")
     cors_origins_admin: List[str] = Field(default=[], env="CORS_ORIGINS_ADMIN")
     cors_max_age: int = Field(default=3600, env="CORS_MAX_AGE")
+    
+    # Rate Limiting - Configuración preparada (decoradores comentados en routes)
     rate_limit: int = Field(default=100, env="RATE_LIMIT")
+    
+    # SSL - Configuraciones para HTTPS
     ssl_keyfile: Optional[str] = Field(default=None, env="SSL_KEYFILE")
     ssl_certfile: Optional[str] = Field(default=None, env="SSL_CERTFILE")
     
@@ -70,6 +77,7 @@ class Settings(BaseSettings):
     mongo_timeout_ms: int = Field(default=5000, env="MONGO_TIMEOUT_MS")
     
     # Configuraciones de Redis
+    # Nota: Se usa redis_url como configuración principal, no configuraciones individuales
     redis_url: Optional[SecretStr] = Field(default=None, env="REDIS_URL")
     redis_ttl: int = Field(default=3600, env="REDIS_TTL")
     redis_max_memory: str = Field(default="2gb", env="REDIS_MAX_MEMORY")

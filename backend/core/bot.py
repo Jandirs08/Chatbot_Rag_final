@@ -11,6 +11,8 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnableLambda, RunnableMap, Runnable
 from langchain.agents.format_scratchpad import format_log_to_str
 from langchain.agents.output_parsers import ReActSingleInputOutputParser
+from langchain_core.agents import AgentAction, AgentFinish
+from langchain_core.exceptions import OutputParserException
 # from langchain_core.tracers.context import wait_for_all_tracers # COMMENTED OUT
 
 from memory import (
@@ -28,6 +30,30 @@ from . import prompt as prompt_module
 from utils import CacheTypes, ChatbotCache
 from utils.logging_utils import get_logger
 from config import Settings, settings as app_settings
+
+
+class FlexibleReActParser(ReActSingleInputOutputParser):
+    """Parser más flexible que maneja mejor los errores de formato ReAct"""
+    
+    def parse(self, text: str):
+        try:
+            return super().parse(text)
+        except OutputParserException as e:
+            # Si el parser falla, intentamos extraer una respuesta final
+            if "Final Answer:" in text:
+                final_answer_start = text.find("Final Answer:")
+                if final_answer_start != -1:
+                    final_answer = text[final_answer_start + len("Final Answer:"):].strip()
+                    return AgentFinish(
+                        return_values={"output": final_answer},
+                        log=text
+                    )
+            
+            # Si no hay Final Answer, devolvemos el texto completo como respuesta
+            return AgentFinish(
+                return_values={"output": text.strip()},
+                log=text
+            )
 
 
 class Bot:
@@ -103,7 +129,7 @@ class Bot:
         runnable_for_agent = agent_chain_with_history
 
         self.agent_executor = AgentExecutor(
-            agent=runnable_for_agent | ReActSingleInputOutputParser(),
+            agent=runnable_for_agent | FlexibleReActParser(),
             tools=self.tools,
             verbose=True,
             max_iterations=self.settings.agent_max_iterations if hasattr(self.settings, 'agent_max_iterations') else 3,
