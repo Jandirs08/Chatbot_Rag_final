@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Widget de Chat - Test de Embedding</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #2196f3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Widget de Chat - Test de Embedding</h1>
+        
+        <div class="info">
+            <strong>📋 Información del Test:</strong>
+            <ul>
+                <li><strong>URL de acceso:</strong> <code>http://localhost:8080/widget-embed-test.html</code></li>
+                <li><strong>Widget embebido desde:</strong> <code>http://localhost:3000/chat</code></li>
+                <li><strong>Protocolo requerido:</strong> HTTP (no funciona desde file://)</li>
+                <li><strong>Dominios permitidos:</strong> localhost:3000, localhost:8080</li>
+            </ul>
+        </div>
+
+        <p><strong>✅ Estado actual:</strong> El widget está configurado correctamente para embedding desde dominios autorizados.</p>
+        
+        <p><strong>🔧 Para desarrolladores:</strong> Si necesitas embeber el widget en otros dominios, 
+        modifica la configuración CSP en <code>frontend/next.config.js</code></p>
+    </div>
+
+    <!-- Widget de Chat Embebido -->
+    <iframe 
+        src="http://localhost:3000/chat" 
+        style="position: fixed; bottom: 20px; right: 20px; width: 350px; height: 500px; border: none; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); z-index: 1000;"
+        title="Chat Widget">
+    </iframe>
+</body>
+</html>

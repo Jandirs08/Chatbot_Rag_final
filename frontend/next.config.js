@@ -77,11 +77,60 @@ const nextConfig = {
 
     return config;
   },
-  // Headers para mejor caching
+  // Headers de seguridad diferenciados
   async headers() {
+    // Determinar si estamos en desarrollo o producción
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    
+    // Obtener dominios permitidos para el widget desde variables de entorno (fuente única)
+    const corsOriginsWidget = process.env.CORS_ORIGINS_WIDGET || '';
+    
+    // Configurar frame-ancestors para /chat basado en el entorno
+    let chatFrameAncestors;
+    if (isDevelopment) {
+      // En desarrollo: permitir orígenes HTTP explícitos
+      chatFrameAncestors = "'self' http://localhost:3000 http://localhost:8080";
+    } else {
+      // En producción: usar dominios específicos de CORS_ORIGINS_WIDGET
+      if (corsOriginsWidget) {
+        // Convertir la lista de dominios separados por coma en formato CSP
+        const allowedDomains = corsOriginsWidget
+          .split(',')
+          .map(domain => domain.trim())
+          .filter(domain => domain && domain !== '*' && !domain.startsWith('file'))
+          .join(' ');
+        chatFrameAncestors = allowedDomains ? `'self' ${allowedDomains}` : "'self'";
+      } else {
+        // Fallback: solo mismo origen si no hay configuración específica
+        chatFrameAncestors = "'self'";
+      }
+    }
+
     return [
       {
-        // Configuración general para todas las páginas excepto /chat
+        // Configuración para /chat - permite embedding controlado
+        source: '/chat',
+        headers: [
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'Content-Security-Policy',
+            value: `frame-ancestors ${chatFrameAncestors}`,
+          },
+          {
+            key: 'X-XSS-Protection',
+            value: '1; mode=block',
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'strict-origin-when-cross-origin',
+          },
+        ],
+      },
+      {
+        // Configuración restrictiva para todas las demás rutas
         source: '/((?!chat).*)',
         headers: [
           {
@@ -93,31 +142,21 @@ const nextConfig = {
             value: 'DENY',
           },
           {
+            key: 'Content-Security-Policy',
+            value: "frame-ancestors 'none'",
+          },
+          {
             key: 'X-XSS-Protection',
             value: '1; mode=block',
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'strict-origin-when-cross-origin',
           },
         ],
       },
       {
-          // Configuración específica para /chat - permite iframes desde cualquier origen
-          source: '/chat',
-          headers: [
-            {
-              key: 'X-Content-Type-Options',
-              value: 'nosniff',
-            },
-            // Removemos X-Frame-Options para permitir incrustación externa
-            // {
-            //   key: 'X-Frame-Options',
-            //   value: 'ALLOWALL',
-            // },
-            {
-              key: 'X-XSS-Protection',
-              value: '1; mode=block',
-            },
-          ],
-        },
-      {
+        // Headers de caching para recursos estáticos
         source: '/static/(.*)',
         headers: [
           {
