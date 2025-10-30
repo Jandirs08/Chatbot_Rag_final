@@ -14,6 +14,54 @@ from chat.manager import ChatManager
 from rag.retrieval.retriever import RAGRetriever
 from storage.documents import PDFManager
 
+def get_cors_origins_list() -> list:
+    """
+    Obtiene la lista de orígenes CORS permitidos basada en la configuración.
+    
+    Returns:
+        Lista de orígenes CORS permitidos
+    """
+    main_logger = get_logger(__name__)
+    
+    # Combinar todas las configuraciones CORS
+    all_origins = []
+    
+    # Agregar orígenes generales
+    if settings.cors_origins:
+        if isinstance(settings.cors_origins, str):
+            all_origins.extend([origin.strip() for origin in settings.cors_origins.split(',') if origin.strip()])
+        elif isinstance(settings.cors_origins, list):
+            all_origins.extend(settings.cors_origins)
+    
+    # Agregar orígenes específicos del widget
+    if settings.cors_origins_widget:
+        all_origins.extend(settings.cors_origins_widget)
+    
+    # Agregar orígenes específicos del admin
+    if settings.cors_origins_admin:
+        all_origins.extend(settings.cors_origins_admin)
+    
+    # Eliminar duplicados manteniendo el orden
+    unique_origins = []
+    for origin in all_origins:
+        if origin not in unique_origins:
+            unique_origins.append(origin)
+    
+    # Si no hay orígenes configurados, usar default
+    if not unique_origins:
+        unique_origins = ["*"]
+    
+    # En desarrollo, si está en abierto, restringir por defecto a localhost:3000
+    if settings.environment == "development" and unique_origins == ["*"]:
+        unique_origins = ["http://localhost:3000"]
+    
+    main_logger.info(f"CORS Origins configurados: {unique_origins}")
+    main_logger.info(f"CORS Widget Origins: {settings.cors_origins_widget}")
+    main_logger.info(f"CORS Admin Origins: {settings.cors_origins_admin}")
+    main_logger.info(f"CORS Max Age: {settings.cors_max_age}")
+    
+    return unique_origins
+
 # Importar Routers
 from .routes.health.health_routes import router as health_router
 from .routes.pdf.pdf_routes import router as pdf_router
@@ -192,23 +240,8 @@ def create_app() -> FastAPI:
         
         return response
 
-    # Configurar CORS (restrictivo por defecto en desarrollo)
-    cors_origins_setting = settings.cors_origins
-    if cors_origins_setting:
-        allow_origins_list = []
-        if isinstance(cors_origins_setting, str):
-            allow_origins_list = [origin.strip() for origin in cors_origins_setting.split(',') if origin.strip()]
-        elif isinstance(cors_origins_setting, list):
-            allow_origins_list = cors_origins_setting
-        else:
-            main_logger.warning(f"cors_origins tiene un tipo inesperado: {type(cors_origins_setting)}. Usando default ['*'].")
-            allow_origins_list = ["*"]
-    else:
-        allow_origins_list = ["*"]
-
-    # En desarrollo, si está en abierto, restringir por defecto a localhost:3000
-    if settings.environment == "development" and allow_origins_list == ["*"]:
-        allow_origins_list = ["http://localhost:3000"]
+    # Configurar CORS usando la función helper
+    allow_origins_list = get_cors_origins_list()
             
     app.add_middleware(
         CORSMiddleware,
@@ -216,6 +249,7 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        max_age=settings.cors_max_age,
     )
     main_logger.info(f"CORS configurado para orígenes: {allow_origins_list}")
 

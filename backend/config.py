@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     jwt_secret: Optional[SecretStr] = Field(default=None, env="JWT_SECRET")
     jwt_algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
     cors_origins: List[str] = Field(default=["*"], env="CORS_ORIGINS")
+    cors_origins_widget: List[str] = Field(default=[], env="CORS_ORIGINS_WIDGET")
+    cors_origins_admin: List[str] = Field(default=[], env="CORS_ORIGINS_ADMIN")
+    cors_max_age: int = Field(default=3600, env="CORS_MAX_AGE")
     rate_limit: int = Field(default=100, env="RATE_LIMIT")
     ssl_keyfile: Optional[str] = Field(default=None, env="SSL_KEYFILE")
     ssl_certfile: Optional[str] = Field(default=None, env="SSL_CERTFILE")
@@ -139,7 +142,7 @@ class Settings(BaseSettings):
             raise ValueError(f"Log level must be one of {allowed}")
         return v
         
-    @validator("cors_origins")
+    @validator("cors_origins", "cors_origins_widget", "cors_origins_admin")
     def validate_cors_origins(cls, v, values):
         if values.get("environment") == "production" and "*" in v:
             raise ValueError("Wildcard CORS origin (*) not allowed in production")
