@@ -1,5 +1,5 @@
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080/api/v1";
+  process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000/api/v1";
 
 export const ragService = {
   clearRag: async (): Promise<{

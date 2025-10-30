@@ -168,9 +168,19 @@ const PDFPreview = dynamic(() => import('./PDFPreview'), { ssr: false });
 
 ## Plan por PR (Alta → Baja)
 
-- **PR-1: Reducir bundle de `/chat` eliminando dependencias no usadas**
-  - Cambios: Quitar `marked`, `Renderer`, `highlight.js` + CSS, `fast-json-patch`, `react-toastify` CSS y `ToastContainer` si no hay toasts.
-  - Impacto: Alto. Reducción directa de módulos.
+- **PR-1: Reducir bundle de `/chat` eliminando dependencias no usadas** ✅ **COMPLETADO**
+  - **Estado**: ✅ Implementado y probado
+  - **Cambios realizados**: 
+    - ✅ Eliminadas importaciones no usadas: `marked`, `Renderer`, `highlight.js` + CSS, `fast-json-patch`, `react-toastify` CSS
+    - ✅ Implementada carga dinámica de `fetchEventSource` para reducir bundle inicial
+    - ✅ Optimizada generación de UUID en `chat/page.tsx` con `useMemo`
+    - ✅ Eliminado `ToastContainer` no utilizado
+    - ✅ Limpiadas importaciones de Chakra UI no utilizadas (`Spinner`, `Button`)
+  - **Archivos modificados**:
+    - `frontend/app/components/ChatWindow.tsx`: Eliminadas 8 importaciones no usadas, implementada carga dinámica
+    - `frontend/app/chat/page.tsx`: Optimizado UUID con useMemo, eliminado ToastContainer
+  - **Impacto**: Alto. Reducción significativa de módulos en el bundle de `/chat`
+  - **Verificación**: ✅ Probado en Docker - Frontend funciona correctamente
 
 - **PR-2: Unificar notificaciones y UI**
   - Cambios: Mantener solo una librería de toasts; eliminar duplicados. Retirar Chakra UI de `/chat` y migrar a shadcn/Tailwind.
@@ -195,6 +205,39 @@ const PDFPreview = dynamic(() => import('./PDFPreview'), { ssr: false });
 - **PR-7: Tooling y entorno de dev**
   - Cambios: Actualizar Browserslist, probar Turbopack, evitar Docker para Next en dev.
   - Impacto: Medio.
+
+---
+
+## Resumen de Optimizaciones Implementadas
+
+### PR-1: Reducción de Bundle ✅ COMPLETADO
+**Fecha de implementación**: Enero 2025
+
+**Optimizaciones realizadas**:
+1. **Eliminación de dependencias no utilizadas** (8 importaciones):
+   - `marked` y `Renderer` (procesamiento de Markdown)
+   - `highlight.js` y su CSS (resaltado de sintaxis)
+   - `fast-json-patch` y `applyPatch` (parches JSON)
+   - `react-toastify` y su CSS (notificaciones)
+   - Componentes Chakra UI no utilizados (`Spinner`, `Button`)
+
+2. **Carga dinámica implementada**:
+   - `fetchEventSource` ahora se carga solo cuando se necesita en `sendMessage()`
+   - Reducción del bundle inicial de la página `/chat`
+
+3. **Optimización de renders**:
+   - UUID generado con `useMemo` en `chat/page.tsx` para evitar regeneración en cada render
+   - Eliminado `ToastContainer` no utilizado
+
+**Impacto medido**:
+- ✅ Reducción significativa del tamaño del bundle de `/chat`
+- ✅ Mejora en tiempo de carga inicial
+- ✅ Menos módulos cargados innecesariamente
+- ✅ Frontend funciona correctamente en Docker
+
+**Próximos pasos recomendados**:
+- PR-2: Unificar notificaciones y migrar completamente de Chakra UI a shadcn/Tailwind
+- PR-3: Implementar code splitting adicional con `useChatStream`
 
 ---
 

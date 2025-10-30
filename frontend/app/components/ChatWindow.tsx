@@ -5,28 +5,17 @@ import { v4 as uuidv4 } from "uuid";
 import { EmptyState } from "../components/EmptyState";
 import { ChatMessageBubble, Message } from "../components/ChatMessageBubble";
 import { AutoResizeTextarea } from "./AutoResizeTextarea";
-import { marked } from "marked";
-import { Renderer } from "marked";
-import hljs from "highlight.js";
-import "highlight.js/styles/gradient-dark.css";
 
-import { fetchEventSource } from "@microsoft/fetch-event-source";
-import { applyPatch } from "fast-json-patch";
-
-import "react-toastify/dist/ReactToastify.css";
 import {
   Heading,
   Flex,
   IconButton,
   InputGroup,
   InputRightElement,
-  Spinner,
   Box,
   Text,
-  Button,
 } from "@chakra-ui/react";
 import { ArrowUpIcon } from "@chakra-ui/icons";
-import { Source } from "./SourceBubble";
 import { apiBaseUrl } from "../utils/constants";
 
 export function ChatWindow(props: {
@@ -120,7 +109,10 @@ export function ChatWindow(props: {
 
     try {
       console.log("Iniciando petición al servidor...");
-      await fetchEventSource(apiBaseUrl + "/api/v1/chat/stream_log", {
+      // Carga dinámica de fetchEventSource para reducir el bundle inicial
+      const { fetchEventSource } = await import("@microsoft/fetch-event-source");
+      
+      await fetchEventSource(apiBaseUrl + "/chat/stream_log", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
