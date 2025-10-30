@@ -25,7 +25,6 @@ class Settings(BaseSettings):
     workers: int = Field(default=4, env="WORKERS")
     
     # Configuraciones de Seguridad
-    api_key: SecretStr = Field(default=None, env="API_KEY")
     jwt_secret: Optional[SecretStr] = Field(default=None, env="JWT_SECRET")
     jwt_algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
     cors_origins: List[str] = Field(default=["*"], env="CORS_ORIGINS")
