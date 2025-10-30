@@ -8,7 +8,7 @@ import {
 } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
-import { FileText, Upload, Trash2, Search } from "lucide-react";
+import { FileText, Upload, Trash2, Search, Download } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -19,6 +19,9 @@ import {
 } from "@/app/components/ui/table";
 import { useToast } from "@/app/hooks/use-toast";
 import { PDFService } from "@/app/lib/services/pdfService";
+import { Progress } from "@/app/components/ui/progress";
+import { Skeleton } from "@/app/components/ui/skeleton";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/app/components/ui/dialog";
 
 interface PDFDocument {
   filename: string;
@@ -30,13 +33,17 @@ interface PDFDocument {
 export function DocumentManagement() {
   const [documents, setDocuments] = useState<PDFDocument[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingList, setIsLoadingList] = useState(true);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [previewFilename, setPreviewFilename] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const loadDocuments = async () => {
     try {
-      setIsLoading(true);
+      setIsLoadingList(true);
       const response = await PDFService.listPDFs();
       setDocuments(response.pdfs);
     } catch (error) {
@@ -46,7 +53,7 @@ export function DocumentManagement() {
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setIsLoadingList(false);
     }
   };
 
@@ -59,8 +66,9 @@ export function DocumentManagement() {
     if (!file) return;
 
     try {
-      setIsLoading(true);
-      await PDFService.uploadPDF(file);
+      setIsUploading(true);
+      setUploadProgress(0);
+      await PDFService.uploadPDF(file, (p) => setUploadProgress(p));
       toast({
         title: "Éxito",
         description: "PDF subido correctamente",
@@ -69,17 +77,29 @@ export function DocumentManagement() {
     } catch (error) {
       toast({
         title: "Error",
-        description: "No se pudo subir el PDF",
+        description:
+          error instanceof Error
+            ? error.message
+            : "No se pudo subir el PDF",
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      // Pequeña pausa para que el 100% sea visible antes de resetear
+      await new Promise((r) => setTimeout(r, 300));
+      setIsUploading(false);
+      setUploadProgress(0);
     }
+  };
+
+  const handleView = (filename: string) => {
+    const url = PDFService.getPDFViewUrl(filename);
+    window.open(url, "_blank");
   };
 
   const handleDelete = async (filename: string) => {
     try {
-      setIsLoading(true);
+      // Mantener simple: reutilizar el listado para bloquear acciones mientras se actualiza
+      setIsLoadingList(true);
       await PDFService.deletePDF(filename);
       toast({
         title: "Éxito",
@@ -89,12 +109,25 @@ export function DocumentManagement() {
     } catch (error) {
       toast({
         title: "Error",
-        description: "No se pudo eliminar el PDF",
+        description:
+          error instanceof Error
+            ? error.message
+            : "No se pudo eliminar el PDF",
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setIsLoadingList(false);
     }
+  };
+
+  const handlePreview = (filename: string) => {
+    setPreviewFilename(filename);
+    setIsPreviewOpen(true);
+  };
+
+  const handleDownload = (filename: string) => {
+    const url = PDFService.getPDFDownloadUrl(filename);
+    window.open(url, "_blank");
   };
 
   const formatFileSize = (bytes: number) => {
@@ -153,16 +186,24 @@ export function DocumentManagement() {
             accept=".pdf"
             onChange={handleUpload}
             className="hidden"
-            disabled={isLoading}
+            disabled={isUploading || isLoadingList}
           />
           <Button
             onClick={handleButtonClick}
             className="gradient-primary hover:opacity-90 cursor-pointer"
-            disabled={isLoading}
+            disabled={isUploading || isLoadingList}
           >
             <Upload className="w-4 h-4 mr-2" />
-            {isLoading ? "Subiendo..." : "Subir PDF"}
+            {isUploading ? "Subiendo..." : "Subir PDF"}
           </Button>
+          {isUploading && (
+            <div className="mt-2 w-64">
+              <Progress value={uploadProgress} />
+              <p className="text-xs text-muted-foreground mt-1">
+                {uploadProgress}%
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -177,7 +218,11 @@ export function DocumentManagement() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              {documents.length}
+              {isLoadingList ? (
+                <Skeleton className="h-6 w-16" />
+              ) : (
+                documents.length
+              )}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               PDFs en el sistema
@@ -194,8 +239,12 @@ export function DocumentManagement() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              {formatFileSize(
-                documents.reduce((acc, doc) => acc + doc.size, 0),
+              {isLoadingList ? (
+                <Skeleton className="h-6 w-24" />
+              ) : (
+                formatFileSize(
+                  documents.reduce((acc, doc) => acc + doc.size, 0),
+                )
               )}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -224,35 +273,96 @@ export function DocumentManagement() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredDocuments.map((doc) => (
-                <TableRow key={doc.filename}>
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-primary" />
-                      {doc.filename}
-                    </div>
-                  </TableCell>
-                  <TableCell>{formatDate(doc.last_modified)}</TableCell>
-                  <TableCell>{formatFileSize(doc.size)}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex gap-2 justify-end">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDelete(doc.filename)}
-                        className="text-destructive hover:text-destructive"
-                        disabled={isLoading}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {isLoadingList && documents.length === 0 ? (
+                // Skeletons mientras carga por primera vez
+                Array.from({ length: 3 }).map((_, idx) => (
+                  <TableRow key={`skeleton-${idx}`}>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="h-4 w-4 rounded" />
+                        <Skeleton className="h-4 w-40" />
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-32" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-24" />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Skeleton className="h-8 w-20 ml-auto" />
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                filteredDocuments.map((doc) => (
+                  <TableRow key={doc.filename}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-primary" />
+                        {doc.filename}
+                      </div>
+                    </TableCell>
+                    <TableCell>{formatDate(doc.last_modified)}</TableCell>
+                    <TableCell>{formatFileSize(doc.size)}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex gap-2 justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handlePreview(doc.filename)}
+                          disabled={isLoadingList || isUploading}
+                          title="Preview"
+                        >
+                          <Search className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDownload(doc.filename)}
+                          disabled={isLoadingList || isUploading}
+                          title="Download"
+                        >
+                          <Download className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(doc.filename)}
+                          className="text-destructive hover:text-destructive"
+                          disabled={isLoadingList || isUploading}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+      {/* Modal de Preview */}
+      <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+        <DialogContent className="w-[95vw] max-w-5xl h-[85vh] p-0">
+          <DialogHeader className="px-6 pt-6">
+            <DialogTitle className="text-lg">Preview: {previewFilename}</DialogTitle>
+          </DialogHeader>
+          <div className="px-6 pb-6 h-[calc(85vh-4rem)]">
+            {previewFilename ? (
+              <iframe
+                src={PDFService.getPDFViewUrl(previewFilename)}
+                className="w-full h-full border rounded-md"
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full">
+                <Skeleton className="w-48 h-6" />
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

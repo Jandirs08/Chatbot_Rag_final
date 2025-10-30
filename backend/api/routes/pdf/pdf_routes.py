@@ -3,6 +3,8 @@ import logging
 import datetime
 from fastapi import APIRouter, HTTPException, UploadFile, File, Request, BackgroundTasks
 from typing import List
+from pathlib import Path
+from starlette.responses import FileResponse
 
 # Importar modelos Pydantic desde el módulo centralizado
 from api.schemas import (
@@ -121,3 +123,35 @@ async def delete_pdf(
             status_code=500,
             detail=f"Error interno del servidor al eliminar PDF: {str(e)}"
         )
+
+@router.get("/download/{filename}")
+async def download_pdf(request: Request, filename: str):
+    """Sirve un PDF directamente para visualización/descarga en el navegador."""
+    pdf_file_manager = request.app.state.pdf_file_manager
+    try:
+        file_path = pdf_file_manager.pdf_dir / Path(filename).name
+        if not file_path.exists() or not file_path.is_file():
+            raise HTTPException(status_code=404, detail=f"PDF '{filename}' no encontrado.")
+        # Forzar cabecera de attachment estableciendo filename (Starlette añade Content-Disposition)
+        return FileResponse(path=str(file_path), filename=filename, media_type="application/pdf")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error al servir PDF '{filename}': {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error interno al servir el PDF")
+
+@router.get("/view/{filename}")
+async def view_pdf(request: Request, filename: str):
+    """Sirve un PDF para visualización inline en el navegador (sin attachment)."""
+    pdf_file_manager = request.app.state.pdf_file_manager
+    try:
+        file_path = pdf_file_manager.pdf_dir / Path(filename).name
+        if not file_path.exists() or not file_path.is_file():
+            raise HTTPException(status_code=404, detail=f"PDF '{filename}' no encontrado.")
+        # No establecer filename para evitar Content-Disposition: attachment y permitir inline
+        return FileResponse(path=str(file_path), media_type="application/pdf")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error al visualizar PDF '{filename}': {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error interno al visualizar el PDF")
