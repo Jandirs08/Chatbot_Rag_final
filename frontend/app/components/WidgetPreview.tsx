@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -9,17 +9,38 @@ import {
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
-import { Copy, Eye, MessageCircle, X } from "lucide-react";
+import { Copy, Eye, MessageCircle, X, Settings } from "lucide-react";
 import { useToast } from "@/app/components/ui/use-toast";
 
 export function WidgetPreview() {
   const [width, setWidth] = useState("400");
   const [height, setHeight] = useState("600");
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [iframeCode, setIframeCode] = useState(
-    `<iframe src="${process.env.NEXT_PUBLIC_VITE_WIDGET_URL}" width="${width}" height="${height}" frameborder="0" style="position: fixed; bottom: 20px; right: 20px; z-index: 1000; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.1);"></iframe>`,
-  );
+  const [position, setPosition] = useState("bottom-right");
+  const [theme, setTheme] = useState("default");
+  const [iframeCode, setIframeCode] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
   const { toast } = useToast();
+
+  // Función para obtener la URL base (siempre /chat)
+  const getBaseUrl = () => {
+    if (typeof window !== 'undefined') {
+      return `${window.location.protocol}//${window.location.host}/chat`;
+    }
+    return process.env.NEXT_PUBLIC_WIDGET_URL || "http://localhost:3000/chat";
+  };
+
+  // Función para obtener estilos de posición
+  const getPositionStyles = () => {
+    const positions = {
+      "bottom-right": "position: fixed; bottom: 20px; right: 20px;",
+      "bottom-left": "position: fixed; bottom: 20px; left: 20px;",
+      "top-right": "position: fixed; top: 20px; right: 20px;",
+      "top-left": "position: fixed; top: 20px; left: 20px;",
+    };
+    return positions[position as keyof typeof positions] || positions["bottom-right"];
+  };
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(iframeCode);
@@ -29,22 +50,85 @@ export function WidgetPreview() {
     });
   };
 
-  const updateIframeCode = (newWidth: string, newHeight: string) => {
-    setIframeCode(
-      `<iframe src="${process.env.NEXT_PUBLIC_VITE_WIDGET_URL}" width="${newWidth}" height="${newHeight}" frameborder="0" style="position: fixed; bottom: 20px; right: 20px; z-index: 1000; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.1);"></iframe>`,
-    );
+  const updateIframeCode = () => {
+    const baseUrl = getBaseUrl();
+    const positionStyles = getPositionStyles();
+    const themeParam = theme !== "default" ? `?theme=${theme}` : "";
+    
+    // Generar código que incluye el botón flotante del widget
+    const code = `<!-- Widget del Chatbot -->
+<div id="chatbot-widget" style="${positionStyles} z-index: 1000;">
+  <!-- Botón flotante del widget -->
+  <div id="chatbot-button" style="width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 20px rgba(0,0,0,0.15); transition: transform 0.2s ease;" onclick="toggleChatbot()">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+    </svg>
+  </div>
+  
+  <!-- Iframe del chat (inicialmente oculto) -->
+  <iframe 
+    id="chatbot-iframe"
+    src="${baseUrl}${themeParam}" 
+    width="${width}" 
+    height="${height}" 
+    frameborder="0" 
+    style="display: none; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.1); margin-bottom: 10px;"
+    title="AI Chatbot Widget">
+  </iframe>
+</div>
+
+<script>
+function toggleChatbot() {
+  var iframe = document.getElementById('chatbot-iframe');
+  var button = document.getElementById('chatbot-button');
+  
+  if (iframe.style.display === 'none') {
+    iframe.style.display = 'block';
+    button.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
+  } else {
+    iframe.style.display = 'none';
+    button.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>';
+  }
+}
+</script>`;
+    
+    setIframeCode(code);
   };
 
+  // Actualizar código automáticamente cuando cambien los parámetros
+  useEffect(() => {
+    updateIframeCode();
+  }, [width, height, position, theme]);
+
   const handleWidthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newWidth = e.target.value;
-    setWidth(newWidth);
-    updateIframeCode(newWidth, height);
+    setWidth(e.target.value);
   };
 
   const handleHeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newHeight = e.target.value;
-    setHeight(newHeight);
-    updateIframeCode(width, newHeight);
+    setHeight(e.target.value);
+  };
+
+  const handlePositionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setPosition(e.target.value);
+  };
+
+  const handleThemeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setTheme(e.target.value);
+  };
+
+  const handleIframeLoad = () => {
+    setIsLoading(false);
+    setError("");
+  };
+
+  const handleIframeError = () => {
+    setIsLoading(false);
+    setError("Error al cargar el widget. Verifica la conexión.");
+    toast({
+      title: "Error de carga",
+      description: "No se pudo cargar el widget. Verifica la conexión.",
+      variant: "destructive",
+    });
   };
 
   return (
@@ -82,11 +166,20 @@ export function WidgetPreview() {
                 </div>
               )}
 
-              {/* Widget flotante simulado */}
+              {/* Widget flotante simulado - Ahora incluye el botón flotante */}
               {!isPreviewOpen && (
                 <div
-                  className="absolute bottom-4 right-4 w-16 h-16 rounded-full gradient-primary flex items-center justify-center shadow-lg hover:scale-110 transition-transform cursor-pointer"
-                  onClick={() => setIsPreviewOpen(true)}
+                  className={`absolute ${
+                    position === 'bottom-right' ? 'bottom-4 right-4' :
+                    position === 'bottom-left' ? 'bottom-4 left-4' :
+                    position === 'top-right' ? 'top-4 right-4' :
+                    'top-4 left-4'
+                  } w-16 h-16 rounded-full gradient-primary flex items-center justify-center shadow-lg hover:scale-110 transition-transform cursor-pointer`}
+                  onClick={() => {
+                    setIsPreviewOpen(true);
+                    setIsLoading(true);
+                    setError("");
+                  }}
                 >
                   <MessageCircle className="w-8 h-8 text-white" />
                 </div>
@@ -102,8 +195,24 @@ export function WidgetPreview() {
                     className="relative"
                     style={{ width: `${width}px`, height: `${height}px` }}
                   >
+                    {isLoading && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-background/80 rounded-2xl">
+                        <div className="text-center">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                          <p className="text-sm text-muted-foreground">Cargando widget...</p>
+                        </div>
+                      </div>
+                    )}
+                    {error && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-background/80 rounded-2xl">
+                        <div className="text-center p-4">
+                          <div className="text-destructive mb-2">⚠️</div>
+                          <p className="text-sm text-destructive">{error}</p>
+                        </div>
+                      </div>
+                    )}
                     <iframe
-                      src={process.env.NEXT_PUBLIC_VITE_WIDGET_URL}
+                      src={getBaseUrl()}
                       width={width}
                       height={height}
                       style={{
@@ -111,9 +220,16 @@ export function WidgetPreview() {
                         borderRadius: "16px",
                         boxShadow: "0 8px 32px rgba(0,0,0,0.1)",
                       }}
+                      title="AI Chatbot Widget Preview"
+                      onLoad={handleIframeLoad}
+                      onError={handleIframeError}
                     />
                     <button
-                      onClick={() => setIsPreviewOpen(false)}
+                      onClick={() => {
+                        setIsPreviewOpen(false);
+                        setIsLoading(false);
+                        setError("");
+                      }}
                       className="absolute -top-2 -right-2 w-8 h-8 rounded-full bg-destructive text-white flex items-center justify-center shadow-md z-50 hover:bg-destructive/90 transition-colors"
                     >
                       <X className="w-4 h-4" />
@@ -133,18 +249,17 @@ export function WidgetPreview() {
               Código para Incrustar
             </CardTitle>
             <CardDescription>
-              Copia este código y pégalo en tu sitio web
+              Copia este código y pégalo en tu sitio web. Los cambios se actualizan automáticamente.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6">
             <div>
-              <Label htmlFor="iframe-code">Código iframe</Label>
+              <Label htmlFor="iframe-code">Código completo del widget</Label>
               <div className="relative mt-2">
                 <textarea
                   id="iframe-code"
                   value={iframeCode}
-                  onChange={(e) => setIframeCode(e.target.value)}
-                  className="w-full h-32 p-3 text-sm border border-border rounded-md bg-background font-mono resize-none"
+                  className="w-full h-64 p-3 text-sm border border-border rounded-md bg-background font-mono resize-none"
                   readOnly
                 />
                 <Button
@@ -155,42 +270,88 @@ export function WidgetPreview() {
                   <Copy className="w-4 h-4" />
                 </Button>
               </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Este código incluye el botón flotante y el iframe del chat. Se actualiza automáticamente cuando cambias la configuración.
+              </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="width">Ancho (px)</Label>
-                <Input
-                  id="width"
-                  type="number"
-                  value={width}
-                  onChange={handleWidthChange}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="height">Alto (px)</Label>
-                <Input
-                  id="height"
-                  type="number"
-                  value={height}
-                  onChange={handleHeightChange}
-                  className="mt-1"
-                />
+            {/* Configuración básica */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-foreground">Configuración Básica</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="width">Ancho (px)</Label>
+                  <Input
+                    id="width"
+                    type="number"
+                    value={width}
+                    onChange={handleWidthChange}
+                    className="mt-1"
+                    min="200"
+                    max="800"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="height">Alto (px)</Label>
+                  <Input
+                    id="height"
+                    type="number"
+                    value={height}
+                    onChange={handleHeightChange}
+                    className="mt-1"
+                    min="300"
+                    max="1000"
+                  />
+                </div>
               </div>
             </div>
 
-            <Button
-              className="w-full gradient-primary hover:opacity-90"
-              onClick={() =>
-                toast({
-                  title: "Vista previa actualizada",
-                  description: "Los cambios se han aplicado a la vista previa",
-                })
-              }
-            >
-              Actualizar Vista Previa
-            </Button>
+            {/* Configuración avanzada */}
+            <div className="space-y-4 border-t pt-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <Settings className="w-4 h-4" />
+                Configuración Avanzada
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="position">Posición</Label>
+                  <select
+                    id="position"
+                    value={position}
+                    onChange={handlePositionChange}
+                    className="w-full mt-1 p-2 border border-border rounded-md bg-background"
+                  >
+                    <option value="bottom-right">Abajo Derecha</option>
+                    <option value="bottom-left">Abajo Izquierda</option>
+                    <option value="top-right">Arriba Derecha</option>
+                    <option value="top-left">Arriba Izquierda</option>
+                  </select>
+                </div>
+                <div>
+                  <Label htmlFor="theme">Tema</Label>
+                  <select
+                    id="theme"
+                    value={theme}
+                    onChange={handleThemeChange}
+                    className="w-full mt-1 p-2 border border-border rounded-md bg-background"
+                  >
+                    <option value="default">Por Defecto</option>
+                    <option value="light">Claro</option>
+                    <option value="dark">Oscuro</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div className="bg-muted/30 p-3 rounded-lg">
+                <p className="text-xs text-muted-foreground">
+                  <strong>URL del chat:</strong> {getBaseUrl()}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  El widget siempre apunta a la página de chat de tu aplicación.
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -208,7 +369,7 @@ export function WidgetPreview() {
               </div>
               <h3 className="font-semibold mb-2">Copia el código</h3>
               <p className="text-sm text-muted-foreground">
-                Haz clic en el botón copiar para obtener el código iframe
+                Haz clic en el botón copiar para obtener el código completo del widget
               </p>
             </div>
             <div className="text-center p-4 border border-border/30 rounded-lg">
@@ -217,7 +378,7 @@ export function WidgetPreview() {
               </div>
               <h3 className="font-semibold mb-2">Pega en tu web</h3>
               <p className="text-sm text-muted-foreground">
-                Inserta el código en el HTML de tu sitio web
+                Inserta el código antes del cierre del tag &lt;/body&gt; en tu HTML
               </p>
             </div>
             <div className="text-center p-4 border border-border/30 rounded-lg">
@@ -226,7 +387,7 @@ export function WidgetPreview() {
               </div>
               <h3 className="font-semibold mb-2">¡Listo!</h3>
               <p className="text-sm text-muted-foreground">
-                El chatbot aparecerá como una burbuja flotante
+                El chatbot aparecerá como un botón flotante que abre el chat
               </p>
             </div>
           </div>

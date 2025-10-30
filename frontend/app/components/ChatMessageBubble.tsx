@@ -110,13 +110,10 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble(props: {
     <div
       className={`w-full max-w-3xl mx-auto p-4 mb-4 rounded-2xl transform transition-all duration-300 ease-in-out hover:scale-[1.02] ${
         isUser
-          ? "bg-gradient-to-r from-blue-500 to-blue-600 ml-auto"
-          : "bg-gradient-to-r from-gray-700 to-gray-800 mr-auto"
+          ? "bg-gradient-to-br from-[#da5b3e] to-[#c54a33] ml-auto shadow-lg shadow-[#da5b3e]/20"
+          : "bg-gradient-to-br from-gray-700 to-gray-800 mr-auto shadow-lg shadow-gray-700/20"
       } ${props.isMostRecent ? "animate-fadeIn" : ""}`}
       style={{
-        boxShadow: isUser
-          ? "0 4px 15px rgba(59, 130, 246, 0.2)"
-          : "0 4px 15px rgba(55, 65, 81, 0.2)",
         maxWidth: "85%",
         animation: props.isMostRecent
           ? "slideIn 0.3s ease-out forwards"
@@ -124,13 +121,18 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble(props: {
       }}
     >
       {isUser ? (
-        <p className="text-white text-lg font-medium leading-relaxed">
-          {content}
-        </p>
+        <div className="flex items-center justify-end gap-3">
+          <p className="text-white text-lg font-medium leading-relaxed">
+            {content}
+          </p>
+          <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+            <span className="text-white text-sm font-bold">Tú</span>
+          </div>
+        </div>
       ) : (
         <div className="flex flex-col items-start space-y-3 w-full">
           <div className="flex items-center w-full border-b border-gray-600 pb-2">
-            <div className="text-blue-300 font-bold flex items-center gap-2">
+            <div className="text-[#da5b3e] font-bold flex items-center gap-2">
               <span className="text-xl">{props.aiEmoji || "🤖"}</span>
               <span>Asistente</span>
             </div>

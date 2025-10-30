@@ -81,7 +81,8 @@ const nextConfig = {
   async headers() {
     return [
       {
-        source: '/(.*)',
+        // Configuración general para todas las páginas excepto /chat
+        source: '/((?!chat).*)',
         headers: [
           {
             key: 'X-Content-Type-Options',
@@ -97,6 +98,25 @@ const nextConfig = {
           },
         ],
       },
+      {
+          // Configuración específica para /chat - permite iframes desde cualquier origen
+          source: '/chat',
+          headers: [
+            {
+              key: 'X-Content-Type-Options',
+              value: 'nosniff',
+            },
+            // Removemos X-Frame-Options para permitir incrustación externa
+            // {
+            //   key: 'X-Frame-Options',
+            //   value: 'ALLOWALL',
+            // },
+            {
+              key: 'X-XSS-Protection',
+              value: '1; mode=block',
+            },
+          ],
+        },
       {
         source: '/static/(.*)',
         headers: [
