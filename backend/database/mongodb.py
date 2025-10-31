@@ -59,6 +59,31 @@ class MongodbClient:
         except Exception as e:
             logger.error(f"Error al agregar mensaje: {str(e)}")
 
+    async def ensure_indexes(self) -> None:
+        """Ensure MongoDB indexes are created for optimal performance."""
+        try:
+            # Índice compuesto para conversation_id + timestamp (consultas de historial)
+            await self.messages.create_index([
+                ("conversation_id", 1),
+                ("timestamp", 1)
+            ], name="conversation_timeline")
+            
+            # Índice individual para timestamp (consultas por fecha)
+            await self.messages.create_index([
+                ("timestamp", 1)
+            ], name="timestamp_idx")
+            
+            # Índice individual para role (análisis y filtros)
+            await self.messages.create_index([
+                ("role", 1)
+            ], name="role_idx")
+            
+            logger.info("✅ Índices MongoDB aplicados correctamente")
+            
+        except Exception as e:
+            logger.error(f"❌ Error aplicando índices MongoDB: {str(e)}")
+            raise
+
     # Método de limpiar historial eliminado: no requerido por la aplicación
     
     async def format_history(self, conversation_id: str) -> str:

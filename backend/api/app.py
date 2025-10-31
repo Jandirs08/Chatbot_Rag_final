@@ -140,6 +140,17 @@ async def lifespan(app: FastAPI):
         )
         logger.info("ChatManager inicializado.")
 
+        # Inicializar índices MongoDB para optimización de rendimiento
+        try:
+            from database.mongodb import MongodbClient
+            mongodb_client = MongodbClient(s)
+            await mongodb_client.ensure_indexes()
+            await mongodb_client.close()
+            logger.info("🚀 Índices MongoDB inicializados correctamente")
+        except Exception as e:
+            logger.error(f"⚠️ Error inicializando índices MongoDB: {e}")
+            # No fallar la aplicación por esto, solo registrar el error
+
         # --- PDF Processor para RAG status ---
         class PDFProcessorAdapter:
             def __init__(self, pdf_manager, vector_store):
