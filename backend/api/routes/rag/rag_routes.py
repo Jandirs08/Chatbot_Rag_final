@@ -17,6 +17,9 @@ from api.schemas import (
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+# 🔒 NOTA: Todas las rutas de este módulo están protegidas por AuthenticationMiddleware
+# Solo usuarios admin autenticados pueden acceder a estos endpoints
+
 @router.get("/rag-status", response_model=RAGStatusResponse)
 async def rag_status(request: Request):
     """Endpoint para obtener el estado actual del RAG."""

@@ -23,6 +23,9 @@ from database.mongodb import MongodbClient
 logger = get_logger(__name__)
 router = APIRouter()
 
+# 🌐 NOTA: Todas las rutas de este módulo son PÚBLICAS
+# No requieren autenticación para permitir acceso libre al chat
+
 @router.post("/stream_log")
 async def chat_stream_log(request: Request):
     """Endpoint para chat con streaming y logging."""

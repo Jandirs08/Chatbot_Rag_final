@@ -29,10 +29,7 @@ async def create_admin_user():
     
     try:
         # Initialize MongoDB client
-        mongodb_client = MongodbClient(
-            mongo_uri=settings.mongo_uri,
-            database_name=settings.mongo_database_name
-        )
+        mongodb_client = MongodbClient(settings)
         
         # Initialize user repository
         user_repo = UserRepository(mongodb_client)

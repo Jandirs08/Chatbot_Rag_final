@@ -1,0 +1,180 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/app/components/ui/button";
+import { Input } from "@/app/components/ui/input";
+import { Label } from "@/app/components/ui/label";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/app/components/ui/card";
+import { Alert, AlertDescription } from "@/app/components/ui/alert";
+import { Loader2, Eye, EyeOff } from "lucide-react";
+import { authService, LoginCredentials } from "@/app/lib/services/authService";
+
+interface LoginFormProps {
+  onSuccess?: () => void;
+  redirectTo?: string;
+}
+
+export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
+  const router = useRouter();
+  const [formData, setFormData] = useState<LoginCredentials>({
+    username: "",
+    password: "",
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value,
+    }));
+    // Limpiar error cuando el usuario empiece a escribir
+    if (error) setError(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Validaciones básicas
+    if (!formData.username.trim()) {
+      setError("El nombre de usuario es requerido");
+      return;
+    }
+    
+    if (!formData.password) {
+      setError("La contraseña es requerida");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      await authService.login(formData);
+      
+      // Login exitoso
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        router.push(redirectTo);
+      }
+    } catch (err) {
+      console.error("Error en login:", err);
+      setError(err instanceof Error ? err.message : "Error de autenticación");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
+
+  return (
+    <Card className="w-full max-w-md mx-auto">
+      <CardHeader className="space-y-1">
+        <CardTitle className="text-2xl font-bold text-center">
+          Iniciar Sesión
+        </CardTitle>
+        <CardDescription className="text-center">
+          Ingresa tus credenciales para acceder al panel de administración
+        </CardDescription>
+      </CardHeader>
+      
+      <form onSubmit={handleSubmit}>
+        <CardContent className="space-y-4">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          
+          <div className="space-y-2">
+            <Label htmlFor="username">Nombre de Usuario</Label>
+            <Input
+              id="username"
+              name="username"
+              type="text"
+              placeholder="Ingresa tu nombre de usuario"
+              value={formData.username}
+              onChange={handleInputChange}
+              disabled={isLoading}
+              required
+              autoComplete="username"
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="password">Contraseña</Label>
+            <div className="relative">
+              <Input
+                id="password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="Ingresa tu contraseña"
+                value={formData.password}
+                onChange={handleInputChange}
+                disabled={isLoading}
+                required
+                autoComplete="current-password"
+                className="pr-10"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                onClick={togglePasswordVisibility}
+                disabled={isLoading}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+                <span className="sr-only">
+                  {showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                </span>
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+        
+        <CardFooter className="flex flex-col space-y-4">
+          <Button 
+            type="submit" 
+            className="w-full" 
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Iniciando sesión...
+              </>
+            ) : (
+              "Iniciar Sesión"
+            )}
+          </Button>
+          
+          <div className="text-sm text-center text-muted-foreground">
+            <p>
+              ¿No tienes una cuenta?{" "}
+              <Button
+                type="button"
+                variant="link"
+                className="p-0 h-auto font-normal"
+                onClick={() => router.push("/auth/register")}
+                disabled={isLoading}
+              >
+                Regístrate aquí
+              </Button>
+            </p>
+          </div>
+        </CardFooter>
+      </form>
+    </Card>
+  );
+}

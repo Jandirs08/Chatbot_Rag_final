@@ -7,6 +7,9 @@ from pydantic import BaseModel
 logger = get_logger(__name__)
 router = APIRouter(tags=["bot"])
 
+# 🔒 NOTA: Todas las rutas de este módulo están protegidas por AuthenticationMiddleware
+# Solo usuarios admin autenticados pueden acceder a estos endpoints
+
 class BotStateResponse(BaseModel):
     """Modelo de respuesta para el estado del bot."""
     is_active: bool

@@ -67,11 +67,11 @@ class UserRepository:
             }
             
             # Insert user
-            result = users_collection.insert_one(user_doc)
+            result = await users_collection.insert_one(user_doc)
             
             if result.inserted_id:
                 # Retrieve and return the created user
-                created_user = users_collection.find_one({"_id": result.inserted_id})
+                created_user = await users_collection.find_one({"_id": result.inserted_id})
                 return User(**created_user) if created_user else None
             
             return None
@@ -94,7 +94,7 @@ class UserRepository:
         """
         try:
             users_collection = self.mongodb_client.db[self.collection_name]
-            user_doc = users_collection.find_one({"username": username})
+            user_doc = await users_collection.find_one({"username": username})
             
             return User(**user_doc) if user_doc else None
             
@@ -113,7 +113,7 @@ class UserRepository:
         """
         try:
             users_collection = self.mongodb_client.db[self.collection_name]
-            user_doc = users_collection.find_one({"email": email})
+            user_doc = await users_collection.find_one({"email": email})
             
             return User(**user_doc) if user_doc else None
             
@@ -132,7 +132,7 @@ class UserRepository:
         """
         try:
             users_collection = self.mongodb_client.db[self.collection_name]
-            user_doc = users_collection.find_one({"_id": ObjectId(user_id)})
+            user_doc = await users_collection.find_one({"_id": ObjectId(user_id)})
             
             return User(**user_doc) if user_doc else None
             
@@ -158,14 +158,14 @@ class UserRepository:
             update_data["updated_at"] = datetime.now(timezone.utc)
             
             # Update user
-            result = users_collection.update_one(
+            result = await users_collection.update_one(
                 {"_id": ObjectId(user_id)},
                 {"$set": update_data}
             )
             
             if result.modified_count > 0:
                 # Return updated user
-                updated_user = users_collection.find_one({"_id": ObjectId(user_id)})
+                updated_user = await users_collection.find_one({"_id": ObjectId(user_id)})
                 return User(**updated_user) if updated_user else None
             
             return None
@@ -186,7 +186,7 @@ class UserRepository:
         try:
             users_collection = self.mongodb_client.db[self.collection_name]
             
-            result = users_collection.update_one(
+            result = await users_collection.update_one(
                 {"_id": ObjectId(user_id)},
                 {"$set": {"last_login": datetime.now(timezone.utc)}}
             )
@@ -209,7 +209,7 @@ class UserRepository:
         try:
             users_collection = self.mongodb_client.db[self.collection_name]
             
-            result = users_collection.update_one(
+            result = await users_collection.update_one(
                 {"_id": ObjectId(user_id)},
                 {"$set": {"is_active": False, "updated_at": datetime.now(timezone.utc)}}
             )
@@ -234,7 +234,7 @@ class UserRepository:
             users_collection = self.mongodb_client.db[self.collection_name]
             
             cursor = users_collection.find().skip(skip).limit(limit)
-            users = [User(**user_doc) for user_doc in cursor]
+            users = [User(**user_doc) async for user_doc in cursor]
             
             return users
             
@@ -250,8 +250,20 @@ class UserRepository:
         """
         try:
             users_collection = self.mongodb_client.db[self.collection_name]
-            return users_collection.count_documents({})
+            return await users_collection.count_documents({})
             
         except Exception as e:
             logger.error(f"Error counting users: {e}")
             return 0
+
+
+# Dependency function for FastAPI
+def get_user_repository() -> UserRepository:
+    """Get UserRepository instance as a dependency.
+    
+    Returns:
+        UserRepository instance
+    """
+    from database.mongodb import MongodbClient
+    mongodb_client = MongodbClient()
+    return UserRepository(mongodb_client)

@@ -18,6 +18,9 @@ from api.schemas import (
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["pdfs"])
 
+# 🔒 NOTA: Todas las rutas de este módulo están protegidas por AuthenticationMiddleware
+# Solo usuarios admin autenticados pueden acceder a estos endpoints
+
 @router.post("/upload", response_model=PDFUploadResponse)
 # @rate_limit(max_requests=10, window_seconds=60) # Comentado temporalmente
 async def upload_pdf(

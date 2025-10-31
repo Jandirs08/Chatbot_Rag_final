@@ -68,6 +68,8 @@ from .routes.pdf.pdf_routes import router as pdf_router
 from .routes.rag.rag_routes import router as rag_router
 from .routes.chat.chat_routes import router as chat_router
 from .routes.bot.bot_routes import router as bot_router
+from .auth import router as auth_router
+from auth.middleware import AuthenticationMiddleware
 
 # Dependencias para inicializar managers
 from core.bot import Bot
@@ -140,15 +142,14 @@ async def lifespan(app: FastAPI):
         )
         logger.info("ChatManager inicializado.")
 
-        # Inicializar índices MongoDB para optimización de rendimiento
+        # Inicializar MongoDB client persistente para middleware de autenticación
         try:
             from database.mongodb import MongodbClient
-            mongodb_client = MongodbClient(s)
-            await mongodb_client.ensure_indexes()
-            await mongodb_client.close()
-            logger.info("🚀 Índices MongoDB inicializados correctamente")
+            app.state.mongodb_client = MongodbClient(s)
+            await app.state.mongodb_client.ensure_indexes()
+            logger.info("🚀 MongoDB client inicializado e índices creados correctamente")
         except Exception as e:
-            logger.error(f"⚠️ Error inicializando índices MongoDB: {e}")
+            logger.error(f"⚠️ Error inicializando MongoDB client: {e}")
             # No fallar la aplicación por esto, solo registrar el error
 
         # --- PDF Processor para RAG status ---
@@ -201,6 +202,12 @@ async def lifespan(app: FastAPI):
             if hasattr(app.state.embedding_manager, 'close'):
                 await app.state.embedding_manager.close()
             logger.info("EmbeddingManager cerrado.")
+
+        # Cerrar MongoDB client
+        if hasattr(app.state, 'mongodb_client'):
+            if hasattr(app.state.mongodb_client, 'close'):
+                await app.state.mongodb_client.close()
+            logger.info("MongoDB client cerrado.")
 
     except Exception as e:
         logger.error(f"Error durante la limpieza de recursos: {e}", exc_info=True)
@@ -264,6 +271,10 @@ def create_app() -> FastAPI:
     )
     main_logger.info(f"CORS configurado para orígenes: {allow_origins_list}")
 
+    # Agregar middleware de autenticación (se inicializará con MongoDB client en lifespan)
+    app.add_middleware(AuthenticationMiddleware)
+    main_logger.info("Middleware de autenticación configurado.")
+
     # Handlers globales de excepciones
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -282,6 +293,7 @@ def create_app() -> FastAPI:
 
     # Registrar routers
     app.include_router(health_router, prefix="/api/v1", tags=["health"])
+    app.include_router(auth_router, prefix="/api/v1", tags=["auth"])
     app.include_router(pdf_router, prefix="/api/v1/pdfs", tags=["pdfs"])
     app.include_router(rag_router, prefix="/api/v1/rag", tags=["rag"])
     app.include_router(chat_router, prefix="/api/v1/chat", tags=["chat"])

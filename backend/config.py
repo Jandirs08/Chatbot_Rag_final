@@ -25,9 +25,11 @@ class Settings(BaseSettings):
     workers: int = Field(default=4, env="WORKERS")
     
     # Configuraciones de Seguridad
-    # JWT - Configuraciones para autenticación futura (ver FINAL3010_REFACTOR.md)
+    # JWT - Configuraciones para autenticación
     jwt_secret: Optional[SecretStr] = Field(default=None, env="JWT_SECRET")
     jwt_algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
+    jwt_access_token_expire_minutes: int = Field(default=30, env="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
+    jwt_refresh_token_expire_days: int = Field(default=7, env="JWT_REFRESH_TOKEN_EXPIRE_DAYS")
     
     # CORS - Configuraciones de origen cruzado
     cors_origins: List[str] = Field(default=["*"], env="CORS_ORIGINS")
