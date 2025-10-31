@@ -2,7 +2,7 @@ import { API_URL } from "@/app/lib/config";
 
 // Interfaces para los tipos de datos de autenticación
 export interface LoginCredentials {
-  username: string;
+  email: string;
   password: string;
 }
 
@@ -83,14 +83,17 @@ export const authService = {
   // Login de usuario
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
     try {
-      console.log("Intentando login para usuario:", credentials.username);
+      console.log("Intentando login para usuario:", credentials.email);
       
       const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(credentials),
+        body: JSON.stringify({
+          username: credentials.email, // El backend espera username pero enviamos email
+          password: credentials.password
+        }),
       });
 
       if (!response.ok) {

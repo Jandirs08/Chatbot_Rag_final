@@ -2,27 +2,32 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/app/components/ui/button";
-import { Input } from "@/app/components/ui/input";
-import { Label } from "@/app/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/app/components/ui/card";
-import { Alert, AlertDescription } from "@/app/components/ui/alert";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../ui/card";
+import { Alert, AlertDescription } from "../ui/alert";
 import { Loader2, Eye, EyeOff } from "lucide-react";
-import { authService, LoginCredentials } from "@/app/lib/services/authService";
+import { useAuth } from "../../hooks/useAuth";
 
 interface LoginFormProps {
   onSuccess?: () => void;
   redirectTo?: string;
 }
 
+interface LoginFormData {
+  email: string;
+  password: string;
+}
+
 export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
   const router = useRouter();
-  const [formData, setFormData] = useState<LoginCredentials>({
-    username: "",
+  const { login, isLoading, error, clearError } = useAuth();
+  
+  const [formData, setFormData] = useState<LoginFormData>({
+    email: "",
     password: "",
   });
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -32,28 +37,23 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
       [name]: value,
     }));
     // Limpiar error cuando el usuario empiece a escribir
-    if (error) setError(null);
+    if (error) clearError();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validaciones básicas
-    if (!formData.username.trim()) {
-      setError("El nombre de usuario es requerido");
+    if (!formData.email.trim()) {
       return;
     }
     
     if (!formData.password) {
-      setError("La contraseña es requerida");
       return;
     }
 
-    setIsLoading(true);
-    setError(null);
-
     try {
-      await authService.login(formData);
+      await login(formData.email, formData.password);
       
       // Login exitoso
       if (onSuccess) {
@@ -62,10 +62,8 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
         router.push(redirectTo);
       }
     } catch (err) {
+      // El error ya se maneja en el contexto
       console.error("Error en login:", err);
-      setError(err instanceof Error ? err.message : "Error de autenticación");
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -93,17 +91,17 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
           )}
           
           <div className="space-y-2">
-            <Label htmlFor="username">Nombre de Usuario</Label>
+            <Label htmlFor="email">Correo Electrónico</Label>
             <Input
-              id="username"
-              name="username"
-              type="text"
-              placeholder="Ingresa tu nombre de usuario"
-              value={formData.username}
+              id="email"
+              name="email"
+              type="email"
+              placeholder="Ingresa tu correo electrónico"
+              value={formData.email}
               onChange={handleInputChange}
               disabled={isLoading}
               required
-              autoComplete="username"
+              autoComplete="email"
             />
           </div>
           

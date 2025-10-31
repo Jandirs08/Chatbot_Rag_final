@@ -8,6 +8,7 @@ import {
   Code,
   User,
   MessageCircle,
+  LogOut,
 } from "lucide-react";
 import {
   Sidebar,
@@ -19,8 +20,12 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarHeader,
+  SidebarFooter,
   useSidebar,
 } from "./ui/sidebar";
+import { useAuth } from "../hooks/useAuth";
+import { Button } from "./ui/button";
+import { useRouter } from "next/navigation";
 
 const menuItems = [
   {
@@ -57,6 +62,18 @@ const menuItems = [
 
 export function AppSidebar() {
   const { state } = useSidebar();
+  const { user, logout, isAdmin } = useAuth();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      router.push("/auth/login");
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error);
+    }
+  };
+
   return (
     <Sidebar className="border-r border-border/50">
       <SidebarHeader className="p-6">
@@ -99,6 +116,37 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
+      <SidebarFooter className="p-4 border-t border-border/50">
+        {user && (
+          <div className="space-y-3">
+            {state !== "collapsed" && (
+              <div className="px-2">
+                <p className="text-sm font-medium text-foreground truncate">
+                  {user.username}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {user.email}
+                </p>
+                {isAdmin && (
+                  <span className="inline-block mt-1 px-2 py-1 text-xs bg-primary/10 text-primary rounded-full">
+                    Administrador
+                  </span>
+                )}
+              </div>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLogout}
+              className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
+            >
+              <LogOut className="w-4 h-4" />
+              {state !== "collapsed" && <span>Cerrar Sesión</span>}
+            </Button>
+          </div>
+        )}
+      </SidebarFooter>
     </Sidebar>
   );
 }
