@@ -25,17 +25,7 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
   // Mostrar sidebar solo si está autenticado y no es una ruta especial
   const shouldShowSidebar = isAuthenticated && !isChatRoute && !isAuthRoute;
 
-  // Mostrar loading mientras se verifica la autenticación
-  if (isLoading) {
-    return (
-      <div className="flex h-full items-center justify-center bg-background">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          <p className="text-sm text-muted-foreground">Verificando autenticación...</p>
-        </div>
-      </div>
-    );
-  }
+  // Evitar mostrar loading global; el middleware gestiona redirecciones
 
   return (
     <div className="flex h-full bg-background">

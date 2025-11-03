@@ -68,22 +68,9 @@ function DocumentManagementSkeleton() {
 }
 
 export default function Documents() {
-  // Proteger la ruta - redirige a login si no está autenticado
-  const { isLoading: authLoading, isAuthorized } = useRequireAuth();
-
-  // Si está cargando la autenticación, mostrar spinner
-  if (authLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
-      </div>
-    );
-  }
-
-  // Si no está autorizado, no renderizar nada (se redirigirá)
-  if (!isAuthorized) {
-    return null;
-  }
+  // Proteger la ruta - sin UI de loading; middleware hará redirect si no hay token
+  const { isAuthorized } = useRequireAuth();
+  if (!isAuthorized) return null;
 
   return (
     <Suspense fallback={<DocumentManagementSkeleton />}>

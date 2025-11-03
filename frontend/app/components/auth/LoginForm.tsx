@@ -157,20 +157,7 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
             )}
           </Button>
           
-          <div className="text-sm text-center text-muted-foreground">
-            <p>
-              ¿No tienes una cuenta?{" "}
-              <Button
-                type="button"
-                variant="link"
-                className="p-0 h-auto font-normal"
-                onClick={() => router.push("/auth/register")}
-                disabled={isLoading}
-              >
-                Regístrate aquí
-              </Button>
-            </p>
-          </div>
+          {/* Registro deshabilitado: la creación de usuarios se hace en /usuarios */}
         </CardFooter>
       </form>
     </Card>

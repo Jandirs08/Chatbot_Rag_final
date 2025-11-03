@@ -29,6 +29,7 @@ export interface AuthResponse {
   access_token: string;
   token_type: string;
   expires_in: number;
+  refresh_token: string;
 }
 
 export interface AuthError {
@@ -45,6 +46,9 @@ class TokenManager {
       localStorage.setItem(this.TOKEN_KEY, token);
       const expiryTime = Date.now() + (expiresIn * 1000);
       localStorage.setItem(this.TOKEN_EXPIRY_KEY, expiryTime.toString());
+      // Guardar también en cookie para que el middleware pueda verificar en el edge
+      const maxAge = Math.max(0, Math.floor(expiresIn));
+      document.cookie = `auth_token=${token}; Path=/; Max-Age=${maxAge}`;
     }
   }
 
@@ -70,6 +74,8 @@ class TokenManager {
     if (typeof window !== 'undefined') {
       localStorage.removeItem(this.TOKEN_KEY);
       localStorage.removeItem(this.TOKEN_EXPIRY_KEY);
+      // Borrar cookie
+      document.cookie = 'auth_token=; Path=/; Max-Age=0';
     }
   }
 
@@ -91,7 +97,7 @@ export const authService = {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          username: credentials.email, // El backend espera username pero enviamos email
+          email: credentials.email,
           password: credentials.password
         }),
       });

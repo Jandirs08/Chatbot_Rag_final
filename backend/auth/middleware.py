@@ -49,7 +49,8 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         self.protected_paths: List[str] = [
             "/api/v1/pdf",
             "/api/v1/rag", 
-            "/api/v1/bot"
+            "/api/v1/bot",
+            "/api/v1/users"
         ]
     
     def _is_public_path(self, path: str) -> bool:
@@ -133,6 +134,10 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         """
         path = request.url.path
         method = request.method
+
+        # Preflight CORS: permitir siempre que CORSMiddleware gestione los headers
+        if method == "OPTIONS":
+            return await call_next(request)
         
         logger.debug(f"Middleware procesando: {method} {path}")
         

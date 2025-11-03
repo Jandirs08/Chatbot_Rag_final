@@ -68,6 +68,7 @@ from .routes.pdf.pdf_routes import router as pdf_router
 from .routes.rag.rag_routes import router as rag_router
 from .routes.chat.chat_routes import router as chat_router
 from .routes.bot.bot_routes import router as bot_router
+from .routes.users.users_routes import router as users_router
 from .auth import router as auth_router
 from auth.middleware import AuthenticationMiddleware
 
@@ -298,6 +299,7 @@ def create_app() -> FastAPI:
     app.include_router(rag_router, prefix="/api/v1/rag", tags=["rag"])
     app.include_router(chat_router, prefix="/api/v1/chat", tags=["chat"])
     app.include_router(bot_router, prefix="/api/v1/bot", tags=["bot"])
+    app.include_router(users_router, prefix="/api/v1", tags=["users"])
     
     main_logger.info("Routers registrados.")
     main_logger.info("Aplicación FastAPI creada y configurada exitosamente.")

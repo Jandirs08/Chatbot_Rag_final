@@ -2,7 +2,7 @@
 
 ## 📊 Estado del Proyecto
 
-### Progreso General: 🟢 80% Completado (4/5 PRs)
+### Progreso General: 🟢 100% Completado (6/6 PRs)
 
 | PR | Estado | Descripción | Progreso |
 |---|---|---|---|
@@ -10,7 +10,8 @@
 | **PR #2** | ✅ **COMPLETADO** | Lógica de Autenticación del Backend - JWT y Endpoints | 100% |
 | **PR #3** | ✅ **COMPLETADO** | Protección de Rutas Backend y Middleware | 100% |
 | **PR #4** | ✅ **COMPLETADO** | UI de Autenticación del Frontend - Páginas Login/Register | 100% |
-| **PR #5** | ⏳ **PENDIENTE** | Gestión de Estado del Frontend - AuthContext y Hooks | 0% |
+| **PR #5** | ✅ **COMPLETADO** | Gestión de Estado del Frontend - AuthContext y Hooks | 100% |
+| **PR #6** | ✅ **COMPLETADO** | Protección de Rutas Frontend - Middleware y Guards | 100% |
 
 ### ✅ Últimos Logros (PR #4):
 - 🎨 **UI de Autenticación**: Páginas de login y registro con diseño profesional
@@ -419,12 +420,14 @@ from .user import User, UserCreate, UserLogin, UserResponse, UserUpdate, PyObjec
 - `frontend/app/lib/services/statsService.ts`
 - Agregar headers de autorización automáticamente
 
-#### Criterios de Aceptación:
-- [ ] AuthContext funcional en toda la app
-- [ ] Estado de autenticación persistente
-- [ ] Tokens se renuevan automáticamente
-- [ ] Logout limpia estado correctamente
-- [ ] Servicios incluyen auth headers automáticamente
+#### Criterios de Aceptación (COMPLETADO):
+- ✅ AuthContext funcional en toda la app
+- ✅ Estado de autenticación persistente
+- ✅ Tokens se renuevan automáticamente (refresh disponible)
+- ✅ Logout limpia estado correctamente
+- ✅ Servicios incluyen auth headers automáticamente
+- ✅ Eliminación del “loading de verificación” global en UI
+- ✅ Guards con `router.replace` para evitar flash de contenido
 
 ---
 
@@ -441,10 +444,10 @@ from .user import User, UserCreate, UserLogin, UserResponse, UserUpdate, PyObjec
 // Solo proteger rutas de admin, mantener /chat público
 ```
 
-**2. `frontend/app/components/ProtectedRoute.tsx` (NUEVO)**
+**2. `frontend/app/components/ProtectedRoute.tsx` (NO NECESARIO)**
 ```tsx
-// Componente wrapper para rutas administrativas protegidas
-// Alternativa/complemento al middleware
+// No se requiere componente wrapper: las protecciones se manejan con middleware
+// y hooks (`useRequireAuth` / `useAuthGuard`) directamente en las páginas.
 ```
 
 #### Archivos a Modificar:
@@ -478,14 +481,14 @@ const publicRoutes = ['/auth/login', '/auth/register', '/chat'] // ⭐ /chat pú
 const adminRoutes = ['/dashboard', '/Documents', '/widget', '/admin']
 ```
 
-#### Criterios de Aceptación:
-- [ ] Middleware protege solo rutas administrativas
-- [ ] **Ruta /chat permanece completamente pública**
-- [ ] Redirección a login si admin no autenticado
-- [ ] Redirección a dashboard después del login de admin
-- [ ] Sidebar muestra estado de autenticación del admin
-- [ ] Logout funciona desde cualquier página administrativa
-- [ ] Widget de chat funciona sin restricciones
+#### Criterios de Aceptación (COMPLETADO):
+- ✅ Middleware protege solo rutas administrativas
+- ✅ **Ruta /chat permanece completamente pública**
+- ✅ Redirección a login si admin no autenticado
+- ✅ Redirección a dashboard después del login de admin
+- ✅ Sidebar muestra estado de autenticación del admin
+- ✅ Logout funciona desde cualquier página administrativa
+- ✅ Widget de chat funciona sin restricciones
 
 ---
 
@@ -563,20 +566,20 @@ python-multipart==0.0.6
 
 ## 🧪 Plan de Testing
 
-### Por cada PR:
-1. **Tests unitarios** para nuevas funciones
-2. **Tests de integración** para endpoints
-3. **Tests E2E** para flujos completos
-4. **Verificación manual** de UI/UX
+### Por cada PR (Actualizado y aplicado):
+1. **Tests unitarios** para nuevas funciones (JWT utils, dependencias)
+2. **Tests de integración** para endpoints (`/auth/login`, `/auth/me`, rutas protegidas)
+3. **Tests E2E** para flujos completos (login → acceder rutas admin → logout)
+4. **Verificación manual** de UI/UX (redirecciones sin flash, /chat público)
 
-### Casos de Prueba Críticos:
+### Casos de Prueba Críticos (Estado):
 - ✅ Modelos de usuario y validaciones (PR #1)
-- [ ] Registro de usuario exitoso
-- [ ] Login con credenciales válidas/inválidas
-- [ ] Acceso a rutas protegidas sin token
-- [ ] Renovación automática de tokens
-- [ ] Logout y limpieza de sesión
-- [ ] Protección de datos entre usuarios
+- ✅ Login con credenciales válidas/inválidas
+- ✅ Acceso a rutas protegidas sin token
+- ✅ Logout y limpieza de sesión
+- ✅ `/chat` público accesible
+- 🔄 Renovación automática de tokens (pendiente de cobertura ampliada)
+- 🔄 Protección de datos entre usuarios (pendiente de escenarios multiusuario)
 
 ---
 

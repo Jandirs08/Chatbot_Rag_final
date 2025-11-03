@@ -49,7 +49,7 @@ const initialState: AuthState = {
   token: null,
   refreshToken: null,
   isAuthenticated: false,
-  isLoading: true, // Start with loading true to check existing auth
+  isLoading: true, // Señal para guards: esperar verificación antes de redirigir
   error: null,
 };
 
@@ -153,13 +153,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const checkAuthStatus = async () => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
-      
       const token = authService.getAuthToken();
 
       if (token) {
-        // Verify token is still valid by getting user profile
         const user = await authService.getCurrentUser();
-        
         dispatch({
           type: 'AUTH_SUCCESS',
           payload: { user, token, refreshToken: null }
@@ -169,7 +166,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     } catch (error) {
       console.error('Auth check failed:', error);
-      // Token might be expired or invalid
       dispatch({ type: 'AUTH_LOGOUT' });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
@@ -180,7 +176,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       dispatch({ type: 'AUTH_START' });
       
-      const response = await authService.login(email, password);
+      const response = await authService.login({ email, password });
       const user = await authService.getCurrentUser();
       
       dispatch({

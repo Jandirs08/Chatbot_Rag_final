@@ -7,10 +7,8 @@ __version__ = "1.0.0"
 # Expose key components for easier imports from the backend package root
 from .config import settings, get_settings # Corregido de vuelta a .config
 # from .common.config import settings, get_settings # Línea incorrecta comentada
-from .chat.manager import ChatManager
-
 __all__ = [
     "settings", 
     "get_settings", 
-    "ChatManager"
+    # "ChatManager"  # Expuesto desde chat.manager cuando se necesite
 ]
