@@ -1,4 +1,5 @@
 import { API_URL } from "../constants";
+import { authService } from "./authService";
 
 // Normaliza el base URL y evita duplicar el prefijo "/api/v1" al construir endpoints
 function buildApiUrl(base: string, path: string): string {
@@ -29,6 +30,10 @@ export class PDFService {
       const xhr = new XMLHttpRequest();
       const url = buildApiUrl(API_URL, "/api/v1/pdfs/upload");
       xhr.open("POST", url);
+      const token = authService.getAuthToken();
+      if (token) {
+        xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+      }
 
       // Reportar progreso si es posible
       xhr.upload.onprogress = (event: ProgressEvent) => {
@@ -87,7 +92,10 @@ export class PDFService {
       last_modified: string;
     }>;
   }> {
-    const response = await fetch(buildApiUrl(API_URL, "/api/v1/pdfs/list"));
+    const token = authService.getAuthToken();
+    const response = await fetch(buildApiUrl(API_URL, "/api/v1/pdfs/list"), {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
 
     if (!response.ok) {
       const error = await response.json();
@@ -98,8 +106,10 @@ export class PDFService {
   }
 
   static async deletePDF(filename: string): Promise<{ message: string }> {
+    const token = authService.getAuthToken();
     const response = await fetch(buildApiUrl(API_URL, `/api/v1/pdfs/${filename}`), {
       method: "DELETE",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     });
 
     if (!response.ok) {

@@ -6,7 +6,7 @@ import {
   Settings,
   BarChart3,
   Code,
-  User,
+  Users,
   MessageCircle,
   LogOut,
 } from "lucide-react";
@@ -27,7 +27,7 @@ import { useAuth } from "../hooks/useAuth";
 import { Button } from "./ui/button";
 import { useRouter } from "next/navigation";
 
-const menuItems = [
+const baseMenuItems = [
   {
     title: "Dashboard",
     url: "/",
@@ -52,11 +52,6 @@ const menuItems = [
     title: "Configuración",
     url: "/configuracion",
     icon: Settings,
-  },
-  {
-    title: "Cuenta",
-    url: "/cuenta",
-    icon: User,
   },
 ];
 
@@ -99,7 +94,7 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => (
+              {(isAdmin ? [...baseMenuItems, { title: "Usuarios", url: "/usuarios", icon: Users }] : baseMenuItems).map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild

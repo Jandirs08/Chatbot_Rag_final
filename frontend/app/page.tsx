@@ -43,12 +43,22 @@ export default function Dashboard() {
 
     const fetchData = async () => {
       try {
-        const [botState, statsData] = await Promise.all([
+        const results = await Promise.allSettled([
           botService.getState(),
           statsService.getStats(),
         ]);
-        setIsBotActive(botState.is_active);
-        setStats(statsData);
+        const botRes = results[0];
+        const statsRes = results[1];
+        if (botRes.status === "fulfilled") {
+          setIsBotActive(botRes.value.is_active);
+        } else {
+          console.warn("Estado del bot no disponible:", botRes.reason);
+        }
+        if (statsRes.status === "fulfilled") {
+          setStats(statsRes.value);
+        } else {
+          console.warn("Estadísticas no disponibles:", statsRes.reason);
+        }
       } catch (error) {
         console.error("Error al obtener datos:", error);
         toast.error("Error al obtener datos del dashboard");
@@ -85,24 +95,21 @@ export default function Dashboard() {
       value: stats.total_pdfs.toString(),
       icon: FileText,
       color: "text-primary",
+      href: "/Documents",
     },
     {
       title: "Consultas",
       value: stats.total_queries.toString(),
       icon: MessageCircle,
       color: "text-accent",
-    },
-    {
-      title: "Eficiencia RAG",
-      value: "94%",
-      icon: TrendingUp,
-      color: "text-secondary",
+      href: "/chat",
     },
     {
       title: "Usuarios Activos",
       value: stats.total_users.toString(),
       icon: Users,
       color: "text-primary",
+      href: "/usuarios",
     },
   ];
 
@@ -148,9 +155,26 @@ export default function Dashboard() {
     <div className="space-y-8 animate-fade-in">
       {/* Header */}
       <div className="space-y-2">
-        <h1 className="text-4xl font-bold text-foreground">Dashboard</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-4xl font-bold text-foreground">Panel de Control</h1>
+          <span
+            className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs border ${
+              isBotActive
+                ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800"
+                : "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800"
+            }`}
+            aria-live="polite"
+          >
+            <span
+              className={`inline-block w-2 h-2 rounded-full ${
+                isBotActive ? "bg-green-500" : "bg-red-500"
+              }`}
+            />
+            {isBotActive ? "Bot activo" : "Bot inactivo"}
+          </span>
+        </div>
         <p className="text-xl text-muted-foreground">
-          Gestiona tu chatbot RAG de Becas Grupo Romero
+          Gestión del chatbot de Becas Grupo Romero
         </p>
       </div>
 
@@ -233,22 +257,32 @@ export default function Dashboard() {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {statsCards.map((stat, index) => (
-          <Card
+          <a
             key={index}
-            className="hover:shadow-lg transition-all duration-300 border-border/50"
+            href={stat.href}
+            className="group block"
+            aria-label={`Ir a ${stat.title}`}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {stat.title}
-              </CardTitle>
-              <stat.icon className={`h-4 w-4 ${stat.color}`} />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-foreground">
-                {stat.value}
-              </div>
-            </CardContent>
-          </Card>
+            <Card className="transition-all duration-300 border-border/50 hover:shadow-xl hover:border-primary/60">
+              <CardHeader className="flex items-center gap-3 space-y-0 pb-2">
+                <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center group-hover:bg-primary/20">
+                  <stat.icon className={`h-4 w-4 ${stat.color}`} />
+                </div>
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {stat.title}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-foreground tracking-tight">
+                  {isLoading ? (
+                    <span className="inline-block h-7 w-20 bg-muted animate-pulse rounded" />
+                  ) : (
+                    stat.value
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </a>
         ))}
       </div>
 
@@ -258,29 +292,37 @@ export default function Dashboard() {
           Acciones Rápidas
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {quickActions.map((action, index) => (
-            <Card
-              key={index}
-              className="group hover:shadow-xl transition-all duration-300 cursor-pointer border-border/50 overflow-hidden"
-              onClick={action.onClick}
-            >
-              <CardHeader className="space-y-4">
-                <div
-                  className={`w-12 h-12 rounded-lg ${action.gradient} flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}
-                >
-                  <action.icon className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <CardTitle className="text-lg group-hover:text-primary transition-colors">
-                    {action.title}
-                  </CardTitle>
-                  <CardDescription className="mt-2">
-                    {action.description}
-                  </CardDescription>
-                </div>
-              </CardHeader>
-            </Card>
-          ))}
+          {quickActions.map((action, index) => {
+            const content = (
+              <Card className="group hover:shadow-xl transition-all duration-300 cursor-pointer border-border/50 overflow-hidden">
+                <CardHeader className="space-y-4">
+                  <div
+                    className={`w-12 h-12 rounded-lg ${action.gradient} flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}
+                  >
+                    <action.icon className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg group-hover:text-primary transition-colors">
+                      {action.title}
+                    </CardTitle>
+                    <CardDescription className="mt-2">
+                      {action.description}
+                    </CardDescription>
+                  </div>
+                </CardHeader>
+              </Card>
+            );
+
+            return action.href ? (
+              <a key={index} href={action.href} aria-label={action.title}>
+                {content}
+              </a>
+            ) : (
+              <div key={index} role="button" aria-label={action.title} onClick={action.onClick}>
+                {content}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

@@ -48,6 +48,7 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         # Rutas que requieren autenticación de admin
         self.protected_paths: List[str] = [
             "/api/v1/pdf",
+            "/api/v1/pdfs",
             "/api/v1/rag", 
             "/api/v1/bot",
             "/api/v1/users"

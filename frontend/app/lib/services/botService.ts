@@ -1,4 +1,5 @@
 import { API_URL } from "@/app/lib/config";
+import { authenticatedFetch } from "@/app/lib/services/authService";
 
 export interface BotState {
   is_active: boolean;
@@ -12,7 +13,9 @@ export const botService = {
         "Intentando obtener estado del bot desde:",
         `${API_URL}/bot/state`,
       );
-      const response = await fetch(`${API_URL}/bot/state`);
+      const response = await authenticatedFetch(`${API_URL}/bot/state`, {
+        method: "GET",
+      });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
@@ -41,7 +44,7 @@ export const botService = {
         "Intentando cambiar estado del bot en:",
         `${API_URL}/bot/toggle`,
       );
-      const response = await fetch(`${API_URL}/bot/toggle`, {
+      const response = await authenticatedFetch(`${API_URL}/bot/toggle`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
