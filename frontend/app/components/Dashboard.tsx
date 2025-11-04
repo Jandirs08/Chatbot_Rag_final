@@ -57,14 +57,14 @@ export function Dashboard() {
       title: "Subir PDF",
       description: "Añade nuevo contenido al conocimiento del bot",
       icon: FileText,
-      href: "/documentos",
+      href: "/Documents",
       gradient: "gradient-secondary"
     },
     {
       title: "Configurar Bot",
       description: "Ajusta el prompt y temperatura del modelo",
       icon: Settings,
-      href: "/configuracion",
+      href: "/dashboard/settings",
       gradient: "gradient-soft"
     }
   ];
@@ -94,7 +94,7 @@ export function Dashboard() {
               <Switch
                 checked={isBotActive}
                 onCheckedChange={handleBotToggle}
-                className="data-[state=checked]:bg-green-500"
+                className="data-[state=checked]:bg-emerald-200"
               />
             </div>
           </CardTitle>

@@ -77,15 +77,15 @@ export default function Dashboard() {
       title: "Subir PDF",
       description: "Añade nuevo contenido al conocimiento del bot",
       icon: FileText,
-      href: "/documentos",
+      href: "/Documents",
       gradient: "gradient-secondary",
     },
     {
       title: "Configurar Bot",
       description: "Ajusta el prompt y temperatura del modelo",
       icon: Settings,
-      href: "/configuracion",
-      gradient: "gradient-soft",
+      href: "/dashboard/settings",
+      gradient: "gradient-primary",
     },
   ];
 
@@ -100,7 +100,7 @@ export default function Dashboard() {
       </div>
 
       {/* Bot Status Control */}
-      <Card className="border-border/50 bg-gradient-to-r from-background to-muted/20">
+      <Card className="border-border/50">
         <CardHeader>
           <CardTitle className="text-xl flex items-center gap-3">
             <Bot className="w-6 h-6 text-primary" />
@@ -125,10 +125,10 @@ export default function Dashboard() {
         </CardHeader>
         <CardContent>
           <div
-            className={`flex items-center justify-between p-4 rounded-lg border transition-colors ${
+            className={`flex items-center justify-between p-5 rounded-lg border shadow-sm transition-colors ${
               isBotActive
-                ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800"
-                : "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800"
+                ? "bg-white dark:bg-neutral-900 border-green-400 dark:border-green-700"
+                : "bg-white dark:bg-neutral-900 border-red-400 dark:border-red-700"
             }`}
           >
             <div className="flex items-center gap-3">

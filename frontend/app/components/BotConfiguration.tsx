@@ -1,52 +1,47 @@
 
-import { useState } from "react";
+import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
+import { Input } from "@/components/ui/input";
 import { Settings, Save, RotateCcw } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
+export interface BotConfigurationProps {
+  botName?: string;
+  onBotNameChange?: (value: string) => void;
+  prompt: string;
+  onPromptChange: (value: string) => void;
+  promptReadOnly?: boolean;
+  onToggleEditPrompt?: () => void;
+  temperature: number;
+  onTemperatureChange: (value: number) => void;
+  onSave: () => void;
+  onReset: () => void;
+  isLoading?: boolean;
+  error?: string;
+  previewText?: string;
+  showPreview?: boolean;
+}
 
-export function BotConfiguration() {
-  const [prompt, setPrompt] = useState(`Eres un asistente virtual especializado en el programa de Becas Grupo Romero. Tu objetivo es ayudar a los estudiantes proporcionando información precisa y útil sobre:
-
-- Requisitos y criterios de elegibilidad para las becas
-- Proceso de postulación paso a paso
-- Fechas importantes y plazos
-- Documentación necesaria
-- Beneficios incluidos en las becas
-- Preguntas frecuentes
-
-Mantén un tono amable, profesional y motivador. Si no tienes información específica sobre algo, recomienda contactar directamente con el equipo de Becas Grupo Romero.`);
-
-  const [temperature, setTemperature] = useState([0.7]);
-  const { toast } = useToast();
-
-  const handleSave = () => {
-    toast({
-      title: "Configuración guardada",
-      description: "Los cambios han sido aplicados al bot exitosamente",
-    });
-  };
-
-  const handleReset = () => {
-    setPrompt(`Eres un asistente virtual especializado en el programa de Becas Grupo Romero. Tu objetivo es ayudar a los estudiantes proporcionando información precisa y útil sobre:
-
-- Requisitos y criterios de elegibilidad para las becas
-- Proceso de postulación paso a paso
-- Fechas importantes y plazos
-- Documentación necesaria
-- Beneficios incluidos en las becas
-- Preguntas frecuentes
-
-Mantén un tono amable, profesional y motivador. Si no tienes información específica sobre algo, recomienda contactar directamente con el equipo de Becas Grupo Romero.`);
-    setTemperature([0.7]);
-    toast({
-      title: "Configuración restablecida",
-      description: "Se han restaurado los valores por defecto",
-    });
-  };
+export function BotConfiguration({
+  botName,
+  onBotNameChange,
+  prompt,
+  onPromptChange,
+  promptReadOnly,
+  onToggleEditPrompt,
+  temperature,
+  onTemperatureChange,
+  onSave,
+  onReset,
+  isLoading,
+  error,
+  previewText,
+  showPreview,
+}: BotConfigurationProps) {
+  // Sonner Toaster montado en layout
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -67,31 +62,49 @@ Mantén un tono amable, profesional y motivador. Si no tienes información espec
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Settings className="w-5 h-5 text-primary" />
-                Prompt del Sistema
+                Instrucciones Adicionales
               </CardTitle>
               <CardDescription>
-                Define la personalidad y contexto del bot para las conversaciones
+                Complementa la personalidad base del bot sin reemplazarla
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 gap-2">
+                <Label htmlFor="bot-name">Nombre del Bot (opcional)</Label>
+                <Input
+                  id="bot-name"
+                  value={botName || ""}
+                  onChange={(e) => onBotNameChange && onBotNameChange(e.target.value)}
+                  placeholder="Ej: Asesor Académico"
+                />
+              </div>
               <div>
-                <Label htmlFor="system-prompt">Instrucciones del Sistema</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="ui-extra">Instrucciones adicionales</Label>
+                  <Button variant="outline" size="sm" onClick={onToggleEditPrompt}>
+                    {promptReadOnly ? "Editar" : "Bloquear"}
+                  </Button>
+                </div>
                 <Textarea
-                  id="system-prompt"
+                  id="ui-extra"
                   value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
+                  onChange={(e) => onPromptChange(e.target.value)}
                   className="mt-2 min-h-[300px] font-mono text-sm"
-                  placeholder="Escribe las instrucciones para el bot..."
+                  placeholder="Añade lineamientos adicionales (tono, estilo, etc.)"
+                  disabled={!!promptReadOnly}
                 />
                 <p className="text-xs text-muted-foreground mt-2">
                   Caracteres: {prompt.length}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Consejo: usa frases breves y concretas; no incluyas variables ni herramientas.
                 </p>
               </div>
             </CardContent>
           </Card>
 
           <Card className="border-border/50">
-            <CardHeader>
+              <CardHeader>
               <CardTitle>Temperatura del Modelo</CardTitle>
               <CardDescription>
                 Controla la creatividad vs precisión en las respuestas (0 = más preciso, 1 = más creativo)
@@ -100,15 +113,15 @@ Mantén un tono amable, profesional y motivador. Si no tienes información espec
             <CardContent className="space-y-4">
               <div>
                 <div className="flex justify-between items-center mb-4">
-                  <Label>Temperatura: {temperature[0].toFixed(1)}</Label>
+                  <Label>Temperatura: {temperature.toFixed(1)}</Label>
                   <span className="text-sm text-muted-foreground">
-                    {temperature[0] < 0.3 ? "Muy Preciso" : 
-                     temperature[0] < 0.7 ? "Balanceado" : "Creativo"}
+                    {temperature < 0.3 ? "Muy Preciso" : 
+                     temperature < 0.7 ? "Balanceado" : "Creativo"}
                   </span>
                 </div>
                 <Slider
-                  value={temperature}
-                  onValueChange={setTemperature}
+                  value={[temperature]}
+                  onValueChange={(vals) => onTemperatureChange(vals[0])}
                   max={1}
                   min={0}
                   step={0.1}
@@ -121,6 +134,22 @@ Mantén un tono amable, profesional y motivador. Si no tienes información espec
               </div>
             </CardContent>
           </Card>
+
+          {showPreview ? (
+            <Card className="border-border/50">
+              <CardHeader>
+                <CardTitle>Vista previa del Prompt efectivo</CardTitle>
+                <CardDescription>
+                  Así se compone la personalidad final aplicada
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <pre className="text-sm whitespace-pre-wrap break-words text-muted-foreground bg-muted/30 p-3 rounded-md border border-border/50">
+                  {previewText || ""}
+                </pre>
+              </CardContent>
+            </Card>
+          ) : null}
         </div>
 
         {/* Panel lateral */}
@@ -136,6 +165,12 @@ Mantén un tono amable, profesional y motivador. Si no tienes información espec
                   <span className="text-sm font-medium text-green-800 dark:text-green-200">Activo</span>
                 </div>
               </div>
+              {isLoading ? (
+                <div className="text-sm text-muted-foreground">Cargando...</div>
+              ) : null}
+              {error ? (
+                <div className="text-sm text-red-600">{error}</div>
+              ) : null}
               <div className="text-sm text-muted-foreground space-y-1">
                 <p>Última actualización: Hace 5 min</p>
                 <p>Documentos procesados: 3</p>
@@ -149,11 +184,11 @@ Mantén un tono amable, profesional y motivador. Si no tienes información espec
               <CardTitle>Acciones</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button onClick={handleSave} className="w-full gradient-primary hover:opacity-90">
+              <Button onClick={() => { onSave(); toast("Guardando: aplicando cambios"); }} className="w-full gradient-primary hover:opacity-90" disabled={!!isLoading}>
                 <Save className="w-4 h-4 mr-2" />
                 Guardar Cambios
               </Button>
-              <Button onClick={handleReset} variant="outline" className="w-full">
+              <Button onClick={() => { onReset(); }} variant="outline" className="w-full" disabled={!!isLoading}>
                 <RotateCcw className="w-4 h-4 mr-2" />
                 Restablecer
               </Button>

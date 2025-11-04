@@ -35,23 +35,22 @@ class ChainManager:
         # Validar que todos los componentes del prompt estén disponibles
         self._validate_prompt_components()
 
+        # Nombre del bot desde settings si está definido; fallback al módulo
+        bot_name_effective = getattr(self.settings, 'bot_name', None) or prompt_module.BOT_NAME
         self.prompt_input_variables: Dict[str, Any] = {
-            "nombre": prompt_module.BOT_NAME  # Agregamos el nombre del bot por defecto
+            "nombre": bot_name_effective
         }
-        
-        if custom_bot_personality_str is not None:
-            self.prompt_input_variables["bot_personality"] = custom_bot_personality_str
-        elif self.settings.bot_personality_name:
-            bot_personality_str_from_module = self._load_prompt_from_module(self.settings.bot_personality_name)
-            if bot_personality_str_from_module:
-                self.prompt_input_variables["bot_personality"] = bot_personality_str_from_module
-            else:
-                self.logger.warning(f"No se pudo cargar la personalidad del bot: {self.settings.bot_personality_name}. Usando system_prompt o vacío.")
-                self.prompt_input_variables["bot_personality"] = self.settings.system_prompt or ""
-        elif self.settings.system_prompt:
-            self.prompt_input_variables["bot_personality"] = self.settings.system_prompt
+
+        # Componer personalidad efectiva: base + instrucciones extra desde UI
+        # Usar SIEMPRE la personalidad base del módulo y complementar con extras de UI.
+        # Evita que un system_prompt legado (p.ej. "Sheldon Cooper") sobreescriba la personalidad canónica.
+        base_personality = prompt_module.BOT_PERSONALITY.format(nombre=bot_name_effective)
+        ui_extra = getattr(self.settings, 'ui_prompt_extra', None) or ""
+        if ui_extra:
+            personality_effective = f"{base_personality}\n\nInstrucciones adicionales:\n{ui_extra}"
         else:
-            self.prompt_input_variables["bot_personality"] = ""
+            personality_effective = base_personality
+        self.prompt_input_variables["bot_personality"] = personality_effective
 
         if tools_list:
             self.prompt_input_variables["tools"] = "\n".join([f"{tool.name}: {tool.description}" for tool in tools_list])

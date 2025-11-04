@@ -13,6 +13,7 @@ from config import settings
 from chat.manager import ChatManager
 from rag.retrieval.retriever import RAGRetriever
 from storage.documents import PDFManager
+from database.config_repository import ConfigRepository
 
 def get_cors_origins_list() -> list:
     """
@@ -68,6 +69,7 @@ from .routes.pdf.pdf_routes import router as pdf_router
 from .routes.rag.rag_routes import router as rag_router
 from .routes.chat.chat_routes import router as chat_router
 from .routes.bot.bot_routes import router as bot_router
+from .routes.bot.config_routes import router as bot_config_router
 from .routes.users.users_routes import router as users_router
 from .auth import router as auth_router
 from auth.middleware import AuthenticationMiddleware
@@ -89,6 +91,22 @@ async def lifespan(app: FastAPI):
     try:
         s = settings
         app.state.settings = s
+
+        # Cargar configuración dinámica del bot desde Mongo (si disponible)
+        try:
+            config_repo = ConfigRepository()
+            bot_config = await config_repo.get_config()
+            # Sincronizar settings antes de crear el Bot (evitar system_prompt legado)
+            # En modo complemento seguro, ignoramos system_prompt persistido y usamos la base del módulo.
+            s.system_prompt = None
+            if bot_config.temperature is not None:
+                s.temperature = bot_config.temperature
+            # Asignar nombre y prompt extra para composición en ChainManager
+            s.bot_name = bot_config.bot_name
+            s.ui_prompt_extra = bot_config.ui_prompt_extra
+            logger.info(f"Config dinámica aplicada: temperature={s.temperature} system_prompt_len={len(s.system_prompt or '')}")
+        except Exception as e:
+            logger.warning(f"No se pudo cargar configuración dinámica inicial: {e}")
 
         # Inicializar componentes
         app.state.pdf_file_manager = PDFManager(base_dir=Path(s.pdfs_dir).resolve() if s.pdfs_dir else None)
@@ -299,6 +317,7 @@ def create_app() -> FastAPI:
     app.include_router(rag_router, prefix="/api/v1/rag", tags=["rag"])
     app.include_router(chat_router, prefix="/api/v1/chat", tags=["chat"])
     app.include_router(bot_router, prefix="/api/v1/bot", tags=["bot"])
+    app.include_router(bot_config_router, prefix="/api/v1/bot", tags=["bot"])
     app.include_router(users_router, prefix="/api/v1", tags=["users"])
     
     main_logger.info("Routers registrados.")

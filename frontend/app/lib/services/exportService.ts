@@ -1,9 +1,10 @@
 import { API_URL } from "../config";
+import { authenticatedFetch } from "./authService";
 
 class ExportService {
   async exportConversations(): Promise<void> {
     try {
-      const response = await fetch(`${API_URL}/chat/export-conversations`, {
+      const response = await authenticatedFetch(`${API_URL}/chat/export-conversations`, {
         method: "GET",
       });
 
@@ -12,7 +13,7 @@ class ExportService {
       }
 
       // Obtener el nombre del archivo del header Content-Disposition
-      const contentDisposition = response.headers.get("Content-Disposition");
+      const contentDisposition = response.headers.get("Content-Disposition") || response.headers.get("content-disposition");
       let filename = "conversaciones.xlsx";
       if (contentDisposition) {
         const filenameMatch = contentDisposition.match(/filename="(.+)"/);

@@ -137,6 +137,33 @@ class Bot:
             handle_parsing_errors=True
         )
 
+    def reload_chain(self, settings: Optional[Settings] = None) -> None:
+        """Reconstruye ChainManager y AgentExecutor aplicando nueva configuración.
+
+        Args:
+            settings: Configuración a aplicar. Si es None, usa self.settings.
+
+        Raises:
+            Exception si falla la reconstrucción.
+        """
+        try:
+            if settings is not None:
+                self.settings = settings
+
+            # Recrear ChainManager con las mismas tools
+            self.chain_manager = ChainManager(
+                settings=self.settings,
+                model_type=None,
+                tools_list=self.tools
+            )
+
+            # Reiniciar el agente con la nueva cadena
+            self.start_agent()
+            self.logger.info("Bot chain recargada exitosamente con nueva configuración")
+        except Exception as e:
+            self.logger.error(f"Error recargando chain del bot: {e}", exc_info=True)
+            raise
+
     # En el método get_memory, asegurar que el fallback use BaseChatbotMemory
     def get_memory(
             self,

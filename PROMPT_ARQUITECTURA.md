@@ -76,17 +76,26 @@ Cambiar a “chatbot vendedor”:
 
 ## Roadmap Sugerido (rápido)
 
-1. Backend: `GET/PUT /api/v1/bot/config` (guardar/leer prompt y temperatura).
-2. Frontend: conectar `BotConfiguration` a ese endpoint, con validaciones y preview.
-3. Test: añadir pruebas de carga del prompt, persistencia y respuesta estilo.
+1. Backend: `GET/PUT /api/v1/bot/config` (guardar/leer temperatura, nombre del bot y extras del prompt).
+2. Frontend: pantalla de Ajustes con controles mínimos (temperatura, nombre del bot, instrucciones adicionales bloqueadas por defecto) y vista previa del prompt efectivo.
+3. Tests: endpoint de configuración (auth requerido, validaciones de rango y persistencia), y validación de recarga en runtime para aplicar cambios.
 
 ## Referencias de Código
 
-- `backend/core/prompt.py` — personalidad y plantillas base.
-- `backend/core/chain.py` — montaje de la cadena y validación de variables del prompt.
-- `backend/core/bot.py` — ejecución del agente con memoria y herramientas.
+- `backend/core/prompt.py` — personalidad y plantillas base (guardrails canónicos).
+- `backend/core/chain.py` — composición segura del prompt: base + `ui_prompt_extra`, y validación de variables requeridas.
+- `backend/core/bot.py` — ejecución del agente y recarga en runtime.
 - `backend/memory/base_memory.py` — inserta contexto `system` en historial.
-- `frontend/app/components/BotConfiguration.tsx` — UI para editar prompt/temperatura.
+- `frontend/app/components/BotConfiguration.tsx` — UI para temperatura, nombre del bot y extras (bloqueado), con toasts.
+- `frontend/app/dashboard/settings/page.tsx` — pantalla de Ajustes protegida (admin).
+
+## Configuración Dinámica (Complemento Seguro)
+
+- Base: `BOT_PERSONALITY` y `BASE_PROMPT_TEMPLATE` mantienen idioma, uso de herramientas y formato ReAct.
+- Complemento desde UI: `ui_prompt_extra` se añade como bloque “Instrucciones adicionales” sin tocar el formato ni variables.
+- Nombre del bot (`bot_name`): permite branding sin alterar la estructura.
+- Parámetros expuestos: `temperature` (0..1), y opcionalmente `model_name` en fases posteriores.
+- Validaciones: clamped en backend; edición del extra bloqueada por defecto en UI.
 
 ---
 

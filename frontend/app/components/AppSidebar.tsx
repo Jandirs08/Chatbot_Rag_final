@@ -29,7 +29,7 @@ import { useRouter } from "next/navigation";
 
 const baseMenuItems = [
   {
-    title: "Dashboard",
+    title: "Home",
     url: "/",
     icon: BarChart3,
   },
@@ -49,8 +49,8 @@ const baseMenuItems = [
     icon: FileText,
   },
   {
-    title: "Configuración",
-    url: "/configuracion",
+    title: "Ajustes",
+    url: "/dashboard/settings",
     icon: Settings,
   },
 ];
