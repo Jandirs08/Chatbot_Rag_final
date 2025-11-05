@@ -33,6 +33,10 @@ def get_cors_origins_list() -> list:
             all_origins.extend([origin.strip() for origin in settings.cors_origins.split(',') if origin.strip()])
         elif isinstance(settings.cors_origins, list):
             all_origins.extend(settings.cors_origins)
+
+    # Agregar origen explícito del cliente si está configurado (Vercel)
+    if getattr(settings, "client_origin_url", None):
+        all_origins.append(settings.client_origin_url)
     
     # Agregar orígenes específicos del widget
     if settings.cors_origins_widget:
@@ -55,6 +59,10 @@ def get_cors_origins_list() -> list:
     # En desarrollo, si está en abierto, restringir por defecto a localhost:3000
     if settings.environment == "development" and unique_origins == ["*"]:
         unique_origins = ["http://localhost:3000"]
+
+    # En producción, si se configuró CLIENT_ORIGIN_URL, forzar su uso explícito
+    if settings.environment == "production" and getattr(settings, "client_origin_url", None):
+        unique_origins = [settings.client_origin_url]
     
     main_logger.info(f"CORS Origins configurados: {unique_origins}")
     main_logger.info(f"CORS Widget Origins: {settings.cors_origins_widget}")

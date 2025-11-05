@@ -8,6 +8,7 @@ Arranque limpio y portable para FastAPI:
 
 from pathlib import Path
 from dotenv import load_dotenv
+import os
 
 # Cargar variables de entorno temprano para entornos locales.
 # En cloud (Render/Railway), las variables suelen inyectarse automáticamente.
@@ -24,4 +25,7 @@ app = create_app()
 if __name__ == "__main__":
     # Arranque simple para desarrollo local. Uvicorn gestiona señales y ciclo de vida.
     import uvicorn
-    uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=True)
+    port = int(os.getenv("PORT", 8000))
+    # Recargar solo en desarrollo
+    reload = os.getenv("ENVIRONMENT", "development").lower() != "production"
+    uvicorn.run("backend.main:app", host="0.0.0.0", port=port, reload=reload)

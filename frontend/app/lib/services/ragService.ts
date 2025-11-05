@@ -1,5 +1,4 @@
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000/api/v1";
+import { API_URL } from "../config";
 
 export const ragService = {
   clearRag: async (): Promise<{
@@ -9,7 +8,7 @@ export const ragService = {
     vector_store_size: number;
   }> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/rag/clear-rag`, {
+      const response = await fetch(`${API_URL}/rag/clear-rag`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -31,7 +30,7 @@ export const ragService = {
   // Aquí se pueden añadir otras funciones relacionadas con el RAG, como getRagStatus, ingestPdfs, etc.
   getRagStatus: async (): Promise<any> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/rag/rag-status`);
+      const response = await fetch(`${API_URL}/rag/rag-status`);
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(

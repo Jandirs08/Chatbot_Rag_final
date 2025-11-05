@@ -15,7 +15,9 @@ def write_line(f, text=""):
 def main():
     base_url = os.environ.get("API_BASE_URL", "http://localhost:8000/api/v1")
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@example.com")
-    admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
+    admin_password = os.environ.get("ADMIN_PASSWORD")
+    if not admin_password:
+        raise RuntimeError("ADMIN_PASSWORD es obligatorio para ejecutar la validación. Defínelo como variable de entorno.")
 
     out_dir = os.path.join(os.path.dirname(__file__), "output")
     os.makedirs(out_dir, exist_ok=True)

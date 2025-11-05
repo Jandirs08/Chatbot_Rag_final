@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     cors_origins: List[str] = Field(default=["*"], env="CORS_ORIGINS")
     cors_origins_widget: List[str] = Field(default=[], env="CORS_ORIGINS_WIDGET")
     cors_origins_admin: List[str] = Field(default=[], env="CORS_ORIGINS_ADMIN")
+    # Origen del cliente (Frontend en Vercel)
+    client_origin_url: Optional[str] = Field(default=None, env="CLIENT_ORIGIN_URL")
     cors_max_age: int = Field(default=3600, env="CORS_MAX_AGE")
     
     # Rate Limiting - Configuración preparada (decoradores comentados en routes)
@@ -75,7 +77,8 @@ class Settings(BaseSettings):
     human_prefix: str = Field(default="user", env="HUMAN_PREFIX")
     
     # Configuraciones de MongoDB
-    mongo_uri: SecretStr = Field(..., env="MONGO_URI")
+    # Preferir variable estándar de producción `MONGODB_URI`, con fallback a `MONGO_URI`
+    mongo_uri: SecretStr = Field(..., env="MONGODB_URI")
     mongo_database_name: str = Field(default="chatbot_rag_db", env="MONGO_DATABASE_NAME")
     mongo_collection_name: str = Field(default="chat_history", env="MONGO_COLLECTION_NAME") # <--- AÑADIR ESTA LÍNEA
     mongo_max_pool_size: int = Field(default=100, env="MONGO_MAX_POOL_SIZE")
@@ -160,6 +163,15 @@ class Settings(BaseSettings):
     def validate_cors_origins(cls, v, values):
         if values.get("environment") == "production" and "*" in v:
             raise ValueError("Wildcard CORS origin (*) not allowed in production")
+        return v
+
+    @validator("mongo_uri", pre=True)
+    def validate_mongo_uri(cls, v):
+        # Permitir fallback a MONGO_URI si MONGODB_URI no está presente
+        if v is None:
+            fallback = os.getenv("MONGO_URI")
+            if fallback:
+                return fallback
         return v
         
     @validator("temperature")

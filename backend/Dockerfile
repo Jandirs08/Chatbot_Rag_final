@@ -16,6 +16,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# El código de la aplicación se montará como un volumen en docker-compose
+# Copiar el código de la aplicación (necesario en Render; en docker-compose local se monta como volumen)
+COPY . .
+
 # Expone el puerto que usará la aplicación
 EXPOSE 8000

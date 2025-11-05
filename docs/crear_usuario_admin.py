@@ -12,11 +12,8 @@ Instalación rápida (si hace falta):
   pip install pymongo bcrypt
 
 Uso básico:
-  python docs/crear_usuario_admin.py \
-    --email admin@example.com \
-    --password "Admin123!" \
-    --username admin \
-    --full-name "Administrador"
+python docs/crear_usuario_admin.py --email admin@example.com --password "Admin123!" --username admin --full-name "Administrador"
+
 
 Conexión por defecto (Docker Compose):
 - MONGO_URI: mongodb://localhost:27018/chatbot_rag_db
