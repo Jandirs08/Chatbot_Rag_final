@@ -1,6 +1,6 @@
 """Configuration management for the chatbot application."""
 import os
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional, List, Union
 from pydantic import Field, validator, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
@@ -31,10 +31,10 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = Field(default=30, env="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
     jwt_refresh_token_expire_days: int = Field(default=7, env="JWT_REFRESH_TOKEN_EXPIRE_DAYS")
     
-    # CORS - Configuraciones de origen cruzado
-    cors_origins: List[str] = Field(default=["*"], env="CORS_ORIGINS")
-    cors_origins_widget: List[str] = Field(default=[], env="CORS_ORIGINS_WIDGET")
-    cors_origins_admin: List[str] = Field(default=[], env="CORS_ORIGINS_ADMIN")
+    # CORS - Configuraciones de origen cruzado (acepta string o lista para evitar errores de parseo)
+    cors_origins: Union[str, List[str]] = Field(default=["*"], env="CORS_ORIGINS")
+    cors_origins_widget: Union[str, List[str]] = Field(default=[], env="CORS_ORIGINS_WIDGET")
+    cors_origins_admin: Union[str, List[str]] = Field(default=[], env="CORS_ORIGINS_ADMIN")
     # Origen del cliente (Frontend en Vercel)
     client_origin_url: Optional[str] = Field(default=None, env="CLIENT_ORIGIN_URL")
     cors_max_age: int = Field(default=3600, env="CORS_MAX_AGE")
@@ -161,7 +161,20 @@ class Settings(BaseSettings):
         
     @validator("cors_origins", "cors_origins_widget", "cors_origins_admin")
     def validate_cors_origins(cls, v, values):
-        if values.get("environment") == "production" and "*" in v:
+        env = values.get("environment")
+        # Normalizar: si viene como string vacío, convertir a lista vacía
+        if isinstance(v, str):
+            v_str = v.strip()
+            if v_str == "":
+                v = []
+            else:
+                # Permitir CSV sencillo: "https://a,https://b"
+                if "," in v_str and not v_str.startswith("["):
+                    v = [origin.strip() for origin in v_str.split(",") if origin.strip()]
+                else:
+                    v = [v_str]
+        # En producción, bloquear comodín
+        if env == "production" and any(origin == "*" for origin in (v or [])):
             raise ValueError("Wildcard CORS origin (*) not allowed in production")
         return v
 
