@@ -1,8 +1,19 @@
 from enum import Enum
 from typing import Optional, Any, Dict
-from langchain_community.cache import InMemoryCache, RedisCache
+from langchain_community.cache import InMemoryCache
+try:
+    from langchain_community.cache import RedisCache  # type: ignore
+    _HAS_REDISCACHE = True
+except Exception:
+    RedisCache = None  # type: ignore
+    _HAS_REDISCACHE = False
 from langchain.globals import set_llm_cache
-import redis
+try:
+    import redis  # type: ignore
+    _REDIS_AVAILABLE = True
+except Exception:
+    redis = None  # type: ignore
+    _REDIS_AVAILABLE = False
 import logging
 import time
 from config import Settings, settings as app_settings
@@ -66,7 +77,8 @@ class ChatbotCache:
         """
         self.settings = settings
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.cache_type = cache_type or CacheTypes.RedisCache
+        # Por defecto usa InMemoryCache para evitar dependencias si no se desea Redis
+        self.cache_type = cache_type or CacheTypes.InMemoryCache
         self.cache_kwargs = kwargs
         self.metrics = CacheMetrics()
         self._init_cache()
@@ -81,35 +93,42 @@ class ChatbotCache:
         self.logger.info(f"Inicializando caché de tipo: {self.cache_type.value}")
         try:
             if self.cache_type == CacheTypes.RedisCache:
-                if not self.settings.redis_url:
-                    self.logger.warning("RedisCache seleccionado pero REDIS_URL no está configurado. Usando InMemoryCache.")
+                if not _HAS_REDISCACHE or not _REDIS_AVAILABLE:
+                    self.logger.warning("RedisCache seleccionado pero la librería no está disponible. Usando InMemoryCache.")
                     cache_obj = InMemoryCache()
+                    self.cache_type = CacheTypes.InMemoryCache
                 else:
-                    try:
-                        # Obtener la URL de Redis, manejando tanto SecretStr como str
-                        redis_url = (
-                            self.settings.redis_url.get_secret_value()
-                            if hasattr(self.settings.redis_url, 'get_secret_value')
-                            else str(self.settings.redis_url)
-                        )
-                        
-                        redis_client = redis.from_url(
-                            redis_url,
-                            socket_timeout=2,
-                            socket_connect_timeout=2,
-                            retry_on_timeout=True,
-                            health_check_interval=30
-                        )
-                        redis_client.ping()
-                        cache_obj = RedisCache(
-                            redis_client,
-                            ttl=self.settings.cache_ttl,
-                            **self.cache_kwargs
-                        )
-                        self.logger.info(f"RedisCache inicializado con TTL: {self.settings.cache_ttl}")
-                    except Exception as e:
-                        self.logger.warning(f"Error al conectar con Redis: {e}. Usando InMemoryCache.")
+                    if not self.settings.redis_url:
+                        self.logger.warning("RedisCache seleccionado pero REDIS_URL no está configurado. Usando InMemoryCache.")
                         cache_obj = InMemoryCache()
+                        self.cache_type = CacheTypes.InMemoryCache
+                    else:
+                        try:
+                            # Obtener la URL de Redis, manejando tanto SecretStr como str
+                            redis_url = (
+                                self.settings.redis_url.get_secret_value()
+                                if hasattr(self.settings.redis_url, 'get_secret_value')
+                                else str(self.settings.redis_url)
+                            )
+
+                            redis_client = redis.from_url(
+                                redis_url,
+                                socket_timeout=2,
+                                socket_connect_timeout=2,
+                                retry_on_timeout=True,
+                                health_check_interval=30
+                            )
+                            redis_client.ping()
+                            cache_obj = RedisCache(
+                                redis_client,
+                                ttl=self.settings.cache_ttl,
+                                **self.cache_kwargs
+                            )
+                            self.logger.info(f"RedisCache inicializado con TTL: {self.settings.cache_ttl}")
+                        except Exception as e:
+                            self.logger.warning(f"Error al conectar con Redis: {e}. Usando InMemoryCache.")
+                            cache_obj = InMemoryCache()
+                            self.cache_type = CacheTypes.InMemoryCache
             else:
                 cache_obj = InMemoryCache()
                 self.logger.info("InMemoryCache inicializado")

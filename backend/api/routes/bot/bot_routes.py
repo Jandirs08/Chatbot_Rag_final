@@ -18,6 +18,8 @@ class BotStateResponse(BaseModel):
 
 class BotRuntimeResponse(BaseModel):
     """Modelo de respuesta para inspeccionar configuración runtime del bot."""
+    # Evitar warning de pydantic por prefijo "model_" en campos
+    model_config = {"protected_namespaces": ()}
     model_name: str | None = None
     temperature: float | None = None
     max_tokens: int | None = None

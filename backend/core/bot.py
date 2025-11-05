@@ -68,10 +68,23 @@ class Bot:
         self.settings = settings if settings is not None else app_settings
         self.logger = get_logger(self.__class__.__name__)
         
-        # Initialize cache
+        # Initialize cache: usar InMemory por defecto si REDIS_URL no está configurado
+        has_redis_url = False
+        if getattr(self.settings, "redis_url", None):
+            try:
+                raw_url = (
+                    self.settings.redis_url.get_secret_value()
+                    if hasattr(self.settings.redis_url, 'get_secret_value')
+                    else str(self.settings.redis_url)
+                )
+                has_redis_url = bool(raw_url and raw_url.strip())
+            except Exception:
+                has_redis_url = False
+
+        default_cache_type = cache or (CacheTypes.RedisCache if has_redis_url else CacheTypes.InMemoryCache)
         self._cache = ChatbotCache.create(
             settings=self.settings,
-            cache_type=cache or CacheTypes.RedisCache
+            cache_type=default_cache_type
         )
         
         self._memory: AbstractChatbotMemory = self.get_memory(

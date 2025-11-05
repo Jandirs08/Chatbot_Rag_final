@@ -64,10 +64,11 @@ def get_cors_origins_list() -> list:
     if settings.environment == "production" and getattr(settings, "client_origin_url", None):
         unique_origins = [settings.client_origin_url]
     
+    # Consolidar logs de CORS para reducir redundancia en consola
     main_logger.info(f"CORS Origins configurados: {unique_origins}")
-    main_logger.info(f"CORS Widget Origins: {settings.cors_origins_widget}")
-    main_logger.info(f"CORS Admin Origins: {settings.cors_origins_admin}")
-    main_logger.info(f"CORS Max Age: {settings.cors_max_age}")
+    main_logger.debug(f"CORS Widget Origins: {settings.cors_origins_widget}")
+    main_logger.debug(f"CORS Admin Origins: {settings.cors_origins_admin}")
+    main_logger.debug(f"CORS Max Age: {settings.cors_max_age}")
     
     return unique_origins
 
@@ -89,12 +90,18 @@ from rag.pdf_processor.pdf_loader import PDFContentLoader
 from rag.embeddings.embedding_manager import EmbeddingManager
 from rag.vector_store.vector_store import VectorStore
 from rag.ingestion.ingestor import RAGIngestor
+from utils.deploy_log import build_startup_summary
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan context manager for setup and teardown."""
     logger = get_logger(__name__)
     logger.info("Iniciando aplicación y configurando recursos...")
+    # Desactivar telemetry de Chroma para limpiar logs y evitar envíos
+    try:
+        os.environ["CHROMA_TELEMETRY_ENABLED"] = "FALSE"
+    except Exception:
+        pass
     
     try:
         s = settings
@@ -152,6 +159,14 @@ async def lifespan(app: FastAPI):
         )
         logger.info("RAGRetriever inicializado.")
 
+        # Ping ligero de embeddings para visibilidad (sin bloquear arranque si falla)
+        try:
+            emb = await app.state.embedding_manager.embed_text("ping")
+            emb_ok = bool(emb and isinstance(emb, list) and len(emb) > 0)
+            logger.info(f"✅ Ping Embeddings: {'OK' if emb_ok else 'Fallback vector'}")
+        except Exception as e:
+            logger.warning(f"⚠️ Ping Embeddings falló: {e}")
+
         bot_memory_type = MemoryTypes.BASE_MEMORY
         if s.memory_type:
             try:
@@ -208,6 +223,13 @@ async def lifespan(app: FastAPI):
 
         app.state.pdf_processor = PDFProcessorAdapter(app.state.pdf_file_manager, app.state.vector_store)
 
+        # Resumen de deploy del backend
+        try:
+            summary = build_startup_summary(app)
+            logger.info("\n" + summary)
+        except Exception as e:
+            logger.warning(f"No se pudo generar el resumen de deploy: {e}")
+
     except Exception as e:
         logger.error(f"Error fatal durante la inicialización en lifespan: {e}", exc_info=True)
         raise
@@ -252,6 +274,27 @@ def create_app() -> FastAPI:
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
+    # Reducir verbosidad de librerías de terceros para evitar ruido en consola
+    try:
+        import warnings
+        # Suprimir deprecations ruidosos conocidos de LangChain
+        warnings.filterwarnings("ignore", category=DeprecationWarning, module="langchain._api.module_import")
+        # Ajustar niveles de log de librerías
+        logging.getLogger("pymongo").setLevel(logging.WARNING)
+        logging.getLogger("motor").setLevel(logging.WARNING)
+        logging.getLogger("uvicorn").setLevel(logging.INFO)
+        logging.getLogger("uvicorn.error").setLevel(logging.INFO)
+        logging.getLogger("uvicorn.access").setLevel(logging.INFO)
+        logging.getLogger("watchfiles").setLevel(logging.WARNING)
+        logging.getLogger("langchain").setLevel(logging.WARNING)
+        logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
+        logging.getLogger("transformers").setLevel(logging.WARNING)
+        logging.getLogger("huggingface_hub").setLevel(logging.WARNING)
+        logging.getLogger("urllib3").setLevel(logging.WARNING)
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+    except Exception:
+        # No bloquear el arranque si no se puede ajustar
+        pass
     main_logger = get_logger(__name__)
     main_logger.info("Creando instancia de FastAPI...")
 
@@ -274,11 +317,13 @@ def create_app() -> FastAPI:
         
         body = None
         try:
-            body = await request.body()
-            if body:
-                body = body.decode()
-        except:
-            pass
+            # Solo loguear el body en modo debug para evitar ruido y posibles datos sensibles
+            if settings.debug:
+                body_bytes = await request.body()
+                if body_bytes:
+                    body = body_bytes.decode(errors="ignore")
+        except Exception:
+            body = None
 
         main_logger.info(
             f"Request: {request.method} {request.url.path} - "
@@ -300,7 +345,8 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
         max_age=settings.cors_max_age,
     )
-    main_logger.info(f"CORS configurado para orígenes: {allow_origins_list}")
+    # Evitar duplicar logs de CORS; el detalle ya se muestra en get_cors_origins_list
+    main_logger.debug(f"CORS configurado para orígenes: {allow_origins_list}")
 
     # Agregar middleware de autenticación (se inicializará con MongoDB client en lifespan)
     app.add_middleware(AuthenticationMiddleware)

@@ -71,7 +71,6 @@ Esta guía documenta todas las variables de entorno reconocidas por `backend/con
 | `ENABLE_METRICS` | Habilita métricas | bool | `True` | Monitoreo |
 | `METRICS_PORT` | Puerto de métricas | int | `9090` | Monitoreo |
 | `ENABLE_TRACING` | Habilita tracing | bool | `False` | Observabilidad |
-| `ENABLE_ANONYMIZER` | Habilita anonimización | bool | `True` | Privacidad |
 | `MAX_DOCUMENTS` | Máximo de documentos a devolver | int | `5` | Límite de recuperación |
 
 Notas:
@@ -95,6 +94,14 @@ Para que no tengas que definir todas las variables, aquí van los mínimos recom
   - `MONGO_URI`
   - `CORS_ORIGINS` (define tus dominios, evita `*`)
   - Opcional: `HOST`, `PORT`, `WORKERS`
+
+### Embeddings y memoria (Render Free 512MB)
+
+- Por defecto se usa un modelo local (`sentence-transformers/all-MiniLM-L6-v2`) que puede consumir bastante memoria al arrancar.
+- Para reducir memoria en Render Free, puedes usar embeddings remotos de OpenAI:
+  - Define `EMBEDDING_MODEL=openai:text-embedding-3-small` (requiere `OPENAI_API_KEY`).
+  - El gestor de embeddings detecta el prefijo `openai:` y usa el servicio remoto, evitando cargar modelos pesados en RAM.
+  - En entornos sin acceso a internet o sin API key, se mantiene el modelo local con carga perezosa.
 
 - Opcionales recomendadas en producción:
   - `VECTOR_STORE_PATH` (monta almacenamiento persistente en cloud)

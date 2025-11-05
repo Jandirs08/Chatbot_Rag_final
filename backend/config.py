@@ -137,8 +137,7 @@ class Settings(BaseSettings):
     enable_metrics: bool = Field(default=True, env="ENABLE_METRICS")
     metrics_port: int = Field(default=9090, env="METRICS_PORT")
     enable_tracing: bool = Field(default=False, env="ENABLE_TRACING")
-    enable_anonymizer: bool = Field(default=True, env="ENABLE_ANONYMIZER")
-    
+
     # Configuración personalizada para cantidad máxima de documentos recuperados
     max_documents: int = Field(default=5, env="MAX_DOCUMENTS")
     

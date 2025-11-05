@@ -8,7 +8,13 @@ import time
 from datetime import datetime
 import asyncio
 from functools import lru_cache
-import redis
+# Redis es opcional: importar de forma condicional
+try:
+    import redis  # type: ignore
+    _REDIS_AVAILABLE = True
+except Exception:
+    redis = None  # type: ignore
+    _REDIS_AVAILABLE = False
 from fastapi import HTTPException
 import uuid
 
@@ -51,7 +57,7 @@ class VectorStore:
         self._query_cache = {}  # Caché en memoria como alternativa
         self.redis_client = None
         
-        if settings.redis_url:
+        if settings.redis_url and _REDIS_AVAILABLE:
             try:
                 self.redis_client = redis.from_url(
                     settings.redis_url.get_secret_value(),
@@ -64,6 +70,9 @@ class VectorStore:
             except Exception as e:
                 logger.warning(f"No se pudo conectar a Redis: {e}. Usando caché en memoria.")
                 self.redis_client = None
+        else:
+            if settings.redis_url and not _REDIS_AVAILABLE:
+                logger.warning("REDIS_URL definido pero la librería 'redis' no está instalada. Usando caché en memoria.")
         
         self._initialize_store()
         logger.info(
@@ -90,7 +99,8 @@ class VectorStore:
             
             # Eliminar dummy si existe (corregido)
             try:
-                docs = self.store._collection.get(where={"is_dummy": True}, include=["documents", "metadatas", "ids"])
+                # 'ids' no es un valor válido para 'include' en Chroma; los IDs se devuelven por defecto
+                docs = self.store._collection.get(where={"is_dummy": True}, include=["documents", "metadatas"])
                 ids = []
                 for i, meta in enumerate(docs.get("metadatas", [])):
                     if meta and meta.get("is_dummy"):
