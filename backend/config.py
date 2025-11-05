@@ -1,7 +1,7 @@
 """Configuration management for the chatbot application."""
 import os
 from typing import Any, Dict, Optional, List, Union
-from pydantic import Field, validator, SecretStr
+from pydantic import Field, validator, SecretStr, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 from dotenv import load_dotenv
@@ -206,7 +206,26 @@ class Settings(BaseSettings):
         return v
 
 # Create global settings instance
-settings = Settings()
+try:
+    settings = Settings()
+except ValidationError as e:
+    print("="*80)
+    print("ERROR: Faltan variables de entorno críticas para iniciar la aplicación.")
+    print("La validación de configuración falló. Revise las siguientes variables en su configuración de Render:")
+    error_messages = []
+    for error in e.errors():
+        # error['loc'] es una tupla, tomamos el primer elemento para el nombre del campo
+        field_name = str(error['loc'][0])
+        error_messages.append(f"  - Campo '{field_name}': {error['msg']}.")
+    
+    # Unir mensajes para una mejor legibilidad
+    print("\n".join(error_messages))
+    
+    print("\nSugerencia: Las variables de entorno requeridas suelen ser 'OPENAI_API_KEY', 'MONGODB_URI', y 'JWT_SECRET'.")
+    print("="*80)
+    # Re-lanzar la excepción para detener el inicio de la aplicación
+    raise
+
 
 def get_settings() -> Settings:
     """Get application settings.
