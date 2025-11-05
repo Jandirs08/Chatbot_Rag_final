@@ -4,7 +4,7 @@ from utils.logging_utils import get_logger
 import uuid
 import json
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse, JSONResponse, Response
 import pandas as pd
 from io import BytesIO
 from datetime import datetime
@@ -107,82 +107,85 @@ async def export_conversations(request: Request):
     try:
         chat_manager = request.app.state.chat_manager
         db = chat_manager.db
-        
+
         cursor = db.messages.find({}).sort([("conversation_id", 1), ("timestamp", 1)])
         messages = await cursor.to_list(length=None)
-        
-        if not messages:
-            raise HTTPException(status_code=404, detail="No se encontraron conversaciones para exportar")
-        
-        df = pd.DataFrame(messages)
+
         output = BytesIO()
-        
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df = df.sort_values(['conversation_id', 'timestamp'])
-            df['timestamp'] = pd.to_datetime(df['timestamp']).dt.strftime('%Y-%m-%d %H:%M:%S')
-            
-            df = df.rename(columns={
-                'conversation_id': 'ID Conversación',
-                'timestamp': 'Fecha y Hora',
-                'role': 'Rol',
-                'content': 'Mensaje'
-            })
-            
-            df = df[['ID Conversación', 'Fecha y Hora', 'Rol', 'Mensaje']]
-            df.to_excel(writer, sheet_name='Conversaciones', index=False)
-            
-            workbook = writer.book
-            worksheet = writer.sheets['Conversaciones']
-            
-            header_format = workbook.add_format({
-                'bold': True,
-                'bg_color': '#D9E1F2',
-                'border': 1
-            })
-            
-            conversation_format = workbook.add_format({
-                'bg_color': '#E2EFDA',
-                'border': 1
-            })
-            
-            message_format = workbook.add_format({
-                'border': 1,
-                'text_wrap': True
-            })
-            
-            for col_num, value in enumerate(df.columns.values):
-                worksheet.write(0, col_num, value, header_format)
-            
-            current_conversation = None
-            for row_num, row in enumerate(df.itertuples(), start=1):
-                if row[1] != current_conversation:
-                    current_conversation = row[1]
-                    worksheet.write(row_num, 0, row[1], conversation_format)
-                else:
-                    worksheet.write(row_num, 0, row[1], message_format)
-                
-                worksheet.write(row_num, 1, row[2], message_format)
-                worksheet.write(row_num, 2, row[3], message_format)
-                worksheet.write(row_num, 3, row[4], message_format)
-            
-            worksheet.set_column('A:A', 36)
-            worksheet.set_column('B:B', 20)
-            worksheet.set_column('C:C', 10)
-            worksheet.set_column('D:D', 100)
-            
-            worksheet.autofilter(0, 0, len(df), len(df.columns) - 1)
-            worksheet.freeze_panes(1, 0)
-        
+            if not messages:
+                # Crear un Excel vacío pero válido con encabezados y una fila informativa
+                df = pd.DataFrame(columns=['ID Conversación', 'Fecha y Hora', 'Rol', 'Mensaje'])
+                df.loc[0] = ["-", datetime.now().strftime('%Y-%m-%d %H:%M:%S'), "info", "Sin conversaciones registradas"]
+                df.to_excel(writer, sheet_name='Conversaciones', index=False)
+            else:
+                df = pd.DataFrame(messages)
+                df = df.sort_values(['conversation_id', 'timestamp'])
+                df['timestamp'] = pd.to_datetime(df['timestamp']).dt.strftime('%Y-%m-%d %H:%M:%S')
+
+                df = df.rename(columns={
+                    'conversation_id': 'ID Conversación',
+                    'timestamp': 'Fecha y Hora',
+                    'role': 'Rol',
+                    'content': 'Mensaje'
+                })
+
+                df = df[['ID Conversación', 'Fecha y Hora', 'Rol', 'Mensaje']]
+                df.to_excel(writer, sheet_name='Conversaciones', index=False)
+
+                workbook = writer.book
+                worksheet = writer.sheets['Conversaciones']
+
+                header_format = workbook.add_format({
+                    'bold': True,
+                    'bg_color': '#D9E1F2',
+                    'border': 1
+                })
+
+                conversation_format = workbook.add_format({
+                    'bg_color': '#E2EFDA',
+                    'border': 1
+                })
+
+                message_format = workbook.add_format({
+                    'border': 1,
+                    'text_wrap': True
+                })
+
+                for col_num, value in enumerate(df.columns.values):
+                    worksheet.write(0, col_num, value, header_format)
+
+                current_conversation = None
+                for row_num, row in enumerate(df.itertuples(), start=1):
+                    if row[1] != current_conversation:
+                        current_conversation = row[1]
+                        worksheet.write(row_num, 0, row[1], conversation_format)
+                    else:
+                        worksheet.write(row_num, 0, row[1], message_format)
+
+                    worksheet.write(row_num, 1, row[2], message_format)
+                    worksheet.write(row_num, 2, row[3], message_format)
+                    worksheet.write(row_num, 3, row[4], message_format)
+
+                worksheet.set_column('A:A', 36)
+                worksheet.set_column('B:B', 20)
+                worksheet.set_column('C:C', 10)
+                worksheet.set_column('D:D', 100)
+
+                worksheet.autofilter(0, 0, len(df), len(df.columns) - 1)
+                worksheet.freeze_panes(1, 0)
+
         output.seek(0)
         current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename = f'conversaciones_{current_time}.xlsx'
-        
-        return StreamingResponse(
-            output,
-            media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            headers={'Content-Disposition': f'attachment; filename="{filename}"'}
-        )
-        
+
+        # Usar Response con contenido completo para mejorar compatibilidad con descargas
+        content = output.getvalue()
+        headers = {
+            'Content-Disposition': f'attachment; filename="{filename}"'
+        }
+        return Response(content=content, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', headers=headers)
+
     except Exception as e:
         logger.error(f"Error al exportar conversaciones: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error al exportar conversaciones: {str(e)}")

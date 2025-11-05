@@ -343,6 +343,7 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["Content-Disposition"],
         max_age=settings.cors_max_age,
     )
     # Evitar duplicar logs de CORS; el detalle ya se muestra en get_cors_origins_list
