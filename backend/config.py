@@ -188,3 +188,20 @@ def get_settings() -> Settings:
         Application settings object.
     """
     return settings
+
+# Endurecimiento de seguridad en producción:
+# - Si el entorno es "production" y JWT_SECRET no está definido o está vacío,
+#   abortar el arranque con un ValueError claro. Las plataformas cloud (Render, Railway)
+#   inyectan variables de entorno; esta validación evita arrancar sin un secreto adecuado.
+try:
+    if settings.environment.lower() == "production":
+        secret_value = (
+            settings.jwt_secret.get_secret_value() if settings.jwt_secret is not None else None
+        )
+        if secret_value is None or secret_value.strip() == "":
+            raise ValueError(
+                "JWT_SECRET es obligatorio en producción. Configure la variable de entorno JWT_SECRET antes de iniciar."
+            )
+except Exception:
+    # Re-lanzar para que el arranque falle y quede registrado por el logger de la app/uvicorn.
+    raise

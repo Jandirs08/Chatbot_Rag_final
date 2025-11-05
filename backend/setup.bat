@@ -67,7 +67,7 @@ if errorlevel 1 (
 
 REM Verificar instalación de paquetes clave
 echo Verificando instalación de paquetes clave...
-for %%M in (redis langchain chromadb spacy) do (
+for %%M in (redis langchain chromadb) do (
     python -c "import %%M" 2>nul
     if errorlevel 1 (
         echo ERROR: No se pudo importar %%M

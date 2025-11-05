@@ -60,8 +60,7 @@ COPY backend/requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
     && pip install --no-cache-dir -r requirements.txt
 
-# Instala modelos de spaCy necesarios
-RUN python -m spacy download en_core_web_md
+# spaCy deshabilitado: no instalar modelos por ahora
 
 # El código de la aplicación se montará como un volumen en docker-compose
 # Expone el puerto que usará la aplicación

@@ -22,6 +22,5 @@ echo "Verificando instalación..."
 python -c "import redis; print('Redis instalado correctamente')"
 python -c "import langchain; print('LangChain instalado correctamente')"
 python -c "import chromadb; print('ChromaDB instalado correctamente')"
-python -c "import spacy; print('spaCy instalado correctamente')"
 
-echo "¡Instalación completada!" 
+echo "¡Instalación completada!"

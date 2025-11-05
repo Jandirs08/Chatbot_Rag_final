@@ -5,7 +5,9 @@ from typing import List, Optional, Dict
 from pathlib import Path
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
-from langchain_community.document_loaders import UnstructuredPDFLoader, PyPDFLoader
+from langchain_community.document_loaders import PyPDFLoader
+# OCR deshabilitado: se comenta la importación de UnstructuredPDFLoader para evitar su uso
+# from langchain_community.document_loaders import UnstructuredPDFLoader
 import logging
 
 logger = logging.getLogger(__name__)
@@ -57,30 +59,18 @@ class PDFContentLoader:
             Lista de Documents procesados y optimizados.
         """
         logger.info(f"Procesando PDF: {pdf_path.name}")
-        # Intento 1: UnstructuredPDFLoader (mejor extracción cuando está disponible)
+        # OCR deshabilitado: usar exclusivamente PyPDFLoader (extracción de texto sin OCR)
         documents: List[Document] = []
         try:
-            loader = UnstructuredPDFLoader(str(pdf_path))
-            documents = loader.load()
-            logger.info(f"PDF cargado con Unstructured: {len(documents)} páginas desde {pdf_path.name}")
+            pdf_loader = PyPDFLoader(str(pdf_path))
+            documents = pdf_loader.load()
+            logger.info(f"PDF cargado con PyPDFLoader: {len(documents)} páginas desde {pdf_path.name}")
         except Exception as e:
-            # Fallback robusto si falla la pila de OCR (p.ej., libGL.so.1 ausente)
-            err_msg = str(e)
-            logger.warning(
-                f"Fallo Unstructured al procesar {pdf_path.name}: {err_msg}. "
-                f"Aplicando fallback a PyPDFLoader (extracción de texto sin OCR).",
+            logger.error(
+                f"Error procesando PDF {pdf_path.name} con PyPDFLoader: {e}",
                 exc_info=True,
             )
-            try:
-                pdf_loader = PyPDFLoader(str(pdf_path))
-                documents = pdf_loader.load()
-                logger.info(f"PDF cargado con PyPDFLoader: {len(documents)} páginas desde {pdf_path.name}")
-            except Exception as e2:
-                logger.error(
-                    f"Error procesando PDF {pdf_path.name} con fallback PyPDFLoader: {e2}",
-                    exc_info=True,
-                )
-                return []
+            return []
 
         if not documents:
             logger.warning(f"No se pudo extraer contenido de: {pdf_path.name}")
