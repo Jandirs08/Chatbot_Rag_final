@@ -23,5 +23,5 @@ COPY . .
 EXPOSE 8000
 
 # Comando para arrancar la aplicación
-# Render inyectará el valor de PORT aquí.
-CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "${PORT:-8000}"]
+# Usa forma de shell para que la variable de entorno $PORT se expanda correctamente en Render.
+CMD sh -c "python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"
