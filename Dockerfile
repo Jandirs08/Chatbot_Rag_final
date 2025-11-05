@@ -50,21 +50,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Establece variables de entorno para Python
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV PORT=8000
 ENV HOST=0.0.0.0
 
 # Copia solo el archivo de requerimientos para aprovechar el cache de Docker
-COPY backend/requirements.txt .
+WORKDIR /app/backend
+COPY backend/requirements.txt ./requirements.txt
 
 # Instala las dependencias de Python
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
     && pip install --no-cache-dir -r requirements.txt
 
-# spaCy deshabilitado: no instalar modelos por ahora
+# Copiar el código de la aplicación (necesario en plataformas como Render)
+COPY backend/ .
 
-# El código de la aplicación se montará como un volumen en docker-compose
 # Expone el puerto que usará la aplicación
 EXPOSE 8000
 
-# Comando por defecto (puede ser sobreescrito por docker-compose)
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# Comando por defecto: respetar la variable de entorno PORT de Render
+# Usamos forma de shell para que ${PORT} se expanda correctamente
+CMD sh -c "python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"
