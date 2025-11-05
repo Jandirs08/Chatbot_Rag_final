@@ -109,12 +109,14 @@ class Settings(BaseSettings):
     max_concurrent_tasks: int = Field(default=4, env="MAX_CONCURRENT_TASKS")
     
     # Configuraciones de RAG - Vector Store
-    vector_store_path: str = Field(default="./backend/storage/vector_store/chroma_db")
+    vector_store_path: str = Field(default="./backend/storage/vector_store/chroma_db", env="VECTOR_STORE_PATH")
     distance_strategy: str = Field(default="cosine", env="DISTANCE_STRATEGY")
     
     # Configuraciones de RAG - Embeddings
-    embedding_model: str = Field(default="sentence-transformers/all-MiniLM-L6-v2")
+    embedding_model: str = Field(default="sentence-transformers/all-MiniLM-L6-v2", env="EMBEDDING_MODEL")
     embedding_batch_size: int = Field(default=32, env="EMBEDDING_BATCH_SIZE")
+    # Dimensión por defecto de embeddings (usada en fallbacks)
+    default_embedding_dimension: int = Field(default=384, env="DEFAULT_EMBEDDING_DIMENSION")
     
     # Configuraciones de RAG - Caché
     enable_cache: bool = Field(default=True, env="ENABLE_CACHE")

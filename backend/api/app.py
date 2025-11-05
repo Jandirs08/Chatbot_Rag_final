@@ -122,7 +122,11 @@ async def lifespan(app: FastAPI):
         vector_store_path.mkdir(parents=True, exist_ok=True)
         app.state.vector_store = VectorStore(
             persist_directory=str(vector_store_path),
-            embedding_function=app.state.embedding_manager
+            embedding_function=app.state.embedding_manager,
+            distance_strategy=s.distance_strategy,
+            cache_enabled=s.enable_cache,
+            cache_ttl=s.cache_ttl,
+            batch_size=s.batch_size
         )
         logger.info(f"VectorStore inicializado en: {vector_store_path}")
 
