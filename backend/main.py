@@ -28,4 +28,9 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
     # Recargar solo en desarrollo
     reload = os.getenv("ENVIRONMENT", "development").lower() != "production"
-    uvicorn.run("backend.main:app", host="0.0.0.0", port=port, reload=reload)
+
+    # En Docker, el contexto es la carpeta `backend`, por lo que el módulo es `main`.
+    # Localmente, se corre desde la raíz, por lo que es `backend.main`.
+    app_module = "main:app" if os.getenv("IN_DOCKER") else "backend.main:app"
+    
+    uvicorn.run(app_module, host="0.0.0.0", port=port, reload=reload)

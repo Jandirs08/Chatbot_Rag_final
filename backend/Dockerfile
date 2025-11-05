@@ -21,3 +21,7 @@ COPY . .
 
 # Expone el puerto que usará la aplicación
 EXPOSE 8000
+
+# Comando para arrancar la aplicación
+# Render inyectará el valor de PORT aquí.
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "${PORT:-8000}"]
