@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 // Rutas públicas: permitir acceso sin autenticación
 const PUBLIC_PATHS = [
   '/chat',
-  '/auth/login',
   '/favicon.ico',
   '/404',
   '/500',
@@ -11,7 +10,10 @@ const PUBLIC_PATHS = [
 ];
 
 function isPublicPath(pathname: string): boolean {
+  // Exact matches
   if (PUBLIC_PATHS.includes(pathname)) return true;
+  // Permitir todas las rutas de autenticación
+  if (pathname.startsWith('/auth')) return true;
   // Permitir archivos y recursos estáticos
   if (pathname.startsWith('/_next')) return true;
   if (pathname.startsWith('/public')) return true;
