@@ -52,7 +52,7 @@ export function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    // Ejecutar middleware en todas las rutas excepto API y estáticos
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+    // Ejecutar middleware en todas las rutas excepto API, estáticos y rutas públicas como auth y chat
+    '/((?!api|_next/static|_next/image|favicon.ico|auth|chat).*)',
   ],
 };
