@@ -5,6 +5,9 @@ const PUBLIC_PATHS = [
   '/chat',
   '/auth/login',
   '/favicon.ico',
+  '/404',
+  '/500',
+  '/not-found',
 ];
 
 function isPublicPath(pathname: string): boolean {

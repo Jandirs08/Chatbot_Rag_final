@@ -112,3 +112,19 @@ Para que no tengas que definir todas las variables, aquí van los mínimos recom
   - `EMBEDDING_MODEL` (si quieres cambiar el modelo por entorno)
 
 Si una variable no está en tu `.env`, `config.py` usará su valor por defecto, y la aplicación arrancará con ese comportamiento.
+
+## Variables de entorno del Frontend (Next.js)
+
+El frontend solo expone variables con el prefijo `NEXT_PUBLIC_`. Estas son las necesarias:
+
+- `NEXT_PUBLIC_API_URL`: URL base del backend incluyendo el prefijo `/api/v1`. No usar barra final.
+  - Ejemplos:
+    - Desarrollo: `http://localhost:8000/api/v1`
+    - Render: `https://tu-api-render.onrender.com/api/v1`
+
+- `NEXT_PUBLIC_WIDGET_URL` (opcional): URL base del widget para SSR/preview. Por defecto, el frontend infiere `window.location` y usa `/chat`.
+  - Ejemplo: `https://tu-frontend-dominio.com/chat`
+
+Notas Frontend:
+- El archivo `frontend/app/lib/config.ts` normaliza la URL para evitar barras finales y duplicados de `/api/v1`.
+- Para controlar el embedding del widget (`/chat`) en producción, puedes definir `CORS_ORIGINS_WIDGET` en el entorno de build del frontend. Se usa en `next.config.js` para establecer `frame-ancestors` en los headers de seguridad.
