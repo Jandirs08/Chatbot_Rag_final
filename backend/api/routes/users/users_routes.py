@@ -2,6 +2,7 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
+from pydantic import ValidationError
 from typing import Optional, List, Dict, Any
 from starlette.responses import Response
 
@@ -88,7 +89,17 @@ async def list_users(
   users_collection = user_repository.mongodb_client.db[user_repository.collection_name]
   total = await users_collection.count_documents(query)
   cursor = users_collection.find(query).skip(skip).limit(limit)
-  users: List[User] = [User(**doc) async for doc in cursor]
+
+  # Validar documentos uno por uno para evitar que un doc inválido rompa toda la lista
+  users: List[User] = []
+  async for doc in cursor:
+    try:
+      users.append(User(**doc))
+    except ValidationError as ve:
+      # Loguear y continuar; esto evita un 500 por datos históricos inválidos
+      logger.warning(f"Documento de usuario inválido encontrado y omitido: {ve}. Doc: {doc}")
+      continue
+
   items = [UserResponse.from_model(u) for u in users]
 
   return PaginatedUsersResponse(items=items, total=total, skip=skip, limit=limit)

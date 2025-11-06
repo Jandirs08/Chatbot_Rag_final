@@ -127,4 +127,47 @@ export class PDFService {
   static getPDFDownloadUrl(filename: string): string {
     return buildApiUrl(API_URL, `/api/v1/pdfs/download/${encodeURIComponent(filename)}`);
   }
+
+  // Obtiene el PDF como Blob usando Authorization y devuelve una URL de objeto para previsualización/descarga
+  static async getPDFBlobUrl(
+    filename: string,
+    mode: "view" | "download" = "view"
+  ): Promise<string> {
+    const token = authService.getAuthToken();
+    const endpoint = mode === "view"
+      ? this.getPDFViewUrl(filename)
+      : this.getPDFDownloadUrl(filename);
+
+    const response = await fetch(endpoint, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+
+    if (!response.ok) {
+      let detail = "Error al obtener el PDF";
+      try {
+        const err = await response.json();
+        detail = err?.detail || detail;
+      } catch (_e) {
+        // ignorar si no es JSON
+      }
+      throw new Error(detail);
+    }
+
+    const blob = await response.blob();
+    // Crear URL de objeto para usar en iframe o descarga
+    const url = URL.createObjectURL(blob);
+    return url;
+  }
+
+  // Descarga el PDF respetando el token creando un enlace temporal
+  static async downloadPDFWithToken(filename: string): Promise<void> {
+    const blobUrl = await this.getPDFBlobUrl(filename, "download");
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
+  }
 }

@@ -21,7 +21,7 @@ import { useToast } from "@/app/hooks/use-toast";
 import { PDFService } from "@/app/lib/services/pdfService";
 import { Progress } from "@/app/components/ui/progress";
 import { Skeleton } from "@/app/components/ui/skeleton";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/app/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/app/components/ui/dialog";
 
 interface PDFDocument {
   filename: string;
@@ -38,6 +38,9 @@ export function DocumentManagement() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewFilename, setPreviewFilename] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -120,14 +123,42 @@ export function DocumentManagement() {
     }
   };
 
-  const handlePreview = (filename: string) => {
+  const handlePreview = async (filename: string) => {
+    setPreviewError(null);
+    setPreviewUrl(null);
     setPreviewFilename(filename);
     setIsPreviewOpen(true);
+    setPreviewLoading(true);
+    try {
+      const url = await PDFService.getPDFBlobUrl(filename, "view");
+      setPreviewUrl(url);
+    } catch (error) {
+      setPreviewError(error instanceof Error ? error.message : "No se pudo cargar el preview");
+    } finally {
+      setPreviewLoading(false);
+    }
   };
 
-  const handleDownload = (filename: string) => {
-    const url = PDFService.getPDFDownloadUrl(filename);
-    window.open(url, "_blank");
+  // Limpiar URL de objeto al cerrar el modal para evitar fugas de memoria
+  useEffect(() => {
+    if (!isPreviewOpen && previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+      setPreviewFilename(null);
+      setPreviewError(null);
+    }
+  }, [isPreviewOpen]);
+
+  const handleDownload = async (filename: string) => {
+    try {
+      await PDFService.downloadPDFWithToken(filename);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "No se pudo descargar el PDF",
+        variant: "destructive",
+      });
+    }
   };
 
   const formatFileSize = (bytes: number) => {
@@ -348,11 +379,22 @@ export function DocumentManagement() {
         <DialogContent className="w-[95vw] max-w-5xl h-[85vh] p-0">
           <DialogHeader className="px-6 pt-6">
             <DialogTitle className="text-lg">Preview: {previewFilename}</DialogTitle>
+            <DialogDescription>
+              Previsualización del documento PDF seleccionado para revisión.
+            </DialogDescription>
           </DialogHeader>
           <div className="px-6 pb-6 h-[calc(85vh-4rem)]">
-            {previewFilename ? (
+            {previewLoading ? (
+              <div className="flex items-center justify-center h-full">
+                <Skeleton className="w-48 h-6" />
+              </div>
+            ) : previewError ? (
+              <div className="flex items-center justify-center h-full text-destructive">
+                {previewError}
+              </div>
+            ) : previewUrl ? (
               <iframe
-                src={PDFService.getPDFViewUrl(previewFilename)}
+                src={previewUrl}
                 className="w-full h-full border rounded-md"
               />
             ) : (
