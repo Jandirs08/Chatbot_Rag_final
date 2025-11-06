@@ -1,27 +1,21 @@
-# Usa imagen base de Python con herramientas de compilación incluidas
-# python:3.11 (no slim) ya incluye herramientas de compilación básicas
 FROM python:3.11
 
-# Establece el directorio de trabajo dentro del contenedor
-WORKDIR /app
+# Establece el directorio de trabajo directamente dentro del backend
+WORKDIR /app/backend
 
-# Establece variables de entorno para Python
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Copia solo el archivo de requerimientos para aprovechar el cache de Docker
+# Copia los requerimientos e instala dependencias
 COPY requirements.txt .
-
-# Instala las dependencias de Python
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copiar el código de la aplicación (necesario en Render; en docker-compose local se monta como volumen)
+# Copia el resto del código
 COPY . .
 
-# Expone el puerto que usará la aplicación
+# Expone el puerto
 EXPOSE 8000
 
-# Comando para arrancar la aplicación
-# Usa forma de shell para que la variable de entorno $PORT se expanda correctamente en Render.
+# Comando para arrancar la app
 CMD sh -c "python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"
