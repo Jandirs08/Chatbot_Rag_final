@@ -1,7 +1,7 @@
 FROM python:3.11
 
-# Establece el directorio de trabajo directamente dentro del backend
-WORKDIR /app/backend
+# Establece el directorio de trabajo en /app (para alinear con docker-compose)
+WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1

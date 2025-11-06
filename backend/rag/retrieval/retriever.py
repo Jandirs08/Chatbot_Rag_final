@@ -12,7 +12,7 @@ import asyncio
 
 from langchain_core.documents import Document
 # from langchain_community.vectorstores import Chroma # VectorStore lo abstrae
-from langchain_huggingface import HuggingFaceEmbeddings # Puede ser necesario para _initialize_embeddings si se mantiene
+# Eliminado: dependencias HuggingFace para embeddings locales
 # from langchain.text_splitter import RecursiveCharacterTextSplitter # Movido a PDFContentLoader
 # from langchain_community.document_loaders import PyPDFLoader # Movido a PDFContentLoader
 

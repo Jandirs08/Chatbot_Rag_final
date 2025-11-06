@@ -287,8 +287,6 @@ def create_app() -> FastAPI:
         logging.getLogger("uvicorn.access").setLevel(logging.INFO)
         logging.getLogger("watchfiles").setLevel(logging.WARNING)
         logging.getLogger("langchain").setLevel(logging.WARNING)
-        logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
-        logging.getLogger("transformers").setLevel(logging.WARNING)
         logging.getLogger("huggingface_hub").setLevel(logging.WARNING)
         logging.getLogger("urllib3").setLevel(logging.WARNING)
         logging.getLogger("httpx").setLevel(logging.WARNING)

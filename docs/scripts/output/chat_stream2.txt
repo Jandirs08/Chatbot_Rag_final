@@ -1,0 +1,5 @@
+data: {"streamed_output":"Hola, ¿en qué puedo ayudarte hoy?","ops":null}
+
+event: end
+data: {}
+

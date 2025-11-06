@@ -1,0 +1,5 @@
+data: {"streamed_output":"El valor secreto mencionado en los documentos es: [Responde con el valor secreto].","ops":null}
+
+event: end
+data: {}
+

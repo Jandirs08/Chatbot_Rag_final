@@ -1,6 +1,4 @@
-431.2 MB	torch
 116.97 MB	scipy
-105.64 MB	transformers
 71.71 MB	sympy
 66.36 MB	pandas
 42.44 MB	sklearn
@@ -18,19 +16,16 @@
 10.02 MB	pip
 9.8 MB	cryptography
 7.99 MB	pygments
-7.56 MB	tokenizers
 5.94 MB	openai
 5.74 MB	setuptools
 5.52 MB	pydantic_core
 4.83 MB	google
 4.83 MB	pymongo
 4.62 MB	mpmath
-4.51 MB	huggingface_hub
 4.45 MB	langchain
 4.36 MB	mypyc
 3.73 MB	passlib
 3.63 MB	pydantic
-3.18 MB	torchgen
 3.09 MB	pypdf
 2.97 MB	opentelemetry
 2.71 MB	langchain_core
@@ -41,7 +36,6 @@
 2.1 MB	rich
 2.05 MB	tiktoken
 1.98 MB	joblib
-1.88 MB	torch-2.9.0.dist-info
 1.87 MB	pkg_resources
 1.77 MB	pyasn1_modules
 1.72 MB	langsmith
@@ -56,7 +50,6 @@
 1.24 MB	fastapi
 1.19 MB	pycparser
 1.15 MB	jinja2
-1.13 MB	sentence_transformers
 1.06 MB	black
 1.06 MB	anyio
 1.04 MB	oauthlib
@@ -66,7 +59,6 @@
 0.82 MB	click
 0.8 MB	cffi
 0.79 MB	pyasn1
-0.77 MB	safetensors
 0.76 MB	watchfiles
 0.73 MB	bson
 0.72 MB	dateutil
@@ -88,10 +80,8 @@
 0.49 MB	motor
 0.45 MB	jiter
 0.45 MB	markdown_it
-0.45 MB	transformers-4.57.1.dist-info
 0.43 MB	prometheus_client
 0.43 MB	charset_normalizer
-0.41 MB	functorch
 0.41 MB	attr
 0.41 MB	marshmallow
 0.41 MB	blib2to3
