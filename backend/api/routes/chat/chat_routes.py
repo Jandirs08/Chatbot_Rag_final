@@ -5,7 +5,6 @@ import uuid
 import json
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse, JSONResponse, Response
-import pandas as pd
 from io import BytesIO
 from datetime import datetime
 
@@ -104,6 +103,8 @@ async def chat_stream_log(request: Request):
 @router.get("/export-conversations")
 async def export_conversations(request: Request):
     """Exporta todas las conversaciones a un archivo Excel."""
+    # Lazy-load de pandas para reducir tiempo/memoria de arranque
+    import pandas as pd
     try:
         chat_manager = request.app.state.chat_manager
         db = chat_manager.db
