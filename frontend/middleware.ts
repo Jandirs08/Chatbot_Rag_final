@@ -52,10 +52,7 @@ export function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    // Limitar middleware solo a rutas del panel administrativo
-    '/dashboard/:path*',
-    '/usuarios/:path*',
-    '/Documents/:path*',
-    '/widget/:path*',
+    // Ejecutar middleware en todas las rutas excepto API y estáticos
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
   ],
 };
