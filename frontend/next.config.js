@@ -24,12 +24,9 @@ const nextConfig = {
     minimumCacheTTL: 60 * 60 * 24 * 30, // 30 días
   },
   webpack: (config, { dev, isServer }) => {
-    // Alias para imports más limpios (evita __dirname para compatibilidad ESM/edge)
-    const path = require('path');
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      '@': path.resolve(process.cwd(), './app'),
-    };
+    // Eliminar alias manual y confiar en tsconfig "paths" (Next lo soporta).
+    // Esto evita incluir lógica de path en bundles que corren en Edge.
+    // config.resolve.alias queda tal cual.
 
     // Optimizaciones de bundle splitting
     if (!dev && !isServer) {

@@ -21,33 +21,36 @@ function isPublicPath(pathname: string): boolean {
 }
 
 export function middleware(req: NextRequest) {
-  try {
-    const { pathname } = req.nextUrl;
+  // Middleware ultra-defensivo para evitar 500 en Edge
+  const { pathname } = req.nextUrl;
 
-    // Permitir rutas públicas
-    if (isPublicPath(pathname)) {
-      return NextResponse.next();
-    }
-
-    // Leer token desde cookie (establecido en login)
-    const token = req.cookies.get('auth_token')?.value;
-
-    // Si no hay token y la ruta no es pública, redirigir al login
-    if (!token) {
-      const loginUrl = new URL('/auth/login', req.url);
-      return NextResponse.redirect(loginUrl);
-    }
-
+  // Permitir rutas públicas y estáticos inmediatamente
+  if (isPublicPath(pathname)) {
     return NextResponse.next();
-  } catch (e) {
-    // En caso de cualquier error en middleware, redirigir al login en lugar de 500
+  }
+
+  // Intentar leer cookie de forma segura; si hay cualquier problema, continuar
+  let token: string | undefined;
+  try {
+    token = req.cookies.get('auth_token')?.value;
+  } catch {
+    // No romper en Edge si cookies falla
+    token = undefined;
+  }
+
+  // Si no hay token y la ruta no es pública, redirigir al login
+  if (!token) {
     try {
       const loginUrl = new URL('/auth/login', req.url);
       return NextResponse.redirect(loginUrl);
     } catch {
+      // Fallback absoluto: permitir la navegación para evitar 500
       return NextResponse.next();
     }
   }
+
+  // Token presente, continuar
+  return NextResponse.next();
 }
 
 export const config = {
