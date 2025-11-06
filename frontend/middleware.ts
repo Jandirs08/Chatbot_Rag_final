@@ -21,28 +21,38 @@ function isPublicPath(pathname: string): boolean {
 }
 
 export function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
+  try {
+    const { pathname } = req.nextUrl;
 
-  // Permitir rutas públicas
-  if (isPublicPath(pathname)) {
+    // Permitir rutas públicas
+    if (isPublicPath(pathname)) {
+      return NextResponse.next();
+    }
+
+    // Leer token desde cookie (establecido en login)
+    const token = req.cookies.get('auth_token')?.value;
+
+    // Si no hay token y la ruta no es pública, redirigir al login
+    if (!token) {
+      const loginUrl = new URL('/auth/login', req.url);
+      return NextResponse.redirect(loginUrl);
+    }
+
     return NextResponse.next();
+  } catch (e) {
+    // En caso de cualquier error en middleware, redirigir al login en lugar de 500
+    try {
+      const loginUrl = new URL('/auth/login', req.url);
+      return NextResponse.redirect(loginUrl);
+    } catch {
+      return NextResponse.next();
+    }
   }
-
-  // Leer token desde cookie (establecido en login)
-  const token = req.cookies.get('auth_token')?.value;
-
-  // Si no hay token y la ruta no es pública, redirigir al login
-  if (!token) {
-    const loginUrl = new URL('/auth/login', req.url);
-    return NextResponse.redirect(loginUrl);
-  }
-
-  return NextResponse.next();
 }
 
 export const config = {
   matcher: [
-    // Ejecutar middleware en todas las rutas excepto estáticos
-    '/((?!_next|favicon.ico).*)',
+    // Ejecutar middleware en todas las rutas excepto API y estáticos
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
   ],
 };
