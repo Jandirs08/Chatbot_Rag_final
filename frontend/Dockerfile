@@ -6,10 +6,10 @@ WORKDIR /app
 
 # Copia los archivos de definición de paquetes para aprovechar cache
 COPY package.json ./
-COPY package-lock.json ./
+COPY yarn.lock ./
 
 # Instala dependencias
-RUN npm install
+RUN yarn install --frozen-lockfile
 
 # Copia el resto del código fuente
 COPY . .
@@ -18,4 +18,4 @@ COPY . .
 EXPOSE 3000
 
 # Comando para iniciar el servidor de desarrollo
-CMD ["npm", "run", "dev"]
+CMD ["yarn", "dev"]
