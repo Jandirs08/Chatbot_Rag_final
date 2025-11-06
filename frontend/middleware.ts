@@ -52,7 +52,10 @@ export function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    // Ejecutar middleware en todas las rutas excepto API, estáticos y rutas públicas como auth y chat
-    '/((?!api|_next/static|_next/image|favicon.ico|auth|chat).*)',
+    // Limitar middleware solo a rutas del panel administrativo
+    '/dashboard/:path*',
+    '/usuarios/:path*',
+    '/Documents/:path*',
+    '/widget/:path*',
   ],
 };
