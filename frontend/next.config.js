@@ -24,10 +24,11 @@ const nextConfig = {
     minimumCacheTTL: 60 * 60 * 24 * 30, // 30 días
   },
   webpack: (config, { dev, isServer }) => {
-    // Alias para imports más limpios
+    // Alias para imports más limpios (evita __dirname para compatibilidad ESM/edge)
+    const path = require('path');
     config.resolve.alias = {
       ...config.resolve.alias,
-      '@': require('path').resolve(__dirname, './app'),
+      '@': path.resolve(process.cwd(), './app'),
     };
 
     // Optimizaciones de bundle splitting
