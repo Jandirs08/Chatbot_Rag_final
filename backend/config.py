@@ -125,6 +125,9 @@ class Settings(BaseSettings):
     enable_cache: bool = Field(default=True, env="ENABLE_CACHE")
     cache_ttl: int = Field(default=3600, env="CACHE_TTL")  # 1 hora por defecto
     
+    # Feature Flag: Integración LCEL del RAG (PR4)
+    enable_rag_lcel: bool = Field(default=False, env="ENABLE_RAG_LCEL")
+    
     # Configuraciones de Directorios
     storage_dir: str = Field(default="./backend/storage", env="STORAGE_DIR")
     documents_dir: str = Field(default="./backend/storage/documents", env="DOCUMENTS_DIR")

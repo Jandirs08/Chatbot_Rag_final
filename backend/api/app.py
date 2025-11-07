@@ -178,7 +178,9 @@ async def lifespan(app: FastAPI):
             settings=s,
             memory_type=bot_memory_type,
             memory_kwargs={"conversation_id": "default_session"},
-            cache=None
+            cache=None,
+            model_type=None,
+            rag_retriever=app.state.rag_retriever
         )
         logger.info(f"Instancia de Bot creada con tipo de memoria: {bot_memory_type}")
 

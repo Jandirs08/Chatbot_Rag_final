@@ -33,27 +33,29 @@ class ChatManager:
             full_input_for_bot = input_text
             processed_by_rag = False
 
-            # Heurística simple: no usar RAG para consultas muy cortas
-            if self.rag_retriever and len(input_text.split()) >= 4:
-                k_results = settings.max_documents
-                
-                logger.info(f"Recuperando contexto RAG para la consulta con k={k_results}")
-                retrieved_docs = await self.rag_retriever.retrieve_documents(query=input_text, k=k_results)
-                
-                if retrieved_docs:
-                    retrieved_context = self.rag_retriever.format_context_from_documents(retrieved_docs)
-                    if retrieved_context == "No se encontró información relevante en los documentos consultados para esta pregunta.":
-                        logger.info("Se formateó el contexto, pero indica que no se encontró información relevante.")
-                    else:
-                        full_input_for_bot = f"Contexto relevante proporcionado por RAG:\n{retrieved_context}\n\nConsulta del usuario: {input_text}"
-                        logger.info("Contexto RAG añadido al input del bot.")
-                        processed_by_rag = True # Marcar que RAG procesó y añadió contexto
-                else:
-                    logger.info("No se encontraron documentos RAG relevantes.")
-            elif not self.rag_retriever:
-                logger.warning("ChatManager no tiene una instancia de RAGRetriever configurada. La respuesta será sin RAG.")
+            # Si la integración LCEL está activa, el contexto será inyectado por el pipeline del Bot.
+            if getattr(settings, "enable_rag_lcel", False):
+                logger.info("ENABLE_RAG_LCEL activo: delegando recuperación de contexto al pipeline LCEL del Bot.")
             else:
-                logger.info(f"Consulta '{input_text}' demasiado corta, saltando RAG.")
+                # Flujo legacy: componer contexto manualmente en el input
+                if self.rag_retriever and len(input_text.split()) >= 4:
+                    k_results = settings.max_documents
+                    logger.info(f"Recuperando contexto RAG (legacy) para la consulta con k={k_results}")
+                    retrieved_docs = await self.rag_retriever.retrieve_documents(query=input_text, k=k_results)
+                    if retrieved_docs:
+                        retrieved_context = self.rag_retriever.format_context_from_documents(retrieved_docs)
+                        if retrieved_context == "No se encontró información relevante en los documentos consultados para esta pregunta.":
+                            logger.info("Contexto indica que no se encontró información relevante (legacy).")
+                        else:
+                            full_input_for_bot = f"Contexto relevante proporcionado por RAG:\n{retrieved_context}\n\nConsulta del usuario: {input_text}"
+                            logger.info("Contexto RAG (legacy) añadido al input del bot.")
+                            processed_by_rag = True
+                    else:
+                        logger.info("No se encontraron documentos RAG relevantes (legacy).")
+                elif not self.rag_retriever:
+                    logger.warning("ChatManager no tiene una instancia de RAGRetriever configurada. La respuesta será sin RAG.")
+                else:
+                    logger.info(f"Consulta '{input_text}' demasiado corta, saltando RAG (legacy).")
             
             user_message_for_bot = BotMessage(message=full_input_for_bot, role=settings.human_prefix)
 

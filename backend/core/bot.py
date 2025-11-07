@@ -26,6 +26,7 @@ from models import ModelTypes
 from common.objects import Message, MessageTurn
 from common.constants import *
 from .chain import ChainManager
+from rag.retrieval.retriever import RAGRetriever
 from . import prompt as prompt_module
 from utils import CacheTypes, ChatbotCache
 from utils.logging_utils import get_logger
@@ -63,7 +64,8 @@ class Bot:
             memory_type: Optional[MemoryTypes] = None,
             memory_kwargs: Optional[dict] = None,
             cache: Optional[CacheTypes] = None,
-            model_type: Optional[ModelTypes] = None
+            model_type: Optional[ModelTypes] = None,
+            rag_retriever: Optional[RAGRetriever] = None
     ):
         self.settings = settings if settings is not None else app_settings
         self.logger = get_logger(self.__class__.__name__)
@@ -93,6 +95,7 @@ class Bot:
         )
         
         self.agent_executor: Optional[AgentExecutor] = None
+        self.rag_retriever: Optional[RAGRetriever] = rag_retriever
         
         # Inicializar tools
         self.tools = []
@@ -124,6 +127,26 @@ class Bot:
             history = await self.memory.get_history(conversation_id)
             return self._format_history_to_string(history)
 
+        async def get_context_async(x):
+            # Cargar contexto RAG vía LCEL si el flag está activo
+            try:
+                query = x.get("input", "")
+                if not isinstance(query, str):
+                    query = str(query)
+                use_rag = bool(self.settings.enable_rag_lcel) and self.rag_retriever is not None and len(query.split()) >= 4
+                if not use_rag:
+                    return ""
+                k = getattr(self.settings, "retrieval_k", 4)
+                docs = await self.rag_retriever.retrieve_documents(query=query, k=k)
+                if not docs:
+                    return ""
+                ctx = self.rag_retriever.format_context_from_documents(docs)
+                return ctx or ""
+            except Exception as e:
+                # Fail-soft: no bloquear el pipeline si hay error de recuperación
+                self.logger.warning(f"RAG LCEL get_context_async falló: {e}")
+                return ""
+
         def format_scratchpad(x):
             # Formatear el scratchpad para el agente
             if "intermediate_steps" in x:
@@ -134,7 +157,9 @@ class Bot:
             "input": itemgetter("input"),
             "history": RunnableLambda(get_history_async),
             "conversation_id": itemgetter("conversation_id"),
-            "agent_scratchpad": RunnableLambda(format_scratchpad)
+            "agent_scratchpad": RunnableLambda(format_scratchpad),
+            # Inyectar 'context' para el prompt cuando ENABLE_RAG_LCEL esté activo
+            "context": RunnableLambda(get_context_async)
         }).with_config(run_name="LoadHistoryAndPrepareAgentInput")
 
         agent_chain_with_history = history_loader | agent_runnable_core
