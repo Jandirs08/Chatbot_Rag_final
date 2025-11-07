@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
-import { Settings, Save, RotateCcw } from "lucide-react";
+import { Settings, Save, RotateCcw, Clock } from "lucide-react";
 import { toast } from "sonner";
 export interface BotConfigurationProps {
   botName?: string;
@@ -172,7 +172,7 @@ export function BotConfiguration({
                 <div className="text-sm text-red-600">{error}</div>
               ) : null}
               <div className="text-sm text-muted-foreground space-y-1">
-                <p>Última actualización: Hace 5 min</p>
+                <p className="flex items-center gap-2"><Clock className="w-4 h-4" /> Última actualización: Hace 5 min</p>
                 <p>Documentos procesados: 3</p>
                 <p>Consultas hoy: 247</p>
               </div>

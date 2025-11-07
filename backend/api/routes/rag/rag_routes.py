@@ -11,7 +11,10 @@ from api.schemas import (
     RAGStatusResponse,
     ClearRAGResponse,
     RAGStatusPDFDetail,
-    RAGStatusVectorStoreDetail # Asegurar que PDFListItem se importa si RAGStatusPDFDetail no lo redefine todo
+    RAGStatusVectorStoreDetail, # Asegurar que PDFListItem se importa si RAGStatusPDFDetail no lo redefine todo
+    RetrieveDebugRequest,
+    RetrieveDebugResponse,
+    RetrieveDebugItem
 )
 
 logger = logging.getLogger(__name__)
@@ -86,3 +89,34 @@ async def clear_rag(request: Request):
     except Exception as e:
         logger.error(f"Error al limpiar RAG: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error interno del servidor al limpiar RAG: {str(e)}")
+
+
+@router.post("/retrieve-debug", response_model=RetrieveDebugResponse)
+async def retrieve_debug(request: Request, payload: RetrieveDebugRequest):
+    """Endpoint para auditar la recuperación RAG con detalles por chunk.
+
+    Protegido por autenticación (solo admin). No altera el estado del sistema.
+    """
+    rag_retriever = request.app.state.rag_retriever
+    if rag_retriever is None:
+        raise HTTPException(status_code=500, detail="RAGRetriever no está inicializado en la aplicación")
+    try:
+        trace = await rag_retriever.retrieve_with_trace(
+            query=payload.query,
+            k=payload.k,
+            filter_criteria=payload.filter_criteria,
+            include_context=payload.include_context,
+        )
+        items = [
+            RetrieveDebugItem(**item) for item in trace.get("retrieved", [])
+        ]
+        return RetrieveDebugResponse(
+            query=trace.get("query", payload.query),
+            k=trace.get("k", payload.k),
+            retrieved=items,
+            context=trace.get("context"),
+            timings=trace.get("timings", {}),
+        )
+    except Exception as e:
+        logger.error(f"Error en retrieve-debug: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error interno del servidor en retrieve-debug: {str(e)}")

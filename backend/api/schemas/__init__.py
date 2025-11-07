@@ -22,7 +22,10 @@ from .rag import (
     RAGStatusPDFDetail,
     RAGStatusVectorStoreDetail,
     RAGStatusResponse,
-    ClearRAGResponse
+    ClearRAGResponse,
+    RetrieveDebugRequest,
+    RetrieveDebugItem,
+    RetrieveDebugResponse
 )
 from .health import HealthResponse
 
@@ -48,7 +51,10 @@ __all__ = [
     "RAGStatusVectorStoreDetail",
     "RAGStatusResponse",
     "ClearRAGResponse",
+    "RetrieveDebugRequest",
+    "RetrieveDebugItem",
+    "RetrieveDebugResponse",
     
     # Health
     "HealthResponse"
-] 
+]

@@ -223,6 +223,71 @@ class RAGRetriever:
             logger.error(f"Error en recuperación: {str(e)}", exc_info=True)
             return []
 
+    async def retrieve_with_trace(
+        self,
+        query: str,
+        k: int = 4,
+        filter_criteria: Optional[Dict[str, Any]] = None,
+        include_context: bool = True,
+    ) -> Dict[str, Any]:
+        """Recupera documentos y construye una traza auditable.
+
+        Args:
+            query: Consulta del usuario.
+            k: Número de documentos objetivo.
+            filter_criteria: Filtros opcionales para el vector store.
+            include_context: Si debe incluirse el contexto formateado.
+
+        Returns:
+            Diccionario con `query`, `k`, `retrieved` (lista con metadatos clave),
+            `context` (opcional) y `timings` con estadísticas de rendimiento.
+        """
+        try:
+            docs = await self.retrieve_documents(
+                query=query,
+                k=k,
+                filter_criteria=filter_criteria,
+                use_semantic_ranking=True,
+            )
+
+            items: List[Dict[str, Any]] = []
+            for doc in docs:
+                meta = doc.metadata or {}
+                preview = doc.page_content[:300] if doc.page_content else ""
+                items.append({
+                    "score": float(meta.get("score", 0.0)),
+                    "source": meta.get("source"),
+                    "file_path": meta.get("file_path"),
+                    "content_hash": meta.get("content_hash"),
+                    "chunk_type": meta.get("chunk_type"),
+                    "word_count": int(meta.get("word_count", 0)),
+                    "preview": preview,
+                })
+
+            context_str: Optional[str] = None
+            if include_context:
+                context_str = self.format_context_from_documents(docs)
+
+            timings = self.performance_metrics.get_statistics()
+
+            return {
+                "query": query,
+                "k": k,
+                "retrieved": items,
+                "context": context_str,
+                "timings": timings,
+            }
+        except Exception as e:
+            logger.error(f"Error construyendo traza de recuperación: {str(e)}", exc_info=True)
+            # Fallo seguro: devolver estructura vacía manteniendo contrato
+            return {
+                "query": query,
+                "k": k,
+                "retrieved": [],
+                "context": None if include_context else None,
+                "timings": {},
+            }
+
     async def _semantic_reranking(self, query: str, docs: List[Document]) -> List[Document]:
         """Reordena documentos usando múltiples criterios semánticos.
         
@@ -245,7 +310,10 @@ class RAGRetriever:
             scored_docs = []
             for doc in docs:
                 # 1. Score de similitud semántica
-                doc_embedding = self.embedding_manager.embed_query(doc.page_content)
+                # Preferir embedding persistido en metadatos para evitar recomputación
+                doc_embedding = doc.metadata.get("embedding")
+                if doc_embedding is None:
+                    doc_embedding = self.embedding_manager.embed_query(doc.page_content)
                 semantic_score = float(cosine_similarity([query_embedding], [doc_embedding])[0][0])
                 
                 # 2. Score de calidad del chunk
@@ -306,10 +374,12 @@ class RAGRetriever:
         try:
             # Obtener embeddings
             query_embedding = self.embedding_manager.embed_query(query)
-            doc_embeddings = [
-                self.embedding_manager.embed_query(doc.page_content)
-                for doc in docs
-            ]
+            doc_embeddings = []
+            for doc in docs:
+                emb = doc.metadata.get("embedding")
+                if emb is None:
+                    emb = self.embedding_manager.embed_query(doc.page_content)
+                doc_embeddings.append(emb)
 
             # Inicializar selección MMR
             selected_indices = []

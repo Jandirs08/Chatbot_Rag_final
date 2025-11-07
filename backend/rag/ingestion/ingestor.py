@@ -299,6 +299,26 @@ class RAGIngestor:
              raise TypeError(f"First element in batch is not a valid Document inside _add_batch_to_vector_store for batch {batch_number}. Type: {type(batch[0])}")
         logger.debug(f"Attempting to add batch {batch_number} to vector store. Batch size: {len(batch)}.")
         try:
+            # Persistir embeddings en metadatos para evitar recomputación en retrieval (MMR/reranking)
+            if embeddings is not None:
+                if len(embeddings) != len(batch):
+                    logger.warning(
+                        f"Tamaño de embeddings ({len(embeddings)}) no coincide con el tamaño del lote ({len(batch)}) en batch {batch_number}."
+                    )
+                for i, doc in enumerate(batch):
+                    try:
+                        emb_i = embeddings[i] if i < len(embeddings) else None
+                        if emb_i is not None:
+                            # Asegurar formato lista (evitar np.ndarray en metadatos)
+                            try:
+                                import numpy as np
+                                if isinstance(emb_i, np.ndarray):
+                                    emb_i = emb_i.tolist()
+                            except Exception:
+                                pass
+                            doc.metadata["embedding"] = emb_i
+                    except Exception as e:
+                        logger.warning(f"No se pudo persistir embedding en metadatos para doc {i} del batch {batch_number}: {e}")
             await self.vector_store.add_documents(batch, embeddings=embeddings)
             logger.debug(f"vector_store.add_documents completed successfully for batch {batch_number}.")
         except TypeError as te:

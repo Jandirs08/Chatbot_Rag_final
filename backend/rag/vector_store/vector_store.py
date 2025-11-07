@@ -236,33 +236,13 @@ class VectorStore:
         except Exception as e:
             logger.error(f"Error al obtener embedding: {str(e)}", exc_info=True)
             # Devolver un array de ceros para evitar que el programa se caiga
-            # Asumiendo una dimensión de embedding común, ajustar si es necesario
-            # Esto puede llevar a resultados de búsqueda pobres para este documento
+            # Unificar fallback: usar la dimensión configurada en settings.default_embedding_dimension
             try:
-                 # Intentar obtener la dimensión del embedding si es posible
-                 # Podrías necesitar ajustar cómo obtener esta dimensión si no está fija
-                 dummy_content = "temp"
-                 dummy_emb = self.embedding_function.embed_query(dummy_content) if hasattr(self.embedding_function, 'embed_query') else self.embedding_function.encode([dummy_content])
-                 if asyncio.iscoroutine(dummy_emb):
-                      dummy_emb = await dummy_emb
-                 if isinstance(dummy_emb, list):
-                      dummy_emb = np.array(dummy_emb)
-                 elif isinstance(dummy_emb, np.ndarray):
-                      pass # Ya es un array
-                 else:
-                      # Fallback a una dimensión predeterminada si no se puede obtener
-                      dummy_emb = np.zeros(settings.default_embedding_dimension) # Asume que tienes settings.default_embedding_dimension configurado
-                 
-                 logger.warning("Devolviendo embedding de ceros debido a un error.")
-                 return np.zeros(dummy_emb.shape)
-                 
-            except Exception as fe:
-                 logger.error(f"Error adicional al crear embedding de ceros: {fe}")
-                 # Fallback final a un array de ceros de dimensión fija si todo falla
-                 # DEBES AJUSTAR ESTA DIMENSIÓN SI NO TIENES settings.default_embedding_dimension
-                 fallback_dimension = 384 # Dimensión común para all-MiniLM-L6-v2
-                 logger.warning(f"Devolviendo embedding de ceros de dimensión {fallback_dimension} debido a errores múltiples.")
-                 return np.zeros(fallback_dimension)
+                dim = int(getattr(settings, "default_embedding_dimension", 1536))
+            except Exception:
+                dim = 1536
+            logger.warning(f"Devolviendo embedding de ceros (dimensión={dim}) debido a un error.")
+            return np.zeros(dim, dtype=np.float32)
                  
 
     async def retrieve(
