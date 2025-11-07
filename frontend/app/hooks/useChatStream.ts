@@ -43,7 +43,7 @@ export function useChatStream(conversationId: string): UseChatStreamReturn {
       // Carga dinámica de fetchEventSource para reducir el bundle inicial
       const { fetchEventSource } = await import("@microsoft/fetch-event-source");
       
-      await fetchEventSource(apiBaseUrl + "/chat/stream_log", {
+      await fetchEventSource(apiBaseUrl + "/chat/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
