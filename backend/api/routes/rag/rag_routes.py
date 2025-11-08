@@ -11,10 +11,12 @@ from api.schemas import (
     RAGStatusResponse,
     ClearRAGResponse,
     RAGStatusPDFDetail,
-    RAGStatusVectorStoreDetail, # Asegurar que PDFListItem se importa si RAGStatusPDFDetail no lo redefine todo
+    RAGStatusVectorStoreDetail,  # Asegurar que PDFListItem se importa si RAGStatusPDFDetail no lo redefine todo
     RetrieveDebugRequest,
     RetrieveDebugResponse,
-    RetrieveDebugItem
+    RetrieveDebugItem,
+    ReindexPDFRequest,
+    ReindexPDFResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -120,3 +122,42 @@ async def retrieve_debug(request: Request, payload: RetrieveDebugRequest):
     except Exception as e:
         logger.error(f"Error en retrieve-debug: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error interno del servidor en retrieve-debug: {str(e)}")
+
+@router.post("/reindex-pdf", response_model=ReindexPDFResponse)
+async def reindex_pdf(request: Request, payload: ReindexPDFRequest):
+    """Endpoint para forzar la reindexación de un PDF específico.
+
+    Protegido por autenticación (solo admin). Ejecuta la ingesta de forma síncrona
+    y retorna el resumen con el conteo de chunks agregados.
+    """
+    try:
+        pdf_manager = request.app.state.pdf_file_manager
+        rag_ingestor = request.app.state.rag_ingestor
+
+        # Resolver ruta del PDF dentro del directorio administrado
+        from pathlib import Path
+        pdf_path = pdf_manager.pdf_dir / Path(payload.filename).name
+        if not pdf_path.exists() or not pdf_path.is_file():
+            raise HTTPException(status_code=404, detail=f"PDF '{payload.filename}' no encontrado")
+
+        result = await rag_ingestor.ingest_single_pdf(pdf_path, force_update=payload.force_update)
+
+        status = result.get("status", "error")
+        if status != "success":
+            # Propagar detalle del error si está disponible
+            detail = result.get("error", result)
+            raise HTTPException(status_code=500, detail=f"Fallo en reindexación: {detail}")
+
+        return ReindexPDFResponse(
+            status="success",
+            message=f"Reindexación completada para '{payload.filename}'",
+            filename=result.get("filename", payload.filename),
+            chunks_original=int(result.get("chunks_original", 0)),
+            chunks_unique=int(result.get("chunks_unique", 0)),
+            chunks_added=int(result.get("chunks_added", 0)),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error en reindex-pdf: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error interno del servidor en reindex-pdf: {str(e)}")

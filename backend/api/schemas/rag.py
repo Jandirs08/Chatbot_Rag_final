@@ -54,3 +54,19 @@ class RetrieveDebugResponse(BaseModel):
     retrieved: List[RetrieveDebugItem]
     context: str | None = None
     timings: dict
+
+
+class ReindexPDFRequest(BaseModel):
+    """Request model for reindex-pdf endpoint."""
+    filename: str
+    force_update: bool = True
+
+
+class ReindexPDFResponse(BaseModel):
+    """Response model for reindex-pdf endpoint."""
+    status: str
+    message: str
+    filename: str
+    chunks_original: int
+    chunks_unique: int
+    chunks_added: int

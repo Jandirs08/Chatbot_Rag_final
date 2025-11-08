@@ -46,9 +46,9 @@ export function useChatStream(conversationId: string): UseChatStreamReturn {
       await fetchEventSource(apiBaseUrl + "/chat/", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
+          // Asegurar UTF-8 explícito y evitar enviar encabezados de respuesta (como ACAO)
+          "Content-Type": "application/json; charset=utf-8",
           Accept: "text/event-stream",
-          "Access-Control-Allow-Origin": "*",
         },
         credentials: "include",
         body: JSON.stringify({
@@ -60,6 +60,7 @@ export function useChatStream(conversationId: string): UseChatStreamReturn {
           console.log("Estado de la conexión:", {
             status: response.status,
             statusText: response.statusText,
+            contentType: response.headers.get("content-type"),
           });
 
           if (!response.ok) {
@@ -114,9 +115,22 @@ export function useChatStream(conversationId: string): UseChatStreamReturn {
             }
           }
 
+          // Manejo explícito de eventos del servidor
           if (msg.event === "end") {
             console.log("Evento end recibido");
             setIsLoading(false);
+          } else if (msg.event === "error") {
+            console.warn("Evento error recibido", msg.data);
+            setIsLoading(false);
+            // Mostrar mensaje de error amigable
+            const errorMessage: Message = {
+              id: uuidv4(),
+              content:
+                "Lo siento, ocurrió un error procesando tu mensaje. Por favor, inténtalo nuevamente.",
+              role: "assistant",
+              createdAt: new Date(),
+            };
+            setMessages((prev) => [...prev, errorMessage]);
           }
         },
       });

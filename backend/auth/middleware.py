@@ -22,14 +22,16 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
     Middleware de autenticación que protege rutas administrativas.
     
     Rutas públicas (sin autenticación):
-    - /health
+    - /api/v1/health
     - /api/v1/auth/*
     - /api/v1/chat/*
+    - /docs, /redoc, /openapi.json
     
     Rutas protegidas (requieren admin):
-    - /api/v1/pdf/*
+    - /api/v1/pdfs/*
     - /api/v1/rag/*
     - /api/v1/bot/*
+    - /api/v1/users/*
     """
     
     def __init__(self, app):
@@ -37,7 +39,7 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         
         # Rutas que NO requieren autenticación
         self.public_paths: List[str] = [
-            "/health",
+            "/api/v1/health",
             "/api/v1/auth",
             "/api/v1/chat",
             "/docs",
@@ -47,7 +49,6 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         
         # Rutas que requieren autenticación de admin
         self.protected_paths: List[str] = [
-            "/api/v1/pdf",
             "/api/v1/pdfs",
             "/api/v1/rag", 
             "/api/v1/bot",

@@ -25,7 +25,9 @@ from .rag import (
     ClearRAGResponse,
     RetrieveDebugRequest,
     RetrieveDebugItem,
-    RetrieveDebugResponse
+    RetrieveDebugResponse,
+    ReindexPDFRequest,
+    ReindexPDFResponse,
 )
 from .health import HealthResponse
 
@@ -54,6 +56,8 @@ __all__ = [
     "RetrieveDebugRequest",
     "RetrieveDebugItem",
     "RetrieveDebugResponse",
+    "ReindexPDFRequest",
+    "ReindexPDFResponse",
     
     # Health
     "HealthResponse"
