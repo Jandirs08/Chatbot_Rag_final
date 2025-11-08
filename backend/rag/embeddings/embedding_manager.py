@@ -34,8 +34,13 @@ class EmbeddingManager:
             )
             openai_model = "text-embedding-3-small"
 
-        self.logger.info(f"Usando OpenAIEmbeddings: {openai_model}")
+        # Instanciar embeddings sin argumentos no soportados por la versión instalada
+        self.logger.info(
+            f"Usando OpenAIEmbeddings: {openai_model} (batch_size interno={getattr(settings, 'embedding_batch_size', 32)})"
+        )
         self._openai = OpenAIEmbeddings(model=openai_model)
+        # Guardar batch_size para batching explícito en embed_documents
+        self._batch_size = getattr(settings, "embedding_batch_size", 32)
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """Genera embeddings para una lista de textos usando OpenAI."""
@@ -52,17 +57,21 @@ class EmbeddingManager:
                 filtered_texts.append("placeholder_text")
 
         try:
-            self.logger.debug(f"Generando embeddings para {len(filtered_texts)} textos")
-            embeddings = self._openai.embed_documents(filtered_texts)
-
-            # Asegurar que los resultados son listas, no ndarrays
-            result_embeddings = []
-            for emb in embeddings:
-                if isinstance(emb, np.ndarray):
-                    result_embeddings.append(emb.tolist())
-                else:
-                    result_embeddings.append(emb)
-            self.logger.debug("Embeddings generados exitosamente")
+            self.logger.debug(
+                f"Generando embeddings por lotes: total={len(filtered_texts)}, batch_size={self._batch_size}"
+            )
+            result_embeddings: List[List[float]] = []
+            # Batching explícito para evitar llamadas individuales
+            for start in range(0, len(filtered_texts), self._batch_size):
+                batch = filtered_texts[start:start + self._batch_size]
+                batch_embs = self._openai.embed_documents(batch)
+                # Normalizar salida de cada batch
+                for emb in batch_embs:
+                    if isinstance(emb, np.ndarray):
+                        result_embeddings.append(emb.tolist())
+                    else:
+                        result_embeddings.append(emb)
+            self.logger.debug("Embeddings generados exitosamente (batched)")
             return result_embeddings
         except Exception as e:
             self.logger.warning(f"Error al generar embeddings: {e}")

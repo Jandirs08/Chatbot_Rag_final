@@ -1,6 +1,6 @@
 """FastAPI application for the chatbot."""
 import logging
-from utils.logging_utils import get_logger
+from utils.logging_utils import get_logger, suppress_cl100k_warnings
 import time
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -276,11 +276,31 @@ def create_app() -> FastAPI:
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
+    # Suprimir avisos de cl100k_base de forma agresiva antes de inicializar librerías
+    try:
+        suppress_cl100k_warnings()
+    except Exception:
+        pass
     # Reducir verbosidad de librerías de terceros para evitar ruido en consola
     try:
         import warnings
         # Suprimir deprecations ruidosos conocidos de LangChain
         warnings.filterwarnings("ignore", category=DeprecationWarning, module="langchain._api.module_import")
+        # Suprimir warnings específicos de encoding cl100k_base que no afectan funcionalidad
+        # Suprimir avisos de cl100k_base por cualquier categoría
+        warnings.filterwarnings(
+            "ignore",
+            message=r".*cl100k_base.*",
+            category=Warning
+        )
+        warnings.filterwarnings(
+            "ignore",
+            message=r".*model not found.*cl100k_base.*",
+            category=Warning
+        )
+        # Filtrar a nivel de módulo (algunas versiones no clasifican como UserWarning)
+        warnings.filterwarnings("ignore", module="langchain_openai.embeddings.base")
+        warnings.filterwarnings("ignore", module="tiktoken")
         # Ajustar niveles de log de librerías
         logging.getLogger("pymongo").setLevel(logging.WARNING)
         logging.getLogger("motor").setLevel(logging.WARNING)

@@ -157,11 +157,15 @@ class RAGRetriever:
             
             # Añadir timeout para evitar bloqueos largos
             try:
+                # Importante: desactivar MMR en el VectorStore para evitar
+                # cálculos de embeddings por documento allí. Recuperamos por
+                # similitud directa y aplicamos reranking/MMR aquí con batching.
                 relevant_docs = await asyncio.wait_for(
                     self.vector_store.retrieve(
                         query,
                         k=initial_k,
-                        filter=filter_criteria
+                        filter=filter_criteria,
+                        use_mmr=False
                     ),
                     timeout=5.0  # Timeout de 5 segundos máximo
                 )
@@ -305,32 +309,45 @@ class RAGRetriever:
         try:
             # Generar embedding de la consulta
             query_embedding = self.embedding_manager.embed_query(query)
-            
+
+            # Preparar un único batch de textos sin embedding
+            texts_to_embed = []
+            missing_indices = []
+            for idx, doc in enumerate(docs):
+                if doc.metadata.get("embedding") is None:
+                    texts_to_embed.append(doc.page_content)
+                    missing_indices.append(idx)
+
+            if texts_to_embed:
+                logger.debug(f"Reranking: calculando embeddings por lote para {len(texts_to_embed)} documentos")
+                batch_embeddings = self.embedding_manager.embed_documents(texts_to_embed)
+                for pos, emb in enumerate(batch_embeddings):
+                    # Guardar embedding en los metadatos para futuras consultas/caché
+                    docs[missing_indices[pos]].metadata["embedding"] = emb
+
             # Calcular scores para cada documento
             scored_docs = []
             for doc in docs:
                 # 1. Score de similitud semántica
-                # Preferir embedding persistido en metadatos para evitar recomputación
                 doc_embedding = doc.metadata.get("embedding")
-                if doc_embedding is None:
-                    doc_embedding = self.embedding_manager.embed_query(doc.page_content)
-                semantic_score = float(cosine_similarity([query_embedding], [doc_embedding])[0][0])
-                
+                semantic_score = 0.0
+                if doc_embedding is not None:
+                    semantic_score = float(cosine_similarity([query_embedding], [doc_embedding])[0][0])
+
                 # 2. Score de calidad del chunk
                 quality_score = float(doc.metadata.get('quality_score', 0.5))
-                
+
                 # 3. Score por longitud relevante
                 length_score = min(len(doc.page_content.split()) / 100, 1.0)
-                
+
                 # 4. Score por tipo de contenido
                 content_type_score = self._get_content_type_score(doc.metadata.get('chunk_type', 'text'))
-                
+
                 # 5. Factor de prioridad para PDFs
                 pdf_priority_factor = 1.0
                 source_path = doc.metadata.get('source', '')
                 if source_path and source_path.lower().endswith('.pdf'):
-                    # Aumentar el factor si la fuente es un PDF. Ajustar el valor (ej: 1.2) según sea necesario.
-                    pdf_priority_factor = 1.5 # Aumentado de 1.2 a 1.5 para dar más prioridad a PDFs
+                    pdf_priority_factor = 1.5
 
                 # Combinar scores con pesos
                 final_score = (
@@ -339,9 +356,9 @@ class RAGRetriever:
                     length_score * 0.1 +
                     content_type_score * 0.05
                 ) * pdf_priority_factor
-                
+
                 scored_docs.append((doc, final_score))
-            
+
             # Ordenar por score final
             reranked = [doc for doc, _ in sorted(scored_docs, key=lambda x: x[1], reverse=True)]
             return reranked
@@ -375,11 +392,24 @@ class RAGRetriever:
             # Obtener embeddings
             query_embedding = self.embedding_manager.embed_query(query)
             doc_embeddings = []
-            for doc in docs:
+            texts_to_embed = []
+            missing_indices = []
+            for idx, doc in enumerate(docs):
                 emb = doc.metadata.get("embedding")
                 if emb is None:
-                    emb = self.embedding_manager.embed_query(doc.page_content)
-                doc_embeddings.append(emb)
+                    texts_to_embed.append(doc.page_content)
+                    missing_indices.append(idx)
+                    doc_embeddings.append(None)
+                else:
+                    doc_embeddings.append(emb)
+
+            if texts_to_embed:
+                logger.debug(f"MMR: calculando embeddings por lote para {len(texts_to_embed)} documentos")
+                batch_embeddings = self.embedding_manager.embed_documents(texts_to_embed)
+                for pos, emb in enumerate(batch_embeddings):
+                    doc_idx = missing_indices[pos]
+                    docs[doc_idx].metadata["embedding"] = emb
+                    doc_embeddings[doc_idx] = emb
 
             # Inicializar selección MMR
             selected_indices = []

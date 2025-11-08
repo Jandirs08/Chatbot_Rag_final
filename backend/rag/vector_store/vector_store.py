@@ -591,8 +591,10 @@ class VectorStore:
         for doc in docs:
             # Eliminar embeddings de los metadatos para ahorrar espacio
             metadata = doc.metadata.copy()
-            if 'embedding' in metadata:
-                del metadata['embedding']
+            # Conservar embeddings si está habilitado en settings
+            if not getattr(settings, "cache_store_embeddings", True):
+                if 'embedding' in metadata:
+                    del metadata['embedding']
                 
             serializable.append({
                 'page_content': doc.page_content,

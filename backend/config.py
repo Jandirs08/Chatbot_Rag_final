@@ -120,6 +120,12 @@ class Settings(BaseSettings):
     embedding_batch_size: int = Field(default=32, env="EMBEDDING_BATCH_SIZE")
     # Dimensión por defecto de embeddings (usada en fallbacks)
     default_embedding_dimension: int = Field(default=1536, env="DEFAULT_EMBEDDING_DIMENSION")
+
+    # Configuraciones de caché locales (VectorStore / consultas)
+    # Tamaño máximo del caché en memoria para resultados de búsqueda
+    max_cache_size: int = Field(default=1024, env="MAX_CACHE_SIZE")
+    # Almacenar embeddings dentro del caché del VectorStore para evitar recomputación
+    cache_store_embeddings: bool = Field(default=True, env="CACHE_STORE_EMBEDDINGS")
     
     # Configuraciones de RAG - Caché
     enable_cache: bool = Field(default=True, env="ENABLE_CACHE")
