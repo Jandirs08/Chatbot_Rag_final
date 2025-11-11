@@ -77,8 +77,8 @@ class Settings(BaseSettings):
     human_prefix: str = Field(default="user", env="HUMAN_PREFIX")
     
     # Configuraciones de MongoDB
-    # Preferir variable estándar de producción `MONGODB_URI`, con fallback a `MONGO_URI`
-    mongo_uri: SecretStr = Field(..., env="MONGODB_URI")
+    # Canonizamos a `MONGO_URI` (como en docker-compose), con fallback a `MONGODB_URI`
+    mongo_uri: Optional[SecretStr] = Field(default=None, env="MONGO_URI")
     mongo_database_name: str = Field(default="chatbot_rag_db", env="MONGO_DATABASE_NAME")
     mongo_collection_name: str = Field(default="chat_history", env="MONGO_COLLECTION_NAME") # <--- AÑADIR ESTA LÍNEA
     mongo_max_pool_size: int = Field(default=100, env="MONGO_MAX_POOL_SIZE")
@@ -188,11 +188,15 @@ class Settings(BaseSettings):
 
     @validator("mongo_uri", pre=True)
     def validate_mongo_uri(cls, v):
-        # Permitir fallback a MONGO_URI si MONGODB_URI no está presente
+        # Preferir MONGO_URI, con fallback a MONGODB_URI
         if v is None:
-            fallback = os.getenv("MONGO_URI")
+            primary = os.getenv("MONGO_URI")
+            if primary:
+                return primary
+            fallback = os.getenv("MONGODB_URI")
             if fallback:
                 return fallback
+            return None
         return v
         
     @validator("temperature")
@@ -217,22 +221,27 @@ class Settings(BaseSettings):
 try:
     settings = Settings()
 except ValidationError as e:
-    print("="*80)
-    print("ERROR: Faltan variables de entorno críticas para iniciar la aplicación.")
-    print("La validación de configuración falló. Revise las siguientes variables en su configuración de Render:")
-    error_messages = []
-    for error in e.errors():
-        # error['loc'] es una tupla, tomamos el primer elemento para el nombre del campo
-        field_name = str(error['loc'][0])
-        error_messages.append(f"  - Campo '{field_name}': {error['msg']}.")
-    
-    # Unir mensajes para una mejor legibilidad
-    print("\n".join(error_messages))
-    
-    print("\nSugerencia: Las variables de entorno requeridas suelen ser 'OPENAI_API_KEY', 'MONGODB_URI', y 'JWT_SECRET'.")
-    print("="*80)
-    # Re-lanzar la excepción para detener el inicio de la aplicación
-    raise
+    # Si el único error es mongo_uri ausente, tolerarlo (útil para utilidades locales)
+    error_fields = {str(err.get('loc', [''])[0]) for err in e.errors()}
+    if error_fields == {"mongo_uri"}:
+        mongo = os.getenv("MONGO_URI") or os.getenv("MONGODB_URI")
+        if mongo:
+            settings = Settings(mongo_uri=mongo)
+        else:
+            # Crear instancia con mongo_uri=None para scripts que no tocan Mongo directamente
+            settings = Settings(mongo_uri=None)
+    else:
+        print("="*80)
+        print("ERROR: Faltan variables de entorno críticas para iniciar la aplicación.")
+        print("La validación de configuración falló. Revise las siguientes variables en su configuración de entorno:")
+        error_messages = []
+        for error in e.errors():
+            field_name = str(error['loc'][0])
+            error_messages.append(f"  - Campo '{field_name}': {error['msg']}.")
+        print("\n".join(error_messages))
+        print("\nSugerencia: Variables requeridas incluyen 'OPENAI_API_KEY', 'MONGO_URI' (o 'MONGODB_URI'), y 'JWT_SECRET'.")
+        print("="*80)
+        raise
 
 
 def get_settings() -> Settings:
