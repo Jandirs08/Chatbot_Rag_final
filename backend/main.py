@@ -11,6 +11,10 @@ from dotenv import load_dotenv
 import os
 import warnings
 
+# Importar y configurar el logging al inicio de todo
+from utils.logging_utils import setup_logging
+setup_logging()
+
 # Cargar variables de entorno temprano para entornos locales.
 # En cloud (Render/Railway), las variables suelen inyectarse automáticamente.
 env_path = Path(__file__).resolve().parent / '.env'

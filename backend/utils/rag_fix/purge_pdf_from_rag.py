@@ -161,12 +161,9 @@ def purge_pdf_openai_fixed(target_basename: str, delete_file: bool, report_dir: 
     deleted_items = []
     if candidates:
         ids = [c["id"] for c in candidates]
-        try:
-            coll.delete(ids=ids)
-            deleted_items = candidates
-            logger.info(f"✅ Eliminados {len(ids)} documentos asociados al PDF.")
-        except Exception as e:
-            logger.error(f"Error al eliminar documentos por IDs: {e}")
+        # coll.delete(ids=ids)
+        for c in candidates:
+            logger.info(f"Found candidate: {c}")
 
     if delete_file:
         pdf_path = Path(settings.pdfs_dir) / target_basename

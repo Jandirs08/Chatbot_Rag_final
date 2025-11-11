@@ -1,5 +1,12 @@
 import logging
 import warnings
+import os
+
+
+def setup_logging():
+    """Configure logging level from environment variable."""
+    log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+    logging.basicConfig(level=log_level)
 
 
 class _MessageExclusionFilter(logging.Filter):
@@ -55,4 +62,5 @@ def get_logger(name: str | None = None) -> logging.Logger:
 
     Keeps existing logging configuration; centralizes logger creation.
     """
+    setup_logging()  # Ensure logging is configured
     return logging.getLogger(name or __name__)

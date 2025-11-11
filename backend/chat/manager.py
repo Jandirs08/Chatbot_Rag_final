@@ -4,7 +4,7 @@ import logging
 from utils.logging_utils import get_logger
 
 from config import settings
-from database.mongodb import MongodbClient
+from database.mongodb import get_mongodb_client
 from common.constants import USER_ROLE, ASSISTANT_ROLE
 from common.objects import Message as BotMessage
 from core.bot import Bot
@@ -16,7 +16,7 @@ class ChatManager:
 
     def __init__(self, bot_instance: Bot):
         self.bot = bot_instance
-        self.db = MongodbClient()
+        self.db = get_mongodb_client()
 
     async def generate_response(self, input_text: str, conversation_id: str):
         """Genera la respuesta usando el Bot (LCEL maneja el RAG automáticamente)."""

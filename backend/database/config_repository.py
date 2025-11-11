@@ -1,12 +1,14 @@
 """Repository and model for bot configuration storage in MongoDB."""
-from typing import Optional
+import logging
 from datetime import datetime, timezone
+from typing import Optional
 from pydantic import BaseModel, Field
 
 from config import Settings, settings as app_settings
 from core import prompt as prompt_module
-from .mongodb import MongodbClient
+from .mongodb import get_mongodb_client, MongodbClient
 
+logger = logging.getLogger(__name__)
 
 class BotConfig(BaseModel):
     """Configuration for the chatbot behavior."""
@@ -20,24 +22,25 @@ class BotConfig(BaseModel):
 class ConfigRepository:
     """Repository to manage bot configuration in MongoDB."""
 
-    def __init__(self, mongo: Optional[MongodbClient] = None, settings: Settings = app_settings):
-        self._settings = settings
-        self._mongo = mongo or MongodbClient(settings)
+    def __init__(self, mongo: Optional[MongodbClient] = None):
+        logger.debug("Initializing ConfigRepository and using global MongoDB client.")
+        self._mongo = mongo or get_mongodb_client()
         self._collection = self._mongo.db.get_collection("bot_config")
 
     async def get_config(self) -> BotConfig:
         """Retrieve current bot configuration, returning defaults if not set."""
         doc = await self._collection.find_one({"_id": "default"})
         if not doc:
+            logger.info("No existing bot config found, creating default configuration.")
             # Seed default from Settings
             default_personality = (
-                self._settings.system_prompt
-                if self._settings.system_prompt is not None
+                app_settings.system_prompt
+                if app_settings.system_prompt is not None
                 else prompt_module.BOT_PERSONALITY.format(nombre=prompt_module.BOT_NAME)
             )
             config = BotConfig(
                 system_prompt=default_personality,
-                temperature=getattr(self._settings, "temperature", 0.7),
+                temperature=getattr(app_settings, "temperature", 0.7),
                 bot_name=prompt_module.BOT_NAME,
                 ui_prompt_extra=None,
             )
@@ -46,6 +49,7 @@ class ConfigRepository:
                 {"$set": config.model_dump()},
                 upsert=True,
             )
+            logger.info("Default bot configuration has been saved.")
             return config
 
         return BotConfig(**{k: v for k, v in doc.items() if k != "_id"})

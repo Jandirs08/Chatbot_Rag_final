@@ -190,12 +190,13 @@ async def lifespan(app: FastAPI):
 
         # Inicializar MongoDB client persistente para middleware de autenticación
         try:
-            from database.mongodb import MongodbClient
-            app.state.mongodb_client = MongodbClient(s)
+            from database.mongodb import get_mongodb_client
+            logger.info("Initializing persistent MongoDB client for application lifespan...")
+            app.state.mongodb_client = get_mongodb_client()
             await app.state.mongodb_client.ensure_indexes()
-            logger.info("🚀 MongoDB client inicializado e índices creados correctamente")
+            logger.info("🚀 Persistent MongoDB client initialized and indexes created successfully")
         except Exception as e:
-            logger.error(f"⚠️ Error inicializando MongoDB client: {e}")
+            logger.error(f"⚠️ Error initializing persistent MongoDB client: {e}", exc_info=True)
             # No fallar la aplicación por esto, solo registrar el error
 
         # --- PDF Processor para RAG status ---
@@ -257,10 +258,15 @@ async def lifespan(app: FastAPI):
             logger.info("EmbeddingManager cerrado.")
 
         # Cerrar MongoDB client
-        if hasattr(app.state, 'mongodb_client'):
-            if hasattr(app.state.mongodb_client, 'close'):
+        if hasattr(app.state, 'mongodb_client') and app.state.mongodb_client:
+            logger.info("Closing persistent MongoDB client...")
+            try:
                 await app.state.mongodb_client.close()
-            logger.info("MongoDB client cerrado.")
+                logger.info("Persistent MongoDB client closed successfully.")
+            except Exception as e:
+                logger.error(f"Error during persistent MongoDB client cleanup: {e}", exc_info=True)
+        else:
+            logger.warning("No persistent MongoDB client found in app state to close.")
 
     except Exception as e:
         logger.error(f"Error durante la limpieza de recursos: {e}", exc_info=True)
@@ -404,4 +410,3 @@ def create_app() -> FastAPI:
 
 # --- Creación de la instancia global de la aplicación --- 
 # Esto permite que Uvicorn la encuentre si se ejecuta este archivo directamente (aunque es mejor usar main.py)
-# global_app = create_app() # Comentado o eliminado si main.py es el único punto de entrada.
