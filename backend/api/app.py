@@ -133,17 +133,17 @@ async def lifespan(app: FastAPI):
         app.state.embedding_manager = EmbeddingManager(model_name=s.embedding_model)
         logger.info(f"EmbeddingManager inicializado con modelo: {s.embedding_model}")
 
-        vector_store_path = Path(s.vector_store_path).resolve()
-        vector_store_path.mkdir(parents=True, exist_ok=True)
+        vector_store_dir_path = Path(s.vector_store_dir).resolve()
+        vector_store_dir_path.mkdir(parents=True, exist_ok=True)
         app.state.vector_store = VectorStore(
-            persist_directory=str(vector_store_path),
+            persist_directory=str(vector_store_dir_path),
             embedding_function=app.state.embedding_manager,
             distance_strategy=s.distance_strategy,
             cache_enabled=s.enable_cache,
             cache_ttl=s.cache_ttl,
             batch_size=s.batch_size
         )
-        logger.info(f"VectorStore inicializado en: {vector_store_path}")
+        logger.info(f"VectorStore inicializado en: {vector_store_dir_path}")
 
         app.state.rag_ingestor = RAGIngestor(
             pdf_file_manager=app.state.pdf_file_manager,

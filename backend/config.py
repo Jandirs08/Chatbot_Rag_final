@@ -112,7 +112,7 @@ class Settings(BaseSettings):
     max_concurrent_tasks: int = Field(default=4, env="MAX_CONCURRENT_TASKS")
     
     # Configuraciones de RAG - Vector Store
-    vector_store_path: str = Field(default="./backend/storage/vector_store/chroma_db", env="VECTOR_STORE_PATH")
+    vector_store_dir: str = Field(default="storage/vector_store", env="VECTOR_STORE_DIR")
     distance_strategy: str = Field(default="cosine", env="DISTANCE_STRATEGY")
     
     # Configuraciones de RAG - Embeddings

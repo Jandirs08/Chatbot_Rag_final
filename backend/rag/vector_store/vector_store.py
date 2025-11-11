@@ -164,44 +164,10 @@ class VectorStore:
             
             # Operaciones sobre la colección con manejo robusto de incompatibilidades
             try:
-                # Eliminar dummy si existe (corregido)
-                try:
-                    # 'ids' no es un valor válido para 'include' en Chroma; los IDs se devuelven por defecto
-                    docs = self.store._collection.get(where={"is_dummy": True}, include=["documents", "metadatas"])
-                    ids = []
-                    for i, meta in enumerate(docs.get("metadatas", [])):
-                        if meta and meta.get("is_dummy"):
-                            ids.append(docs["ids"][i])
-                    if ids:
-                        self.store._collection.delete(ids=ids)
-                        logger.info("Dummy system_dummy_doc eliminado")
-                except Exception as e:
-                    logger.warning(f"No se pudo eliminar dummy: {e}")
-
                 # Verificar si la colección está vacía
                 count = self.store._collection.count()
                 if count == 0:
                     logger.info("Colección vacía, se creará al añadir documentos")
-                    
-                    # Opcionalmente añadir un documento de inicialización para que la colección exista
-                    # y se puedan hacer búsquedas sin errores
-                    try:
-                        dummy_text = "Documento de inicialización del sistema"
-                        dummy_embedding = None
-                        if hasattr(self.embedding_function, 'embed_query'):
-                            dummy_embedding = self.embedding_function.embed_query(dummy_text)
-                        else:
-                            dummy_embedding = self.embedding_function.encode([dummy_text])[0].tolist()
-                        
-                        self.store._collection.add(
-                            embeddings=[dummy_embedding],
-                            documents=[dummy_text],
-                            metadatas=[{"source": "system", "is_dummy": True}],
-                            ids=["system_dummy_doc"]
-                        )
-                        logger.info("Documento de inicialización añadido a la colección")
-                    except Exception as e:
-                        logger.warning(f"No se pudo añadir documento de inicialización: {e}")
                 else:
                     logger.info(f"Colección existente con {count} documentos")
             except Exception as col_err:

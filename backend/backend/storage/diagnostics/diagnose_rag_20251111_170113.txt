@@ -1,0 +1,6 @@
+Fecha/Hora: 2025-11-11T17:01:14.678265
+Directorio de persistencia usado: /app/backend/storage/vector_store
+Número de resultados para 'Sepia-Tide' (k=3): 0
+Errores detectados durante el diagnóstico:
+- Error importando VectorStore (primer intento): No module named 'rag'
+No se recuperaron documentos o la colección está vacía.
