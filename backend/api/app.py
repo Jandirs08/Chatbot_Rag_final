@@ -184,10 +184,8 @@ async def lifespan(app: FastAPI):
         )
         logger.info(f"Instancia de Bot creada con tipo de memoria: {bot_memory_type}")
 
-        app.state.chat_manager = ChatManager(
-            bot_instance=app.state.bot_instance,
-            rag_retriever_instance=app.state.rag_retriever
-        )
+        app.state.chat_manager = ChatManager(bot_instance=app.state.bot_instance)
+
         logger.info("ChatManager inicializado.")
 
         # Inicializar MongoDB client persistente para middleware de autenticación
