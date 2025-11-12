@@ -11,8 +11,7 @@ from .jwt_handler import (
 )
 from .password_handler import (
     hash_password,
-    verify_password,
-    get_password_hash
+    verify_password
 )
 from .dependencies import (
     get_current_user,
@@ -33,7 +32,6 @@ __all__ = [
     # Password utilities
     "hash_password",
     "verify_password",
-    "get_password_hash",
     # Dependencies
     "get_current_user",
     "get_current_active_user",

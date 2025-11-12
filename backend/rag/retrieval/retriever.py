@@ -567,4 +567,4 @@ class RAGRetriever:
     #     # Si la limpieza del VectorStore se hace a través de RAGIngestor o un script separado,
     #     # este método podría no ser necesario o tener un propósito diferente.
     #     # Por ejemplo, si RAGRetriever tuviera algún caché interno:
-        logger.info("RAGRetriever no tiene estado interno que limpiar en esta versión.")
+        # (línea eliminada: código inalcanzable/descontextualizado)

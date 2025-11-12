@@ -112,6 +112,6 @@ class EmbeddingManager:
             vector_dim = getattr(settings, "default_embedding_dimension", 1536)
             return [0.0] * vector_dim
 
-    def get_embedding_model(self):
-        """Retorna el modelo de embeddings para uso directo (OpenAI)."""
-        return self._openai
+    # reserved for lazy-load model
+    # (sin uso actual). Si en el futuro se requiere exposición directa
+    # del modelo subyacente, implementar aquí la carga diferida.

@@ -5,11 +5,9 @@ import logging
 import datetime
 from datetime import timezone
 
-from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.messages import BaseMessage, messages_from_dict as lc_messages_from_dict, messages_to_dict as lc_messages_to_dict
 from langchain.memory.chat_memory import BaseChatMemory
 
-from common.objects import MessageTurn # Se usará para la estructura en BD, pero no directamente para ChatMessageHistory
 from config import Settings
 from .base_memory import AbstractChatbotMemory, BaseChatbotMemory
 from motor.motor_asyncio import AsyncIOMotorClient
