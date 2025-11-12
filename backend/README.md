@@ -1,114 +1,196 @@
-- Backend en FastAPI, organizado por módulos ( api/ , auth/ , database/ , memory/ , models/ , common/ , utils/ , core/ ).
-- Punto central de configuración en config.py , con flags y parámetros para servidor, seguridad, logging, modelo, RAG, cache, y directorios.
-- Al iniciar, se genera un resumen del estado con utils/deploy_log.build_startup_summary() para validar configuración y componentes activos. Configuración
+```
+ ____                    _                 _       ____ _           _           _   
+| __ )  ___  __ _  __ _| |__   ___   ___ | | __  / ___| |__   __ _| |__   ___ | |_ 
+|  _ \ / _ \/ _` |/ _` | '_ \ / _ \ / _ \| |/ / | |   | '_ \ / _` | '_ \ / _ \| __|
+| |_) |  __/ (_| | (_| | |_) | (_) | (_) |   <  | |___| | | | (_| | |_) | (_) | |_ 
+|____/ \___|\__, |\__,_|_.__/ \___/ \___/|_|\_\  \____|_| |_|\__,_|_.__/ \___/ \__|
+             |___/                                                                  
+```
 
-- config.py
-  - Define Settings (Pydantic) que carga variables de entorno y parámetros: servidor ( host , port ), CORS, JWT, logging, modelo (tipo, temperatura, tokens), RAG (chunking, retrieval, vector store, embeddings), cache (in-memory/Redis).
-  - get_settings() retorna una instancia global para uso en todo el backend.
-- utils/deploy_log.py
-  - build_startup_summary(settings, app, routes, flags) compone un resumen legible tras el arranque: entorno, logging, modelo, bot, componentes RAG, MongoDB, PDF manager, CORS, middleware de auth, rutas registradas y feature flags (cache, métricas, tracing).
-- utils/logging_utils.py
+# Backend Chatbot RAG
 
-  - \_MessageExclusionFilter para suprimir mensajes ruidosos.
-  - suppress_cl100k_warnings() filtra agresivamente warnings sobre cl100k_base de tiktoken y langchain_openai . Autenticación
+Sistema backend robusto y modular para un chatbot con capacidades RAG (Retrieval-Augmented Generation), autenticación JWT, middleware de protección administrativa, streaming SSE, y persistencia en MongoDB. Este documento describe la arquitectura, módulos, flujos internos y contratos principales de la API, sin incluir guías de despliegue ni instalación.
 
-- auth/jwt_handler.py
-  - JWTHandler(settings) maneja creación y verificación de tokens JWT con configuración de Settings .
-  - create_access_token(data, expires_delta) y create_refresh_token(data, expires_delta) construyen tokens con exp , iat y type .
-  - decode_token(token) valida y decodifica, con excepciones dedicadas: TokenExpiredError , InvalidTokenError , JWTError .
-  - verify_token(token, token_type="access") asegura tipo y campos requeridos (por ejemplo sub ).
-  - Funciones de conveniencia: create_access_token , create_refresh_token , verify_token , decode_token .
-- auth/password_handler.py
-  - PasswordHandler(rounds=12) para hashing y verificación con bcrypt .
-  - hash_password(password) y verify_password(plain, hashed) con validaciones y manejo de errores seguro.
-  - needs_update(hashed_password) detecta si el hash requiere rehash según rounds ( $2b$<rounds>$... ).
-  - Alias: get_password_hash , password_needs_update .
-- auth/password_handler_bcrypt.py
-  - Variante directa con misma interfaz ( PasswordHandler ) centrada en bcrypt (duplicada/compat).
-- auth/dependencies.py
-  - Dependencias para FastAPI: get_current_user , get_current_active_user , require_admin , get_optional_current_user .
-  - Usa HTTPBearer y verify_token para proteger endpoints; integra UserRepository para resolución de usuarios.
-- auth/middleware.py
-  - AuthenticationMiddleware protege rutas administrativas y deja públicas ciertas rutas (salud, auth, chat, docs).
-  - Extrae Bearer del header y valida contra JWT; rutas protegidas: /api/v1/pdfs , /api/v1/rag , /api/v1/bot , /api/v1/users .
-- auth/**init**.py
+## Arquitectura General (ASCII)
 
-  - Re-exporta utilidades JWT, password y dependencias para import simple. Modelos y Esquemas
+```
+                          +-------------------------------------------+
+                          |               FastAPI App                 |
+                          |        (create_app + lifespan)            |
+                          +--------------------+----------------------+
+                                               |
+       +---------------------------------------+---------------------------------------+
+       |                     Routers / Controladores (API)                            |
+       |   /health   /auth   /chat   /pdfs   /rag   /bot   /users                     |
+       +--------------------------------------------------------------------------------+
+       | Middleware: AuthenticationMiddleware (protege /pdfs, /rag, /bot, /users)       |
+       +--------------------------------------------------------------------------------+
+       | Servicios core:                                                               |
+       | - ChatManager (gestión de diálogo, logs en MongoDB)                           |
+       | - Bot (LCEL + ChainManager + Memoria + Tools)                                 |
+       | - RAGRetriever (búsqueda contextual, reranking, MMR)                          |
+       +--------------------------------------------------------------------------------+
+       | Subsistema RAG:                                                               |
+       | - PDFContentLoader (chunking)  - EmbeddingManager                              |
+       | - VectorStore (Chroma + caché) - RAGIngestor (ingesta asincrónica)            |
+       +--------------------------------------------------------------------------------+
+       | Persistencia: MongoDB (collections: messages, users, bot_config)               |
+       +--------------------------------------------------------------------------------+
+       | Storage: documentos/pdfs, vector_store/chroma_db                               |
+       +--------------------------------------------------------------------------------+
+       | Utilidades: logging_utils, deploy_log, chain_cache                              |
+       +--------------------------------------------------------------------------------+
+```
 
-- models/auth.py
-  - Pydantic para autenticación: LoginRequest , TokenResponse , RefreshTokenRequest , UserProfileResponse , AuthErrorResponse , PasswordChangeRequest , LogoutResponse .
-  - Incluye ejemplos y validaciones de campos.
-- models/user.py
-  - Modelos de usuario: User (persistencia con PyObjectId ), UserCreate , UserLogin , UserResponse , UserUpdate .
-  - Valida unicidad y formatos; separa input/persistencia/output.
-- models/model_types.py
-  - ModelTypes enum: OPENAI , VERTEX , LLAMA_CPP .
-  - MODEL_TO_CLASS mapea a clases de Langchain ( ChatOpenAI , ChatVertexAI , LlamaCpp ) para instanciar el modelo configurado.
-- api/schemas/config.py
+## Mapa de Carpetas (backend)
 
-  - Esquema de petición UpdateBotConfigRequest para actualizar configuración del bot (prompt, temperatura, ui_prompt_extra ) con validaciones. Base de Datos
+```text
+backend/
+├── api/
+│   ├── app.py                 # Inicialización FastAPI, lifespan, CORS, middleware, routers
+│   ├── auth.py                # Endpoints de autenticación (login/me/refresh/logout)
+│   ├── routes/
+│   │   ├── health/health_routes.py
+│   │   ├── chat/chat_routes.py
+│   │   ├── pdf/pdf_routes.py
+│   │   ├── rag/rag_routes.py
+│   │   ├── bot/bot_routes.py
+│   │   ├── bot/config_routes.py
+│   │   └── users/users_routes.py
+│   └── schemas/               # Esquemas Pydantic centralizados
+├── auth/
+│   ├── middleware.py          # Protección de rutas admin vía JWT
+│   ├── jwt_handler.py         # Creación/verificación de tokens
+│   ├── dependencies.py        # Dependencias FastAPI (get_current_user, etc.)
+│   ├── password_handler.py    # Hash/verify
+│   └── password_handler_bcrypt.py
+├── chat/
+│   └── manager.py             # Orquestación de respuestas y registro en MongoDB
+├── core/
+│   ├── bot.py                 # Agente LCEL, memoria, contexto RAG
+│   ├── chain.py               # ChainManager, prompts y modelo
+│   └── prompt.py              # Personalidad y plantillas principales
+├── database/
+│   ├── mongodb.py             # Cliente MongoDB, índices para messages
+│   ├── user_repository.py     # Repositorio de usuarios (CRUD, índices)
+│   └── config_repository.py   # Configuración del bot (system_prompt, nombre, UI extra)
+├── memory/
+│   ├── base_memory.py
+│   ├── custom_memory.py
+│   ├── mongo_memory.py
+│   └── memory_types.py        # Enum + mapping
+├── rag/
+│   ├── embeddings/embedding_manager.py
+│   ├── ingestion/ingestor.py
+│   ├── pdf_processor/pdf_loader.py
+│   ├── retrieval/retriever.py
+│   └── vector_store/vector_store.py
+├── storage/
+│   ├── documents/pdf_manager.py
+│   │   └── pdfs/              # Carpeta de PDFs
+│   └── vector_store/chroma_db/ # Persistencia Chroma
+├── common/
+│   ├── constants.py
+│   └── objects.py             # Message, roles, convenciones conversation_id
+├── models/
+│   ├── auth.py                # DTOs auth (LoginRequest, TokenResponse, etc.)
+│   └── user.py                # Modelo de usuario
+├── utils/
+│   ├── logging_utils.py       # Filtros y supresión de ruido (cl100k_base)
+│   ├── chain_cache.py
+│   └── deploy_log.py          # Resumen de arranque
+├── config.py                  # Pydantic Settings (CORS, JWT, RAG, etc.)
+├── main.py                    # Punto de entrada (Uvicorn)
+└── requirements.txt
+```
 
-- database/mongodb.py
-  - MongodbClient encapsula la conexión MongoDB y operaciones de historial de chat (leer/agregar mensajes), garantiza índices, y formatea el historial de conversaciones.
-- database/user_repository.py
-  - UserRepository gestiona usuarios: crear, recuperar (por username, email, id), actualizar, desactivar, listar; asegura índices únicos en username y email .
-- database/config_repository.py
+## Flujo Interno de Datos
 
-  - BotConfig (prompt del sistema, temperatura, nombre del bot).
-  - ConfigRepository para obtener, actualizar y resetear configuración del bot en MongoDB. Memoria de Conversación
+- Recepción: el cliente envía una solicitud al router correspondiente (por ejemplo, `/api/v1/chat/`).
+- Middleware: AuthenticationMiddleware permite libre acceso a `/health`, `/auth`, `/chat`; exige usuario admin para `/pdfs`, `/rag`, `/bot`, `/users`.
+- Lifespan de app: al iniciar, se crean y comparten en `app.state` los managers y recursos (PDFManager, EmbeddingManager, VectorStore, RAGIngestor, RAGRetriever, Bot, ChatManager, MongoDB client). Al cerrar, se liberan ordenadamente.
+- ChatManager: valida estado del bot, parsea `ChatRequest`, genera respuesta llamando al `Bot` y guarda ambos mensajes en MongoDB (`messages`), manteniendo índices para rendimiento.
+- Bot (LCEL): ChainManager compone el prompt con personalidad, historial (memoria configurable) y contexto RAG (si `enable_rag_lcel` está activo). Ejecuta la cadena y aporta `AgentExecutor` con parser resiliente.
+- RAG: RAGRetriever consulta `VectorStore` (Chroma), aplica reranking semántico o MMR, y opcionalmente cachea resultados; formatea contexto para el prompt.
+- Streaming SSE: el endpoint de chat retorna `StreamingResponse` emitiendo eventos `data` y `end` para consumo progresivo en el frontend.
+- Logging y observabilidad: middleware de logging registra método, ruta, tiempo y—si `DEBUG`—cuerpo. Se suprimen warnings/tiktoken. Excepciones globales devuelven respuestas con `detail` consistente.
 
-- memory/base_memory.py
-  - AbstractChatbotMemory : interfaz para agregar/recuperar/limpiar mensajes.
-  - BaseChatbotMemory : implementación en memoria con window_size , contexto de sesión (usuario, tópicos, resumen) y formateo de historial.
-- memory/mongo_memory.py
-  - MongoChatbotMemory extiende BaseChatbotMemory con persistencia langchain_community.chat_message_histories.mongodb.MongoDBChatMessageHistory , derivando nombre de DB del URI.
-- memory/custom_memory.py
-  - CustomMongoChatbotMemory (basado en BaseChatMemory de Langchain) con \_CustomMongoPersistence asíncrono: índices, carga/guardado, limpieza y formateo compatible para el chatbot.
-- memory/memory_types.py
-  - MemoryTypes enum ( BASE_MEMORY , MONGO_MEMORY , CUSTOM_MEMORY ) y MEM_TO_CLASS para resolver la clase según configuración.
-- memory/**init**.py
+## Endpoints Principales
 
-  - Expone clases y enums de memoria para import directo. Core (Cadena/Chatbot)
+| Endpoint | Método | Descripción | Auth |
+|---|---|---|---|
+| `/api/v1/health` | GET | Health check del backend | Público |
+| `/api/v1/auth/login` | POST | Autentica y emite tokens JWT (access/refresh) | Público |
+| `/api/v1/auth/me` | GET | Perfil del usuario autenticado | Requiere token |
+| `/api/v1/auth/refresh` | POST | Renueva access token con refresh | Público |
+| `/api/v1/auth/logout` | POST | Logout lógico (cliente elimina tokens) | Requiere token |
+| `/api/v1/chat/` | POST | Chat con respuesta en streaming SSE | Público |
+| `/api/v1/chat/export-conversations` | GET | Exporta conversaciones a Excel | Público |
+| `/api/v1/chat/stats` | GET | Métricas básicas de uso y PDFs | Público |
+| `/api/v1/pdfs/upload` | POST | Sube PDF y dispara ingesta asíncrona | Admin |
+| `/api/v1/pdfs/list` | GET | Lista PDFs disponibles en storage | Admin |
+| `/api/v1/pdfs/{filename}` | DELETE | Elimina PDF y sus embeddings del vector store | Admin |
+| `/api/v1/pdfs/download/{filename}` | GET | Descarga directa del PDF | Admin |
+| `/api/v1/pdfs/view/{filename}` | GET | Visualización inline del PDF | Admin |
+| `/api/v1/rag/rag-status` | GET | Estado del RAG (PDFs, tamaño vector store) | Admin |
+| `/api/v1/rag/clear-rag` | POST | Limpia PDFs y el almacén vectorial | Admin |
+| `/api/v1/rag/retrieve-debug` | POST | Traza detallada de recuperación (auditoría) | Admin |
+| `/api/v1/rag/reindex-pdf` | POST | Reindexa un PDF específico | Admin |
+| `/api/v1/bot/state` | GET | Estado activo/inactivo del bot | Admin |
+| `/api/v1/bot/toggle` | POST | Activa/desactiva el bot | Admin |
+| `/api/v1/bot/runtime` | GET | Inspección de configuración runtime | Admin |
+| `/api/v1/bot/config` | GET | Obtiene configuración persistida del bot | Admin |
+| `/api/v1/bot/config` | PUT | Actualiza configuración y recarga chain | Admin |
+| `/api/v1/bot/config/reset` | POST | Limpia campos UI y recarga chain | Admin |
+| `/api/v1/users/users` | GET | Lista paginada de usuarios con filtros | Admin |
+| `/api/v1/users/users` | POST | Crea usuario (validaciones de unicidad) | Admin |
+| `/api/v1/users/users/{user_id}` | PATCH | Actualiza campos (validaciones y política de password) | Admin |
+| `/api/v1/users/users/{user_id}` | DELETE | Elimina usuario | Admin |
 
-- core/chain.py
+## Dependencias Clave y Propósito
 
-  - ChainManager construye y gestiona la cadena de conversación (modelo + memoria + RAG), usando parámetros de Settings como temperature y max_tokens .
-  - Provee recarga de cadena al cambiar configuración del bot. RAG y Vector Store
+| Paquete | Rol en el sistema |
+|---|---|
+| `fastapi`, `uvicorn` | Framework ASGI y servidor para routing, middleware y streaming.
+| `pydantic` v2, `pydantic-settings`, `python-dotenv` | Modelado/validación de datos y configuración tipada.
+| `python-jose[cryptography]`, `passlib`, `bcrypt` | Manejo de JWT y hashing de contraseñas.
+| `motor`, `pymongo` | Cliente async de MongoDB y operaciones de repositorio/índices.
+| `langchain-core`, `langchain`, `langchain-openai` | Orquestación LCEL y modelos LLM.
+| `langchain-chroma`, `chromadb` | Almacenamiento vectorial persistente (Chroma) para RAG.
+| `tiktoken` | Tokenización eficiente; se suprimen logs ruidosos.
+| `openai` | Cliente para proveedores OpenAI cuando `MODEL_TYPE=OPENAI`.
+| `pypdf` | Lectura básica de PDF para ingestión sin OCR.
+| `numpy`, `pandas`, `xlsxwriter` | Procesamiento de datos y exportación de conversaciones a Excel.
+| `scikit-learn` | Cálculos de similitud/cosinor y utilidades en RAG.
+| `orjson`, `ujson`, `aiofiles`, `httpx` | Rendimiento en JSON, IO asíncrono y HTTP.
+| `prometheus-client`, `opentelemetry-*` | Métricas y trazabilidad opcional.
+| `colorama` | Mejor UX en consola para mensajes de arranque.
+| `pytest*`, `black`, `isort`, `flake8`, `mypy` | Calidad, pruebas y estilo de código.
 
-- rag/retrieval/retriever.py
-  - log_statistics registra métricas de rendimiento en procesos de retrieval (tiempos, documentos, etc.).
-- utils/rag_fix/check_vector_store.py
-  - Inspección del estado actual del Chroma VectorStore usando componentes del backend en modo lectura.
-- utils/rag_fix/purge_pdf_from_rag.py
-  - Purga embeddings de un PDF específico del VectorStore; opciones para borrar el archivo físico, dry_run , y generar reportes en Markdown/CSV.
-- utils/rag_fix/clear_vector_store.py
+## Ciclo de Vida del Chatbot
 
-  - Limpieza completa del VectorStore Chroma, confirmando estado antes y después. Cache y Métricas
+- Arranque: `lifespan` inicializa PDF/Embeddings/VectorStore/RAGIngestor/RAGRetriever/Bot/ChatManager y MongoDB con índices.
+- Recepción: el endpoint `/api/v1/chat/` recibe `ChatRequest` y valida que el bot esté activo.
+- Contexto: si `enable_rag_lcel` está activo, el `Bot` inyecta contexto RAG (k configurable) al prompt.
+- Memoria: se consulta la memoria (base o Mongo) para el historial y se formatea al prompt.
+- Generación: `AgentExecutor` invoca el modelo (OpenAI u otros), con parser tolerante, construye `Final Answer`.
+- Persistencia: `ChatManager` almacena el par de mensajes (human/assistant) en MongoDB.
+- Respuesta: se emite vía SSE en tiempo real; al finalizar se envía evento `end`.
+- Cierre: limpieza ordenada de recursos (vector store, embeddings, Mongo) y liberación de ejecutores.
 
-- utils/chain_cache.py
+## Conceptos Técnicos Destacados
 
-  - ChatbotCache gestiona cache de respuestas (soporta InMemoryCache y RedisCache ), inicialización/limpieza y configuración.
-  - CacheMetrics captura hits , misses , y tiempos de respuesta; logging de métricas para observabilidad.
-  - Flags de características ( cache_enabled , métricas, tracing) integrados con Settings y el startup summary. API (Rutas)
+- Modularización de Routers: separación por dominios (`auth`, `chat`, `pdfs`, `rag`, `bot`, `users`, `health`) con `include_router` y prefijos coherentes.
+- Lifespan Pattern: inicialización centralizada de servicios en `app.state` y teardown controlado.
+- Middleware de Autenticación: estrategia de listas blancas/negras por prefijo; validación de token + verificación admin; respuestas JSON estandarizadas.
+- Repository Pattern: `UserRepository` y `ConfigRepository` encapsulan acceso Mongo (índices, validaciones, actualizaciones).
+- RAG optimizado: `VectorStore` con caché (memoria/Redis), backups automáticos ante incompatibilidades de esquema, MMR y reranking semántico.
+- Prompt Engineering composable: `ChainManager` compone personalidad base + extras UI sin sobreescribir la base; garantiza presencia de `context` y `history`.
+- SSE Streaming: diseño de `StreamingResponse` con eventos `data`, `error`, `end` para experiencias reactivas.
+- Logging y Resiliencia: filtros de ruido (`cl100k_base`), reducción de verbosidad, handlers globales; validaciones pydantic y manejo de errores consistente.
+- Seguridad y CORS: validaciones estrictas en producción (JWT_SECRET obligatorio), CORS derivado de configuración y client origin, control de `max_age`.
+- Trazabilidad RAG: endpoint de auditoría `retrieve-debug` devuelve traza y métricas; ingesta y reindex sincronizada.
 
-- api/routes/chat/chat_routes.py
-  - POST / (streaming) recibe ChatRequest ( input , conversation_id ) y devuelve StreamEventData ; valida bot activo; maneja errores JSON y Pydantic; incluye logging.
-  - GET /export-conversations exporta todas las conversaciones a Excel ( pandas + xlsxwriter ), con formateo.
-  - GET /stats estadísticas: total de queries, usuarios únicos (por conversation_id ), y total de PDFs en el sistema RAG.
-- api/routes/bot/config_routes.py
+---
 
-  - Endpoints para obtener, actualizar y resetear configuración del bot; las actualizaciones se aplican en runtime a Settings y fuerza recarga del ChainManager . Comunes
-
-- common/objects.py
-
-  - Message y MessageTurn (Pydantic) para manejo de conversaciones; validación de roles ( user , assistant ).
-  - Convención: conversation_id se usa como session_id para componentes de Langchain. Relaciones Clave
-
-- Settings de config.py se inyecta en JWTHandler , ChainManager , RAG, cache y CORS.
-- UserRepository y MongodbClient colaboran con auth/dependencies.py y auth/middleware.py para autorización y resolución de usuarios.
-- memory/\* se selecciona por MemoryTypes y se integra en core/chain.py según config.
-- utils/deploy_log.py consolida el estado de todos los componentes activos y sus flags al inicio. Notas Operativas
-
-- Variables sensibles (JWT, Mongo URI, modelos) provienen de entorno y se validan en Settings .
-- Endpoints administrativos se protegen vía middleware y dependencias; chat y salud quedan públicos.
-- Herramientas RAG ( utils/rag_fix/\* ) son utilidades de mantenimiento fuera del flujo normal de API.
+Este documento es la referencia técnica interna del backend. Su propósito es aportar claridad arquitectónica, dominios funcionales, contratos y flujos, manteniendo identidad visual y foco en el diseño del sistema.
