@@ -14,6 +14,7 @@ export function ChatWindow(props: {
   conversationId: string;
 }) {
   const messageContainerRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const [input, setInput] = React.useState("");
 
   const { placeholder, titleText = "An LLM", conversationId } = props;
@@ -37,6 +38,13 @@ export function ChatWindow(props: {
     scrollToBottom();
   }, [messages]);
 
+  // Autoenfoque al cargar y cuando no está cargando
+  useEffect(() => {
+    if (!isLoading && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isLoading]);
+
   const handleSendMessage = async (message?: string) => {
     if (messageContainerRef.current) {
       messageContainerRef.current.classList.add("grow");
@@ -46,6 +54,10 @@ export function ChatWindow(props: {
     if (messageValue.trim() === "") return;
     
     setInput("");
+    // Intentar mantener el foco en el input
+    if (inputRef.current && !isLoading) {
+      inputRef.current.focus();
+    }
     await sendMessage(messageValue);
   };
 
@@ -100,6 +112,7 @@ export function ChatWindow(props: {
       <div className="border-t bg-gradient-to-r from-gray-50 to-white p-4">
         <div className="flex gap-3">
           <AutoResizeTextarea
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
@@ -111,6 +124,7 @@ export function ChatWindow(props: {
             placeholder={placeholder ?? "Escribe tu mensaje..."}
             className="flex-1 border-gray-200 focus:border-[#da5b3e] focus:ring-[#da5b3e]/20 rounded-xl"
             disabled={isLoading}
+            autoFocus
           />
           <Button
             onClick={() => handleSendMessage()}

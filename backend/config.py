@@ -39,12 +39,13 @@ class Settings(BaseSettings):
     client_origin_url: Optional[str] = Field(default=None, env="CLIENT_ORIGIN_URL")
     cors_max_age: int = Field(default=3600, env="CORS_MAX_AGE")
     
-    # Rate Limiting - Configuración preparada (decoradores comentados en routes)
-    rate_limit: int = Field(default=100, env="RATE_LIMIT")
+    # DEPRECATED: Rate Limiting (decoradores comentados, no activo)
+    # rate_limit: int = Field(default=100, env="RATE_LIMIT")
     
     # SSL - Configuraciones para HTTPS
-    ssl_keyfile: Optional[str] = Field(default=None, env="SSL_KEYFILE")
-    ssl_certfile: Optional[str] = Field(default=None, env="SSL_CERTFILE")
+    # DEPRECATED: SSL direct en Uvicorn no usado (usar proxy TLS)
+    # ssl_keyfile: Optional[str] = Field(default=None, env="SSL_KEYFILE")
+    # ssl_certfile: Optional[str] = Field(default=None, env="SSL_CERTFILE")
     
     # Configuraciones de la App
     app_title: str = Field(default="ChatBot RAG API")
@@ -55,11 +56,12 @@ class Settings(BaseSettings):
     
     # Configuraciones de Logging
     log_level: str = Field(default="DEBUG", env="LOG_LEVEL")
-    log_file: str = Field(default="app.log", env="LOG_FILE")
-    log_format: str = Field(
-        default="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        env="LOG_FORMAT"
-    )
+    # DEPRECATED: `LOG_FILE` y `LOG_FORMAT` no se consumen (se usa logging_utils con LOG_LEVEL)
+    # log_file: str = Field(default="app.log", env="LOG_FILE")
+    # log_format: str = Field(
+    #     default="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    #     env="LOG_FORMAT"
+    # )
     
     # Configuraciones del Modelo
     model_type: str = Field(default="OPENAI", env="MODEL_TYPE")
@@ -67,7 +69,8 @@ class Settings(BaseSettings):
     base_model_name: str = Field(default="gpt-3.5-turbo", env="BASE_MODEL_NAME")
     max_tokens: int = Field(default=2000, env="MAX_TOKENS")
     temperature: float = Field(default=0.7, env="TEMPERATURE")
-    bot_personality_name: Optional[str] = Field(default=None, env="BOT_PERSONALITY_NAME")
+    # DEPRECATED: `BOT_PERSONALITY_NAME` no se usa; la personalidad base viene de core/prompt.py
+    # bot_personality_name: Optional[str] = Field(default=None, env="BOT_PERSONALITY_NAME")
     system_prompt: Optional[str] = Field(default=None, env="SYSTEM_PROMPT")
     # Dynamic UI-driven config (complemento seguro)
     bot_name: Optional[str] = Field(default=None, env="BOT_NAME")
@@ -87,8 +90,9 @@ class Settings(BaseSettings):
     # Configuraciones de Redis
     # Nota: Se usa redis_url como configuración principal, no configuraciones individuales
     redis_url: Optional[SecretStr] = Field(default=None, env="REDIS_URL")
-    redis_ttl: int = Field(default=3600, env="REDIS_TTL")
-    redis_max_memory: str = Field(default="2gb", env="REDIS_MAX_MEMORY")
+    # DEPRECATED: TTL/Memoria específicas de Redis (se usa `CACHE_TTL` consolidado)
+    # redis_ttl: int = Field(default=3600, env="REDIS_TTL")
+    # redis_max_memory: str = Field(default="2gb", env="REDIS_MAX_MEMORY")
     
     # Configuraciones de Memoria
     memory_type: str = Field(default="BASE_MEMORY", env="MEMORY_TYPE")
@@ -109,7 +113,8 @@ class Settings(BaseSettings):
     # Configuraciones de RAG - Ingesta
     batch_size: int = Field(default=100, env="BATCH_SIZE")
     deduplication_threshold: float = Field(default=0.95, env="DEDUP_THRESHOLD")
-    max_concurrent_tasks: int = Field(default=4, env="MAX_CONCURRENT_TASKS")
+    # DEPRECATED: Concurrencia de ingestor no utilizada
+    # max_concurrent_tasks: int = Field(default=4, env="MAX_CONCURRENT_TASKS")
     
     # Configuraciones de RAG - Vector Store
     vector_store_path: str = Field(default="./backend/storage/vector_store/chroma_db", env="VECTOR_STORE_PATH")
@@ -142,10 +147,10 @@ class Settings(BaseSettings):
     temp_dir: str = Field(default="./backend/storage/temp", env="TEMP_DIR")
     backup_dir: str = Field(default="./backend/storage/backups", env="BACKUP_DIR")
     
-    # Configuraciones de Monitoreo
-    enable_metrics: bool = Field(default=True, env="ENABLE_METRICS")
-    metrics_port: int = Field(default=9090, env="METRICS_PORT")
-    enable_tracing: bool = Field(default=False, env="ENABLE_TRACING")
+    # DEPRECATED: Métricas/Tracing no instrumentados (solo logging)
+    # enable_metrics: bool = Field(default=True, env="ENABLE_METRICS")
+    # metrics_port: int = Field(default=9090, env="METRICS_PORT")
+    # enable_tracing: bool = Field(default=False, env="ENABLE_TRACING")
 
     # Configuración personalizada para cantidad máxima de documentos recuperados
     max_documents: int = Field(default=5, env="MAX_DOCUMENTS")
