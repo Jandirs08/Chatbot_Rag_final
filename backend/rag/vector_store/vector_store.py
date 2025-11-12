@@ -732,17 +732,50 @@ class VectorStore:
             raise
 
     async def delete_collection(self) -> None:
-        """Elimina toda la colección."""
+        """Elimina completamente la colección y borra el directorio persistente."""
         try:
-            # Usar la API correcta de Chroma para eliminar la colección
-            client = self.store._client if hasattr(self.store, '_client') else self.store._collection._client
-            client.delete_collection("rag_collection")
+            persist_path = self.persist_directory
+
+            # 🔒 Cerrar conexiones antes de intentar borrar
+            if hasattr(self, "store") and hasattr(self.store, "_collection"):
+                try:
+                    self.store._collection = None
+                    self.store = None
+                except Exception as e:
+                    logger.warning(f"No se pudo cerrar la colección antes de eliminar: {e}")
+
+            # 🔥 Intentar borrar colección en Chroma
+            try:
+                client = getattr(self.store, "_client", None)
+                if client:
+                    client.delete_collection("rag_collection")
+            except Exception as e:
+                logger.warning(f"Fallo al borrar colección vía cliente: {e}")
+
+            # 🧹 Eliminar directorio físico
+            import shutil, time
+            if persist_path.exists():
+                # Reintento con espera corta por si el archivo aún está bloqueado
+                for attempt in range(3):
+                    try:
+                        shutil.rmtree(persist_path, ignore_errors=False)
+                        logger.info(f"Directorio persistente eliminado: {persist_path}")
+                        break
+                    except PermissionError as err:
+                        logger.warning(f"Intento {attempt+1}: persist directory bloqueado ({err}), reintentando...")
+                        time.sleep(0.5)
+                else:
+                    logger.error(f"No se pudo eliminar el directorio después de 3 intentos: {persist_path}")
+
+            #  Reinicializar limpio
             self._initialize_store()
             await self._invalidate_cache()
-            logger.info("Colección eliminada y reinicializada")
+            logger.info("Colección eliminada y vector store reinicializado desde cero.")
+
         except Exception as e:
-            logger.error(f"Error eliminando colección: {str(e)}")
+            logger.error(f"Error eliminando colección: {str(e)}", exc_info=True)
             raise
+
 
     def __del__(self):
         """Limpieza al destruir la instancia."""

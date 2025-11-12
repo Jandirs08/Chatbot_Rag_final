@@ -108,10 +108,10 @@ class Bot:
                 if not isinstance(query, str):
                     query = str(query)
 
+                # Usar RAG siempre que el flag esté activo y exista retriever
                 use_rag = (
                     bool(self.settings.enable_rag_lcel)
                     and self.rag_retriever is not None
-                    and len(query.split()) >= 4
                 )
                 if not use_rag:
                     return ""

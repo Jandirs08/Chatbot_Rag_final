@@ -207,9 +207,14 @@ class ChainManager:
             self.logger.warning("El prompt no incluye la variable 'context'. Añadiéndola...")
             template = self._raw_prompt_template.template
             if "{context}" not in template:
-                template = "Contexto de la conversación:\n{context}\n\n" + template
+                template = (
+                    "Contexto de la conversación:\n{context}\n\n"
+                    "Instrucciones de grounding: Si el contexto anterior contiene información relevante, responde EXCLUSIVAMENTE basándote en él. "
+                    "Si el contexto no cubre la pregunta, dilo claramente y NO inventes ni uses conocimiento general.\n\n"
+                    + template
+                )
             self._raw_prompt_template = PromptTemplate.from_template(template)
-        
+
         # Asegurarnos de que el prompt incluya el historial
         if "history" not in self._raw_prompt_template.input_variables:
             self.logger.warning("El prompt no incluye la variable 'history'. Añadiéndola...")
@@ -217,7 +222,10 @@ class ChainManager:
             if "{history}" not in template:
                 template = "Historial de la conversación:\n{history}\n\n" + template
             self._raw_prompt_template = PromptTemplate.from_template(template)
-        
+
+        # Recalcular el prompt parcial tras modificar la plantilla cruda
+        self._prompt = self._raw_prompt_template.partial(**self.prompt_input_variables)
+
         self.chain: Runnable = (self._prompt | self._base_model)
         self.chain = self.chain.with_config(run_name="AgentPromptAndModel")
 
