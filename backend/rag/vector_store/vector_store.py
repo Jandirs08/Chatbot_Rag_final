@@ -736,21 +736,29 @@ class VectorStore:
         try:
             persist_path = self.persist_directory
 
-            # 🔒 Cerrar conexiones antes de intentar borrar
-            if hasattr(self, "store") and hasattr(self.store, "_collection"):
-                try:
-                    self.store._collection = None
-                    self.store = None
-                except Exception as e:
-                    logger.warning(f"No se pudo cerrar la colección antes de eliminar: {e}")
-
-            # 🔥 Intentar borrar colección en Chroma
+            # 🔥 Intentar borrar colección en Chroma primero, luego soltar referencias
+            client = None
             try:
-                client = getattr(self.store, "_client", None)
-                if client:
-                    client.delete_collection("rag_collection")
-            except Exception as e:
-                logger.warning(f"Fallo al borrar colección vía cliente: {e}")
+                if hasattr(self, "store") and self.store is not None:
+                    client = getattr(self.store, "_client", None)
+                    if client:
+                        try:
+                            client.delete_collection("rag_collection")
+                            logger.info("Colección 'rag_collection' eliminada vía cliente de Chroma.")
+                        except Exception as e:
+                            logger.warning(f"Fallo al borrar colección vía cliente: {e}")
+                    # Soltar referencias a la colección para liberar locks de sqlite
+                    try:
+                        if hasattr(self.store, "_collection"):
+                            self.store._collection = None
+                    except Exception as e:
+                        logger.warning(f"No se pudo limpiar referencia a _collection: {e}")
+            finally:
+                # Asegurar que self.store se suelta para evitar manejadores abiertos
+                try:
+                    self.store = None
+                except Exception:
+                    pass
 
             # 🧹 Eliminar directorio físico
             import shutil, time
@@ -763,6 +771,9 @@ class VectorStore:
                         break
                     except PermissionError as err:
                         logger.warning(f"Intento {attempt+1}: persist directory bloqueado ({err}), reintentando...")
+                        time.sleep(0.5)
+                    except Exception as err:
+                        logger.warning(f"Intento {attempt+1}: error al eliminar directorio ({err}), reintentando...")
                         time.sleep(0.5)
                 else:
                     logger.error(f"No se pudo eliminar el directorio después de 3 intentos: {persist_path}")

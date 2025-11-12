@@ -65,17 +65,23 @@ async def clear_rag(request: Request):
     rag_retriever = request.app.state.rag_retriever
     try:
         logger.info("Iniciando limpieza del RAG...")
-        # Limpiar vector store
+        # 1) Limpiar PDFs primero (borrado físico)
+        pdfs_before = await pdf_processor.list_pdfs()
+        total_pdfs = len(pdfs_before)
+        result = await pdf_processor.clear_pdfs()
+        logger.info(f"Directorio de PDFs limpiado. Eliminados: {result.get('deleted_count', 0)} de {total_pdfs}.")
+
+        # 2) Limpiar vector store completamente (sin residuos)
         await rag_retriever.vector_store.delete_collection()
-        logger.info("Vector store limpiado")
-        # Limpiar PDFs
-        await pdf_processor.clear_pdfs()
-        logger.info("Directorio de PDFs limpiado")
+        logger.info("Vector store limpiado y reinicializado")
         # Consultar estado después de limpiar
         pdfs_after_clear = await pdf_processor.list_pdfs()
         vector_store_info_after_clear = pdf_processor.get_vector_store_info()
         remaining_pdfs_count = len(pdfs_after_clear)
         vector_store_size_after_clear = vector_store_info_after_clear.get("size", 0)
+        logger.info(
+            f"Conteo tras limpieza — PDFs restantes: {remaining_pdfs_count}, tamaño del vector store: {vector_store_size_after_clear}"
+        )
         status_val = "success"
         message_val = "RAG limpiado exitosamente"
         if remaining_pdfs_count > 0 or vector_store_size_after_clear > 0:
