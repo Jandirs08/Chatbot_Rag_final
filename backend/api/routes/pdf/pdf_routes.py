@@ -97,7 +97,6 @@ async def list_pdfs(request: Request):
 # @rate_limit(max_requests=10, window_seconds=60) # Comentado temporalmente
 async def delete_pdf(
     request: Request,
-    background_tasks: BackgroundTasks,
     filename: str
 ):
     """Endpoint para eliminar un PDF específico."""
@@ -107,16 +106,15 @@ async def delete_pdf(
     try:
         # Eliminar archivo del sistema de archivos
         await pdf_file_manager.delete_pdf(filename)
-        
-        # Eliminar documentos asociados del vector store en segundo plano
+        logger.info(f"PDF eliminado físicamente: {filename}")
+
+        # Eliminar documentos asociados del vector store de forma sincrónica
         # Asumiendo que los documentos tienen metadata {"source": filename}
-        background_tasks.add_task(
-            rag_ingestor.vector_store.delete_documents, 
-            filter={"source": filename}
-        )
+        await rag_ingestor.vector_store.delete_documents(filter={"source": filename})
+        logger.info(f"Embeddings asociados borrados para: {filename}")
         
         return PDFDeleteResponse(
-            message=f"PDF '{filename}' eliminado exitosamente. La actualización del índice continuará en segundo plano."
+            message=f"PDF '{filename}' y embeddings asociados eliminados exitosamente."
         )
     except HTTPException:
         raise

@@ -155,12 +155,6 @@ class ChatbotCache:
         effective_settings = settings if settings is not None else app_settings
         return ChatbotCache(settings=effective_settings, cache_type=cache_type, **kwargs)
 
-    def clear_cache(self):
-        """Limpia el caché reinicializándolo."""
-        self.logger.info(f"Limpiando caché de tipo: {self.cache_type}")
-        self._init_cache()
-        self.metrics.reset()  # Reiniciar métricas al limpiar el caché
-        self.logger.info("Caché reinicializado (efectivamente limpiado).")
 
     def get_metrics(self) -> Dict[str, Any]:
         """Obtiene las métricas actuales del caché.
@@ -176,14 +170,4 @@ class ChatbotCache:
         })
         return metrics
 
-    def log_metrics(self):
-        """Registra las métricas actuales en el log."""
-        metrics = self.get_metrics()
-        self.logger.info(
-            f"Métricas de Caché - "
-            f"Tipo: {metrics['cache_type']}, "
-            f"Hits: {metrics['hits']}, "
-            f"Misses: {metrics['misses']}, "
-            f"Hit Ratio: {metrics['hit_ratio']:.1f}%, "
-            f"Tiempo Promedio: {metrics['avg_response_time']:.3f}s"
-        )
+    # Métodos auxiliares no utilizados eliminados: clear_cache(), log_metrics().

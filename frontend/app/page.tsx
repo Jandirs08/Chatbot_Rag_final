@@ -16,6 +16,10 @@ import {
   Users,
   MessageCircle,
   FileDown,
+  Monitor,
+  Upload,
+  Clock,
+  Loader2,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useRequireAuth } from "./hooks";
@@ -116,16 +120,16 @@ export default function Dashboard() {
     {
       title: "Ver Widget",
       description: "Previsualiza y obtén el código del iframe",
-      icon: Bot,
+      icon: Monitor,
       href: "/widget",
-      gradient: "gradient-primary",
+      gradient: "gradient-secondary",
     },
     {
-      title: "Subir PDF",
+      title: "Subir un nuevo PDF",
       description: "Añade nuevo contenido al conocimiento del bot",
-      icon: FileText,
+      icon: Upload,
       href: "/Documents",
-      gradient: "gradient-secondary",
+      gradient: "gradient-primary",
     },
     {
       title: "Configurar Bot",
@@ -154,19 +158,19 @@ export default function Dashboard() {
     <div className="space-y-8 animate-fade-in">
       {/* Header */}
       <div className="space-y-2">
-        <div className="flex items-center gap-3">
-          <h1 className="text-4xl font-bold text-foreground">Panel de Control</h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-5xl font-bold text-foreground">Panel de Control</h1>
           <span
-            className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs border ${
+            className={`inline-flex items-center gap-2 px-3 py-1 rounded-[20px] text-xs font-semibold ${
               isBotActive
-                ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800"
-                : "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800"
+                ? "bg-[#da5b3e] text-white border-0"
+                : "bg-gray-100 text-gray-600 border-0"
             }`}
             aria-live="polite"
           >
             <span
               className={`inline-block w-2 h-2 rounded-full ${
-                isBotActive ? "bg-green-500" : "bg-red-500"
+                isBotActive ? "bg-white" : "bg-gray-500"
               }`}
             />
             {isBotActive ? "Bot activo" : "Bot inactivo"}
@@ -185,7 +189,7 @@ export default function Dashboard() {
             Control del Bot
             <div className="flex items-center gap-3 ml-auto">
               <span
-                className={`text-sm font-medium ${isBotActive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}
+                className={`text-sm font-semibold ${isBotActive ? "text-[#da5b3e]" : "text-gray-500"}`}
               >
                 {isBotActive ? "Bot Activo" : "Bot Inactivo"}
               </span>
@@ -193,7 +197,7 @@ export default function Dashboard() {
                 checked={isBotActive}
                 onCheckedChange={handleBotToggle}
                 disabled={isLoading}
-                className="data-[state=checked]:bg-green-500"
+                className="data-[state=checked]:bg-[#da5b3e]"
               />
             </div>
           </CardTitle>
@@ -204,96 +208,57 @@ export default function Dashboard() {
         </CardHeader>
         <CardContent>
           <div
-            className={`flex items-center justify-between p-5 rounded-lg border shadow-sm transition-colors ${
-              isBotActive
-                ? "bg-white dark:bg-neutral-900 border-green-400 dark:border-green-700"
-                : "bg-white dark:bg-neutral-900 border-red-400 dark:border-red-700"
-            }`}
+            className={`flex items-center justify-between p-4 rounded-xl border border-[#f0f0f0] shadow-[0_1px_3px_rgba(0,0,0,0.08)] bg-white`}
           >
             <div className="flex items-center gap-3">
               <div
                 className={`w-3 h-3 rounded-full ${
-                  isBotActive ? "bg-green-500 animate-pulse" : "bg-red-500"
+                  isBotActive ? "bg-[#da5b3e] animate-pulse" : "bg-gray-400"
                 }`}
               ></div>
               <div>
                 <p
-                  className={`font-medium ${
-                    isBotActive
-                      ? "text-green-800 dark:text-green-200"
-                      : "text-red-800 dark:text-red-200"
-                  }`}
+                  className={`font-medium text-[#333]`}
                 >
                   {isBotActive ? "Bot Respondiendo" : "Bot Pausado"}
                 </p>
                 <p
-                  className={`text-sm ${
-                    isBotActive
-                      ? "text-green-600 dark:text-green-400"
-                      : "text-red-600 dark:text-red-400"
+                  className={`flex items-center gap-2 text-base font-semibold ${
+                    isBotActive ? "text-[#da5b3e]" : "text-gray-500"
                   }`}
                 >
-                  {isBotActive
-                    ? "Respondiendo consultas normalmente"
-                    : "Las consultas mostrarán mensaje de inactividad"}
+                  {isBotActive ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Respondiendo...</span>
+                    </>
+                  ) : (
+                    <span>Las consultas mostrarán mensaje de inactividad</span>
+                  )}
                 </p>
               </div>
             </div>
             <div
-              className={`text-right text-sm ${
-                isBotActive
-                  ? "text-green-600 dark:text-green-400"
-                  : "text-red-600 dark:text-red-400"
-              }`}
+              className={`text-right text-sm text-muted-foreground`}
             >
-              <p>Última actividad: Hace 2 min</p>
-              <p>Temperatura: 0.7</p>
+              <p className="flex items-center justify-end gap-2 text-muted-foreground">
+                <Clock className="w-4 h-4" />
+                <span>Última actividad: Hace 2 min</span>
+              </p>
+              <p className="text-muted-foreground">Temperatura: 0.7</p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {statsCards.map((stat, index) => (
-          <a
-            key={index}
-            href={stat.href}
-            className="group block"
-            aria-label={`Ir a ${stat.title}`}
-          >
-            <Card className="transition-all duration-300 border-border/50 hover:shadow-xl hover:border-primary/60">
-              <CardHeader className="flex items-center gap-3 space-y-0 pb-2">
-                <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center group-hover:bg-primary/20">
-                  <stat.icon className={`h-4 w-4 ${stat.color}`} />
-                </div>
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  {stat.title}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-foreground tracking-tight">
-                  {isLoading ? (
-                    <span className="inline-block h-7 w-20 bg-muted animate-pulse rounded" />
-                  ) : (
-                    stat.value
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </a>
-        ))}
-      </div>
-
       {/* Quick Actions */}
+      <hr className="my-6 border-t border-border/60" />
       <div className="space-y-4">
-        <h2 className="text-2xl font-semibold text-foreground">
-          Acciones Rápidas
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <h2 className="text-3xl font-semibold text-foreground">Acciones Rápidas</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {quickActions.map((action, index) => {
             const content = (
-              <Card className="group hover:shadow-xl transition-all duration-300 cursor-pointer border-border/50 overflow-hidden">
+              <Card className="group hover:shadow-xl shadow-sm transition-all duration-300 cursor-pointer border border-border/60 overflow-hidden">
                 <CardHeader className="space-y-4">
                   <div
                     className={`w-12 h-12 rounded-lg ${action.gradient} flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}
@@ -301,7 +266,7 @@ export default function Dashboard() {
                     <action.icon className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <CardTitle className="text-lg group-hover:text-primary transition-colors">
+                    <CardTitle className="text-xl group-hover:text-primary transition-colors">
                       {action.title}
                     </CardTitle>
                     <CardDescription className="mt-2">
@@ -324,6 +289,40 @@ export default function Dashboard() {
           })}
         </div>
       </div>
+
+      {/* Stats Grid */}
+      <hr className="my-6 border-t border-border/60" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        {statsCards.map((stat, index) => (
+          <a
+            key={index}
+            href={stat.href}
+            className="group block"
+            aria-label={`Ir a ${stat.title}`}
+          >
+            <Card className="transition-all duration-300 border border-border/60 shadow-sm hover:shadow-xl hover:border-primary/60">
+              <CardHeader className="flex items-center gap-3 space-y-0 pb-2">
+                <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center group-hover:bg-primary/20">
+                  <stat.icon className={`h-4 w-4 ${stat.color}`} />
+                </div>
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {stat.title}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-4xl font-bold text-foreground tracking-tight">
+                  {isLoading ? (
+                    <span className="inline-block h-7 w-20 bg-muted animate-pulse rounded" />
+                  ) : (
+                    stat.value
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </a>
+        ))}
+      </div>
+
     </div>
   );
 }

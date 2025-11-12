@@ -1,26 +1,56 @@
 """MongoDB client for chat history."""
-from typing import List, Dict, Any, Optional, cast
+from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorClient
 import logging
+from functools import lru_cache
 
-from config import Settings, settings as app_settings
+from config import settings as app_settings
 
 logger = logging.getLogger(__name__)
+
+@lru_cache(maxsize=1)
+def get_mongodb_client() -> "MongodbClient":
+    """
+    Returns a cached instance of the MongodbClient.
+    If the instance doesn't exist, it creates one.
+    """
+    logger.info("Attempting to get MongoDB client instance.")
+    
+    # La información de la caché se puede consultar así:
+    cache_info = get_mongodb_client.cache_info()
+    logger.debug(f"Cache info for get_mongodb_client: {cache_info}")
+
+    if cache_info.hits > 0:
+        logger.info("Returning cached MongoDB client instance.")
+    else:
+        logger.info("No cached instance found, creating a new one.")
+
+    try:
+        client = MongodbClient(
+            mongo_uri=app_settings.mongo_uri.get_secret_value(),
+            database_name=app_settings.mongo_database_name
+        )
+        logger.debug("New MongodbClient instance created successfully.")
+        return client
+    except Exception as e:
+        logger.error(f"Failed to create MongodbClient instance: {e}", exc_info=True)
+        raise
 
 class MongodbClient:
     """MongoDB client for chat history."""
     
-    def __init__(self, settings: Settings = app_settings):
+    def __init__(self, mongo_uri: str, database_name: str):
         """Initialize MongoDB client."""
-        self.settings = settings
+        self.mongo_uri = mongo_uri
+        self.database_name = database_name
         try:
-            self.client = AsyncIOMotorClient(settings.mongo_uri.get_secret_value())
-            self.db = self.client[settings.mongo_database_name]
+            self.client = AsyncIOMotorClient(mongo_uri)
+            self.db = self.client[database_name]
             self.messages = self.db.messages
-            logger.info("Conexión a MongoDB establecida exitosamente.")
+            logger.info(f"MongoDB connection to db '{database_name}' established successfully.")
         except Exception as e:
-            logger.error(f"Error conectando a MongoDB: {str(e)}")
+            logger.error(f"Error connecting to MongoDB: {str(e)}", exc_info=True)
             raise
 
     async def get_conversation_history(self, conversation_id: str) -> List[Dict[str, Any]]:
@@ -111,7 +141,8 @@ class MongodbClient:
     async def close(self) -> None:
         """Close the MongoDB connection."""
         try:
-            self.client.close()
-            logger.info("Conexión a MongoDB cerrada")
+            if self.client:
+                self.client.close()
+                logger.info("MongoDB connection closed successfully.")
         except Exception as e:
-            logger.error(f"Error cerrando conexión a MongoDB: {str(e)}")
+            logger.error(f"Error closing MongoDB connection: {str(e)}", exc_info=True)

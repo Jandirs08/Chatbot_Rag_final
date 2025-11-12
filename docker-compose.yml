@@ -19,6 +19,7 @@ services:
     depends_on:
       - mongodb
     environment:
+      - LOG_LEVEL=DEBUG
       - MONGO_URI=mongodb://mongodb:27017/chatbot_rag_db
       - HOST=0.0.0.0
       - PORT=8000

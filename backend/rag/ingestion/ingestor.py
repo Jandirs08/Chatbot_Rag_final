@@ -28,16 +28,6 @@ class RAGIngestor:
         batch_size: int = 100,
         max_workers: int = 4
     ):
-        """Inicializa el gestor de ingesta.
-        
-        Args:
-            pdf_file_manager: Gestor de archivos PDF.
-            pdf_content_loader: Procesador de contenido PDF.
-            embedding_manager: Gestor de embeddings.
-            vector_store: Almacenamiento vectorial.
-            batch_size: Tamaño del lote para procesamiento.
-            max_workers: Número máximo de workers para procesamiento paralelo.
-        """
         self.pdf_file_manager = pdf_file_manager
         self.pdf_content_loader = pdf_content_loader
         self.embedding_manager = embedding_manager
@@ -48,47 +38,28 @@ class RAGIngestor:
         logger.info(f"RAGIngestor inicializado con batch_size={batch_size}, max_workers={max_workers}")
 
     async def ingest_single_pdf(self, pdf_path: Path, force_update: bool = False) -> Dict:
-        """Procesa un PDF individual con optimizaciones.
-        
-        Args:
-            pdf_path: Ruta al archivo PDF.
-            force_update: Forzar actualización aunque exista.
-            
-        Returns:
-            Diccionario con resultados de la ingesta.
-        """
         filename = pdf_path.name
         logger.info(f"🚀 Iniciando procesamiento del PDF: {filename}")
-        
         try:
-            # Verificar archivo
             if not pdf_path.exists() or not pdf_path.is_file():
                 return self._error_result(filename, "❌ Archivo no encontrado")
-            
-            # Verificar si ya está procesado
+
             if not force_update and await self._is_already_processed(pdf_path):
                 logger.info(f"⏭️ PDF {filename} ya procesado anteriormente. Omitiendo.")
-                return {
-                    "filename": filename,
-                    "status": "skipped",
-                    "reason": "already_processed"
-                }
-            
-            # Procesar PDF
+                return {"filename": filename, "status": "skipped", "reason": "already_processed"}
+
             chunks = self.pdf_content_loader.load_and_split_pdf(pdf_path)
             if not chunks:
                 return self._error_result(filename, "❌ No se pudo extraer contenido del PDF")
-            
+
             logger.info(f"📄 PDF procesado: {len(chunks)} fragmentos de texto extraídos")
-            
-            # Deduplicar chunks
+
             unique_chunks, unique_embeddings = await self._deduplicate_chunks(chunks, return_embeddings=True)
             if not unique_chunks:
                 return self._error_result(filename, "❌ No quedaron fragmentos después de eliminar duplicados")
-            
+
             logger.info(f"🔄 Fragmentos únicos después de deduplicación: {len(unique_chunks)}")
-            
-            # Procesar en lotes
+
             total_added = 0
             for i in range(0, len(unique_chunks), self.batch_size):
                 batch = unique_chunks[i:i + self.batch_size]
@@ -98,26 +69,21 @@ class RAGIngestor:
                         content_hash = doc.metadata.get('content_hash')
                         if content_hash:
                             await self.vector_store.delete_documents(filter={"content_hash": content_hash})
-                    if not isinstance(batch, list):
-                        raise TypeError(f"Batch is not a list before adding to vector store. Type: {type(batch)}")
+
                     if not batch:
                         logger.warning(f"⚠️ Lote vacío. Omitiendo lote {i//self.batch_size + 1}.")
                         continue
-                    
-                    try:
-                        await self._add_batch_to_vector_store(batch, i//self.batch_size + 1, embeddings=batch_embeddings)
-                        total_added += len(batch)
-                        logger.info(f"✅ Lote {i//self.batch_size + 1} procesado: {len(batch)} fragmentos agregados al vector store")
-                    except Exception as add_err:
-                        logger.error(f"❌ Error procesando lote {i//self.batch_size + 1}: {add_err}", exc_info=True)
+
+                    await self._add_batch_to_vector_store(batch, i//self.batch_size + 1, embeddings=batch_embeddings)
+                    total_added += len(batch)
+                    logger.info(f"✅ Lote {i//self.batch_size + 1} procesado: {len(batch)} fragmentos agregados al vector store")
+
                 except Exception as e:
-                    logger.error(f"❌ Error en lote {i//self.batch_size + 1}: {str(e)}", exc_info=True)
-            
-            # Actualizar hashes procesados
+                    logger.error(f"❌ Error en lote {i//self.batch_size + 1}: {e}", exc_info=True)
+
             self._update_processed_hashes(unique_chunks)
-            
             logger.info(f"✨ Procesamiento completado para {filename}: {total_added} fragmentos agregados al vector store")
-            
+
             return {
                 "filename": filename,
                 "status": "success",
@@ -125,184 +91,120 @@ class RAGIngestor:
                 "chunks_unique": len(unique_chunks),
                 "chunks_added": total_added
             }
-            
+
         except Exception as e:
             return self._error_result(filename, str(e))
 
-    async def ingest_pdfs_from_directory(
-        self,
-        specific_directory: Optional[Path] = None,
-        parallel: bool = True,
-        force_update: bool = False
-    ) -> List[Dict]:
-        """Procesa PDFs de un directorio con paralelización opcional.
-        
-        Args:
-            specific_directory: Directorio específico a procesar.
-            parallel: Si usar procesamiento paralelo.
-            force_update: Forzar actualización de documentos existentes.
-            
-        Returns:
-            Lista de resultados de ingesta.
-        """
+    async def ingest_pdfs_from_directory(self, specific_directory: Optional[Path] = None,
+                                         parallel: bool = True, force_update: bool = False) -> List[Dict]:
         source_dir = specific_directory or self.pdf_file_manager.pdf_dir
         logger.info(f"Procesando PDFs desde: {source_dir}")
-        
-        # Obtener lista de PDFs
+
         pdf_files = await self._get_pdf_files(source_dir)
         if not pdf_files:
             logger.warning(f"No se encontraron PDFs en {source_dir}")
             return []
-        
+
         results = []
         if parallel and len(pdf_files) > 1:
-            # Procesamiento paralelo
-            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-                # Crear tareas
-                tasks = [
-                    self._process_pdf_parallel(pdf_info, force_update)
-                    for pdf_info in pdf_files
-                ]
-                # Ejecutar y esperar resultados
+            with ThreadPoolExecutor(max_workers=self.max_workers):
+                tasks = [self._process_pdf_parallel(p, force_update) for p in pdf_files]
                 results = await asyncio.gather(*tasks)
         else:
-            # Procesamiento secuencial
-            for pdf_info in pdf_files:
-                result = await self.ingest_single_pdf(
-                    Path(pdf_info["path"]),
-                    force_update=force_update
-                )
-                results.append(result)
-        
-        # Resumen
+            for p in pdf_files:
+                results.append(await self.ingest_single_pdf(Path(p["path"]), force_update=force_update))
+
         successful = sum(1 for r in results if r["status"] == "success")
         failed = sum(1 for r in results if r["status"] == "error")
         skipped = sum(1 for r in results if r["status"] == "skipped")
-        
-        logger.info(
-            f"Ingesta completada. "
-            f"Éxitos: {successful}, "
-            f"Fallos: {failed}, "
-            f"Omitidos: {skipped} "
-            f"de {len(results)} PDFs."
-        )
-        
+
+        logger.info(f"Ingesta completada. Éxitos: {successful}, Fallos: {failed}, Omitidos: {skipped} de {len(results)} PDFs.")
         return results
 
     async def _process_pdf_parallel(self, pdf_info: Dict, force_update: bool) -> Dict:
-        """Procesa un PDF en un worker paralelo."""
         try:
-            return await self.ingest_single_pdf(
-                Path(pdf_info["path"]),
-                force_update=force_update
-            )
+            return await self.ingest_single_pdf(Path(pdf_info["path"]), force_update=force_update)
         except Exception as e:
             return self._error_result(pdf_info["filename"], str(e))
 
     async def _get_pdf_files(self, directory: Path) -> List[Dict]:
-        """Obtiene lista de archivos PDF válidos."""
         if directory != self.pdf_file_manager.pdf_dir:
-            return [
-                {"path": str(p), "filename": p.name}
-                for p in directory.glob("*.pdf")
-                if p.is_file()
-            ]
+            return [{"path": str(p), "filename": p.name} for p in directory.glob("*.pdf") if p.is_file()]
         return await self.pdf_file_manager.list_pdfs()
 
     async def _is_already_processed(self, pdf_path: Path) -> bool:
-        """Verifica si un PDF ya está procesado en el vector store."""
         try:
-            # Verificar si hay documentos con la misma fuente (nombre de archivo)
-            # La operación de get en Chroma es síncrona
-            existing_docs = self.vector_store.store._collection.get(
-                where={"source": pdf_path.name},
-            )
-            # Si la lista de IDs no está vacía, significa que ya existen documentos para esta fuente.
-            return bool(existing_docs.get("ids"))
+            store = getattr(self.vector_store, "store", None)
+            collection = getattr(store, "_collection", None) if store is not None else None
+            if collection is None:
+                # Si el vector store aún no está inicializado (p.ej., justo después de un clear-rag),
+                # asumimos que el PDF no está procesado para evitar errores ruidosos.
+                logger.info("Vector store no inicializado al verificar procesado; asumiendo no procesado.")
+                return False
+
+            existing_docs = collection.get(where={"source": pdf_path.name})
+            ids = existing_docs.get("ids") if isinstance(existing_docs, dict) else None
+            return bool(ids)
         except Exception as e:
-            logger.error(f"Error verificando PDF procesado: {str(e)}")
+            logger.error(f"Error verificando PDF procesado: {e}", exc_info=True)
             return False
 
-    async def _deduplicate_chunks(self, chunks: List[Document], return_embeddings: bool = False) -> (List[Document], list):
-        """Elimina chunks duplicados o muy similares y retorna también los embeddings si se solicita."""
+    async def _deduplicate_chunks(self, chunks: List[Document], return_embeddings: bool = False):
         if not chunks:
             return ([], []) if return_embeddings else []
-        unique_chunks = []
-        unique_embeddings = []
+        unique_chunks, unique_embeddings = [], []
         content_hashes = set()
-        chunk_texts = [c.page_content for c in chunks]
-        embeddings = self.embedding_manager.embed_documents(chunk_texts)
+        texts = [c.page_content for c in chunks]
+        embeddings = self.embedding_manager.embed_documents(texts)
         import numpy as np
 
-        def _cosine(a: np.ndarray, b: np.ndarray) -> float:
+        def cosine(a, b):
             denom = (np.linalg.norm(a) * np.linalg.norm(b))
-            if denom == 0:
-                return 0.0
-            return float(np.dot(a, b) / denom)
+            return float(np.dot(a, b) / denom) if denom else 0.0
 
         for i, chunk in enumerate(chunks):
-            content_hash = chunk.metadata.get('content_hash')
-            if content_hash in content_hashes:
+            h = chunk.metadata.get("content_hash")
+            if h in content_hashes:
                 continue
             if unique_chunks:
-                existing_embeddings = [embeddings[chunks.index(c)] for c in unique_chunks]
-                current_vec = np.array(embeddings[i], dtype=np.float32)
-                sims = [
-                    _cosine(current_vec, np.array(e, dtype=np.float32))
-                    for e in existing_embeddings
-                ]
+                sims = [cosine(np.array(embeddings[i]), np.array(embeddings[chunks.index(c)]))
+                        for c in unique_chunks]
                 if sims and max(sims) > settings.deduplication_threshold:
                     continue
             unique_chunks.append(chunk)
             unique_embeddings.append(embeddings[i])
-            if content_hash:
-                content_hashes.add(content_hash)
-        if return_embeddings:
-            return unique_chunks, unique_embeddings
-        return unique_chunks
+            if h:
+                content_hashes.add(h)
+
+        return (unique_chunks, unique_embeddings) if return_embeddings else unique_chunks
 
     def _update_processed_hashes(self, chunks: List[Document]) -> None:
-        """Actualiza el conjunto de hashes procesados."""
-        for chunk in chunks:
-            content_hash = chunk.metadata.get('content_hash')
-            if content_hash:
-                self._processed_hashes.add(content_hash)
+        for c in chunks:
+            h = c.metadata.get("content_hash")
+            if h:
+                self._processed_hashes.add(h)
 
-    def _error_result(self, filename: str, error_message: str) -> Dict:
-        """Genera un resultado de error estandarizado."""
-        logger.error(f"Error en {filename}: {error_message}")
-        return {
-            "filename": filename,
-            "status": "error",
-            "error": error_message
-        }
-
-    async def clear_vector_store_content(self) -> None:
-        """Limpia el contenido del vector store."""
-        logger.info("Limpiando vector store...")
-        try:
-            await self.vector_store.delete_collection()
-            self._processed_hashes.clear()
-            logger.info("Vector store limpiado exitosamente")
-        except Exception as e:
-            logger.error(f"Error limpiando vector store: {str(e)}")
-            raise
+    def _error_result(self, filename: str, msg: str) -> Dict:
+        logger.error(f"Error en {filename}: {msg}")
+        return {"filename": filename, "status": "error", "error": msg}
 
     async def _add_batch_to_vector_store(self, batch: List[Document], batch_number: int, embeddings: list = None):
-        """Función auxiliar asíncrona para añadir un lote de documentos al vector store, permitiendo pasar embeddings."""
+        """Agrega documentos al vector store limpiando metadatos inválidos."""
         if not batch:
-            logger.warning(f"_add_batch_to_vector_store llamado con lote vacío para el lote {batch_number}.")
-            return # No hacer nada si el lote está vacío
-        if not isinstance(batch, list):
-            raise TypeError(f"Batch is not a list inside _add_batch_to_vector_store for batch {batch_number}. Type: {type(batch)}")
-        if not batch[0] or not isinstance(batch[0], Document):
-             raise TypeError(f"First element in batch is not a valid Document inside _add_batch_to_vector_store for batch {batch_number}. Type: {type(batch[0])}")
-        logger.debug(f"Attempting to add batch {batch_number} to vector store. Batch size: {len(batch)}.")
+            return
         try:
+            # Limpieza de metadatos (evitar tipos no permitidos)
+            for doc in batch:
+                clean_meta = {}
+                for k, v in doc.metadata.items():
+                    if isinstance(v, (str, int, float, bool)):
+                        clean_meta[k] = v
+                    elif v is not None:
+                        clean_meta[k] = str(v)
+                doc.metadata = clean_meta
+
             await self.vector_store.add_documents(batch, embeddings=embeddings)
-            logger.debug(f"vector_store.add_documents completed successfully for batch {batch_number}.")
-        except TypeError as te:
-            raise TypeError(f"TypeError during vector_store.add_documents for batch {batch_number}. Error: {te}") from te
-        except Exception as ex:
-            logger.error(f"Unexpected error during vector_store.add_documents for batch {batch_number}: {ex}", exc_info=True)
-            raise ex # Re-lanzar la excepción principal si ocurre un error no manejado aquí
+            logger.info(f"🧩 Lote {batch_number} agregado correctamente al vector store.")
+        except Exception as e:
+            logger.error(f"Error agregando lote {batch_number}: {e}", exc_info=True)
+            raise

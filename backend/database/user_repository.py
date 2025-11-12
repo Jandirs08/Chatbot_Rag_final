@@ -264,6 +264,7 @@ def get_user_repository() -> UserRepository:
     Returns:
         UserRepository instance
     """
-    from database.mongodb import MongodbClient
-    mongodb_client = MongodbClient()
+    from database.mongodb import get_mongodb_client
+    logger.debug("Usando cliente MongoDB global en get_user_repository")
+    mongodb_client = get_mongodb_client()
     return UserRepository(mongodb_client)

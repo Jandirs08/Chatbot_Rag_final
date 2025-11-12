@@ -1,6 +1,6 @@
 """FastAPI application for the chatbot."""
 import logging
-from utils.logging_utils import get_logger
+from utils.logging_utils import get_logger, suppress_cl100k_warnings
 import time
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -178,24 +178,25 @@ async def lifespan(app: FastAPI):
             settings=s,
             memory_type=bot_memory_type,
             memory_kwargs={"conversation_id": "default_session"},
-            cache=None
+            cache=None,
+            model_type=None,
+            rag_retriever=app.state.rag_retriever
         )
         logger.info(f"Instancia de Bot creada con tipo de memoria: {bot_memory_type}")
 
-        app.state.chat_manager = ChatManager(
-            bot_instance=app.state.bot_instance,
-            rag_retriever_instance=app.state.rag_retriever
-        )
+        app.state.chat_manager = ChatManager(bot_instance=app.state.bot_instance)
+
         logger.info("ChatManager inicializado.")
 
         # Inicializar MongoDB client persistente para middleware de autenticación
         try:
-            from database.mongodb import MongodbClient
-            app.state.mongodb_client = MongodbClient(s)
+            from database.mongodb import get_mongodb_client
+            logger.info("Initializing persistent MongoDB client for application lifespan...")
+            app.state.mongodb_client = get_mongodb_client()
             await app.state.mongodb_client.ensure_indexes()
-            logger.info("🚀 MongoDB client inicializado e índices creados correctamente")
+            logger.info("🚀 Persistent MongoDB client initialized and indexes created successfully")
         except Exception as e:
-            logger.error(f"⚠️ Error inicializando MongoDB client: {e}")
+            logger.error(f"⚠️ Error initializing persistent MongoDB client: {e}", exc_info=True)
             # No fallar la aplicación por esto, solo registrar el error
 
         # --- PDF Processor para RAG status ---
@@ -257,10 +258,15 @@ async def lifespan(app: FastAPI):
             logger.info("EmbeddingManager cerrado.")
 
         # Cerrar MongoDB client
-        if hasattr(app.state, 'mongodb_client'):
-            if hasattr(app.state.mongodb_client, 'close'):
+        if hasattr(app.state, 'mongodb_client') and app.state.mongodb_client:
+            logger.info("Closing persistent MongoDB client...")
+            try:
                 await app.state.mongodb_client.close()
-            logger.info("MongoDB client cerrado.")
+                logger.info("Persistent MongoDB client closed successfully.")
+            except Exception as e:
+                logger.error(f"Error during persistent MongoDB client cleanup: {e}", exc_info=True)
+        else:
+            logger.warning("No persistent MongoDB client found in app state to close.")
 
     except Exception as e:
         logger.error(f"Error durante la limpieza de recursos: {e}", exc_info=True)
@@ -274,11 +280,31 @@ def create_app() -> FastAPI:
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
+    # Suprimir avisos de cl100k_base de forma agresiva antes de inicializar librerías
+    try:
+        suppress_cl100k_warnings()
+    except Exception:
+        pass
     # Reducir verbosidad de librerías de terceros para evitar ruido en consola
     try:
         import warnings
         # Suprimir deprecations ruidosos conocidos de LangChain
         warnings.filterwarnings("ignore", category=DeprecationWarning, module="langchain._api.module_import")
+        # Suprimir warnings específicos de encoding cl100k_base que no afectan funcionalidad
+        # Suprimir avisos de cl100k_base por cualquier categoría
+        warnings.filterwarnings(
+            "ignore",
+            message=r".*cl100k_base.*",
+            category=Warning
+        )
+        warnings.filterwarnings(
+            "ignore",
+            message=r".*model not found.*cl100k_base.*",
+            category=Warning
+        )
+        # Filtrar a nivel de módulo (algunas versiones no clasifican como UserWarning)
+        warnings.filterwarnings("ignore", module="langchain_openai.embeddings.base")
+        warnings.filterwarnings("ignore", module="tiktoken")
         # Ajustar niveles de log de librerías
         logging.getLogger("pymongo").setLevel(logging.WARNING)
         logging.getLogger("motor").setLevel(logging.WARNING)
@@ -384,4 +410,3 @@ def create_app() -> FastAPI:
 
 # --- Creación de la instancia global de la aplicación --- 
 # Esto permite que Uvicorn la encuentre si se ejecuta este archivo directamente (aunque es mejor usar main.py)
-# global_app = create_app() # Comentado o eliminado si main.py es el único punto de entrada.

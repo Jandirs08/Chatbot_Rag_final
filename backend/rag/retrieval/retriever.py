@@ -157,11 +157,15 @@ class RAGRetriever:
             
             # Añadir timeout para evitar bloqueos largos
             try:
+                # Importante: desactivar MMR en el VectorStore para evitar
+                # cálculos de embeddings por documento allí. Recuperamos por
+                # similitud directa y aplicamos reranking/MMR aquí con batching.
                 relevant_docs = await asyncio.wait_for(
                     self.vector_store.retrieve(
                         query,
                         k=initial_k,
-                        filter=filter_criteria
+                        filter=filter_criteria,
+                        use_mmr=False
                     ),
                     timeout=5.0  # Timeout de 5 segundos máximo
                 )
@@ -223,6 +227,71 @@ class RAGRetriever:
             logger.error(f"Error en recuperación: {str(e)}", exc_info=True)
             return []
 
+    async def retrieve_with_trace(
+        self,
+        query: str,
+        k: int = 4,
+        filter_criteria: Optional[Dict[str, Any]] = None,
+        include_context: bool = True,
+    ) -> Dict[str, Any]:
+        """Recupera documentos y construye una traza auditable.
+
+        Args:
+            query: Consulta del usuario.
+            k: Número de documentos objetivo.
+            filter_criteria: Filtros opcionales para el vector store.
+            include_context: Si debe incluirse el contexto formateado.
+
+        Returns:
+            Diccionario con `query`, `k`, `retrieved` (lista con metadatos clave),
+            `context` (opcional) y `timings` con estadísticas de rendimiento.
+        """
+        try:
+            docs = await self.retrieve_documents(
+                query=query,
+                k=k,
+                filter_criteria=filter_criteria,
+                use_semantic_ranking=True,
+            )
+
+            items: List[Dict[str, Any]] = []
+            for doc in docs:
+                meta = doc.metadata or {}
+                preview = doc.page_content[:300] if doc.page_content else ""
+                items.append({
+                    "score": float(meta.get("score", 0.0)),
+                    "source": meta.get("source"),
+                    "file_path": meta.get("file_path"),
+                    "content_hash": meta.get("content_hash"),
+                    "chunk_type": meta.get("chunk_type"),
+                    "word_count": int(meta.get("word_count", 0)),
+                    "preview": preview,
+                })
+
+            context_str: Optional[str] = None
+            if include_context:
+                context_str = self.format_context_from_documents(docs)
+
+            timings = self.performance_metrics.get_statistics()
+
+            return {
+                "query": query,
+                "k": k,
+                "retrieved": items,
+                "context": context_str,
+                "timings": timings,
+            }
+        except Exception as e:
+            logger.error(f"Error construyendo traza de recuperación: {str(e)}", exc_info=True)
+            # Fallo seguro: devolver estructura vacía manteniendo contrato
+            return {
+                "query": query,
+                "k": k,
+                "retrieved": [],
+                "context": None if include_context else None,
+                "timings": {},
+            }
+
     async def _semantic_reranking(self, query: str, docs: List[Document]) -> List[Document]:
         """Reordena documentos usando múltiples criterios semánticos.
         
@@ -240,29 +309,45 @@ class RAGRetriever:
         try:
             # Generar embedding de la consulta
             query_embedding = self.embedding_manager.embed_query(query)
-            
+
+            # Preparar un único batch de textos sin embedding
+            texts_to_embed = []
+            missing_indices = []
+            for idx, doc in enumerate(docs):
+                if doc.metadata.get("embedding") is None:
+                    texts_to_embed.append(doc.page_content)
+                    missing_indices.append(idx)
+
+            if texts_to_embed:
+                logger.debug(f"Reranking: calculando embeddings por lote para {len(texts_to_embed)} documentos")
+                batch_embeddings = self.embedding_manager.embed_documents(texts_to_embed)
+                for pos, emb in enumerate(batch_embeddings):
+                    # Guardar embedding en los metadatos para futuras consultas/caché
+                    docs[missing_indices[pos]].metadata["embedding"] = emb
+
             # Calcular scores para cada documento
             scored_docs = []
             for doc in docs:
                 # 1. Score de similitud semántica
-                doc_embedding = self.embedding_manager.embed_query(doc.page_content)
-                semantic_score = float(cosine_similarity([query_embedding], [doc_embedding])[0][0])
-                
+                doc_embedding = doc.metadata.get("embedding")
+                semantic_score = 0.0
+                if doc_embedding is not None:
+                    semantic_score = float(cosine_similarity([query_embedding], [doc_embedding])[0][0])
+
                 # 2. Score de calidad del chunk
                 quality_score = float(doc.metadata.get('quality_score', 0.5))
-                
+
                 # 3. Score por longitud relevante
                 length_score = min(len(doc.page_content.split()) / 100, 1.0)
-                
+
                 # 4. Score por tipo de contenido
                 content_type_score = self._get_content_type_score(doc.metadata.get('chunk_type', 'text'))
-                
+
                 # 5. Factor de prioridad para PDFs
                 pdf_priority_factor = 1.0
                 source_path = doc.metadata.get('source', '')
                 if source_path and source_path.lower().endswith('.pdf'):
-                    # Aumentar el factor si la fuente es un PDF. Ajustar el valor (ej: 1.2) según sea necesario.
-                    pdf_priority_factor = 1.5 # Aumentado de 1.2 a 1.5 para dar más prioridad a PDFs
+                    pdf_priority_factor = 1.5
 
                 # Combinar scores con pesos
                 final_score = (
@@ -271,9 +356,9 @@ class RAGRetriever:
                     length_score * 0.1 +
                     content_type_score * 0.05
                 ) * pdf_priority_factor
-                
+
                 scored_docs.append((doc, final_score))
-            
+
             # Ordenar por score final
             reranked = [doc for doc, _ in sorted(scored_docs, key=lambda x: x[1], reverse=True)]
             return reranked
@@ -306,10 +391,25 @@ class RAGRetriever:
         try:
             # Obtener embeddings
             query_embedding = self.embedding_manager.embed_query(query)
-            doc_embeddings = [
-                self.embedding_manager.embed_query(doc.page_content)
-                for doc in docs
-            ]
+            doc_embeddings = []
+            texts_to_embed = []
+            missing_indices = []
+            for idx, doc in enumerate(docs):
+                emb = doc.metadata.get("embedding")
+                if emb is None:
+                    texts_to_embed.append(doc.page_content)
+                    missing_indices.append(idx)
+                    doc_embeddings.append(None)
+                else:
+                    doc_embeddings.append(emb)
+
+            if texts_to_embed:
+                logger.debug(f"MMR: calculando embeddings por lote para {len(texts_to_embed)} documentos")
+                batch_embeddings = self.embedding_manager.embed_documents(texts_to_embed)
+                for pos, emb in enumerate(batch_embeddings):
+                    doc_idx = missing_indices[pos]
+                    docs[doc_idx].metadata["embedding"] = emb
+                    doc_embeddings[doc_idx] = emb
 
             # Inicializar selección MMR
             selected_indices = []
@@ -467,4 +567,4 @@ class RAGRetriever:
     #     # Si la limpieza del VectorStore se hace a través de RAGIngestor o un script separado,
     #     # este método podría no ser necesario o tener un propósito diferente.
     #     # Por ejemplo, si RAGRetriever tuviera algún caché interno:
-        logger.info("RAGRetriever no tiene estado interno que limpiar en esta versión.")
+        # (línea eliminada: código inalcanzable/descontextualizado)

@@ -94,42 +94,10 @@ class PasswordHandler:
             # Return False for security reasons - don't expose internal errors
             return False
     
-    def needs_update(self, hashed_password: str) -> bool:
-        """
-        Check if a hashed password needs to be updated.
-        
-        This is useful when upgrading hashing algorithms or parameters.
-        
-        Args:
-            hashed_password: Hashed password to check
-            
-        Returns:
-            True if password needs rehashing, False otherwise
-        """
-        if not hashed_password or not isinstance(hashed_password, str):
-            return True
-        
-        try:
-            # Extract rounds from hash
-            if not hashed_password.startswith('$2b$'):
-                return True
-            
-            parts = hashed_password.split('$')
-            if len(parts) < 4:
-                return True
-            
-            current_rounds = int(parts[2])
-            return current_rounds != self.rounds
-        except Exception as e:
-            logger.warning(f"Could not check if password needs update: {str(e)}")
-            return True  # Err on the side of caution
 
 # Global password handler instance
 _password_handler: PasswordHandler = PasswordHandler()
 
-def get_password_handler() -> PasswordHandler:
-    """Get the global password handler instance."""
-    return _password_handler
 
 # Convenience functions for backward compatibility
 def hash_password(password: str) -> str:
@@ -157,26 +125,9 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
     return _password_handler.verify_password(plain_password, hashed_password)
 
-def get_password_hash(password: str) -> str:
-    """
-    Get password hash (alias for hash_password for compatibility).
-    
-    Args:
-        password: Plain text password to hash
-        
-    Returns:
-        Hashed password string
-    """
-    return hash_password(password)
-
-def password_needs_update(hashed_password: str) -> bool:
-    """
-    Check if a hashed password needs to be updated.
-    
-    Args:
-        hashed_password: Hashed password to check
-        
-    Returns:
-        True if password needs rehashing, False otherwise
-    """
-    return _password_handler.needs_update(hashed_password)
+# Nota: se eliminaron funciones auxiliares no utilizadas
+# - get_password_handler()
+# - get_password_hash(...)
+# - password_needs_update(...)
+# y el método PasswordHandler.needs_update().
+# El módulo mantiene las funciones en uso: hash_password(...) y verify_password(...).

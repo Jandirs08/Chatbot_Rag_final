@@ -8,6 +8,8 @@ import time
 from datetime import datetime
 import asyncio
 from functools import lru_cache
+import shutil
+import sqlite3
 # Redis es opcional: importar de forma condicional
 try:
     import redis  # type: ignore
@@ -83,60 +85,157 @@ class VectorStore:
     def _initialize_store(self) -> None:
         """Inicializa el almacenamiento Chroma con optimizaciones."""
         self.persist_directory.parent.mkdir(parents=True, exist_ok=True)
+        # Pre-chequeo de compatibilidad del sysdb de Chroma (sqlite) para evitar fallos de arranque
+        try:
+            sqlite_path = self.persist_directory / "chroma.sqlite3"
+            if sqlite_path.exists():
+                conn = sqlite3.connect(str(sqlite_path))
+                try:
+                    cur = conn.cursor()
+                    cur.execute("PRAGMA table_info(collections)")
+                    cols = [row[1] for row in cur.fetchall()]  # row[1] es el nombre de la columna
+                    # Columnas esperadas en versiones recientes de Chroma incluyen 'topic'
+                    if "topic" not in cols:
+                        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        backup_dir = self.persist_directory.parent / f"{self.persist_directory.name}_backup_{ts}"
+                        shutil.move(str(self.persist_directory), str(backup_dir))
+                        logger.error(
+                            f"Chroma sysdb detectado incompatible (sin columna 'topic'). Persist movido a backup: {backup_dir}. "
+                            "Se generará un nuevo almacén limpio."
+                        )
+                        # Recrear directorio limpio
+                        self.persist_directory.mkdir(parents=True, exist_ok=True)
+                finally:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+        except Exception as precheck_err:
+            # No bloquear el inicio por errores en el pre-chequeo; se manejarán en los intents posteriores
+            logger.warning(f"No se pudo realizar pre-chequeo de sysdb Chroma: {precheck_err}")
         
         try:
-            self.store = Chroma(
-                persist_directory=str(self.persist_directory),
-                embedding_function=self.embedding_function,
-                collection_name="rag_collection",
-                collection_metadata={
-                    "hnsw:space": self.distance_strategy,
-                    "hnsw:construction_ef": 200,
-                    "hnsw:search_ef": 128,
-                    "hnsw:M": 16
-                }
-            )
-            
-            # Eliminar dummy si existe (corregido)
             try:
-                # 'ids' no es un valor válido para 'include' en Chroma; los IDs se devuelven por defecto
-                docs = self.store._collection.get(where={"is_dummy": True}, include=["documents", "metadatas"])
-                ids = []
-                for i, meta in enumerate(docs.get("metadatas", [])):
-                    if meta and meta.get("is_dummy"):
-                        ids.append(docs["ids"][i])
-                if ids:
-                    self.store._collection.delete(ids=ids)
-                    logger.info("Dummy system_dummy_doc eliminado")
-            except Exception as e:
-                logger.warning(f"No se pudo eliminar dummy: {e}")
+                # Intento inicial de crear/abrir la colección persistente
+                self.store = Chroma(
+                    persist_directory=str(self.persist_directory),
+                    embedding_function=self.embedding_function,
+                    collection_name="rag_collection",
+                    collection_metadata={
+                        "hnsw:space": self.distance_strategy,
+                        "hnsw:construction_ef": 200,
+                        "hnsw:search_ef": 128,
+                        "hnsw:M": 16
+                    }
+                )
+            except Exception as init_err:
+                # Manejar incompatibilidades de esquema de Chroma (sysdb) de manera robusta
+                msg = str(init_err)
+                if isinstance(init_err, sqlite3.OperationalError) or "no such column" in msg:
+                    # Copia de seguridad y reinicialización limpia del directorio persistente
+                    try:
+                        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        backup_dir = self.persist_directory.parent / f"{self.persist_directory.name}_backup_{ts}"
+                        if self.persist_directory.exists():
+                            shutil.move(str(self.persist_directory), str(backup_dir))
+                            logger.error(
+                                f"Chroma sysdb incompatible ({msg}). Directorio persistente movido a backup: {backup_dir}. "
+                                "Reinicializando colección desde cero."
+                            )
+                        # Reintentar creación con directorio limpio
+                        self.persist_directory.mkdir(parents=True, exist_ok=True)
+                        self.store = Chroma(
+                            persist_directory=str(self.persist_directory),
+                            embedding_function=self.embedding_function,
+                            collection_name="rag_collection",
+                            collection_metadata={
+                                "hnsw:space": self.distance_strategy,
+                                "hnsw:construction_ef": 200,
+                                "hnsw:search_ef": 128,
+                                "hnsw:M": 16
+                            }
+                        )
+                    except Exception as retry_err:
+                        logger.error(f"Fallo al reinicializar VectorStore tras backup: {retry_err}", exc_info=True)
+                        raise retry_err
+                else:
+                    # Error distinto: propagar
+                    raise init_err
             
-            # Verificar si la colección está vacía
-            count = self.store._collection.count()
-            if count == 0:
-                logger.info("Colección vacía, se creará al añadir documentos")
-                
-                # Opcionalmente añadir un documento de inicialización para que la colección exista
-                # y se puedan hacer búsquedas sin errores
+            # Operaciones sobre la colección con manejo robusto de incompatibilidades
+            try:
+                # Eliminar dummy si existe (corregido)
                 try:
-                    dummy_text = "Documento de inicialización del sistema"
-                    dummy_embedding = None
-                    if hasattr(self.embedding_function, 'embed_query'):
-                        dummy_embedding = self.embedding_function.embed_query(dummy_text)
-                    else:
-                        dummy_embedding = self.embedding_function.encode([dummy_text])[0].tolist()
-                    
-                    self.store._collection.add(
-                        embeddings=[dummy_embedding],
-                        documents=[dummy_text],
-                        metadatas=[{"source": "system", "is_dummy": True}],
-                        ids=["system_dummy_doc"]
-                    )
-                    logger.info("Documento de inicialización añadido a la colección")
+                    # 'ids' no es un valor válido para 'include' en Chroma; los IDs se devuelven por defecto
+                    docs = self.store._collection.get(where={"is_dummy": True}, include=["documents", "metadatas"])
+                    ids = []
+                    for i, meta in enumerate(docs.get("metadatas", [])):
+                        if meta and meta.get("is_dummy"):
+                            ids.append(docs["ids"][i])
+                    if ids:
+                        self.store._collection.delete(ids=ids)
+                        logger.info("Dummy system_dummy_doc eliminado")
                 except Exception as e:
-                    logger.warning(f"No se pudo añadir documento de inicialización: {e}")
-            else:
-                logger.info(f"Colección existente con {count} documentos")
+                    logger.warning(f"No se pudo eliminar dummy: {e}")
+
+                # Verificar si la colección está vacía
+                count = self.store._collection.count()
+                if count == 0:
+                    logger.info("Colección vacía, se creará al añadir documentos")
+                    
+                    # Opcionalmente añadir un documento de inicialización para que la colección exista
+                    # y se puedan hacer búsquedas sin errores
+                    try:
+                        dummy_text = "Documento de inicialización del sistema"
+                        dummy_embedding = None
+                        if hasattr(self.embedding_function, 'embed_query'):
+                            dummy_embedding = self.embedding_function.embed_query(dummy_text)
+                        else:
+                            dummy_embedding = self.embedding_function.encode([dummy_text])[0].tolist()
+                        
+                        self.store._collection.add(
+                            embeddings=[dummy_embedding],
+                            documents=[dummy_text],
+                            metadatas=[{"source": "system", "is_dummy": True}],
+                            ids=["system_dummy_doc"]
+                        )
+                        logger.info("Documento de inicialización añadido a la colección")
+                    except Exception as e:
+                        logger.warning(f"No se pudo añadir documento de inicialización: {e}")
+                else:
+                    logger.info(f"Colección existente con {count} documentos")
+            except Exception as col_err:
+                msg = str(col_err)
+                if isinstance(col_err, sqlite3.OperationalError) or "no such column" in msg:
+                    # Respaldo y reinicialización segura ante incompatibilidad de esquema
+                    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    backup_dir = self.persist_directory.parent / f"{self.persist_directory.name}_backup_{ts}"
+                    try:
+                        if self.persist_directory.exists():
+                            shutil.move(str(self.persist_directory), str(backup_dir))
+                            logger.error(
+                                f"Chroma sysdb incompatible al operar la colección ({msg}). Persist moved to: {backup_dir}. "
+                                "Reinicializando colección limpia."
+                            )
+                        # Recrear store limpio
+                        self.persist_directory.mkdir(parents=True, exist_ok=True)
+                        self.store = Chroma(
+                            persist_directory=str(self.persist_directory),
+                            embedding_function=self.embedding_function,
+                            collection_name="rag_collection",
+                            collection_metadata={
+                                "hnsw:space": self.distance_strategy,
+                                "hnsw:construction_ef": 200,
+                                "hnsw:search_ef": 128,
+                                "hnsw:M": 16
+                            }
+                        )
+                        logger.info("VectorStore reinicializado tras incompatibilidad de esquema.")
+                    except Exception as retry_err:
+                        logger.error(f"Fallo al reinicializar VectorStore tras incompatibilidad: {retry_err}", exc_info=True)
+                        raise retry_err
+                else:
+                    raise col_err
                 
         except Exception as e:
             logger.error(f"Error inicializando vector store: {str(e)}", exc_info=True)
@@ -236,33 +335,13 @@ class VectorStore:
         except Exception as e:
             logger.error(f"Error al obtener embedding: {str(e)}", exc_info=True)
             # Devolver un array de ceros para evitar que el programa se caiga
-            # Asumiendo una dimensión de embedding común, ajustar si es necesario
-            # Esto puede llevar a resultados de búsqueda pobres para este documento
+            # Unificar fallback: usar la dimensión configurada en settings.default_embedding_dimension
             try:
-                 # Intentar obtener la dimensión del embedding si es posible
-                 # Podrías necesitar ajustar cómo obtener esta dimensión si no está fija
-                 dummy_content = "temp"
-                 dummy_emb = self.embedding_function.embed_query(dummy_content) if hasattr(self.embedding_function, 'embed_query') else self.embedding_function.encode([dummy_content])
-                 if asyncio.iscoroutine(dummy_emb):
-                      dummy_emb = await dummy_emb
-                 if isinstance(dummy_emb, list):
-                      dummy_emb = np.array(dummy_emb)
-                 elif isinstance(dummy_emb, np.ndarray):
-                      pass # Ya es un array
-                 else:
-                      # Fallback a una dimensión predeterminada si no se puede obtener
-                      dummy_emb = np.zeros(settings.default_embedding_dimension) # Asume que tienes settings.default_embedding_dimension configurado
-                 
-                 logger.warning("Devolviendo embedding de ceros debido a un error.")
-                 return np.zeros(dummy_emb.shape)
-                 
-            except Exception as fe:
-                 logger.error(f"Error adicional al crear embedding de ceros: {fe}")
-                 # Fallback final a un array de ceros de dimensión fija si todo falla
-                 # DEBES AJUSTAR ESTA DIMENSIÓN SI NO TIENES settings.default_embedding_dimension
-                 fallback_dimension = 384 # Dimensión común para all-MiniLM-L6-v2
-                 logger.warning(f"Devolviendo embedding de ceros de dimensión {fallback_dimension} debido a errores múltiples.")
-                 return np.zeros(fallback_dimension)
+                dim = int(getattr(settings, "default_embedding_dimension", 1536))
+            except Exception:
+                dim = 1536
+            logger.warning(f"Devolviendo embedding de ceros (dimensión={dim}) debido a un error.")
+            return np.zeros(dim, dtype=np.float32)
                  
 
     async def retrieve(
@@ -611,8 +690,10 @@ class VectorStore:
         for doc in docs:
             # Eliminar embeddings de los metadatos para ahorrar espacio
             metadata = doc.metadata.copy()
-            if 'embedding' in metadata:
-                del metadata['embedding']
+            # Conservar embeddings si está habilitado en settings
+            if not getattr(settings, "cache_store_embeddings", True):
+                if 'embedding' in metadata:
+                    del metadata['embedding']
                 
             serializable.append({
                 'page_content': doc.page_content,
@@ -651,17 +732,61 @@ class VectorStore:
             raise
 
     async def delete_collection(self) -> None:
-        """Elimina toda la colección."""
+        """Elimina completamente la colección y borra el directorio persistente."""
         try:
-            # Usar la API correcta de Chroma para eliminar la colección
-            client = self.store._client if hasattr(self.store, '_client') else self.store._collection._client
-            client.delete_collection("rag_collection")
+            persist_path = self.persist_directory
+
+            # 🔥 Intentar borrar colección en Chroma primero, luego soltar referencias
+            client = None
+            try:
+                if hasattr(self, "store") and self.store is not None:
+                    client = getattr(self.store, "_client", None)
+                    if client:
+                        try:
+                            client.delete_collection("rag_collection")
+                            logger.info("Colección 'rag_collection' eliminada vía cliente de Chroma.")
+                        except Exception as e:
+                            logger.warning(f"Fallo al borrar colección vía cliente: {e}")
+                    # Soltar referencias a la colección para liberar locks de sqlite
+                    try:
+                        if hasattr(self.store, "_collection"):
+                            self.store._collection = None
+                    except Exception as e:
+                        logger.warning(f"No se pudo limpiar referencia a _collection: {e}")
+            finally:
+                # Asegurar que self.store se suelta para evitar manejadores abiertos
+                try:
+                    self.store = None
+                except Exception:
+                    pass
+
+            # 🧹 Eliminar directorio físico
+            import shutil, time
+            if persist_path.exists():
+                # Reintento con espera corta por si el archivo aún está bloqueado
+                for attempt in range(3):
+                    try:
+                        shutil.rmtree(persist_path, ignore_errors=False)
+                        logger.info(f"Directorio persistente eliminado: {persist_path}")
+                        break
+                    except PermissionError as err:
+                        logger.warning(f"Intento {attempt+1}: persist directory bloqueado ({err}), reintentando...")
+                        time.sleep(0.5)
+                    except Exception as err:
+                        logger.warning(f"Intento {attempt+1}: error al eliminar directorio ({err}), reintentando...")
+                        time.sleep(0.5)
+                else:
+                    logger.error(f"No se pudo eliminar el directorio después de 3 intentos: {persist_path}")
+
+            #  Reinicializar limpio
             self._initialize_store()
             await self._invalidate_cache()
-            logger.info("Colección eliminada y reinicializada")
+            logger.info("Colección eliminada y vector store reinicializado desde cero.")
+
         except Exception as e:
-            logger.error(f"Error eliminando colección: {str(e)}")
+            logger.error(f"Error eliminando colección: {str(e)}", exc_info=True)
             raise
+
 
     def __del__(self):
         """Limpieza al destruir la instancia."""

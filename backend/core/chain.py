@@ -26,7 +26,6 @@ class ChainManager:
             settings: Optional[Settings] = None,
             model_type: Optional[ModelTypes] = None,
             tools_list: Optional[List[Any]] = None,
-            custom_bot_personality_str: Optional[str] = None,
             model_kwargs_override: Optional[dict] = None
     ):
         self.settings = settings if settings is not None else app_settings
@@ -207,9 +206,14 @@ class ChainManager:
             self.logger.warning("El prompt no incluye la variable 'context'. Añadiéndola...")
             template = self._raw_prompt_template.template
             if "{context}" not in template:
-                template = "Contexto de la conversación:\n{context}\n\n" + template
+                template = (
+                    "Contexto de la conversación:\n{context}\n\n"
+                    "Instrucciones de grounding: Si el contexto anterior contiene información relevante, responde EXCLUSIVAMENTE basándote en él. "
+                    "Si el contexto no cubre la pregunta, dilo claramente y NO inventes ni uses conocimiento general.\n\n"
+                    + template
+                )
             self._raw_prompt_template = PromptTemplate.from_template(template)
-        
+
         # Asegurarnos de que el prompt incluya el historial
         if "history" not in self._raw_prompt_template.input_variables:
             self.logger.warning("El prompt no incluye la variable 'history'. Añadiéndola...")
@@ -217,7 +221,10 @@ class ChainManager:
             if "{history}" not in template:
                 template = "Historial de la conversación:\n{history}\n\n" + template
             self._raw_prompt_template = PromptTemplate.from_template(template)
-        
+
+        # Recalcular el prompt parcial tras modificar la plantilla cruda
+        self._prompt = self._raw_prompt_template.partial(**self.prompt_input_variables)
+
         self.chain: Runnable = (self._prompt | self._base_model)
         self.chain = self.chain.with_config(run_name="AgentPromptAndModel")
 
@@ -225,44 +232,4 @@ class ChainManager:
     def runnable_chain(self) -> Runnable:
         return self.chain
 
-    async def invoke_chain(self, input_dict: Dict[str, Any]) -> Message:
-        """Invoca la cadena con el contexto y el historial."""
-        try:
-            # Asegurarnos de que el contexto esté presente
-            if "context" not in input_dict:
-                input_dict["context"] = "No hay contexto disponible."
-            
-            # Asegurarnos de que el historial esté presente
-            if "history" not in input_dict:
-                input_dict["history"] = "No hay historial disponible."
-            
-            # Combinar contexto e historial si son diferentes
-            if input_dict["context"] != input_dict["history"]:
-                input_dict["context"] = f"{input_dict['context']}\n\n{input_dict['history']}"
-            
-            llm_output = await self.chain.ainvoke(input_dict)
-            
-            if hasattr(llm_output, 'content'):
-                output_content = llm_output.content
-            elif isinstance(llm_output, dict) and 'text' in llm_output:
-                output_content = llm_output['text']
-            else:
-                output_content = str(llm_output)
-            
-            # Limpiar la respuesta de cualquier formato de prompt
-            if "Final Answer:" in output_content:
-                output_content = output_content.split("Final Answer:")[-1].strip()
-            if "Tu respuesta final y completa" in output_content:
-                output_content = output_content.split("Tu respuesta final y completa")[-1].strip()
-            
-            return Message(message=output_content, role="assistant")
-            
-        except Exception as e:
-            self.logger.error(f"Error en invoke_chain: {str(e)}", exc_info=True)
-            raise
-
-    def stream_chain(self, input_dict: Dict[str, Any]):
-        return self.chain.astream_log(
-            input_dict,
-            include_names=["StreamResponse"]
-        )
+    # Métodos legacy eliminados por no uso: invoke_chain(), stream_chain()

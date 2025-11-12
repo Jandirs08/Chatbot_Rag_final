@@ -16,6 +16,7 @@ import {
   Users,
   MessageCircle,
 } from "lucide-react";
+import { Monitor, Upload, Clock, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useRequireAuth } from "../hooks";
 
@@ -69,14 +70,14 @@ export default function Dashboard() {
     {
       title: "Ver Widget",
       description: "Previsualiza y obtén el código del iframe",
-      icon: Bot,
+      icon: Monitor,
       href: "/widget",
       gradient: "gradient-primary",
     },
     {
-      title: "Subir PDF",
+      title: "Subir un nuevo PDF",
       description: "Añade nuevo contenido al conocimiento del bot",
-      icon: FileText,
+      icon: Upload,
       href: "/Documents",
       gradient: "gradient-secondary",
     },
@@ -93,7 +94,7 @@ export default function Dashboard() {
     <div className="space-y-8 animate-fade-in">
       {/* Header */}
       <div className="space-y-2">
-        <h1 className="text-4xl font-bold text-foreground">Dashboard</h1>
+        <h1 className="text-5xl font-bold text-foreground">Dashboard</h1>
         <p className="text-xl text-muted-foreground">
           Gestiona tu chatbot RAG de Becas Grupo Romero
         </p>
@@ -125,61 +126,54 @@ export default function Dashboard() {
         </CardHeader>
         <CardContent>
           <div
-            className={`flex items-center justify-between p-5 rounded-lg border shadow-sm transition-colors ${
-              isBotActive
-                ? "bg-white dark:bg-neutral-900 border-green-400 dark:border-green-700"
-                : "bg-white dark:bg-neutral-900 border-red-400 dark:border-red-700"
-            }`}
+            className={`flex items-center justify-between p-4 rounded-xl border border-[#f0f0f0] shadow-[0_1px_3px_rgba(0,0,0,0.08)] bg-white`}
           >
             <div className="flex items-center gap-3">
               <div
                 className={`w-3 h-3 rounded-full ${
-                  isBotActive ? "bg-green-500 animate-pulse" : "bg-red-500"
+                  isBotActive ? "bg-[#da5b3e] animate-pulse" : "bg-gray-400"
                 }`}
               ></div>
               <div>
                 <p
-                  className={`font-medium ${
-                    isBotActive
-                      ? "text-green-800 dark:text-green-200"
-                      : "text-red-800 dark:text-red-200"
-                  }`}
+                  className={`font-medium text-[#333]`}
                 >
                   {isBotActive ? "Bot Respondiendo" : "Bot Pausado"}
                 </p>
                 <p
-                  className={`text-sm ${
-                    isBotActive
-                      ? "text-green-600 dark:text-green-400"
-                      : "text-red-600 dark:text-red-400"
+                  className={`flex items-center gap-2 text-base font-semibold ${
+                    isBotActive ? "text-[#da5b3e]" : "text-gray-500"
                   }`}
                 >
-                  {isBotActive
-                    ? "Respondiendo consultas normalmente"
-                    : "Las consultas mostrarán mensaje de inactividad"}
+                  {isBotActive ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Respondiendo...</span>
+                    </>
+                  ) : (
+                    <span>Las consultas mostrarán mensaje de inactividad</span>
+                  )}
                 </p>
               </div>
             </div>
-            <div
-              className={`text-right text-sm ${
-                isBotActive
-                  ? "text-green-600 dark:text-green-400"
-                  : "text-red-600 dark:text-red-400"
-              }`}
-            >
-              <p>Última actividad: Hace 2 min</p>
-              <p>Temperatura: 0.7</p>
+            <div className={`text-right text-sm text-muted-foreground`}>
+              <p className="flex items-center justify-end gap-2 text-muted-foreground">
+                <Clock className="w-4 h-4" />
+                <span>Última actividad: Hace 2 min</span>
+              </p>
+              <p className="text-muted-foreground">Temperatura: 0.7</p>
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <hr className="my-6 border-t border-border/60" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
         {stats.map((stat, index) => (
           <Card
             key={index}
-            className="hover:shadow-lg transition-all duration-300 border-border/50"
+            className="hover:shadow-xl transition-all duration-300 border border-border/60 shadow-sm"
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -188,7 +182,7 @@ export default function Dashboard() {
               <stat.icon className={`h-4 w-4 ${stat.color}`} />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">
+              <div className="text-4xl font-bold text-foreground">
                 {stat.value}
               </div>
               <p className="text-xs text-muted-foreground mt-1">

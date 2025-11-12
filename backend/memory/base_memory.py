@@ -15,7 +15,6 @@ class ContextManager(Protocol):
     def update(self, session_id: str, data: Dict[str, Any]) -> None: ...
     def get(self, session_id: str) -> Dict[str, Any]: ...
 
-from pydantic import BaseModel, ConfigDict, Field
 
 class AbstractChatbotMemory(ABC):
     """Clase base abstracta para la memoria del chatbot"""

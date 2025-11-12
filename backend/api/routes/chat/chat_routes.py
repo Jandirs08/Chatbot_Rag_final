@@ -25,7 +25,7 @@ router = APIRouter()
 # 🌐 NOTA: Todas las rutas de este módulo son PÚBLICAS
 # No requieren autenticación para permitir acceso libre al chat
 
-@router.post("/stream_log")
+@router.post("/")
 async def chat_stream_log(request: Request):
     """Endpoint para chat con streaming y logging."""
     chat_manager = request.app.state.chat_manager
