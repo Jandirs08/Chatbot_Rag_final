@@ -10,6 +10,12 @@ from dotenv import load_dotenv
 env_path = Path(__file__).parent / '.env'
 load_dotenv(env_path)
 
+print("=== DEBUG DOTENV ===")
+print("RAG_CHUNK_SIZE raw env:", os.getenv("RAG_CHUNK_SIZE"))
+print("RAG_CHUNK_OVERLAP raw env:", os.getenv("RAG_CHUNK_OVERLAP"))
+print("MIN_CHUNK_LENGTH raw env:", os.getenv("MIN_CHUNK_LENGTH"))
+print("=====================")
+
 class Settings(BaseSettings):
     """Configuraciones de la aplicación."""
     # Pydantic v2 / pydantic-settings config
@@ -75,7 +81,7 @@ class Settings(BaseSettings):
     # Dynamic UI-driven config (complemento seguro)
     bot_name: Optional[str] = Field(default=None, env="BOT_NAME")
     ui_prompt_extra: Optional[str] = Field(default=None)
-    main_prompt_name: str = Field(default="ASESOR_ACADEMICO_REACT_PROMPT", env="MAIN_PROMPT_NAME")
+    main_prompt_name: str = Field(default="BASE_PROMPT_TEMPLATE", env="MAIN_PROMPT_NAME")
     ai_prefix: str = Field(default="assistant", env="AI_PREFIX")
     human_prefix: str = Field(default="user", env="HUMAN_PREFIX")
     
@@ -99,10 +105,10 @@ class Settings(BaseSettings):
     max_memory_entries: int = Field(default=1000, env="MAX_MEMORY_ENTRIES")
     
     # Configuraciones de RAG - Procesamiento de PDFs
-    chunk_size: int = Field(default=1000, env="RAG_CHUNK_SIZE")
-    chunk_overlap: int = Field(default=150, env="RAG_CHUNK_OVERLAP")
-    min_chunk_length: int = Field(default=100, env="MIN_CHUNK_LENGTH")
-    max_file_size_mb: int = Field(default=10, env="MAX_FILE_SIZE_MB")
+    chunk_size: int = Field(default=1000, validation_alias="RAG_CHUNK_SIZE")
+    chunk_overlap: int = Field(default=150, validation_alias="RAG_CHUNK_OVERLAP")
+    min_chunk_length: int = Field(default=100, validation_alias="MIN_CHUNK_LENGTH")
+    max_file_size_mb: int = Field(default=10, validation_alias="MAX_FILE_SIZE_MB")
     
     # Configuraciones de RAG - Recuperación
     retrieval_k: int = Field(default=4, env="RETRIEVAL_K")
@@ -112,7 +118,7 @@ class Settings(BaseSettings):
     
     # Configuraciones de RAG - Ingesta
     batch_size: int = Field(default=100, env="BATCH_SIZE")
-    deduplication_threshold: float = Field(default=0.95, env="DEDUP_THRESHOLD")
+    deduplication_threshold: float = Field(default=0.95, validation_alias="DEDUP_THRESHOLD")
     # DEPRECATED: Concurrencia de ingestor no utilizada
     # max_concurrent_tasks: int = Field(default=4, env="MAX_CONCURRENT_TASKS")
     

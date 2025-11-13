@@ -61,52 +61,9 @@ Thought: {agent_scratchpad}"""
 
 # Prompt principal del asesor académico (mantenido por compatibilidad)
 ASESOR_ACADEMICO_REACT_PROMPT = BASE_PROMPT_TEMPLATE
-
-def get_asesor_academico_prompt(tools: str, tool_names: str, history: str, input_text: str, agent_scratchpad: str) -> str:
-    """
-    Genera el prompt del asesor académico con todos los parámetros necesarios.
-    
-    Args:
-        tools: Descripción de las herramientas disponibles
-        tool_names: Lista de nombres de herramientas
-        history: Historial de la conversación
-        input_text: Entrada del usuario
-        agent_scratchpad: Espacio de trabajo del agente
-    
-    Returns:
-        str: Prompt completo del asesor académico
-    """
-    return BASE_PROMPT_TEMPLATE.format(
-        nombre=BOT_NAME,
-        bot_personality=BOT_PERSONALITY.format(nombre=BOT_NAME),
-        tools=tools,
-        tool_names=tool_names,
-        history=history,
-        input=input_text,
-        agent_scratchpad=agent_scratchpad
-    )
-
-def get_custom_prompt(nombre: str, tools: str, tool_names: str, history: str, input_text: str, agent_scratchpad: str) -> str:
-    """
-    Genera un prompt personalizado con un nombre diferente pero manteniendo la misma personalidad base.
-    
-    Args:
-        nombre: Nombre personalizado para el bot
-        tools: Descripción de las herramientas disponibles
-        tool_names: Lista de nombres de herramientas
-        history: Historial de la conversación
-        input_text: Entrada del usuario
-        agent_scratchpad: Espacio de trabajo del agente
-    
-    Returns:
-        str: Prompt personalizado
-    """
-    return BASE_PROMPT_TEMPLATE.format(
-        nombre=nombre,
-        bot_personality=BOT_PERSONALITY.format(nombre=nombre),
-        tools=tools,
-        tool_names=tool_names,
-        history=history,
-        input=input_text,
-        agent_scratchpad=agent_scratchpad
-    )
+__all__ = [
+    "BOT_NAME",
+    "BOT_PERSONALITY",
+    "BASE_PROMPT_TEMPLATE",
+    "ASESOR_ACADEMICO_REACT_PROMPT",
+]

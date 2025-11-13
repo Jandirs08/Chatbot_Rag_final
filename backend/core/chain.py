@@ -105,13 +105,7 @@ class ChainManager:
                 ('BOT_NAME', prompt_module.BOT_NAME),
                 ('BOT_PERSONALITY', prompt_module.BOT_PERSONALITY),
                 ('BASE_PROMPT_TEMPLATE', prompt_module.BASE_PROMPT_TEMPLATE),
-                ('ASESOR_ACADEMICO_REACT_PROMPT', prompt_module.ASESOR_ACADEMICO_REACT_PROMPT)
-            ]
-
-            # Verificar que todas las funciones necesarias existan
-            required_functions = [
-                'get_asesor_academico_prompt',
-                'get_custom_prompt'
+                ('ASESOR_ACADEMICO_REACT_PROMPT', getattr(prompt_module, 'ASESOR_ACADEMICO_REACT_PROMPT', None))
             ]
 
             # Verificar constantes
@@ -119,10 +113,8 @@ class ChainManager:
                 if not value:
                     raise ValueError(f"Componente requerido '{name}' está vacío o no definido")
 
-            # Verificar funciones
-            for func_name in required_functions:
-                if not hasattr(prompt_module, func_name):
-                    raise ValueError(f"Función requerida '{func_name}' no encontrada")
+            # Las funciones legacy de construcción de prompts fueron eliminadas por no uso
+            # (get_asesor_academico_prompt, get_custom_prompt). Mantener solo constantes.
 
             # Si todo está bien, mostrar mensaje de éxito
             print(f"\n{Fore.GREEN}{'='*80}")
@@ -130,7 +122,7 @@ class ChainManager:
             print(f"{Fore.GREEN}✓ Nombre del Bot: {prompt_module.BOT_NAME}")
             print(f"{Fore.GREEN}✓ Personalidad Base: Cargada")
             print(f"{Fore.GREEN}✓ Plantilla Base: Cargada")
-            print(f"{Fore.GREEN}✓ Funciones de Prompt: Cargadas")
+            print(f"{Fore.GREEN}✓ Funciones legacy removidas; usando plantilla base única")
             print(f"{Fore.GREEN}{'='*80}{Style.RESET_ALL}\n")
 
         except Exception as e:

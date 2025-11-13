@@ -25,9 +25,11 @@ class PDFContentLoader:
     ):
         from config import settings  # evitar ciclos
 
-        self.chunk_size = chunk_size or settings.chunk_size or 1000
-        self.chunk_overlap = chunk_overlap or settings.chunk_overlap or 180
-        self.min_chunk_length = min_chunk_length or settings.min_chunk_length or 100
+        # Usar estrictamente los valores provistos o los de settings;
+        # evitar defaults internos inconsistentes.
+        self.chunk_size = chunk_size if chunk_size is not None else settings.chunk_size
+        self.chunk_overlap = chunk_overlap if chunk_overlap is not None else settings.chunk_overlap
+        self.min_chunk_length = min_chunk_length if min_chunk_length is not None else settings.min_chunk_length
 
         # Splitter estable sin destruir estructura
         self.text_splitter = RecursiveCharacterTextSplitter(
@@ -43,11 +45,8 @@ class PDFContentLoader:
             ]
         )
 
-        print(
-            f"[PDFContentLoader INIT] chunk_size={self.chunk_size} | "
-            f"overlap={self.chunk_overlap} | min_chunk_length={self.min_chunk_length}",
-            file=sys.stderr,
-            flush=True
+        logger.info(
+            f"[PDFContentLoader INIT] chunk_size={self.chunk_size} | overlap={self.chunk_overlap} | min_chunk_length={self.min_chunk_length}"
         )
 
     # ============================================================
