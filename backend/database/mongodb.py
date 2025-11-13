@@ -114,7 +114,6 @@ class MongodbClient:
             logger.error(f"❌ Error aplicando índices MongoDB: {str(e)}")
             raise
 
-    # Método de limpiar historial eliminado: no requerido por la aplicación
     
     async def format_history(self, conversation_id: str) -> str:
         """Format the chat history for use in prompts.

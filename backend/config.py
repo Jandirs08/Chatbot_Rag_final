@@ -10,12 +10,6 @@ from dotenv import load_dotenv
 env_path = Path(__file__).parent / '.env'
 load_dotenv(env_path)
 
-print("=== DEBUG DOTENV ===")
-print("RAG_CHUNK_SIZE raw env:", os.getenv("RAG_CHUNK_SIZE"))
-print("RAG_CHUNK_OVERLAP raw env:", os.getenv("RAG_CHUNK_OVERLAP"))
-print("MIN_CHUNK_LENGTH raw env:", os.getenv("MIN_CHUNK_LENGTH"))
-print("=====================")
-
 class Settings(BaseSettings):
     """Configuraciones de la aplicación."""
     # Pydantic v2 / pydantic-settings config
@@ -45,13 +39,7 @@ class Settings(BaseSettings):
     client_origin_url: Optional[str] = Field(default=None, env="CLIENT_ORIGIN_URL")
     cors_max_age: int = Field(default=3600, env="CORS_MAX_AGE")
     
-    # DEPRECATED: Rate Limiting (decoradores comentados, no activo)
-    # rate_limit: int = Field(default=100, env="RATE_LIMIT")
     
-    # SSL - Configuraciones para HTTPS
-    # DEPRECATED: SSL direct en Uvicorn no usado (usar proxy TLS)
-    # ssl_keyfile: Optional[str] = Field(default=None, env="SSL_KEYFILE")
-    # ssl_certfile: Optional[str] = Field(default=None, env="SSL_CERTFILE")
     
     # Configuraciones de la App
     app_title: str = Field(default="ChatBot RAG API")
@@ -62,12 +50,7 @@ class Settings(BaseSettings):
     
     # Configuraciones de Logging
     log_level: str = Field(default="DEBUG", env="LOG_LEVEL")
-    # DEPRECATED: `LOG_FILE` y `LOG_FORMAT` no se consumen (se usa logging_utils con LOG_LEVEL)
-    # log_file: str = Field(default="app.log", env="LOG_FILE")
-    # log_format: str = Field(
-    #     default="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    #     env="LOG_FORMAT"
-    # )
+    
     
     # Configuraciones del Modelo
     model_type: str = Field(default="OPENAI", env="MODEL_TYPE")
@@ -75,8 +58,7 @@ class Settings(BaseSettings):
     base_model_name: str = Field(default="gpt-3.5-turbo", env="BASE_MODEL_NAME")
     max_tokens: int = Field(default=2000, env="MAX_TOKENS")
     temperature: float = Field(default=0.7, env="TEMPERATURE")
-    # DEPRECATED: `BOT_PERSONALITY_NAME` no se usa; la personalidad base viene de core/prompt.py
-    # bot_personality_name: Optional[str] = Field(default=None, env="BOT_PERSONALITY_NAME")
+    
     system_prompt: Optional[str] = Field(default=None, env="SYSTEM_PROMPT")
     # Dynamic UI-driven config (complemento seguro)
     bot_name: Optional[str] = Field(default=None, env="BOT_NAME")
@@ -89,16 +71,14 @@ class Settings(BaseSettings):
     # Canonizamos a `MONGO_URI` (como en docker-compose), con fallback a `MONGODB_URI`
     mongo_uri: Optional[SecretStr] = Field(default=None, env="MONGO_URI")
     mongo_database_name: str = Field(default="chatbot_rag_db", env="MONGO_DATABASE_NAME")
-    mongo_collection_name: str = Field(default="chat_history", env="MONGO_COLLECTION_NAME") # <--- AÑADIR ESTA LÍNEA
+    mongo_collection_name: str = Field(default="chat_history", env="MONGO_COLLECTION_NAME")
     mongo_max_pool_size: int = Field(default=100, env="MONGO_MAX_POOL_SIZE")
     mongo_timeout_ms: int = Field(default=5000, env="MONGO_TIMEOUT_MS")
     
     # Configuraciones de Redis
     # Nota: Se usa redis_url como configuración principal, no configuraciones individuales
     redis_url: Optional[SecretStr] = Field(default=None, env="REDIS_URL")
-    # DEPRECATED: TTL/Memoria específicas de Redis (se usa `CACHE_TTL` consolidado)
-    # redis_ttl: int = Field(default=3600, env="REDIS_TTL")
-    # redis_max_memory: str = Field(default="2gb", env="REDIS_MAX_MEMORY")
+    
     
     # Configuraciones de Memoria
     memory_type: str = Field(default="BASE_MEMORY", env="MEMORY_TYPE")
@@ -119,8 +99,7 @@ class Settings(BaseSettings):
     # Configuraciones de RAG - Ingesta
     batch_size: int = Field(default=100, env="BATCH_SIZE")
     deduplication_threshold: float = Field(default=0.95, validation_alias="DEDUP_THRESHOLD")
-    # DEPRECATED: Concurrencia de ingestor no utilizada
-    # max_concurrent_tasks: int = Field(default=4, env="MAX_CONCURRENT_TASKS")
+    
     
     # Configuraciones de RAG - Vector Store
     vector_store_path: str = Field(default="./backend/storage/vector_store/chroma_db", env="VECTOR_STORE_PATH")
@@ -133,16 +112,15 @@ class Settings(BaseSettings):
     default_embedding_dimension: int = Field(default=1536, env="DEFAULT_EMBEDDING_DIMENSION")
 
     # Configuraciones de caché locales (VectorStore / consultas)
-    # Tamaño máximo del caché en memoria para resultados de búsqueda
     max_cache_size: int = Field(default=1024, env="MAX_CACHE_SIZE")
-    # Almacenar embeddings dentro del caché del VectorStore para evitar recomputación
+    
     cache_store_embeddings: bool = Field(default=True, env="CACHE_STORE_EMBEDDINGS")
     
     # Configuraciones de RAG - Caché
     enable_cache: bool = Field(default=True, env="ENABLE_CACHE")
     cache_ttl: int = Field(default=3600, env="CACHE_TTL")  # 1 hora por defecto
     
-    # Feature Flag: Integración LCEL del RAG (PR4)
+    # Feature Flag: Integración LCEL del RAG
     enable_rag_lcel: bool = Field(default=False, env="ENABLE_RAG_LCEL")
     
     # Configuraciones de Directorios
@@ -153,10 +131,7 @@ class Settings(BaseSettings):
     temp_dir: str = Field(default="./backend/storage/temp", env="TEMP_DIR")
     backup_dir: str = Field(default="./backend/storage/backups", env="BACKUP_DIR")
     
-    # DEPRECATED: Métricas/Tracing no instrumentados (solo logging)
-    # enable_metrics: bool = Field(default=True, env="ENABLE_METRICS")
-    # metrics_port: int = Field(default=9090, env="METRICS_PORT")
-    # enable_tracing: bool = Field(default=False, env="ENABLE_TRACING")
+    
 
     # Configuración personalizada para cantidad máxima de documentos recuperados
     max_documents: int = Field(default=5, env="MAX_DOCUMENTS")

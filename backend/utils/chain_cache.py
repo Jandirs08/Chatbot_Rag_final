@@ -169,5 +169,3 @@ class ChatbotCache:
             "ttl": self.settings.cache_ttl
         })
         return metrics
-
-    # Métodos auxiliares no utilizados eliminados: clear_cache(), log_metrics().

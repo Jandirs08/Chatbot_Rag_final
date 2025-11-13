@@ -8,7 +8,6 @@ from colorama import Fore, Style
 
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableLambda, Runnable
-# from langchain_core.tracers.context import wait_for_all_tracers # COMMENTED OUT
 
 from common.objects import Message
 from models import ModelTypes, MODEL_TO_CLASS
@@ -113,8 +112,7 @@ class ChainManager:
                 if not value:
                     raise ValueError(f"Componente requerido '{name}' está vacío o no definido")
 
-            # Las funciones legacy de construcción de prompts fueron eliminadas por no uso
-            # (get_asesor_academico_prompt, get_custom_prompt). Mantener solo constantes.
+            
 
             # Si todo está bien, mostrar mensaje de éxito
             print(f"\n{Fore.GREEN}{'='*80}")

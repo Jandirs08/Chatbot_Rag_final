@@ -22,7 +22,6 @@ router = APIRouter(tags=["pdfs"])
 # Solo usuarios admin autenticados pueden acceder a estos endpoints
 
 @router.post("/upload", response_model=PDFUploadResponse)
-# @rate_limit(max_requests=10, window_seconds=60) # Comentado temporalmente
 async def upload_pdf(
     request: Request,
     background_tasks: BackgroundTasks,
@@ -70,8 +69,6 @@ async def upload_pdf(
         )
 
 @router.get("/list", response_model=PDFListResponse)
-# @cache_response(expire=60)  # Cache por 1 minuto # Comentado temporalmente
-# @rate_limit(max_requests=30, window_seconds=60) # Comentado temporalmente
 async def list_pdfs(request: Request):
     """Endpoint para listar los PDFs disponibles."""
     pdf_file_manager = request.app.state.pdf_file_manager
@@ -94,7 +91,6 @@ async def list_pdfs(request: Request):
         )
 
 @router.delete("/{filename}", response_model=PDFDeleteResponse)
-# @rate_limit(max_requests=10, window_seconds=60) # Comentado temporalmente
 async def delete_pdf(
     request: Request,
     filename: str

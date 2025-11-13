@@ -8,41 +8,31 @@ import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from functools import wraps
 import statistics
+import json
 import asyncio
 
 from langchain_core.documents import Document
-# from langchain_community.vectorstores import Chroma # VectorStore lo abstrae
-# Eliminado: dependencias HuggingFace para embeddings locales
-# from langchain.text_splitter import RecursiveCharacterTextSplitter # Movido a PDFContentLoader
-# from langchain_community.document_loaders import PyPDFLoader # Movido a PDFContentLoader
 
-# from ...utils.pdf_utils import PDFProcessor # Eliminado, ya no se usa aquí
-# from ..embeddings.embedding_manager import EmbeddingManager # Necesario si se inicializa aquí explícitamente
 from ..vector_store.vector_store import VectorStore
 from config import settings
 
 logger = logging.getLogger(__name__)
 
 def measure_time(func):
-    """Decorador para medir el tiempo de ejecución de funciones."""
     @wraps(func)
     async def wrapper(*args, **kwargs):
+        self_obj = args[0] if args else None
         start_time = time.perf_counter()
-        result = await func(*args, **kwargs)
-        end_time = time.perf_counter()
-        execution_time = end_time - start_time
-        
-        # Registrar el tiempo de ejecución
-        if not hasattr(wrapper, 'times'):
-            wrapper.times = []
-        wrapper.times.append(execution_time)
-        
-        # Calcular estadísticas cada 10 ejecuciones
-        if len(wrapper.times) % 10 == 0:
-            avg_time = statistics.mean(wrapper.times[-10:])
-            logger.info(f"Tiempo promedio de {func.__name__} en las últimas 10 ejecuciones: {avg_time:.3f}s")
-        
-        return result
+        try:
+            return await func(*args, **kwargs)
+        finally:
+            end_time = time.perf_counter()
+            execution_time = end_time - start_time
+            if self_obj and hasattr(self_obj, "performance_metrics"):
+                try:
+                    self_obj.performance_metrics.add_metric('query_processing', execution_time)
+                except Exception:
+                    pass
     return wrapper
 
 class PerformanceMetrics:
@@ -141,7 +131,7 @@ class RAGRetriever:
         cache_start = time.perf_counter()
         if self.cache_enabled:
             try:
-                cached_results = self._get_from_cache(query, k)
+                cached_results = self._get_from_cache(query, k, filter_criteria)
                 if cached_results:
                     cache_time = time.perf_counter() - cache_start
                     self.performance_metrics.add_metric('cache_operations', cache_time)
@@ -207,7 +197,7 @@ class RAGRetriever:
             if self.cache_enabled and final_docs:
                 try:
                     cache_update_start = time.perf_counter()
-                    self._add_to_cache(query, final_docs)
+                    self._add_to_cache(query, k, filter_criteria, final_docs)
                     cache_update_time = time.perf_counter() - cache_update_start
                     self.performance_metrics.add_metric('cache_operations', cache_update_time)
                 except Exception as e:
@@ -460,10 +450,14 @@ class RAGRetriever:
         }
         return type_scores.get(content_type, 0.5)
 
-    def _get_from_cache(self, query: str, k: int) -> Optional[List[Document]]:
+    def _get_from_cache(self, query: str, k: int, filter_criteria: Optional[Dict[str, Any]] = None) -> Optional[List[Document]]:
         """Obtiene resultados del caché con manejo de errores mejorado."""
         try:
-            cache_key = f"{query}_{k}"
+            try:
+                filter_key = json.dumps(filter_criteria, sort_keys=True) if filter_criteria else ""
+            except Exception:
+                filter_key = str(filter_criteria) if filter_criteria is not None else ""
+            cache_key = f"{query}_{k}_{filter_key}"
             if cache_key in self._query_cache:
                 timestamp, results = self._query_cache[cache_key]
                 # Verificar si el caché ha expirado (5 minutos)
@@ -481,10 +475,14 @@ class RAGRetriever:
             logger.warning(f"Error al acceder al caché: {e}")
             return None
 
-    def _add_to_cache(self, query: str, docs: List[Document]) -> None:
+    def _add_to_cache(self, query: str, k: int, filter_criteria: Optional[Dict[str, Any]], docs: List[Document]) -> None:
         """Agrega resultados al caché con manejo de errores mejorado."""
         try:
-            cache_key = f"{query}_{len(docs)}"
+            try:
+                filter_key = json.dumps(filter_criteria, sort_keys=True) if filter_criteria else ""
+            except Exception:
+                filter_key = str(filter_criteria) if filter_criteria is not None else ""
+            cache_key = f"{query}_{k}_{filter_key}"
             import collections.abc
             if isinstance(docs, collections.abc.Awaitable):
                 logger.warning("Intento de almacenar una coroutine en caché, ignorado.")

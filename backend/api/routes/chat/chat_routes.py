@@ -16,9 +16,6 @@ from api.schemas import (
 
 from database.mongodb import MongodbClient
 
-# from ..chat.manager import ChatManager # Se inyectará desde el estado de la app
-# from ..rag.retrieval.retriever import RAGRetriever # Se inyectará desde el estado de la app
-
 logger = get_logger(__name__)
 router = APIRouter()
 
@@ -98,7 +95,6 @@ async def chat_stream_log(request: Request):
             content={"detail": f"Error interno del servidor en chat: {str(e)}"}
         )
 
-# Endpoint de limpiar historial eliminado: la app no persiste historial en UI
 
 @router.get("/export-conversations")
 async def export_conversations(request: Request):

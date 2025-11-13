@@ -3,9 +3,6 @@ import logging
 import datetime # Para convertir timestamp
 from fastapi import APIRouter, HTTPException, Request
 
-# from ..utils.pdf_utils import PDFProcessor # Se inyectará desde el estado de la app
-# from ..rag.retrieval.retriever import RAGRetriever # Se inyectará desde el estado de la app
-
 # Importar modelos Pydantic desde el módulo centralizado
 from api.schemas import (
     RAGStatusResponse,
@@ -29,7 +26,6 @@ router = APIRouter()
 async def rag_status(request: Request):
     """Endpoint para obtener el estado actual del RAG."""
     pdf_processor = request.app.state.pdf_processor
-    # rag_retriever = request.app.state.rag_retriever # No se usa directamente en este endpoint
     try:
         pdfs_raw = await pdf_processor.list_pdfs()
         vector_store_info_raw = pdf_processor.get_vector_store_info()
@@ -74,20 +70,41 @@ async def clear_rag(request: Request):
         # 2) Limpiar vector store completamente (sin residuos)
         await rag_retriever.vector_store.delete_collection()
         logger.info("Vector store limpiado y reinicializado")
+        # Limpiar estado interno del RAGRetriever para evitar resultados obsoletos
+        try:
+            if hasattr(rag_retriever, "_query_cache"):
+                rag_retriever._query_cache.clear()
+                logger.info("Caché interno de RAGRetriever limpiado")
+        except Exception as e:
+            logger.warning(f"No se pudo limpiar caché interno de RAGRetriever: {e}")
         # Consultar estado después de limpiar
         pdfs_after_clear = await pdf_processor.list_pdfs()
         vector_store_info_after_clear = pdf_processor.get_vector_store_info()
         remaining_pdfs_count = len(pdfs_after_clear)
         vector_store_size_after_clear = vector_store_info_after_clear.get("size", 0)
+        # Verificación robusta del estado del vector store: contar documentos en colección
+        collection_count_after_clear = 0
+        try:
+            vs = request.app.state.vector_store
+            store = getattr(vs, "store", None)
+            collection = getattr(store, "_collection", None) if store is not None else None
+            if collection is not None:
+                collection_count_after_clear = collection.count()
+        except Exception as e:
+            logger.warning(f"No se pudo verificar el conteo de la colección tras limpieza: {e}")
         logger.info(
-            f"Conteo tras limpieza — PDFs restantes: {remaining_pdfs_count}, tamaño del vector store: {vector_store_size_after_clear}"
+            f"Conteo tras limpieza — PDFs restantes: {remaining_pdfs_count}, tamaño del vector store: {vector_store_size_after_clear}, documentos en colección: {collection_count_after_clear}"
         )
         status_val = "success"
         message_val = "RAG limpiado exitosamente"
-        if remaining_pdfs_count > 0 or vector_store_size_after_clear > 0:
-            logger.warning("Algunos archivos no se pudieron limpiar completamente del RAG.")
+        # Éxito solo si no quedan PDFs y la colección vectorial está vacía
+        if remaining_pdfs_count > 0 or collection_count_after_clear > 0:
+            logger.warning("La limpieza del RAG detecta elementos remanentes (PDFs o documentos en vector store).")
             status_val = "warning"
-            message_val = "RAG limpiado parcialmente. Algunos archivos o datos del vector store no se pudieron eliminar."
+            message_val = (
+                "RAG limpiado parcialmente. Permanecen PDFs o documentos en el vector store. "
+                "Verifique directorio de PDFs y el estado del vector store."
+            )
         return ClearRAGResponse(
             status=status_val,
             message=message_val,
@@ -109,9 +126,13 @@ async def retrieve_debug(request: Request, payload: RetrieveDebugRequest):
     if rag_retriever is None:
         raise HTTPException(status_code=500, detail="RAGRetriever no está inicializado en la aplicación")
     try:
+        s = request.app.state.settings
+        requested_k = int(payload.k) if isinstance(payload.k, int) else 4
+        max_k_allowed = max(1, min(20, int(getattr(s, "retrieval_k", 4)) * int(getattr(s, "retrieval_k_multiplier", 3))))
+        safe_k = max(1, min(requested_k, max_k_allowed))
         trace = await rag_retriever.retrieve_with_trace(
             query=payload.query,
-            k=payload.k,
+            k=safe_k,
             filter_criteria=payload.filter_criteria,
             include_context=payload.include_context,
         )
@@ -120,7 +141,7 @@ async def retrieve_debug(request: Request, payload: RetrieveDebugRequest):
         ]
         return RetrieveDebugResponse(
             query=trace.get("query", payload.query),
-            k=trace.get("k", payload.k),
+            k=trace.get("k", safe_k),
             retrieved=items,
             context=trace.get("context"),
             timings=trace.get("timings", {}),

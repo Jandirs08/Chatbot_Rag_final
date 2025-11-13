@@ -33,9 +33,3 @@ class Message(BaseModel):
                 return ASSISTANT_ROLE
             raise ValueError(f"Role must be one of: {USER_ROLE}, {ASSISTANT_ROLE}")
         return v
-    
-
-
-# class ChatRequest(BaseModel): # Eliminado: Redundante con api/schemas.py
-#     input: str = Field(..., description="User message")
-#     conversation_id: Optional[str] = Field(default="default", description="Conversation ID")
