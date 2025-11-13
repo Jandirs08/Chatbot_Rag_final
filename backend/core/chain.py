@@ -74,6 +74,29 @@ class ChainManager:
         self._prompt = self._raw_prompt_template.partial(**self.prompt_input_variables)
         self._init_chain()
 
+    def update_tools(self, tools_list: Optional[List[Any]] = None) -> None:
+        """Actualiza las herramientas visibles en el prompt y recompone el parcial.
+
+        No altera el modelo ni la plantilla base. Mantiene compatibilidad con ReAct.
+        """
+        try:
+            if tools_list:
+                self.prompt_input_variables["tools"] = "\n".join(
+                    [f"{tool.name}: {tool.description}" for tool in tools_list]
+                )
+                self.prompt_input_variables["tool_names"] = ", ".join(
+                    [tool.name for tool in tools_list]
+                )
+            else:
+                self.prompt_input_variables["tools"] = ""
+                self.prompt_input_variables["tool_names"] = ""
+
+            # Reaplicar parcial sin modificar la plantilla cruda
+            self._prompt = self._raw_prompt_template.partial(**self.prompt_input_variables)
+            self.logger.info("Herramientas del prompt actualizadas correctamente.")
+        except Exception as e:
+            self.logger.warning(f"No se pudo actualizar herramientas del prompt: {e}")
+
     def _validate_prompt_components(self):
         """Valida que todos los componentes del prompt estén disponibles y muestra un log visible."""
         try:
@@ -213,6 +236,8 @@ class ChainManager:
                     + template
                 )
             self._raw_prompt_template = PromptTemplate.from_template(template)
+        else:
+            self.logger.debug("La plantilla de prompt ya incluye la variable 'context'.")
 
         # Asegurarnos de que el prompt incluya el historial
         if "history" not in self._raw_prompt_template.input_variables:
@@ -221,12 +246,20 @@ class ChainManager:
             if "{history}" not in template:
                 template = "Historial de la conversación:\n{history}\n\n" + template
             self._raw_prompt_template = PromptTemplate.from_template(template)
+        else:
+            self.logger.debug("La plantilla de prompt ya incluye la variable 'history'.")
 
         # Recalcular el prompt parcial tras modificar la plantilla cruda
         self._prompt = self._raw_prompt_template.partial(**self.prompt_input_variables)
 
         self.chain: Runnable = (self._prompt | self._base_model)
         self.chain = self.chain.with_config(run_name="AgentPromptAndModel")
+        try:
+            self.logger.info(
+                f"Cadena inicializada. Input vars: {self._raw_prompt_template.input_variables}"
+            )
+        except Exception:
+            pass
 
     @property
     def runnable_chain(self) -> Runnable:

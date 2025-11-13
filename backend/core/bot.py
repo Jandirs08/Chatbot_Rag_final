@@ -122,6 +122,12 @@ class Bot:
                     return ""
 
                 ctx = self.rag_retriever.format_context_from_documents(docs)
+                try:
+                    # Log detallado del contexto inyectado (truncado para evitar ruido)
+                    preview = (ctx[:200] + "…") if isinstance(ctx, str) and len(ctx) > 200 else ctx
+                    self.logger.debug(f"RAG LCEL contexto inyectado (len={len(ctx) if isinstance(ctx, str) else 'N/A'}): {preview}")
+                except Exception:
+                    pass
                 return ctx or ""
             except Exception as e:
                 self.logger.warning(f"RAG LCEL get_context_async falló: {e}")
@@ -150,6 +156,11 @@ class Bot:
             return_intermediate_steps=True,
             handle_parsing_errors=True,
         )
+        # Alinear herramientas visibles en el prompt con las registradas en el agente
+        try:
+            self.chain_manager.update_tools(self.tools)
+        except Exception:
+            pass
 
     def get_memory(
         self,
@@ -185,13 +196,8 @@ class Bot:
         """Llama al agente LCEL completo."""
         try:
             conversation_id = x.get("conversation_id", "default_session")
-            history = await self.memory.get_history(conversation_id)
-            history_str = self._format_history_to_string(history)
-
             agent_input = {
                 "input": x["input"],
-                "history": history_str,
-                "context": "",  # LCEL inyecta el contexto real internamente
                 "conversation_id": conversation_id,
             }
 

@@ -127,8 +127,14 @@ async def lifespan(app: FastAPI):
         app.state.pdf_file_manager = PDFManager(base_dir=Path(s.pdfs_dir).resolve() if s.pdfs_dir else None)
         logger.info(f"PDFManager inicializado. Directorio de PDFs: {app.state.pdf_file_manager.pdf_dir}")
 
-        app.state.pdf_content_loader = PDFContentLoader(chunk_size=s.chunk_size, chunk_overlap=s.chunk_overlap)
-        logger.info(f"PDFContentLoader inicializado con chunk_size={s.chunk_size}, overlap={s.chunk_overlap}")
+        app.state.pdf_content_loader = PDFContentLoader(
+            chunk_size=s.chunk_size,
+            chunk_overlap=s.chunk_overlap,
+            min_chunk_length=s.min_chunk_length,
+        )
+        logger.info(
+            f"PDFContentLoader inicializado con chunk_size={s.chunk_size}, overlap={s.chunk_overlap}, min_chunk_length={s.min_chunk_length}"
+        )
 
         app.state.embedding_manager = EmbeddingManager(model_name=s.embedding_model)
         logger.info(f"EmbeddingManager inicializado con modelo: {s.embedding_model}")

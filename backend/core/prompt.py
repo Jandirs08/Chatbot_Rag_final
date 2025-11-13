@@ -40,7 +40,7 @@ Herramientas disponibles:
 
 Usa el siguiente formato para tu proceso de pensamiento:
 
-Thought: Necesito usar una herramienta para responder a esta consulta específica o puedo responder basándome en la información general y el historial de conversación? Si la consulta es sobre información muy específica que podría estar en una base de conocimientos (y tengo una herramienta para buscarla), entonces sí. Para saludos, preguntas generales sobre ti, o si el historial ya provee la respuesta, probablemente no.
+Thought: Necesito usar una herramienta para responder a esta consulta específica o puedo responder basándome en la información general, el historial y/o el contexto RAG?
 Action: (Opcional) la acción a tomar, debe ser una de [{tool_names}] si decides usar una herramienta. Si no usas herramienta, omite las líneas 'Action' y 'Action Input'.
 Action Input: (Opcional) la entrada para la acción, si usaste una herramienta.
 Observation: (Opcional) el resultado de la acción, si usaste una herramienta.
@@ -48,12 +48,16 @@ Observation: (Opcional) el resultado de la acción, si usaste una herramienta.
 Thought: Ahora tengo la información necesaria (o decidí no usar herramientas).
 Final Answer: [Tu respuesta final y completa. Debe estar en ESPAÑOL, ser amable, profesional, y mantener tu personalidad. Responde directamente a la consulta del usuario.]
 
+Contexto recuperado (RAG):
+{context}
+Instrucciones de grounding: Si el contexto anterior contiene información relevante, responde EXCLUSIVAMENTE basándote en él. Si el contexto no cubre la pregunta, dilo claramente y NO inventes ni uses conocimiento general.
+
 Conversación actual:
 {history}
 
 Humano: {input}
 
-{nombre}: {agent_scratchpad}"""
+Thought: {agent_scratchpad}"""
 
 # Prompt principal del asesor académico (mantenido por compatibilidad)
 ASESOR_ACADEMICO_REACT_PROMPT = BASE_PROMPT_TEMPLATE
