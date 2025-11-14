@@ -4,13 +4,10 @@ from typing import List, Optional, Dict, Any, Tuple
 from pathlib import Path
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
-import time
-from datetime import datetime
 import asyncio
 import uuid
-import shutil
 
-# Redis es opcional: importar de forma condicional
+# Redis opcional
 try:
     import redis  # type: ignore
     _REDIS_AVAILABLE = True
@@ -29,6 +26,7 @@ from qdrant_client.http.models import (
     Filter as QFilter,
     FieldCondition,
     MatchValue,
+    FilterSelector,
     HnswConfigDiff,
     OptimizersConfigDiff
 )
@@ -36,8 +34,6 @@ from qdrant_client.http.models import (
 from config import settings
 
 logger = logging.getLogger(__name__)
-
-
 
 # =====================================================================
 #   VECTOR STORE
@@ -62,11 +58,9 @@ class VectorStore:
         self.cache_ttl = cache_ttl
         self.batch_size = batch_size
         
-        # Caché en memoria
         self._query_cache = {}
         self.redis_client = None
 
-        # Inicializar Redis si existe
         if settings.redis_url and _REDIS_AVAILABLE:
             try:
                 self.redis_client = redis.from_url(
@@ -77,39 +71,29 @@ class VectorStore:
                 self.redis_client.ping()
                 logger.info("Conexión a Redis establecida correctamente")
             except Exception as e:
-                logger.warning(f"No se pudo conectar a Redis: {e}. Usando caché en memoria.")
+                logger.warning(f"No se pudo conectar a Redis: {e}. Usando caché local.")
                 self.redis_client = None
-        else:
-            if settings.redis_url and not _REDIS_AVAILABLE:
-                logger.warning("REDIS_URL definido pero librería redis no instalada.")
 
         self._initialize_store()
 
         logger.info(
-            f"VectorStore inicializado en {persist_directory} "
-            f"con strategy={distance_strategy}, cache={'enabled' if cache_enabled else 'disabled'}"
+            f"VectorStore inicializado con strategy={distance_strategy}, cache={cache_enabled}"
         )
 
 
-
     # =====================================================================
-    #   INICIALIZACIÓN DE QDRANT
+    #   INICIALIZACIÓN QDRANT
     # =====================================================================
 
     def _initialize_store(self) -> None:
         try:
             api_key = None
-            try:
-                api_key = settings.qdrant_api_key.get_secret_value() if settings.qdrant_api_key else None
-            except Exception:
-                api_key = None
+            if settings.qdrant_api_key:
+                api_key = settings.qdrant_api_key.get_secret_value()
 
             self.client = QdrantClient(url=settings.qdrant_url, api_key=api_key)
 
-            try:
-                dim = int(getattr(settings, "default_embedding_dimension", 1536))
-            except Exception:
-                dim = 1536
+            dim = int(getattr(settings, "default_embedding_dimension", 1536))
 
             existing = []
             try:
@@ -125,13 +109,12 @@ class VectorStore:
                     optimizers_config=OptimizersConfigDiff(default_segment_number=1)
                 )
         except Exception as e:
-            logger.error(f"Error inicializando vector store: {str(e)}", exc_info=True)
+            logger.error(f"Error inicializando Qdrant: {str(e)}", exc_info=True)
             raise
 
 
-
     # =====================================================================
-    #   INGESTA: ADD DOCUMENTS (CORREGIDO)
+    #   INGESTA DOCUMENTOS
     # =====================================================================
 
     async def add_documents(self, documents: List[Document], embeddings: list = None) -> None:
@@ -141,62 +124,58 @@ class VectorStore:
         try:
             for i in range(0, len(documents), self.batch_size):
                 batch = documents[i:i + self.batch_size]
-
                 processed_batch = []
+
                 for doc in batch:
                     try:
-                        content_hash = doc.metadata.get("content_hash")
-                        if content_hash:
+                        ch = doc.metadata.get("content_hash")
+                        if ch:
                             try:
-                                await self.delete_documents(filter={"content_hash": content_hash})
+                                await self.delete_documents(filter={"content_hash": ch})
                             except Exception as e:
-                                logger.error(f"Error deleting doc hash {content_hash}: {e}")
+                                logger.error(f"Error eliminando hash previo: {e}")
                         processed_batch.append(doc)
-                    except Exception as e:
-                        logger.error(f"Error procesando doc: {e}", exc_info=True)
+                    except Exception:
                         continue
 
                 if not processed_batch:
                     continue
 
-                # =====================================================
-                #   *** FIX 1: IDs siempre UUID VÁLIDOS ***
-                # =====================================================
                 ids = [str(uuid.uuid4()) for _ in processed_batch]
-
                 points = []
 
                 for idx, doc in enumerate(processed_batch):
                     if embeddings is not None:
                         vec = embeddings[idx]
-                        if isinstance(vec, np.ndarray):
-                            vec = vec.tolist()
+                        vec = vec.tolist() if isinstance(vec, np.ndarray) else vec
                     else:
                         vec = await self._get_document_embedding(doc.page_content)
                         vec = vec.tolist() if isinstance(vec, np.ndarray) else vec
 
-                    # Validar vector
                     try:
                         vec = [float(x) for x in vec]
                     except:
                         continue
 
-                    try:
-                        expected_dim = int(getattr(settings, "default_embedding_dimension", 1536))
-                    except:
-                        expected_dim = 1536
-
-                    if not isinstance(vec, list) or len(vec) != expected_dim:
+                    dim = int(getattr(settings, "default_embedding_dimension", 1536))
+                    if len(vec) != dim:
                         continue
 
-                    payload = doc.metadata.copy()
-                    payload["text"] = doc.page_content
+                    payload = {
+                        **doc.metadata,
+                        "text": doc.page_content,
+                        "embedding": vec
+                    }
+
+                    try:
+                        pv = (payload.get("text") or "")[:100]
+                        src = payload.get("source")
+                        logger.info(f"upsert[{i//self.batch_size + 1}:{idx}] source={src} preview={pv}")
+                    except Exception:
+                        pass
 
                     points.append(PointStruct(id=ids[idx], vector=vec, payload=payload))
 
-                # =====================================================
-                #   *** FIX 2: detener flujo si falla Qdrant ***
-                # =====================================================
                 try:
                     self.client.upsert(
                         collection_name="rag_collection",
@@ -204,19 +183,15 @@ class VectorStore:
                         wait=True
                     )
                 except Exception as e:
-                    logger.error(f"Error agregando documentos a Qdrant: {e}", exc_info=True)
-                    raise RuntimeError("Fallo al insertar puntos en Qdrant") from e
+                    logger.error(f"Error agregando puntos a Qdrant: {e}", exc_info=True)
+                    raise RuntimeError("Falló la inserción en Qdrant")
 
             await self._invalidate_cache()
-
-            logger.info(
-                f"Ingestion completed. {len(documents)} documentos agregados al vector store."
-            )
+            logger.info(f"Ingesta completada: {len(documents)} documentos agregados.")
 
         except Exception as e:
-            logger.error(f"Error general añadiendo documentos: {str(e)}", exc_info=True)
+            logger.error(f"Error general ingesta: {str(e)}", exc_info=True)
             raise
-
 
 
     # =====================================================================
@@ -228,43 +203,32 @@ class VectorStore:
             emb = None
 
             if hasattr(self.embedding_function, "embed_query"):
-                if asyncio.iscoroutinefunction(self.embedding_function.embed_query):
-                    emb = await self.embedding_function.embed_query(content)
-                else:
-                    emb = self.embedding_function.embed_query(content)
+                emb = (
+                    await self.embedding_function.embed_query(content)
+                    if asyncio.iscoroutinefunction(self.embedding_function.embed_query)
+                    else self.embedding_function.embed_query(content)
+                )
 
             elif hasattr(self.embedding_function, "encode"):
-                if asyncio.iscoroutinefunction(self.embedding_function.encode):
-                    emb = await self.embedding_function.encode([content])
-                    if isinstance(emb, list) and len(emb) > 0:
-                        emb = emb[0]
-                else:
-                    emb = self.embedding_function.encode([content])
-                    if isinstance(emb, list) and len(emb) > 0:
-                        emb = emb[0]
+                e = (
+                    await self.embedding_function.encode([content])
+                    if asyncio.iscoroutinefunction(self.embedding_function.encode)
+                    else self.embedding_function.encode([content])
+                )
+                emb = e[0] if isinstance(e, list) else e
 
             else:
                 raise ValueError("Embedding function inválida")
 
-            if isinstance(emb, list):
-                return np.array(emb)
-            elif isinstance(emb, np.ndarray):
-                return emb
-            else:
-                raise TypeError(f"Embedding tipo no soportado: {type(emb)}")
+            return np.array(emb)
 
         except Exception:
-            try:
-                dim = int(getattr(settings, "default_embedding_dimension", 1536))
-            except:
-                dim = 1536
-            logger.warning("Error obteniendo embedding → devolviendo vector cero")
+            dim = int(getattr(settings, "default_embedding_dimension", 1536))
             return np.zeros(dim, dtype=np.float32)
 
 
-
     # =====================================================================
-    #   RETRIEVE / SEARCH
+    #   RETRIEVE
     # =====================================================================
 
     async def retrieve(
@@ -281,11 +245,8 @@ class VectorStore:
         try:
             query_embedding = await self._get_document_embedding(query)
 
-            try:
-                count = self.client.count(collection_name="rag_collection")
-                total_docs = int(getattr(count, "count", 0))
-            except:
-                total_docs = 0
+            count = self.client.count(collection_name="rag_collection")
+            total_docs = int(getattr(count, "count", 0))
 
             if total_docs == 0:
                 return []
@@ -294,21 +255,19 @@ class VectorStore:
             fetch_k = min(fetch_k or k * 3, total_docs)
 
             if use_mmr:
-                docs = await self._mmr_search(
-                    query_embedding,
-                    k=k,
-                    fetch_k=fetch_k,
-                    lambda_mult=lambda_mult,
-                    filter=filter
-                )
+                docs = await self._mmr_search(query_embedding, k, fetch_k, lambda_mult, filter)
             else:
-                docs = await self._similarity_search(query_embedding, k=k, filter=filter)
+                docs = await self._similarity_search(query_embedding, k, filter)
+
+            # =====================================================
+            #   OPCIÓN B — SIEMPRE DEVOLVER TODOS LOS RESULTADOS
+            #   (sin filtrar por score_threshold)
+            # =====================================================
 
             out = []
             for d, score in docs:
-                if score >= score_threshold:
-                    d.metadata["score"] = score
-                    out.append(d)
+                d.metadata["score"] = score
+                out.append(d)
 
             return out
 
@@ -317,9 +276,8 @@ class VectorStore:
             return []
 
 
-
     # =====================================================================
-    #   MMR (sin cambios)
+    #   MMR
     # =====================================================================
 
     async def _mmr_search(self, query_embedding, k, fetch_k, lambda_mult, filter):
@@ -337,9 +295,6 @@ class VectorStore:
                 scores.append(score)
 
                 emb = doc.metadata.get("embedding")
-                if emb is None:
-                    emb = await self._get_document_embedding(doc.page_content)
-
                 if isinstance(emb, list):
                     emb = np.array(emb)
 
@@ -356,7 +311,6 @@ class VectorStore:
             if query_embedding.ndim == 1:
                 query_embedding = query_embedding.reshape(1, -1)
 
-            # Selección MMR
             selected = []
             remaining = list(range(len(docs)))
 
@@ -369,21 +323,16 @@ class VectorStore:
                     )[0][0]
 
                     if selected:
-                        sel_emb = doc_embeds[selected]
-                        diversity = 1 - np.max(
+                        diversity = 1 - max(
                             cosine_similarity(
                                 doc_embeds[idx].reshape(1, -1),
-                                sel_emb
+                                doc_embeds[selected]
                             )[0]
                         )
                     else:
                         diversity = 1.0
 
-                    mmr = lambda_mult * relevance + (1 - lambda_mult) * diversity
-                    mmr_scores.append((idx, mmr))
-
-                if not mmr_scores:
-                    break
+                    mmr_scores.append((idx, lambda_mult * relevance + (1 - lambda_mult) * diversity))
 
                 best = max(mmr_scores, key=lambda x: x[1])[0]
                 selected.append(best)
@@ -392,59 +341,54 @@ class VectorStore:
             return [(docs[i], scores[i]) for i in selected]
 
         except Exception as e:
-            logger.error(f"Error MMR: {e}", exc_info=True)
+            logger.error(f"Error en MMR: {e}", exc_info=True)
             return await self._similarity_search(query_embedding, k, filter)
 
 
-
     # =====================================================================
-    #   SIMILARITY SEARCH (CORREGIDO MATCHVALUE)
+    #   SIMILARITY SEARCH — **CORREGIDO**
     # =====================================================================
 
     async def _similarity_search(
         self,
         query_embedding: np.ndarray,
         k: int,
-        filter: Optional[Dict] = None
+        filter: Optional[Dict] = None,
     ) -> List[Tuple[Document, float]]:
+
         try:
-            if isinstance(query_embedding, np.ndarray):
-                query_embedding = query_embedding.tolist()
+            query_embedding = query_embedding.tolist()
 
             qfilter = None
-
             if filter:
                 must = []
                 for kf, vf in filter.items():
+                    must.append(FieldCondition(key=str(kf), match=MatchValue(value=vf)))
+                qfilter = QFilter(must=must)
 
-                    # =====================================================
-                    #   *** FIX MATCHVALUE ***
-                    # =====================================================
-                    try:
-                        must.append(
-                            FieldCondition(
-                                key=str(kf),
-                                match=MatchValue(value=vf)
-                            )
-                        )
-                    except Exception:
-                        continue
-
-                if must:
-                    qfilter = QFilter(must=must)
-
+            # 👇 FIX IMPORTANTE: query_filter en lugar de filter
             res = self.client.search(
                 collection_name="rag_collection",
                 query_vector=query_embedding,
                 limit=max(1, k),
-                filter=qfilter
+                query_filter=qfilter
             )
 
             out = []
             for r in res:
                 meta = dict(r.payload or {})
-                text = meta.get("text", "")
-                doc = Document(page_content=text, metadata=meta)
+
+                # reconstruir embedding guardado
+                emb = meta.get("embedding")
+                if isinstance(emb, list):
+                    emb = np.array(emb)
+                meta["embedding"] = emb
+
+                doc = Document(
+                    page_content=meta.get("text", ""),
+                    metadata=meta
+                )
+
                 out.append((doc, float(getattr(r, "score", 0.0))))
 
             return out
@@ -454,9 +398,8 @@ class VectorStore:
             return []
 
 
-
     # =====================================================================
-    #   DELETE DOCUMENTS (CORREGIDO MATCHVALUE)
+    #   DELETE DOCUMENTS
     # =====================================================================
 
     async def delete_documents(self, filter: Optional[Dict[str, Any]] = None) -> None:
@@ -464,25 +407,11 @@ class VectorStore:
             if filter:
                 must = []
                 for kf, vf in filter.items():
+                    must.append(FieldCondition(key=str(kf), match=MatchValue(value=vf)))
 
-                    # =====================================================
-                    #   *** FIX MATCHVALUE ***
-                    # =====================================================
-                    try:
-                        must.append(
-                            FieldCondition(
-                                key=str(kf),
-                                match=MatchValue(value=vf)
-                            )
-                        )
-                    except Exception:
-                        continue
-
-                qfilter = QFilter(must=must) if must else None
-
-                if qfilter:
-                    self.client.delete(collection_name="rag_collection", filter=qfilter)
-
+                qfilter = QFilter(must=must)
+                selector = FilterSelector(filter=qfilter)
+                self.client.delete(collection_name="rag_collection", points_selector=selector)
             else:
                 await self.delete_collection()
 
@@ -491,7 +420,6 @@ class VectorStore:
         except Exception as e:
             logger.error(f"Error eliminando documentos: {e}", exc_info=True)
             raise
-
 
 
     # =====================================================================
@@ -509,9 +437,8 @@ class VectorStore:
             await self._invalidate_cache()
 
         except Exception as e:
-            logger.error(f"Error eliminando colección: {e}", exc_info=True)
+            logger.error(f"Error eliminando colección completa: {e}", exc_info=True)
             raise
-
 
 
     # =====================================================================
@@ -525,49 +452,4 @@ class VectorStore:
             else:
                 self._query_cache.clear()
         except Exception as e:
-            logger.error(f"Error invalidando cache: {e}", exc_info=True)
-
-
-
-    # =====================================================================
-    #   SERIALIZACIÓN
-    # =====================================================================
-
-    def _serialize_documents(self, docs: List[Document]) -> bytes:
-        import pickle
-        serializable = []
-
-        for doc in docs:
-            metadata = doc.metadata.copy()
-
-            if not getattr(settings, "cache_store_embeddings", True):
-                metadata.pop("embedding", None)
-
-            serializable.append({
-                "page_content": doc.page_content,
-                "metadata": metadata
-            })
-
-        return pickle.dumps(serializable)
-
-    def _deserialize_documents(self, data: bytes) -> List[Document]:
-        import pickle
-        serialized = pickle.loads(data)
-
-        return [
-            Document(page_content=item["page_content"], metadata=item["metadata"])
-            for item in serialized
-        ]
-
-
-
-    # =====================================================================
-    #   CLEANUP
-    # =====================================================================
-
-    def __del__(self):
-        try:
-            if hasattr(self, "store"):
-                pass
-        except Exception as e:
-            logger.error(f"Error en destructor VectorStore: {e}")
+            logger.error(f"Error invalidando caché: {e}", exc_info=True)

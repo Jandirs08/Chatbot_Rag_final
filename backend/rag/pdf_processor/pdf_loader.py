@@ -79,6 +79,14 @@ class PDFContentLoader:
         # Post-procesado seguro (sin filtrado destructivo)
         final_chunks = self._postprocess_chunks(chunks, pdf_path)
         logger.info(f"{len(final_chunks)} chunks finales después de metadata")
+        try:
+            preview_count = min(len(final_chunks), 10)
+            for idx in range(preview_count):
+                c = final_chunks[idx]
+                t = c.page_content.strip()
+                logger.info(f"chunk[{idx}] size={len(t)} words={len(t.split())} preview={t[:120]}")
+        except Exception:
+            pass
 
         return final_chunks
 
