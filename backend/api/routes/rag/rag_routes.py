@@ -81,22 +81,21 @@ async def clear_rag(request: Request):
         pdfs_after_clear = await pdf_processor.list_pdfs()
         vector_store_info_after_clear = pdf_processor.get_vector_store_info()
         remaining_pdfs_count = len(pdfs_after_clear)
-        vector_store_size_after_clear = vector_store_info_after_clear.get("size", 0)
-        # Verificación del estado del vector store en Qdrant
-        collection_count_after_clear = 0
+        count_after_clear = int(vector_store_info_after_clear.get("count", 0))
+        # Verificación del estado del vector store en Qdrant (fallback)
         try:
             vs = request.app.state.vector_store
             c = vs.client.count(collection_name="rag_collection")
-            collection_count_after_clear = int(getattr(c, "count", 0))
+            count_after_clear = int(getattr(c, "count", count_after_clear))
         except Exception as e:
             logger.warning(f"No se pudo verificar el conteo de la colección (Qdrant) tras limpieza: {e}")
         logger.info(
-            f"Conteo tras limpieza — PDFs restantes: {remaining_pdfs_count}, tamaño del vector store: {vector_store_size_after_clear}, documentos en colección: {collection_count_after_clear}"
+            f"Conteo tras limpieza — PDFs restantes: {remaining_pdfs_count}, documentos en colección: {count_after_clear}"
         )
         status_val = "success"
         message_val = "RAG limpiado exitosamente"
         # Éxito solo si no quedan PDFs y la colección vectorial está vacía
-        if remaining_pdfs_count > 0 or collection_count_after_clear > 0:
+        if remaining_pdfs_count > 0 or count_after_clear > 0:
             logger.warning("La limpieza del RAG detecta elementos remanentes (PDFs o documentos en vector store).")
             status_val = "warning"
             message_val = (
@@ -107,7 +106,7 @@ async def clear_rag(request: Request):
             status=status_val,
             message=message_val,
             remaining_pdfs=remaining_pdfs_count,
-            vector_store_size=vector_store_size_after_clear
+            count=count_after_clear
         )
     except Exception as e:
         logger.error(f"Error al limpiar RAG: {str(e)}", exc_info=True)

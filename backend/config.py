@@ -94,7 +94,7 @@ class Settings(BaseSettings):
     retrieval_k: int = Field(default=4, env="RETRIEVAL_K")
     retrieval_k_multiplier: int = Field(default=3, env="RETRIEVAL_K_MULTIPLIER")
     mmr_lambda_mult: float = Field(default=0.5, env="MMR_LAMBDA_MULT")
-    similarity_threshold: float = Field(default=0.5, env="SIMILARITY_THRESHOLD")
+    similarity_threshold: float = Field(default=0.3, env="SIMILARITY_THRESHOLD")
     
     # Configuraciones de RAG - Ingesta
     batch_size: int = Field(default=100, env="BATCH_SIZE")

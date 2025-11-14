@@ -44,14 +44,12 @@ class VectorStore:
 
     def __init__(
         self,
-        persist_directory: Optional[str],
         embedding_function: Any,
         distance_strategy: str = "cosine",
         cache_enabled: bool = True,
         cache_ttl: int = 3600,
         batch_size: int = 100
     ):
-        self.persist_directory = Path(persist_directory) if persist_directory else Path("./")
         self.embedding_function = embedding_function
         self.distance_strategy = distance_strategy
         self.cache_enabled = cache_enabled
@@ -77,7 +75,7 @@ class VectorStore:
         self._initialize_store()
 
         logger.info(
-            f"VectorStore inicializado con strategy={distance_strategy}, cache={cache_enabled}"
+            f"VectorStore inicializado con strategy={distance_strategy}, cache={cache_enabled}, similarity_threshold={getattr(settings, 'similarity_threshold', 'N/A')}"
         )
 
 
@@ -239,7 +237,7 @@ class VectorStore:
         use_mmr: bool = True,
         fetch_k: Optional[int] = None,
         lambda_mult: float = 0.5,
-        score_threshold: float = 0.5
+        score_threshold: float = 0.0
     ) -> List[Document]:
 
         try:
@@ -259,15 +257,12 @@ class VectorStore:
             else:
                 docs = await self._similarity_search(query_embedding, k, filter)
 
-            # =====================================================
-            #   OPCIÓN B — SIEMPRE DEVOLVER TODOS LOS RESULTADOS
-            #   (sin filtrar por score_threshold)
-            # =====================================================
-
+            threshold = float(getattr(settings, "similarity_threshold", 0.3))
             out = []
             for d, score in docs:
                 d.metadata["score"] = score
-                out.append(d)
+                if score >= threshold:
+                    out.append(d)
 
             return out
 

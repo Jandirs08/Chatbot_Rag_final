@@ -101,6 +101,7 @@ async def lifespan(app: FastAPI):
     try:
         s = settings
         app.state.settings = s
+        logger.info(f"SIMILARITY_THRESHOLD={s.similarity_threshold}")
 
         # Cargar configuración dinámica del bot desde Mongo (si disponible)
         try:
@@ -135,7 +136,6 @@ async def lifespan(app: FastAPI):
         logger.info(f"EmbeddingManager inicializado con modelo: {s.embedding_model}")
 
         app.state.vector_store = VectorStore(
-            persist_directory=None,
             embedding_function=app.state.embedding_manager,
             distance_strategy=s.distance_strategy,
             cache_enabled=s.enable_cache,
@@ -143,6 +143,7 @@ async def lifespan(app: FastAPI):
             batch_size=s.batch_size
         )
         logger.info("VectorStore inicializado (Qdrant)")
+        logger.info(f"Umbral de similitud configurado: {s.similarity_threshold}")
 
         app.state.rag_ingestor = RAGIngestor(
             pdf_file_manager=app.state.pdf_file_manager,

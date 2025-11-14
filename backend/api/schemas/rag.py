@@ -25,7 +25,7 @@ class RAGStatusResponse(BaseModel):
 class ClearRAGResponse(BaseResponse):
     """Response model for clear RAG endpoint."""
     remaining_pdfs: int
-    vector_store_size: int 
+    count: int
 
 
 class RetrieveDebugRequest(BaseModel):
