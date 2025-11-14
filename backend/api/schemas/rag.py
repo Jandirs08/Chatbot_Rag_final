@@ -11,10 +11,10 @@ class RAGStatusPDFDetail(PDFListItem):
     pass
 
 class RAGStatusVectorStoreDetail(BaseModel):
-    """Model for vector store details in RAG status."""
-    path: str
-    exists: bool
-    size: int
+    """Model for vector store details in RAG status (Qdrant)."""
+    url: str
+    collection: str
+    count: int
 
 class RAGStatusResponse(BaseModel):
     """Response model for RAG status endpoint."""

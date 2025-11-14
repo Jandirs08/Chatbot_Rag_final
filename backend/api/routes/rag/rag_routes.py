@@ -40,9 +40,9 @@ async def rag_status(request: Request):
         ]
         
         vector_store_detail = RAGStatusVectorStoreDetail(
-            path=str(vector_store_info_raw.get("path", "N/A")),
-            exists=vector_store_info_raw.get("exists", False),
-            size=vector_store_info_raw.get("size", 0)
+            url=str(vector_store_info_raw.get("url", "N/A")),
+            collection=str(vector_store_info_raw.get("collection", "rag_collection")),
+            count=int(vector_store_info_raw.get("count", 0))
         )
         
         return RAGStatusResponse(
@@ -82,16 +82,14 @@ async def clear_rag(request: Request):
         vector_store_info_after_clear = pdf_processor.get_vector_store_info()
         remaining_pdfs_count = len(pdfs_after_clear)
         vector_store_size_after_clear = vector_store_info_after_clear.get("size", 0)
-        # Verificación robusta del estado del vector store: contar documentos en colección
+        # Verificación del estado del vector store en Qdrant
         collection_count_after_clear = 0
         try:
             vs = request.app.state.vector_store
-            store = getattr(vs, "store", None)
-            collection = getattr(store, "_collection", None) if store is not None else None
-            if collection is not None:
-                collection_count_after_clear = collection.count()
+            c = vs.client.count(collection_name="rag_collection")
+            collection_count_after_clear = int(getattr(c, "count", 0))
         except Exception as e:
-            logger.warning(f"No se pudo verificar el conteo de la colección tras limpieza: {e}")
+            logger.warning(f"No se pudo verificar el conteo de la colección (Qdrant) tras limpieza: {e}")
         logger.info(
             f"Conteo tras limpieza — PDFs restantes: {remaining_pdfs_count}, tamaño del vector store: {vector_store_size_after_clear}, documentos en colección: {collection_count_after_clear}"
         )

@@ -97,11 +97,6 @@ async def lifespan(app: FastAPI):
     """Application lifespan context manager for setup and teardown."""
     logger = get_logger(__name__)
     logger.info("Iniciando aplicación y configurando recursos...")
-    # Desactivar telemetry de Chroma para limpiar logs y evitar envíos
-    try:
-        os.environ["CHROMA_TELEMETRY_ENABLED"] = "FALSE"
-    except Exception:
-        pass
     
     try:
         s = settings
@@ -139,17 +134,15 @@ async def lifespan(app: FastAPI):
         app.state.embedding_manager = EmbeddingManager(model_name=s.embedding_model)
         logger.info(f"EmbeddingManager inicializado con modelo: {s.embedding_model}")
 
-        vector_store_path = Path(s.vector_store_path).resolve()
-        vector_store_path.mkdir(parents=True, exist_ok=True)
         app.state.vector_store = VectorStore(
-            persist_directory=str(vector_store_path),
+            persist_directory=None,
             embedding_function=app.state.embedding_manager,
             distance_strategy=s.distance_strategy,
             cache_enabled=s.enable_cache,
             cache_ttl=s.cache_ttl,
             batch_size=s.batch_size
         )
-        logger.info(f"VectorStore inicializado en: {vector_store_path}")
+        logger.info("VectorStore inicializado (Qdrant)")
 
         app.state.rag_ingestor = RAGIngestor(
             pdf_file_manager=app.state.pdf_file_manager,
@@ -215,15 +208,14 @@ async def lifespan(app: FastAPI):
                 return await self.pdf_manager.list_pdfs()
 
             def get_vector_store_info(self):
-                path = str(self.vector_store.persist_directory)
-                exists = self.vector_store.persist_directory.exists()
-                size = 0
-                if exists:
-                    try:
-                        size = sum(f.stat().st_size for f in self.vector_store.persist_directory.glob('**/*') if f.is_file())
-                    except Exception:
-                        pass
-                return {"path": path, "exists": exists, "size": size}
+                url = settings.qdrant_url
+                count = 0
+                try:
+                    c = self.vector_store.client.count(collection_name="rag_collection")
+                    count = int(getattr(c, "count", 0))
+                except Exception:
+                    count = 0
+                return {"url": url, "collection": "rag_collection", "count": count}
 
             async def clear_pdfs(self):
                 return await self.pdf_manager.clear_all_pdfs()

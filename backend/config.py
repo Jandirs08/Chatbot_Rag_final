@@ -104,6 +104,8 @@ class Settings(BaseSettings):
     # Configuraciones de RAG - Vector Store
     vector_store_path: str = Field(default="./backend/storage/vector_store/chroma_db", env="VECTOR_STORE_PATH")
     distance_strategy: str = Field(default="cosine", env="DISTANCE_STRATEGY")
+    qdrant_url: str = Field(default="http://localhost:6333", env="QDRANT_URL")
+    qdrant_api_key: Optional[SecretStr] = Field(default=None, env="QDRANT_API_KEY")
     
     # Configuraciones de RAG - Embeddings
     embedding_model: str = Field(default="openai:text-embedding-3-small", env="EMBEDDING_MODEL")

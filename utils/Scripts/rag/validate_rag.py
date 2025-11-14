@@ -26,8 +26,10 @@ ADMIN_PASSWORD = os.environ.get("RAG_ADMIN_PASSWORD", "PPjhst1234$")
 
 # Rutas de recursos de prueba
 ROOT_DIR = Path(__file__).resolve().parents[3]
-PDF_PATH = ROOT_DIR / "utils" / "pdfs" / "pdf2" / "test_semantico.pdf"
-PREGUNTAS_MD = ROOT_DIR / "utils" / "pdfs" / "pdf2" / "preguntas.md"
+DEFAULT_PDF = ROOT_DIR / "utils" / "pdfs" / "DocRag1.pdf"
+DEFAULT_Q = ROOT_DIR / "utils" / "pdfs" / "PreguntasRag.md"
+PDF_PATH = Path(os.environ.get("RAG_PDF_PATH", str(DEFAULT_PDF)))
+PREGUNTAS_MD = Path(os.environ.get("RAG_QUESTIONS_MD", str(DEFAULT_Q)))
 
 OUTPUT_DIR = ROOT_DIR / "utils" / "Scripts" / "rag" / "results"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -221,9 +223,10 @@ def main():
     log(f"Health status: {hc}")
     initial_status = rag_status(token)
     initial_list = list_pdfs(token)
+    vs = initial_status.get("vector_store", {})
     summary = {
         "initial_pdfs": len(initial_list.get("pdfs", [])),
-        "initial_vs_size": initial_status.get("vector_store", {}).get("size", 0),
+        "initial_vs_size": vs.get("size", vs.get("count", 0)),
     }
     log(f"Estado inicial: PDFs={summary['initial_pdfs']} VS_size={summary['initial_vs_size']}")
 
@@ -314,8 +317,9 @@ def main():
 
     final_status = rag_status(token)
     final_list = list_pdfs(token)
+    vsf = final_status.get("vector_store", {})
     summary["final_pdfs"] = len(final_list.get("pdfs", []))
-    summary["final_vs_size"] = final_status.get("vector_store", {}).get("size", 0)
+    summary["final_vs_size"] = vsf.get("size", vsf.get("count", 0))
 
     ts = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
     md_path = OUTPUT_DIR / f"rag_validation_{ts}.md"

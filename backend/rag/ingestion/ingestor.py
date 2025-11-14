@@ -13,6 +13,7 @@ from ..pdf_processor.pdf_loader import PDFContentLoader
 from ..embeddings.embedding_manager import EmbeddingManager
 from ..vector_store.vector_store import VectorStore
 from config import settings
+from qdrant_client.http.models import Filter as QFilter, FieldCondition, MatchValue
 
 logger = logging.getLogger(__name__)
 
@@ -134,17 +135,12 @@ class RAGIngestor:
 
     async def _is_already_processed(self, pdf_path: Path) -> bool:
         try:
-            store = getattr(self.vector_store, "store", None)
-            collection = getattr(store, "_collection", None) if store is not None else None
-            if collection is None:
-                # Si el vector store aún no está inicializado (p.ej., justo después de un clear-rag),
-                # asumimos que el PDF no está procesado para evitar errores ruidosos.
-                logger.info("Vector store no inicializado al verificar procesado; asumiendo no procesado.")
+            client = getattr(self.vector_store, "client", None)
+            if client is None:
                 return False
-
-            existing_docs = collection.get(where={"source": pdf_path.name})
-            ids = existing_docs.get("ids") if isinstance(existing_docs, dict) else None
-            return bool(ids)
+            f = QFilter(must=[FieldCondition(key="source", match=MatchValue(pdf_path.name))])
+            c = client.count(collection_name="rag_collection", filter=f)
+            return int(getattr(c, "count", 0)) > 0
         except Exception as e:
             logger.error(f"Error verificando PDF procesado: {e}", exc_info=True)
             return False
