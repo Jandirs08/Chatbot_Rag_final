@@ -32,11 +32,12 @@ Sistema backend robusto y modular para un chatbot con capacidades RAG (Retrieval
        +--------------------------------------------------------------------------------+
        | Subsistema RAG:                                                               |
        | - PDFContentLoader (chunking)  - EmbeddingManager                              |
-       | - VectorStore (Chroma + caché) - RAGIngestor (ingesta asincrónica)            |
+       | - VectorStore (Qdrant + caché) - RAGIngestor (ingesta asincrónica)            |
+       | - RAG gating premium (centroide + similitud)                                  |
        +--------------------------------------------------------------------------------+
        | Persistencia: MongoDB (collections: messages, users, bot_config)               |
        +--------------------------------------------------------------------------------+
-       | Storage: documentos/pdfs, vector_store/chroma_db                               |
+       | Storage: documentos/pdfs; vector_store/chroma_db (legado, no usado con Qdrant) |
        +--------------------------------------------------------------------------------+
        | Utilidades: logging_utils, deploy_log, chain_cache                              |
        +--------------------------------------------------------------------------------+
@@ -87,8 +88,8 @@ backend/
 │   └── vector_store/vector_store.py
 ├── storage/
 │   ├── documents/pdf_manager.py
-│   │   └── pdfs/              # Carpeta de PDFs
-│   └── vector_store/chroma_db/ # Persistencia Chroma
+│   │   └── pdfs/                           # Carpeta de PDFs
+│   └── vector_store/chroma_db/             # Persistencia local (LEGADO); Qdrant es externo
 ├── common/
 │   ├── constants.py
 │   └── objects.py             # Message, roles, convenciones conversation_id
@@ -111,7 +112,8 @@ backend/
 - Lifespan de app: al iniciar, se crean y comparten en `app.state` los managers y recursos (PDFManager, EmbeddingManager, VectorStore, RAGIngestor, RAGRetriever, Bot, ChatManager, MongoDB client). Al cerrar, se liberan ordenadamente.
 - ChatManager: valida estado del bot, parsea `ChatRequest`, genera respuesta llamando al `Bot` y guarda ambos mensajes en MongoDB (`messages`), manteniendo índices para rendimiento.
 - Bot (LCEL): ChainManager compone el prompt con personalidad, historial (memoria configurable) y contexto RAG (si `enable_rag_lcel` está activo). Ejecuta la cadena y aporta `AgentExecutor` con parser resiliente.
-- RAG: RAGRetriever consulta `VectorStore` (Chroma), aplica reranking semántico o MMR, y opcionalmente cachea resultados; formatea contexto para el prompt.
+- RAG: RAGRetriever consulta `VectorStore` (Qdrant), aplica reranking semántico o MMR, y opcionalmente cachea resultados; formatea contexto para el prompt.
+- Gating premium: antes de recuperar, se evalúa la similitud del embedding de la consulta contra un centroide de documentos; si está por debajo del umbral, se omite inyección de contexto.
 - Streaming SSE: el endpoint de chat retorna `StreamingResponse` emitiendo eventos `data` y `end` para consumo progresivo en el frontend.
 - Logging y observabilidad: middleware de logging registra método, ruta, tiempo y—si `DEBUG`—cuerpo. Se suprimen warnings/tiktoken. Excepciones globales devuelven respuestas con `detail` consistente.
 
@@ -156,7 +158,7 @@ backend/
 | `python-jose[cryptography]`, `passlib`, `bcrypt` | Manejo de JWT y hashing de contraseñas.
 | `motor`, `pymongo` | Cliente async de MongoDB y operaciones de repositorio/índices.
 | `langchain-core`, `langchain`, `langchain-openai` | Orquestación LCEL y modelos LLM.
-| `langchain-chroma`, `chromadb` | Almacenamiento vectorial persistente (Chroma) para RAG.
+| `qdrant-client` | Almacenamiento vectorial (Qdrant) para RAG.
 | `tiktoken` | Tokenización eficiente; se suprimen logs ruidosos.
 | `openai` | Cliente para proveedores OpenAI cuando `MODEL_TYPE=OPENAI`.
 | `pypdf` | Lectura básica de PDF para ingestión sin OCR.
@@ -171,7 +173,7 @@ backend/
 
 - Arranque: `lifespan` inicializa PDF/Embeddings/VectorStore/RAGIngestor/RAGRetriever/Bot/ChatManager y MongoDB con índices.
 - Recepción: el endpoint `/api/v1/chat/` recibe `ChatRequest` y valida que el bot esté activo.
-- Contexto: si `enable_rag_lcel` está activo, el `Bot` inyecta contexto RAG (k configurable) al prompt.
+- Contexto: si `enable_rag_lcel` está activo, el `Bot` intenta inyectar contexto RAG (k configurable) al prompt. Previo a recuperar, se aplica gating premium por similitud de consulta-centroide; si no supera el umbral, no se recupera ni se inyecta contexto.
 - Memoria: se consulta la memoria (base o Mongo) para el historial y se formatea al prompt.
 - Generación: `AgentExecutor` invoca el modelo (OpenAI u otros), con parser tolerante, construye `Final Answer`.
 - Persistencia: `ChatManager` almacena el par de mensajes (human/assistant) en MongoDB.
@@ -185,6 +187,8 @@ backend/
 - Middleware de Autenticación: estrategia de listas blancas/negras por prefijo; validación de token + verificación admin; respuestas JSON estandarizadas.
 - Repository Pattern: `UserRepository` y `ConfigRepository` encapsulan acceso Mongo (índices, validaciones, actualizaciones).
 - RAG optimizado: `VectorStore` con caché (memoria/Redis), backups automáticos ante incompatibilidades de esquema, MMR y reranking semántico.
+- Gating por centroide (premium): `RAGRetriever.should_use_rag(query)` genera embedding de consulta y lo compara contra el centroide de embeddings del corpus (cargado lazy desde Qdrant y cacheado). Si la similitud es menor al umbral configurable (`settings.rag_gating_similarity_threshold`, default ~0.40–0.45), se desactiva la inyección RAG para esa consulta.
+- Normalización de embeddings: extracción robusta desde Qdrant soportando `payload["embedding"]`, `payload["vector"]`, `payload["text_vector"]`, `point.vector` y vectores nombrados; siempre se normaliza a `np.ndarray(float32)`.
 - Prompt Engineering composable: `ChainManager` compone personalidad base + extras UI sin sobreescribir la base; garantiza presencia de `context` y `history`.
 - SSE Streaming: diseño de `StreamingResponse` con eventos `data`, `error`, `end` para experiencias reactivas.
 - Logging y Resiliencia: filtros de ruido (`cl100k_base`), reducción de verbosidad, handlers globales; validaciones pydantic y manejo de errores consistente.
