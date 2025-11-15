@@ -111,7 +111,7 @@ backend/
 - Middleware: AuthenticationMiddleware permite libre acceso a `/health`, `/auth`, `/chat`; exige usuario admin para `/pdfs`, `/rag`, `/bot`, `/users`.
 - Lifespan de app: al iniciar, se crean y comparten en `app.state` los managers y recursos (PDFManager, EmbeddingManager, VectorStore, RAGIngestor, RAGRetriever, Bot, ChatManager, MongoDB client). Al cerrar, se liberan ordenadamente.
 - ChatManager: valida estado del bot, parsea `ChatRequest`, genera respuesta llamando al `Bot` y guarda ambos mensajes en MongoDB (`messages`), manteniendo índices para rendimiento.
-- Bot (LCEL): ChainManager compone el prompt con personalidad, historial (memoria configurable) y contexto RAG (si `enable_rag_lcel` está activo). Ejecuta la cadena y aporta `AgentExecutor` con parser resiliente.
+ - Bot (LCEL): ChainManager compone el prompt con personalidad, historial (memoria configurable) y contexto RAG (si `enable_rag_lcel` está activo). Ejecuta la cadena directamente vía LCEL (sin agentes ni parsers ReAct).
 - RAG: RAGRetriever consulta `VectorStore` (Qdrant), aplica reranking semántico o MMR, y opcionalmente cachea resultados; formatea contexto para el prompt.
 - Gating premium: antes de recuperar, se evalúa la similitud del embedding de la consulta contra un centroide de documentos; si está por debajo del umbral, se omite inyección de contexto.
 - Streaming SSE: el endpoint de chat retorna `StreamingResponse` emitiendo eventos `data` y `end` para consumo progresivo en el frontend.
@@ -175,7 +175,7 @@ backend/
 - Recepción: el endpoint `/api/v1/chat/` recibe `ChatRequest` y valida que el bot esté activo.
 - Contexto: si `enable_rag_lcel` está activo, el `Bot` intenta inyectar contexto RAG (k configurable) al prompt. Previo a recuperar, se aplica gating premium por similitud de consulta-centroide; si no supera el umbral, no se recupera ni se inyecta contexto.
 - Memoria: se consulta la memoria (base o Mongo) para el historial y se formatea al prompt.
-- Generación: `AgentExecutor` invoca el modelo (OpenAI u otros), con parser tolerante, construye `Final Answer`.
+ - Generación: LCEL invoca el modelo (OpenAI u otros) directamente, y devuelve la respuesta textual sin formato de agentes.
 - Persistencia: `ChatManager` almacena el par de mensajes (human/assistant) en MongoDB.
 - Respuesta: se emite vía SSE en tiempo real; al finalizar se envía evento `end`.
 - Cierre: limpieza ordenada de recursos (vector store, embeddings, Mongo) y liberación de ejecutores.
