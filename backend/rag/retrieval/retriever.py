@@ -97,6 +97,13 @@ class RAGRetriever:
         self.cache_enabled = cache_enabled
         self._query_cache = {}  # Cache simple {query: (timestamp, results)}
         self.performance_metrics = PerformanceMetrics()
+        # Centroide cacheado para gating de RAG (lazy-load)
+        self._centroid_embedding: Optional[np.ndarray] = None
+        # Umbral de similitud para gating (configurable vía settings, default 0.45)
+        try:
+            self._gating_threshold: float = float(getattr(settings, "rag_gating_similarity_threshold", 0.45))
+        except Exception:
+            self._gating_threshold = 0.45
         logger.info("RAGRetriever inicializado con optimizaciones y monitoreo de rendimiento.")
 
     @measure_time
@@ -555,6 +562,128 @@ class RAGRetriever:
                 grouped[doc_type] = []
             grouped[doc_type].append(doc)
         return grouped
+
+    # =============================================================
+    #   PREMIUM GATING: should_use_rag(query)
+    # =============================================================
+    def _ensure_centroid(self) -> bool:
+        """Calcula y cachea el centroide de embeddings una sola vez.
+
+        Retorna True si el centroide está disponible, False en caso contrario.
+        """
+        try:
+            if isinstance(self._centroid_embedding, np.ndarray) and self._centroid_embedding.size > 0:
+                return True
+
+            client = getattr(self.vector_store, "client", None)
+            if client is None:
+                logger.warning("VectorStore client no disponible para calcular centroide")
+                return False
+
+            embeddings: List[np.ndarray] = []
+
+            # Usar scroll para obtener embeddings en lotes
+            limit = 1000
+            next_offset = None
+            while True:
+                try:
+                    # Qdrant puede devolver ScrollResponse o tupla según versión
+                    res = client.scroll(
+                        collection_name="rag_collection",
+                        limit=limit,
+                        offset=next_offset,
+                        with_payload=True
+                    )
+                    points = getattr(res, "points", None)
+                    next_offset = getattr(res, "next_page_offset", None)
+                    if points is None and isinstance(res, tuple) and len(res) == 2:
+                        points, next_offset = res
+                    if not points:
+                        break
+
+                    for p in points:
+                        try:
+                            payload = getattr(p, "payload", {}) or {}
+                            emb = payload.get("embedding")
+                            if isinstance(emb, list):
+                                emb = np.array(emb, dtype=np.float32)
+                            if isinstance(emb, np.ndarray) and emb.size > 0:
+                                embeddings.append(emb)
+                        except Exception:
+                            continue
+
+                    if not next_offset:
+                        break
+                except Exception as e:
+                    logger.warning(f"Error haciendo scroll en Qdrant para centroide: {e}")
+                    break
+
+            if not embeddings:
+                logger.info("No hay embeddings disponibles en el vector store para calcular centroide")
+                return False
+
+            try:
+                mat = np.vstack(embeddings)
+                centroid = mat.mean(axis=0)
+                self._centroid_embedding = centroid
+                logger.info("Centroide de documentos calculado y cacheado para gating")
+                return True
+            except Exception as e:
+                logger.warning(f"Error calculando centroide: {e}")
+                return False
+        except Exception as e:
+            logger.warning(f"Fallo en _ensure_centroid: {e}")
+            return False
+
+    def should_use_rag(self, query: str) -> bool:
+        """Decide si activar RAG comparando similitud(query, centroide).
+
+        - Usa `embedding_manager.embed_query` para obtener el embedding de la query.
+        - Calcula/usa el centroide de embeddings de documentos y cachea el resultado.
+        - Retorna True si la similitud coseno >= umbral; en caso contrario False.
+        - Diseño seguro: si faltan recursos (sin embeddings, sin centroide), retorna False para evitar RAG innecesario.
+        """
+        try:
+            q = (query or "").strip()
+            if len(q) < 1:
+                return False
+
+            if not self.embedding_manager:
+                logger.warning("EmbeddingManager no disponible; gating retorna False")
+                return False
+
+            # Calcular centroide (lazy)
+            if not self._ensure_centroid():
+                # Si no hay centroide (p.ej., sin documentos), mejor no activar RAG
+                return False
+
+            # Embedding de la query (sincrónico y rápido)
+            q_emb = self.embedding_manager.embed_query(q)
+            q_vec = np.array(q_emb, dtype=np.float32)
+            c_vec = self._centroid_embedding
+
+            if not isinstance(c_vec, np.ndarray) or c_vec.size == 0:
+                return False
+
+            # Alinear dimensiones si hiciera falta
+            if q_vec.ndim == 1:
+                q_vec = q_vec.reshape(1, -1)
+            if c_vec.ndim == 1:
+                c_vec = c_vec.reshape(1, -1)
+
+            try:
+                sim = float(cosine_similarity(q_vec, c_vec)[0][0])
+            except Exception:
+                # Normalización manual como fallback
+                qn = q_vec / (np.linalg.norm(q_vec) + 1e-8)
+                cn = c_vec / (np.linalg.norm(c_vec) + 1e-8)
+                sim = float(np.dot(qn.flatten(), cn.flatten()))
+
+            logger.debug(f"Gating similitud centroide={sim:.4f} (umbral={self._gating_threshold})")
+            return sim >= self._gating_threshold
+        except Exception as e:
+            logger.warning(f"Error en should_use_rag: {e}")
+            return False
 
     # El método clear() original tenía lógica para el vector store y el directorio de pdfs.
     # La limpieza del vector store ahora debería ser manejada por RAGIngestor.

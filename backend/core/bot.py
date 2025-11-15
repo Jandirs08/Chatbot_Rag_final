@@ -116,6 +116,16 @@ class Bot:
                 if not use_rag:
                     return ""
 
+                # Gating premium basado en similitud con centroide
+                try:
+                    if hasattr(self.rag_retriever, "should_use_rag"):
+                        if not self.rag_retriever.should_use_rag(query):
+                            self.logger.debug("RAG gating: similitud insuficiente, omitiendo recuperación")
+                            return ""
+                except Exception as g_err:
+                    # Fallo seguro: continuar sin romper el flujo
+                    self.logger.warning(f"RAG gating error: {g_err}")
+
                 k = getattr(self.settings, "retrieval_k", 4)
                 docs = await self.rag_retriever.retrieve_documents(query=query, k=k)
                 if not docs:
