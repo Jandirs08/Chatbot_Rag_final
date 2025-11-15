@@ -101,7 +101,7 @@ class RAGRetriever:
         self._centroid_embedding: Optional[np.ndarray] = None
         # Umbral de similitud para gating (configurable vía settings, default 0.45)
         try:
-            self._gating_threshold: float = float(getattr(settings, "rag_gating_similarity_threshold", 0.45))
+            self._gating_threshold: float = float(getattr(settings, "rag_gating_similarity_threshold", 0.40))
         except Exception:
             self._gating_threshold = 0.45
         logger.info("RAGRetriever inicializado con optimizaciones y monitoreo de rendimiento.")
@@ -592,7 +592,8 @@ class RAGRetriever:
                         collection_name="rag_collection",
                         limit=limit,
                         offset=next_offset,
-                        with_payload=True
+                        with_payload=True,
+                        with_vectors=True
                     )
                     points = getattr(res, "points", None)
                     next_offset = getattr(res, "next_page_offset", None)
@@ -604,11 +605,51 @@ class RAGRetriever:
                     for p in points:
                         try:
                             payload = getattr(p, "payload", {}) or {}
-                            emb = payload.get("embedding")
-                            if isinstance(emb, list):
-                                emb = np.array(emb, dtype=np.float32)
+                            emb = None
+
+                            # Intentar varias claves en payload
+                            for key in ("embedding", "vector", "text_vector"):
+                                val = payload.get(key)
+                                if val is not None:
+                                    try:
+                                        if isinstance(val, np.ndarray):
+                                            emb = val.astype(np.float32)
+                                        else:
+                                            emb = np.array(val, dtype=np.float32)
+                                        break
+                                    except Exception:
+                                        emb = None
+
+                            # Si no está en payload, intentar campo nativo de Qdrant
+                            if emb is None:
+                                try:
+                                    val = getattr(p, "vector", None)
+                                    if val is not None:
+                                        emb = np.array(val, dtype=np.float32)
+                                except Exception:
+                                    emb = None
+
+                            # Último intento: estructura de vectores nombrados
+                            if emb is None:
+                                try:
+                                    vs = getattr(p, "vectors", None)
+                                    if isinstance(vs, dict) and vs:
+                                        first = next(iter(vs.values()))
+                                        emb = np.array(first, dtype=np.float32)
+                                except Exception:
+                                    emb = None
+
+                            # Validar y agregar
                             if isinstance(emb, np.ndarray) and emb.size > 0:
-                                embeddings.append(emb)
+                                # Opcional: validar dimensión
+                                dim = int(getattr(settings, "default_embedding_dimension", 1536))
+                                if emb.ndim != 1:
+                                    try:
+                                        emb = emb.reshape(-1)
+                                    except Exception:
+                                        continue
+                                if emb.size == dim:
+                                    embeddings.append(emb)
                         except Exception:
                             continue
 
