@@ -3,7 +3,6 @@
 import React, { useState, useMemo } from "react";
 import { MessageCircle, X } from "lucide-react";
 import { Button } from "./ui/button";
-import { v4 as uuidv4 } from "uuid";
 
 // Lazy loading del ChatWindow para reducir el bundle inicial
 const ChatWindow = React.lazy(() => import("./ChatWindow").then(module => ({ default: module.ChatWindow })));
@@ -12,7 +11,10 @@ export const LazyFloatingChatWidget = () => {
   const [isOpen, setIsOpen] = useState(false);
   
   // Memoizar el conversationId para evitar regeneración en cada render
-  const conversationId = useMemo(() => uuidv4(), []);
+  const conversationId = useMemo(
+    () => (crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`),
+    []
+  );
 
   return (
     <div className="fixed bottom-5 right-5 z-50">

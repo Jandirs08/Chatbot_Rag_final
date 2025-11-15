@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from "uuid";
 import { apiBaseUrl } from "./constants";
 
 type SendFeedbackProps = {
@@ -25,7 +24,7 @@ export const sendFeedback = async ({
   feedbackId,
   isExplicit = true,
 }: SendFeedbackProps) => {
-  const feedback_id = feedbackId ?? uuidv4();
+  const feedback_id = feedbackId ?? (crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
   const response = await fetch(apiBaseUrl + "/feedback", {
     method: feedbackId ? "PATCH" : "POST",
     headers: {

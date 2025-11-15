@@ -2,11 +2,13 @@
 
 import React from "react";
 import { ChatWindow } from "../components/ChatWindow";
-import { v4 as uuidv4 } from "uuid";
 
 export default function ChatPage() {
   // Optimización: usar useMemo para evitar regenerar UUID en cada render
-  const conversationId = React.useMemo(() => uuidv4(), []);
+  const conversationId = React.useMemo(
+    () => (crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`),
+    []
+  );
   
   return (
     <div className="h-screen w-screen">

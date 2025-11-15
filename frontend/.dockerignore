@@ -1,0 +1,16 @@
+node_modules/
+.next/
+out/
+.git/
+.gitignore
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+*.log
+*.swp
+*.swo
+.env*
+.vercel/
+coverage/
+build/

@@ -1,12 +1,11 @@
 import React, { useState } from "react";
 import { ChatWindow } from "./ChatWindow";
-import { v4 as uuidv4 } from "uuid";
 import { IconButton, Box } from "@chakra-ui/react";
 import { ChatIcon, CloseIcon } from "@chakra-ui/icons";
 
 export const FloatingChatWidget = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const conversationId = uuidv4();
+  const conversationId = (crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 
   return (
     <Box position="fixed" bottom="20px" right="20px" zIndex={1000}>

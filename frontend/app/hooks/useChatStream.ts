@@ -1,5 +1,4 @@
 import { useState, useCallback } from "react";
-import { v4 as uuidv4 } from "uuid";
 import { apiBaseUrl } from "../utils/constants";
 
 export interface Message {
@@ -30,7 +29,7 @@ export function useChatStream(conversationId: string): UseChatStreamReturn {
 
     // Agregar mensaje del usuario
     const userMessage: Message = {
-      id: uuidv4(),
+      id: (crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`),
       content: messageText,
       role: "user",
       createdAt: new Date(),
@@ -101,7 +100,7 @@ export function useChatStream(conversationId: string): UseChatStreamReturn {
                     return [
                       ...prevMessages,
                       {
-                        id: uuidv4(),
+                        id: (crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`),
                         content: responseText,
                         role: "assistant",
                         createdAt: new Date(),
@@ -124,7 +123,7 @@ export function useChatStream(conversationId: string): UseChatStreamReturn {
             setIsLoading(false);
             // Mostrar mensaje de error amigable
             const errorMessage: Message = {
-              id: uuidv4(),
+              id: (crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`),
               content:
                 "Lo siento, ocurrió un error procesando tu mensaje. Por favor, inténtalo nuevamente.",
               role: "assistant",
@@ -140,7 +139,7 @@ export function useChatStream(conversationId: string): UseChatStreamReturn {
       
       // Agregar mensaje de error
       const errorMessage: Message = {
-        id: uuidv4(),
+        id: (crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`),
         content: "Lo siento, ocurrió un error al procesar tu mensaje. Por favor, inténtalo de nuevo.",
         role: "assistant",
         createdAt: new Date(),

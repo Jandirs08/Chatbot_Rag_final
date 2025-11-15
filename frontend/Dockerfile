@@ -1,21 +1,26 @@
-# Usa imagen oficial de Node 18 basada en Alpine (sin apt)
-FROM node:18-alpine
+## Build multi-stage de producción para Next.js
 
-# Establece el directorio de trabajo dentro del contenedor
+# Etapa 1: dependencias de producción
+FROM node:18-alpine AS deps
 WORKDIR /app
+COPY package.json yarn.lock ./
+RUN yarn install --frozen-lockfile --production=true
 
-# Copia los archivos de definición de paquetes para aprovechar cache
-COPY package.json ./
-COPY yarn.lock ./
-
-# Instala dependencias
+# Etapa 2: build con dependencias de desarrollo
+FROM node:18-alpine AS builder
+WORKDIR /app
+COPY package.json yarn.lock ./
 RUN yarn install --frozen-lockfile
-
-# Copia el resto del código fuente
 COPY . .
+RUN yarn build
 
-# Expone el puerto de desarrollo de Next.js
+# Etapa 3: runner mínimo en producción
+FROM node:18-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/package.json ./package.json
 EXPOSE 3000
-
-# Comando para iniciar el servidor de desarrollo
-CMD ["yarn", "dev"]
+CMD ["yarn", "start"]
