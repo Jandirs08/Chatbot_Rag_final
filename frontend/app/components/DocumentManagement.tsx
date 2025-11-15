@@ -19,6 +19,7 @@ import {
 } from "@/app/components/ui/table";
 import { useToast } from "@/app/hooks/use-toast";
 import { PDFService } from "@/app/lib/services/pdfService";
+import { ragService } from "@/app/lib/services/ragService";
 import { Progress } from "@/app/components/ui/progress";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/app/components/ui/dialog";
@@ -41,6 +42,16 @@ export function DocumentManagement() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const [isClearOpen, setIsClearOpen] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
+  const [clearResult, setClearResult] = useState<{
+    status: string;
+    message: string;
+    remaining_pdfs: number;
+    count?: number;
+    vector_store_size?: number;
+  } | null>(null);
+  const [clearError, setClearError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -169,14 +180,15 @@ export function DocumentManagement() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("es-ES", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  const formatDate = (dateString: string | null | undefined) => {
+    if (!dateString) return "-";
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return "-";
+    // Convertir a UTC-5 (Perú). Perú no observa DST.
+    const utcMs = d.getTime() + d.getTimezoneOffset() * 60000;
+    const lima = new Date(utcMs - 5 * 60 * 60000);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${lima.getFullYear()}-${pad(lima.getMonth() + 1)}-${pad(lima.getDate())} ${pad(lima.getHours())}:${pad(lima.getMinutes())}:${pad(lima.getSeconds())}`;
   };
 
   const filteredDocuments = documents.filter((doc) =>
@@ -185,6 +197,30 @@ export function DocumentManagement() {
 
   const handleButtonClick = () => {
     fileInputRef.current?.click();
+  };
+
+  const handleOpenClear = () => {
+    setClearResult(null);
+    setClearError(null);
+    setIsClearOpen(true);
+  };
+
+  const handleConfirmClear = async () => {
+    setIsClearing(true);
+    setClearError(null);
+    try {
+      const result = await ragService.clearRag();
+      setClearResult(result);
+      // Refrescar lista de documentos
+      await loadDocuments();
+      toast({ title: "Limpieza RAG", description: result.message });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Error al limpiar el RAG";
+      setClearError(msg);
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    } finally {
+      setIsClearing(false);
+    }
   };
 
   return (
@@ -210,7 +246,7 @@ export function DocumentManagement() {
             className="pl-10"
           />
         </div>
-        <div className="relative">
+        <div className="relative flex gap-2 items-start">
           <input
             ref={fileInputRef}
             type="file"
@@ -226,6 +262,15 @@ export function DocumentManagement() {
           >
             <Upload className="w-4 h-4 mr-2" />
             {isUploading ? "Subiendo..." : "Subir PDF"}
+          </Button>
+          <Button
+            variant="outline"
+            className="text-destructive border-destructive hover:bg-destructive/10"
+            onClick={handleOpenClear}
+            disabled={isUploading || isLoadingList}
+            title="Limpiar RAG"
+          >
+            Limpiar RAG
           </Button>
           {isUploading && (
             <div className="mt-2 w-64">
@@ -400,6 +445,56 @@ export function DocumentManagement() {
             ) : (
               <div className="flex items-center justify-center h-full">
                 <Skeleton className="w-48 h-6" />
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Limpiar RAG */}
+      <Dialog open={isClearOpen} onOpenChange={setIsClearOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Limpiar RAG</DialogTitle>
+            <DialogDescription>
+              Esta acción elimina todos los PDFs y limpia el almacén vectorial.
+              ¿Deseas continuar?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {clearError && (
+              <div className="text-sm text-destructive">{clearError}</div>
+            )}
+            {clearResult ? (
+              <div className="text-sm">
+                <p className="font-medium">{clearResult.message}</p>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <div className="p-2 rounded border">
+                    <span className="text-muted-foreground text-xs">PDFs restantes</span>
+                    <div className="text-lg font-semibold">{clearResult.remaining_pdfs}</div>
+                  </div>
+                  <div className="p-2 rounded border">
+                    <span className="text-muted-foreground text-xs">Vector store</span>
+                    <div className="text-lg font-semibold">{clearResult.count ?? clearResult.vector_store_size ?? 0}</div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsClearOpen(false)}
+                  disabled={isClearing}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={handleConfirmClear}
+                  disabled={isClearing}
+                >
+                  {isClearing ? "Limpiando..." : "Confirmar"}
+                </Button>
               </div>
             )}
           </div>

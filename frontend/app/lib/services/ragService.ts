@@ -1,18 +1,17 @@
 import { API_URL } from "../config";
+import { authenticatedFetch } from "./authService";
 
 export const ragService = {
   clearRag: async (): Promise<{
     status: string;
     message: string;
     remaining_pdfs: number;
-    vector_store_size: number;
+    count?: number; // backend schema actual
+    vector_store_size?: number; // compat con documentación antigua
   }> => {
     try {
-      const response = await fetch(`${API_URL}/rag/clear-rag`, {
+      const response = await authenticatedFetch(`${API_URL}/rag/clear-rag`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
 
       if (!response.ok) {
@@ -30,7 +29,9 @@ export const ragService = {
   // Aquí se pueden añadir otras funciones relacionadas con el RAG, como getRagStatus, ingestPdfs, etc.
   getRagStatus: async (): Promise<any> => {
     try {
-      const response = await fetch(`${API_URL}/rag/rag-status`);
+      const response = await authenticatedFetch(`${API_URL}/rag/rag-status`, {
+        method: "GET",
+      });
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(

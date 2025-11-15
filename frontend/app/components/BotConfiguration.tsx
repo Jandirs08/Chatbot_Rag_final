@@ -1,6 +1,11 @@
-
 import React from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -11,10 +16,11 @@ import { toast } from "sonner";
 export interface BotConfigurationProps {
   botName?: string;
   onBotNameChange?: (value: string) => void;
+  fieldsReadOnly?: boolean;
+  onToggleEditFields?: () => void;
   prompt: string;
   onPromptChange: (value: string) => void;
-  promptReadOnly?: boolean;
-  onToggleEditPrompt?: () => void;
+  // unified readOnly handled by fieldsReadOnly
   temperature: number;
   onTemperatureChange: (value: number) => void;
   onSave: () => void;
@@ -23,15 +29,16 @@ export interface BotConfigurationProps {
   error?: string;
   previewText?: string;
   showPreview?: boolean;
+  canSave?: boolean;
 }
 
 export function BotConfiguration({
   botName,
   onBotNameChange,
+  fieldsReadOnly,
+  onToggleEditFields,
   prompt,
   onPromptChange,
-  promptReadOnly,
-  onToggleEditPrompt,
   temperature,
   onTemperatureChange,
   onSave,
@@ -40,6 +47,7 @@ export function BotConfiguration({
   error,
   previewText,
   showPreview,
+  canSave,
 }: BotConfigurationProps) {
   // Sonner Toaster montado en layout
 
@@ -67,6 +75,11 @@ export function BotConfiguration({
               <CardDescription>
                 Complementa la personalidad base del bot sin reemplazarla
               </CardDescription>
+              <div className="flex justify-end">
+                <Button variant="outline" size="sm" onClick={onToggleEditFields}>
+                  Editar
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 gap-2">
@@ -74,16 +87,16 @@ export function BotConfiguration({
                 <Input
                   id="bot-name"
                   value={botName || ""}
-                  onChange={(e) => onBotNameChange && onBotNameChange(e.target.value)}
+                  onChange={(e) =>
+                    onBotNameChange && onBotNameChange(e.target.value)
+                  }
                   placeholder="Ej: Asesor Académico"
+                  disabled={!!fieldsReadOnly}
                 />
               </div>
               <div>
                 <div className="flex items-center justify-between">
                   <Label htmlFor="ui-extra">Instrucciones adicionales</Label>
-                  <Button variant="outline" size="sm" onClick={onToggleEditPrompt}>
-                    {promptReadOnly ? "Editar" : "Bloquear"}
-                  </Button>
                 </div>
                 <Textarea
                   id="ui-extra"
@@ -91,23 +104,25 @@ export function BotConfiguration({
                   onChange={(e) => onPromptChange(e.target.value)}
                   className="mt-2 min-h-[300px] font-mono text-sm"
                   placeholder="Añade lineamientos adicionales (tono, estilo, etc.)"
-                  disabled={!!promptReadOnly}
+                  disabled={!!fieldsReadOnly}
                 />
                 <p className="text-xs text-muted-foreground mt-2">
                   Caracteres: {prompt.length}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Consejo: usa frases breves y concretas; no incluyas variables ni herramientas.
+                  Consejo: usa frases breves y concretas; no incluyas variables
+                  ni herramientas.
                 </p>
               </div>
             </CardContent>
           </Card>
 
           <Card className="border-border/50">
-              <CardHeader>
+            <CardHeader>
               <CardTitle>Temperatura del Modelo</CardTitle>
               <CardDescription>
-                Controla la creatividad vs precisión en las respuestas (0 = más preciso, 1 = más creativo)
+                Controla la creatividad vs precisión en las respuestas (0 = más
+                preciso, 1 = más creativo)
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -115,8 +130,11 @@ export function BotConfiguration({
                 <div className="flex justify-between items-center mb-4">
                   <Label>Temperatura: {temperature.toFixed(1)}</Label>
                   <span className="text-sm text-muted-foreground">
-                    {temperature < 0.3 ? "Muy Preciso" : 
-                     temperature < 0.7 ? "Balanceado" : "Creativo"}
+                    {temperature < 0.3
+                      ? "Muy Preciso"
+                      : temperature < 0.7
+                        ? "Balanceado"
+                        : "Creativo"}
                   </span>
                 </div>
                 <Slider
@@ -162,7 +180,9 @@ export function BotConfiguration({
               <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <span className="text-sm font-medium text-green-800 dark:text-green-200">Activo</span>
+                  <span className="text-sm font-medium text-green-800 dark:text-green-200">
+                    Activo
+                  </span>
                 </div>
               </div>
               {isLoading ? (
@@ -172,7 +192,9 @@ export function BotConfiguration({
                 <div className="text-sm text-red-600">{error}</div>
               ) : null}
               <div className="text-sm text-muted-foreground space-y-1">
-                <p className="flex items-center gap-2"><Clock className="w-4 h-4" /> Última actualización: Hace 5 min</p>
+                <p className="flex items-center gap-2">
+                  <Clock className="w-4 h-4" /> Última actualización: Hace 5 min
+                </p>
                 <p>Documentos procesados: 3</p>
                 <p>Consultas hoy: 247</p>
               </div>
@@ -184,11 +206,24 @@ export function BotConfiguration({
               <CardTitle>Acciones</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button onClick={() => { onSave(); toast("Guardando: aplicando cambios"); }} className="w-full gradient-primary hover:opacity-90" disabled={!!isLoading}>
+              <Button
+                onClick={() => {
+                  onSave();
+                }}
+                className="w-full gradient-primary hover:opacity-90"
+                disabled={!!isLoading || !canSave}
+              >
                 <Save className="w-4 h-4 mr-2" />
-                Guardar Cambios
+                {isLoading ? "Guardando…" : "Guardar Cambios"}
               </Button>
-              <Button onClick={() => { onReset(); }} variant="outline" className="w-full" disabled={!!isLoading}>
+              <Button
+                onClick={() => {
+                  onReset();
+                }}
+                variant="outline"
+                className="w-full"
+                disabled={!!isLoading}
+              >
                 <RotateCcw className="w-4 h-4 mr-2" />
                 Restablecer
               </Button>
@@ -201,7 +236,9 @@ export function BotConfiguration({
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground space-y-2">
               <p>• Usa un prompt claro y específico</p>
-              <p>• Temperatura baja (0.3-0.5) para respuestas más consistentes</p>
+              <p>
+                • Temperatura baja (0.3-0.5) para respuestas más consistentes
+              </p>
               <p>• Incluye ejemplos de cómo debe responder</p>
               <p>• Define límites claros de conocimiento</p>
             </CardContent>

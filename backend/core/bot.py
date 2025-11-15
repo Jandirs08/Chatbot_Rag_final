@@ -77,6 +77,30 @@ class Bot:
         # Compone pipeline LCEL completo
         self._build_pipeline()
 
+    def reload_chain(self, new_settings: Optional[Settings] = None):
+        """Recarga la chain del bot aplicando nuevos settings.
+
+        Reinstancia el ChainManager con la configuración actualizada y
+        reconstruye el pipeline LCEL completo (history/context → prompt → modelo).
+        """
+        try:
+            # Actualizar settings si se proveen
+            if new_settings is not None:
+                self.settings = new_settings
+
+            # Reinstanciar ChainManager con los nuevos settings
+            self.chain_manager = ChainManager(
+                settings=self.settings,
+                model_type=None,
+            )
+
+            # Reconstruir el pipeline completo
+            self._build_pipeline()
+            self.logger.info("Chain del bot recargada correctamente con nuevos settings.")
+        except Exception as e:
+            # No levantar excepción para no romper la petición; logueamos el error.
+            self.logger.error(f"Error recargando chain del bot: {e}")
+
     @property
     def memory(self):
         return self._memory

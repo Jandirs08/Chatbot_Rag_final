@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse, JSONResponse, Response
 from io import BytesIO
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 # Importar modelos Pydantic desde el módulo centralizado
 from api.schemas import (
@@ -113,16 +114,24 @@ async def export_conversations(request: Request):
             if not messages:
                 # Crear un Excel vacío pero válido con encabezados y una fila informativa
                 df = pd.DataFrame(columns=['ID Conversación', 'Fecha y Hora', 'Rol', 'Mensaje'])
-                df.loc[0] = ["-", datetime.now().strftime('%Y-%m-%d %H:%M:%S'), "info", "Sin conversaciones registradas"]
+                # Fecha en zona horaria Perú (UTC-5)
+                lima_now = datetime.now(ZoneInfo("America/Lima")).strftime('%Y-%m-%d %H:%M:%S')
+                df.loc[0] = ["-", lima_now, "info", "Sin conversaciones registradas"]
                 df.to_excel(writer, sheet_name='Conversaciones', index=False)
             else:
                 df = pd.DataFrame(messages)
                 df = df.sort_values(['conversation_id', 'timestamp'])
-                df['timestamp'] = pd.to_datetime(df['timestamp']).dt.strftime('%Y-%m-%d %H:%M:%S')
+                # Convertir timestamps a datetime, forzar UTC y tolerar valores nulos
+                ts = pd.to_datetime(df['timestamp'], errors='coerce', utc=True)
+                # Convertir a zona horaria Perú (UTC-5) y formatear
+                ts_lima = ts.dt.tz_convert('America/Lima')
+                df['timestamp_str'] = ts_lima.dt.strftime('%Y-%m-%d %H:%M:%S')
+                # Rellenar nulos con marcador para no romper exportación
+                df['timestamp_str'] = df['timestamp_str'].fillna('-')
 
                 df = df.rename(columns={
                     'conversation_id': 'ID Conversación',
-                    'timestamp': 'Fecha y Hora',
+                    'timestamp_str': 'Fecha y Hora',
                     'role': 'Rol',
                     'content': 'Mensaje'
                 })
@@ -173,7 +182,8 @@ async def export_conversations(request: Request):
                 worksheet.freeze_panes(1, 0)
 
         output.seek(0)
-        current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
+        # Nombre del archivo usando hora de Lima para coherencia
+        current_time = datetime.now(ZoneInfo("America/Lima")).strftime('%Y%m%d_%H%M%S')
         filename = f'conversaciones_{current_time}.xlsx'
 
         # Usar Response con contenido completo para mejorar compatibilidad con descargas

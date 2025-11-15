@@ -69,12 +69,13 @@ async def get_bot_runtime(request: Request):
         cm = bot.chain_manager
 
         runtime = {}
+        # Obtener valores desde settings actuales del ChainManager (fuente de verdad)
         try:
-            base_kwargs = cm._base_model.dict()
-            # Normalizar campos según proveedor
-            runtime["model_name"] = base_kwargs.get("model_name")
-            runtime["temperature"] = base_kwargs.get("temperature")
-            runtime["max_tokens"] = base_kwargs.get("max_tokens") or base_kwargs.get("max_output_tokens")
+            s = getattr(cm, "settings", None) or getattr(request.app.state, "settings", None)
+            if s is not None:
+                runtime["model_name"] = getattr(s, "base_model_name", None)
+                runtime["temperature"] = getattr(s, "temperature", None)
+                runtime["max_tokens"] = getattr(s, "max_tokens", None)
         except Exception:
             pass
 
