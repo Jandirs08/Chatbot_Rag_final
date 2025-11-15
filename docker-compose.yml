@@ -57,6 +57,7 @@ services:
     depends_on:
       - backend
     environment:
+      - NODE_ENV=development
       # URLs públicas usadas por el código del cliente (Next.js)
       # apiBaseUrl se usa en ChatWindow.tsx y espera host:puerto sin /api/v1
       - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
@@ -73,6 +74,7 @@ services:
       - /app/node_modules
     networks:
       - chatbot-network
+    command: yarn dev
 
 networks:
   chatbot-network:
