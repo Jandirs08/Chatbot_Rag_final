@@ -7,13 +7,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 import asyncio
 import uuid
 
-# Redis opcional
-try:
-    import redis  # type: ignore
-    _REDIS_AVAILABLE = True
-except Exception:
-    redis = None  # type: ignore
-    _REDIS_AVAILABLE = False
+from backend.cache.manager import cache
 
 from fastapi import HTTPException
 from langchain_core.documents import Document
@@ -56,21 +50,7 @@ class VectorStore:
         self.cache_ttl = cache_ttl
         self.batch_size = batch_size
         
-        self._query_cache = {}
-        self.redis_client = None
-
-        if settings.redis_url and _REDIS_AVAILABLE:
-            try:
-                self.redis_client = redis.from_url(
-                    settings.redis_url.get_secret_value(),
-                    socket_timeout=1.0,
-                    socket_connect_timeout=1.0
-                )
-                self.redis_client.ping()
-                logger.info("Conexión a Redis establecida correctamente")
-            except Exception as e:
-                logger.warning(f"No se pudo conectar a Redis: {e}. Usando caché local.")
-                self.redis_client = None
+        # Cache local removido: usar CacheManager para invalidación por prefijo
 
         self._initialize_store()
 
@@ -442,9 +422,10 @@ class VectorStore:
 
     async def _invalidate_cache(self) -> None:
         try:
-            if self.redis_client:
-                self.redis_client.flushdb()
-            else:
-                self._query_cache.clear()
+            # Respetar configuración global de caché
+            if not getattr(settings, "enable_cache", True):
+                return
+            # Invalidación unificada por prefijo
+            cache.invalidate_prefix("vs:")
         except Exception as e:
             logger.error(f"Error invalidando caché: {e}", exc_info=True)

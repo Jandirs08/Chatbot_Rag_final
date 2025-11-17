@@ -14,6 +14,7 @@ import asyncio
 from langchain_core.documents import Document
 
 from ..vector_store.vector_store import VectorStore
+from backend.cache.manager import cache
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -95,7 +96,7 @@ class RAGRetriever:
         self.vector_store = vector_store
         self.embedding_manager = embedding_manager
         self.cache_enabled = cache_enabled
-        self._query_cache = {}  # Cache simple {query: (timestamp, results)}
+        # Cache unificado: toda lectura/escritura pasa por CacheManager
         self.performance_metrics = PerformanceMetrics()
         # Centroide cacheado para gating de RAG (lazy-load)
         self._centroid_embedding: Optional[np.ndarray] = None
@@ -136,7 +137,7 @@ class RAGRetriever:
         
         # Verificar caché con manejo mejorado de errores
         cache_start = time.perf_counter()
-        if self.cache_enabled:
+        if self.cache_enabled and bool(getattr(settings, "enable_cache", True)):
             try:
                 cached_results = self._get_from_cache(query, k, filter_criteria)
                 if cached_results:
@@ -201,7 +202,7 @@ class RAGRetriever:
                 self.performance_metrics.add_metric('mmr_application', mmr_time)
 
             # Actualizar caché con manejo de errores
-            if self.cache_enabled and final_docs:
+            if self.cache_enabled and bool(getattr(settings, "enable_cache", True)) and final_docs:
                 try:
                     cache_update_start = time.perf_counter()
                     self._add_to_cache(query, k, filter_criteria, final_docs)
@@ -458,49 +459,46 @@ class RAGRetriever:
         return type_scores.get(content_type, 0.5)
 
     def _get_from_cache(self, query: str, k: int, filter_criteria: Optional[Dict[str, Any]] = None) -> Optional[List[Document]]:
-        """Obtiene resultados del caché con manejo de errores mejorado."""
+        """Obtiene resultados del caché usando CacheManager (TTL manejado globalmente)."""
         try:
+            if not bool(getattr(settings, "enable_cache", True)) or not self.cache_enabled:
+                return None
             try:
                 filter_key = json.dumps(filter_criteria, sort_keys=True) if filter_criteria else ""
             except Exception:
                 filter_key = str(filter_criteria) if filter_criteria is not None else ""
-            cache_key = f"{query}_{k}_{filter_key}"
-            if cache_key in self._query_cache:
-                timestamp, results = self._query_cache[cache_key]
-                # Verificar si el caché ha expirado (5 minutos)
-                if time.time() - timestamp < 300:
-                    # Si por error hay una coroutine, la eliminamos
-                    import collections.abc
-                    if isinstance(results, collections.abc.Awaitable):
-                        del self._query_cache[cache_key]
-                        return None
-                    return results
-                else:
-                    del self._query_cache[cache_key]
-            return None
+            cache_key = f"rag:{query}:{k}:{filter_key}"
+            cached = cache.get(cache_key)
+            return cached if cached else None
         except Exception as e:
             logger.warning(f"Error al acceder al caché: {e}")
             return None
 
     def _add_to_cache(self, query: str, k: int, filter_criteria: Optional[Dict[str, Any]], docs: List[Document]) -> None:
-        """Agrega resultados al caché con manejo de errores mejorado."""
+        """Agrega resultados al caché usando CacheManager (TTL/tamaño controlado globalmente)."""
         try:
+            if not bool(getattr(settings, "enable_cache", True)) or not self.cache_enabled:
+                return
             try:
                 filter_key = json.dumps(filter_criteria, sort_keys=True) if filter_criteria else ""
             except Exception:
                 filter_key = str(filter_criteria) if filter_criteria is not None else ""
-            cache_key = f"{query}_{k}_{filter_key}"
+            cache_key = f"rag:{query}:{k}:{filter_key}"
             import collections.abc
             if isinstance(docs, collections.abc.Awaitable):
                 logger.warning("Intento de almacenar una coroutine en caché, ignorado.")
                 return
-            self._query_cache[cache_key] = (time.time(), docs)
-            # Limpiar caché antiguo si excede el límite
-            if len(self._query_cache) > 1000:  # Límite de 1000 entradas
-                oldest_key = min(self._query_cache.keys(), key=lambda k: self._query_cache[k][0])
-                del self._query_cache[oldest_key]
+            cache.set(cache_key, docs)
         except Exception as e:
             logger.warning(f"Error al actualizar caché: {e}")
+
+    def invalidate_rag_cache(self) -> None:
+        """Invalidación por prefijo para resultados RAG."""
+        try:
+            if bool(getattr(settings, "enable_cache", True)):
+                cache.invalidate_prefix("rag:")
+        except Exception as e:
+            logger.warning(f"Error invalidando caché RAG: {e}")
 
     def format_context_from_documents(self, documents: List[Document]) -> str:
         """Formatea los documentos en un contexto coherente."""
