@@ -11,7 +11,6 @@
     "format": "prettier --write ."
   },
   "dependencies": {
-    "critters": "^0.0.20",
     "@chakra-ui/icons": "^2.1.1",
     "@chakra-ui/react": "^2.8.2",
     "@emotion/react": "^11.11.3",
@@ -42,36 +41,30 @@
     "@radix-ui/react-tabs": "^1.1.12",
     "@radix-ui/react-toast": "^1.2.14",
     "@radix-ui/react-tooltip": "^1.2.7",
-    
-    
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "critters": "^0.0.20",
     "emojisplosion": "^2.6.1",
-    
-    
     "langsmith": "^0.1.10",
     "lucide-react": "^0.513.0",
-    
     "next": "^14.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    
     "react-textarea-autosize": "^8.5.3",
-    
     "sonner": "^2.0.5",
     "tailwind-merge": "^3.3.0"
   },
   "devDependencies": {
-    "@types/node": "20.11.20",
+    "@types/node": "24.10.1",
     "@types/react": "18.2.57",
     "@types/react-dom": "18.2.19",
+    "autoprefixer": "10.4.17",
     "eslint": "8.56.0",
     "eslint-config-next": "14.1.0",
-    "autoprefixer": "10.4.17",
     "postcss": "8.4.35",
     "prettier": "^3.2.5",
     "tailwindcss": "3.4.1",
     "tailwindcss-animate": "^1.0.7",
-    "typescript": "5.3.3"
+    "typescript": "5.9.3"
   }
 }

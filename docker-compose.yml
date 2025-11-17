@@ -31,6 +31,7 @@ services:
     depends_on:
       - mongodb
       - qdrant
+      - redis
     environment:
       - LOG_LEVEL=DEBUG
       - MONGO_URI=mongodb://mongodb:27017/chatbot_rag_db
@@ -38,6 +39,7 @@ services:
       - PORT=8000
       - QDRANT_URL=http://qdrant:6333
       - QDRANT_API_KEY=
+      - REDIS_URL=redis://redis:6379/0
     ports:
       - "8000:8000"
     volumes:
@@ -76,6 +78,17 @@ services:
       - chatbot-network
     command: yarn dev
 
+  redis:
+    image: redis:7-alpine
+    container_name: chatbot-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - chatbot-network
+
 networks:
   chatbot-network:
     name: chatbot-network
@@ -86,3 +99,4 @@ volumes:
     name: chatbot-mongodb-data
   qdrant_data:
     name: chatbot-qdrant-data
+  redis-data:
