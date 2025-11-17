@@ -5,22 +5,23 @@ import { EmptyState } from "../components/EmptyState";
 import { ChatMessageBubble } from "../components/ChatMessageBubble";
 import { AutoResizeTextarea } from "./AutoResizeTextarea";
 import { Button } from "./ui/button";
-import { ArrowUp, MessageCircle, Sparkles } from "lucide-react";
+import { ArrowUp, MessageCircle, Sparkles, Trash } from "lucide-react";
 import { useChatStream } from "../hooks/useChatStream";
 
 export function ChatWindow(props: {
   placeholder?: string;
   titleText?: string;
   conversationId: string;
+  initialMessages?: import("../hooks/useChatStream").Message[];
 }) {
   const messageContainerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const [input, setInput] = React.useState("");
 
-  const { placeholder, titleText = "An LLM", conversationId } = props;
+  const { placeholder, titleText = "An LLM", conversationId, initialMessages } = props;
   
   // Usar el hook personalizado para manejar el chat
-  const { messages, isLoading, sendMessage } = useChatStream(conversationId);
+  const { messages, isLoading, sendMessage, clearMessages } = useChatStream(conversationId, initialMessages);
 
   // Función para hacer scroll al último mensaje
   const scrollToBottom = () => {
@@ -79,10 +80,18 @@ export function ChatWindow(props: {
             <div className="flex-1">
               <h1 className="text-xl font-bold text-white">Becas Grupo Romero</h1>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span className="text-white/80 text-sm">En línea</span>
-            </div>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+            <span className="text-white/80 text-sm">En línea</span>
+            <button
+              aria-label="Limpiar chat"
+              title="Limpiar chat"
+              onClick={() => clearMessages()}
+              className="ml-3 p-2 rounded-lg bg-white/20 hover:bg-white/30 text-white transition-colors"
+            >
+              <Trash className="w-4 h-4" />
+            </button>
+          </div>
           </div>
         </div>
         

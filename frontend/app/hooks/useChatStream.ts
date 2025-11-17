@@ -18,8 +18,8 @@ export interface UseChatStreamReturn {
   clearMessages: () => void;
 }
 
-export function useChatStream(conversationId: string): UseChatStreamReturn {
-  const [messages, setMessages] = useState<Message[]>([]);
+export function useChatStream(conversationId: string, initialMessages?: Message[]): UseChatStreamReturn {
+  const [messages, setMessages] = useState<Message[]>(initialMessages ?? []);
   const [isLoading, setIsLoading] = useState(false);
 
   const sendMessage = useCallback(async (messageText: string) => {
@@ -53,6 +53,8 @@ export function useChatStream(conversationId: string): UseChatStreamReturn {
         body: JSON.stringify({
           input: messageText,
           conversation_id: conversationId,
+          // Campo opcional para rastrear el origen/embebido
+          source: "embed-default",
         }),
         openWhenHidden: true,
         async onopen(response) {
