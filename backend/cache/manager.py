@@ -2,8 +2,9 @@ import logging
 from typing import Any, Optional
 
 from config import settings
+from utils.logging_utils import get_logger
 
-_logger = logging.getLogger(__name__)
+_logger = get_logger(__name__)
 
 
 class CacheManager:
@@ -44,11 +45,12 @@ class CacheManager:
                     client = redis.from_url(url, decode_responses=False)
                     # Verificar conectividad rápida
                     client.ping()
+                    _logger.info("CacheManager: Redis PING OK")
                     from .redis_backend import RedisCache
-                    _logger.info("CacheManager: Redis disponible, usando RedisCache")
+                    _logger.info("CacheManager: Redis conectado correctamente (usando RedisCache).")
                     return RedisCache(client=client)
                 except Exception as e:
-                    _logger.warning(f"CacheManager: Redis no disponible ({e}), usando InMemoryCache")
+                    _logger.warning("CacheManager: Redis no disponible, usando InMemoryCache.")
         except Exception:
             # Cualquier error en acceso a settings
             pass
@@ -56,7 +58,7 @@ class CacheManager:
         # Fallback a caché en memoria
         try:
             from .memory_backend import InMemoryCache
-            _logger.info("CacheManager: usando InMemoryCache (fallback)")
+            _logger.info("CacheManager: Redis no disponible, usando InMemoryCache.")
             return InMemoryCache(max_size=self.max_size)
         except Exception as e:
             # Último recurso: construir una implementación mínima

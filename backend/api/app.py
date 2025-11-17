@@ -103,6 +103,15 @@ async def lifespan(app: FastAPI):
         app.state.settings = s
         logger.info(f"SIMILARITY_THRESHOLD={s.similarity_threshold}")
 
+        # Visibilidad del backend de caché activo al inicio
+        try:
+            from cache.manager import cache
+            logger.info(
+                f"Cache activo: backend={type(cache.backend).__name__}, ttl={cache.ttl}, max_size={cache.max_size}"
+            )
+        except Exception as e:
+            logger.warning(f"No se pudo determinar el estado del cache en arranque: {e}")
+
         # Cargar configuración dinámica del bot desde Mongo (si disponible)
         try:
             config_repo = ConfigRepository()

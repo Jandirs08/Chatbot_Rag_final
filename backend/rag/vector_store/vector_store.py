@@ -7,7 +7,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 import asyncio
 import uuid
 
-from backend.cache.manager import cache
+from cache.manager import cache
 
 from fastapi import HTTPException
 from langchain_core.documents import Document

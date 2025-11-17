@@ -70,13 +70,13 @@ async def clear_rag(request: Request):
         # 2) Limpiar vector store completamente (sin residuos)
         await rag_retriever.vector_store.delete_collection()
         logger.info("Vector store limpiado y reinicializado")
-        # Limpiar estado interno del RAGRetriever para evitar resultados obsoletos
+        # Invalidar caché RAG por prefijo para evitar resultados obsoletos
         try:
-            if hasattr(rag_retriever, "_query_cache"):
-                rag_retriever._query_cache.clear()
-                logger.info("Caché interno de RAGRetriever limpiado")
+            if hasattr(rag_retriever, "invalidate_rag_cache"):
+                rag_retriever.invalidate_rag_cache()
+                logger.info("Caché RAG invalidado por prefijo")
         except Exception as e:
-            logger.warning(f"No se pudo limpiar caché interno de RAGRetriever: {e}")
+            logger.warning(f"No se pudo invalidar caché RAG: {e}")
         # Consultar estado después de limpiar
         pdfs_after_clear = await pdf_processor.list_pdfs()
         vector_store_info_after_clear = pdf_processor.get_vector_store_info()

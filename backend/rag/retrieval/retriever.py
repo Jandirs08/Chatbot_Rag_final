@@ -14,7 +14,7 @@ import asyncio
 from langchain_core.documents import Document
 
 from ..vector_store.vector_store import VectorStore
-from backend.cache.manager import cache
+from cache.manager import cache
 from config import settings
 
 logger = logging.getLogger(__name__)

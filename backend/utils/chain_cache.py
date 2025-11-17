@@ -3,7 +3,7 @@ from typing import Optional, Any, Dict
 import logging
 import time
 from config import Settings, settings as app_settings
-from backend.cache.manager import cache
+from cache.manager import cache
 
 class CacheTypes(str, Enum):
     """Tipos de caché disponibles."""
