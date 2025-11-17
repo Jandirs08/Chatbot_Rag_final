@@ -20,7 +20,7 @@ class ChatManager:
         self.bot = bot_instance
         self.db = get_mongodb_client()
 
-    async def generate_response(self, input_text: str, conversation_id: str):
+    async def generate_response(self, input_text: str, conversation_id: str, source: str | None = None):
         """Genera la respuesta usando el Bot (LCEL maneja el RAG automáticamente)."""
         try:
             if getattr(settings, "enable_rag_lcel", False):
@@ -51,8 +51,8 @@ class ChatManager:
                     pass
 
             # Guardar ambos mensajes en MongoDB
-            await self.db.add_message(conversation_id, USER_ROLE, input_text)
-            await self.db.add_message(conversation_id, ASSISTANT_ROLE, response_content)
+            await self.db.add_message(conversation_id, USER_ROLE, input_text, source)
+            await self.db.add_message(conversation_id, ASSISTANT_ROLE, response_content, source)
 
             logger.info(f"Respuesta generada y guardada para conversación {conversation_id}")
             return response_content

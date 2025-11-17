@@ -76,13 +76,14 @@ class MongodbClient:
             logger.error(f"Error al obtener historial: {str(e)}")
             return []
 
-    async def add_message(self, conversation_id: str, role: str, content: str) -> None:
+    async def add_message(self, conversation_id: str, role: str, content: str, source: Optional[str] = None) -> None:
         """Add a message to the conversation history."""
         try:
             await self.messages.insert_one({
                 "conversation_id": conversation_id,
                 "role": role,
                 "content": content,
+                "source": source or "embed-default",
                 "timestamp": datetime.now(timezone.utc)
             })
             logger.info(f"Mensaje agregado a la conversación {conversation_id}")

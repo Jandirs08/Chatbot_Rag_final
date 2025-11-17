@@ -9,6 +9,7 @@ class ChatRequest(BaseModel):
     """Chat request model."""
     input: str = Field(..., description="User message")
     conversation_id: Optional[str] = Field(default=None, description="Conversation ID, a new one will be generated if not provided")
+    source: Optional[str] = Field(default=None, description="Optional source/origin identifier for the conversation, e.g., 'embed-default'")
 
 class ChatResponse(BaseModel):
     """Chat response model (no streaming)."""
@@ -28,4 +29,4 @@ class StreamEventData(BaseModel):
 
 class ClearHistoryResponse(BaseResponse):
     """Response model for clear history endpoint."""
-    pass 
+    pass
