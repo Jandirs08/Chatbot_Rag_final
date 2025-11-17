@@ -27,6 +27,4 @@ class StreamEventData(BaseModel):
     streamed_output: str
     ops: Optional[List[StreamEventOp]] = None
 
-class ClearHistoryResponse(BaseResponse):
-    """Response model for clear history endpoint."""
-    pass
+# Nota: ClearHistoryResponse eliminado por no tener dependencias activas

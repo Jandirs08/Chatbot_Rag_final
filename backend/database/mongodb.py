@@ -1,5 +1,5 @@
 """MongoDB client for chat history."""
-from typing import List, Dict, Any, Optional
+from typing import Optional
 from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorClient
 import logging
@@ -53,28 +53,6 @@ class MongodbClient:
             logger.error(f"Error connecting to MongoDB: {str(e)}", exc_info=True)
             raise
 
-    async def get_conversation_history(self, conversation_id: str) -> List[Dict[str, Any]]:
-        """Get conversation history."""
-        try:
-            # Usar find().to_list() para obtener todos los documentos de una vez
-            cursor = self.messages.find(
-                {"conversation_id": conversation_id}
-            ).sort("timestamp", 1)
-            
-            # Convertir el cursor a lista de manera asíncrona
-            docs = await cursor.to_list(length=None)
-            
-            # Formatear los mensajes
-            messages = []
-            for doc in docs:
-                messages.append({
-                    "role": doc["role"],
-                    "content": doc["content"]
-                })
-            return messages
-        except Exception as e:
-            logger.error(f"Error al obtener historial: {str(e)}")
-            return []
 
     async def add_message(self, conversation_id: str, role: str, content: str, source: Optional[str] = None) -> None:
         """Add a message to the conversation history."""
@@ -115,28 +93,6 @@ class MongodbClient:
             logger.error(f"❌ Error aplicando índices MongoDB: {str(e)}")
             raise
 
-    
-    async def format_history(self, conversation_id: str) -> str:
-        """Format the chat history for use in prompts.
-        
-        Args:
-            conversation_id: ID of the conversation.
-            
-        Returns:
-            Formatted history string.
-        """
-        messages = await self.get_conversation_history(conversation_id)
-        
-        if not messages:
-            return ""
-        
-        formatted_history = ""
-        for msg in messages:
-            role = msg.get("role", "")
-            content = msg.get("content", "")
-            formatted_history += f"{role}: {content}\n\n"
-        
-        return formatted_history.strip()
     
     async def close(self) -> None:
         """Close the MongoDB connection."""

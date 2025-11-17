@@ -724,13 +724,6 @@ class RAGRetriever:
             logger.warning(f"Error en should_use_rag: {e}")
             return False
 
-    # El método clear() original tenía lógica para el vector store y el directorio de pdfs.
-    # La limpieza del vector store ahora debería ser manejada por RAGIngestor.
-    # RAGRetriever en sí mismo podría no tener estado que limpiar si solo consulta.
-    # def clear(self) -> None:
-    #     """Limpia el RAGRetriever (principalmente su VectorStore si es necesario)."""
-    #     logger.info("Limpiando RAGRetriever...")
-    #     # Si la limpieza del VectorStore se hace a través de RAGIngestor o un script separado,
-    #     # este método podría no ser necesario o tener un propósito diferente.
-    #     # Por ejemplo, si RAGRetriever tuviera algún caché interno:
-        # (línea eliminada: código inalcanzable/descontextualizado)
+    # El método clear() original tenía lógica para el vector store y el directorio de PDFs.
+    # La limpieza del vector store ahora debe ser manejada por RAGIngestor.
+    # RAGRetriever en sí mismo no mantiene estado que requiera limpieza.
