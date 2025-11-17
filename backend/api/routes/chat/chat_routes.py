@@ -98,6 +98,47 @@ async def chat_stream_log(request: Request):
         )
 
 
+@router.get("/history/{conversation_id}")
+async def get_history(conversation_id: str, request: Request):
+    """Devuelve el historial de mensajes para una conversación.
+
+    - Lee de la colección 'messages'.
+    - Ordena por timestamp ascendente.
+    - Devuelve únicamente: { role, content, timestamp, source (opcional) } por elemento.
+    - Sin metadatos adicionales.
+    """
+    try:
+        chat_manager = request.app.state.chat_manager
+        db = chat_manager.db
+
+        cursor = db.messages.find({
+            "conversation_id": conversation_id
+        }, {
+            "_id": 0,
+            "role": 1,
+            "content": 1,
+            "timestamp": 1,
+            "source": 1,
+        }).sort("timestamp", 1)
+
+        docs = await cursor.to_list(length=None)
+
+        # Normalizar timestamp a ISO 8601 para compatibilidad JSON
+        history = []
+        for d in docs:
+            ts = d.get("timestamp")
+            history.append({
+                "role": d.get("role"),
+                "content": d.get("content"),
+                "timestamp": ts.isoformat() if hasattr(ts, "isoformat") else ts,
+                "source": d.get("source")
+            })
+
+        return JSONResponse(content=history)
+    except Exception as e:
+        logger.error(f"Error al obtener historial de {conversation_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error al obtener historial")
+
 @router.get("/export-conversations")
 async def export_conversations(request: Request):
     """Exporta todas las conversaciones a un archivo Excel."""
