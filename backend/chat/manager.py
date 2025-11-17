@@ -2,6 +2,8 @@
 from typing import Any, Dict
 import logging
 from utils.logging_utils import get_logger
+from cache.manager import cache
+import hashlib
 
 from config import settings
 from database.mongodb import get_mongodb_client
@@ -26,10 +28,27 @@ class ChatManager:
             else:
                 logger.warning("ENABLE_RAG_LCEL desactivado: la recuperación contextual no se aplicará.")
 
-            bot_input = {"input": input_text, "conversation_id": conversation_id}
-            result = await self.bot(bot_input)
-            ai_response_message = BotMessage(message=result["output"], role=settings.ai_prefix)
-            response_content = ai_response_message.message
+            # Intentar obtener respuesta cacheada por (conversation_id + input_text)
+            cache_key = f"resp:{conversation_id}:{hashlib.sha256((input_text or '').strip().encode('utf-8')).hexdigest()}"
+            cached_response = None
+            try:
+                cached_response = cache.get(cache_key)
+            except Exception:
+                cached_response = None
+            if cached_response is not None:
+                logger.debug("Cache HIT respuesta LLM para conversación")
+                response_content = cached_response
+            else:
+                logger.debug("Cache MISS respuesta LLM — generando con Bot")
+                bot_input = {"input": input_text, "conversation_id": conversation_id}
+                result = await self.bot(bot_input)
+                ai_response_message = BotMessage(message=result["output"], role=settings.ai_prefix)
+                response_content = ai_response_message.message
+                # Guardar en cache
+                try:
+                    cache.set(cache_key, response_content, cache.ttl)
+                except Exception:
+                    pass
 
             # Guardar ambos mensajes en MongoDB
             await self.db.add_message(conversation_id, USER_ROLE, input_text)

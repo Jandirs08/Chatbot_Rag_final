@@ -2,6 +2,8 @@ from typing import List, Optional
 import numpy as np
 from utils.logging_utils import get_logger
 from config import settings
+from cache.manager import cache
+import hashlib
 
 # Usar embeddings remotos de OpenAI para reducir uso de memoria
 try:
@@ -42,37 +44,78 @@ class EmbeddingManager:
         # Guardar batch_size para batching explícito en embed_documents
         self._batch_size = getattr(settings, "embedding_batch_size", 32)
 
+    @staticmethod
+    def _hash_text(text: str) -> str:
+        norm = (text or "").strip().lower()
+        return hashlib.sha256(norm.encode("utf-8")).hexdigest()
+
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """Genera embeddings para una lista de textos usando OpenAI."""
         if not texts:
             self.logger.debug("No hay textos para generar embeddings")
             return []
 
-        filtered_texts = []
-        for text in texts:
-            if text and len(text.strip()) >= 3:
-                filtered_texts.append(text)
-            else:
-                # Para textos muy cortos, usar un placeholder
-                filtered_texts.append("placeholder_text")
+        # Normalizar textos (placeholder para textos muy cortos)
+        filtered_texts = [t if (t and len(t.strip()) >= 3) else "placeholder_text" for t in texts]
+
+        # Intento de cache por elemento
+        results: List[Optional[List[float]]] = [None] * len(filtered_texts)
+        miss_indices: List[int] = []
+        for i, t in enumerate(filtered_texts):
+            key = f"emb:doc:{self.model_name}:{self._hash_text(t)}"
+            try:
+                cached = cache.get(key)
+                if cached is not None:
+                    results[i] = cached
+                else:
+                    miss_indices.append(i)
+            except Exception:
+                miss_indices.append(i)
+        hit_count = len(filtered_texts) - len(miss_indices)
+        if hit_count:
+            self.logger.debug(f"Cache HIT embeddings documentos: {hit_count}/{len(filtered_texts)}")
+        if miss_indices:
+            self.logger.debug(
+                f"Cache MISS embeddings documentos: {len(miss_indices)}/{len(filtered_texts)} — generando para misses"
+            )
 
         try:
-            self.logger.debug(
-                f"Generando embeddings por lotes: total={len(filtered_texts)}, batch_size={self._batch_size}"
-            )
-            result_embeddings: List[List[float]] = []
-            # Batching explícito para evitar llamadas individuales
-            for start in range(0, len(filtered_texts), self._batch_size):
-                batch = filtered_texts[start:start + self._batch_size]
-                batch_embs = self._openai.embed_documents(batch)
-                # Normalizar salida de cada batch
-                for emb in batch_embs:
+            # Generar solo para elementos no cacheados (por lotes)
+            # Construir lotes desde miss_indices para respetar batch_size
+            index_to_embedding: dict[int, List[float]] = {}
+            for start in range(0, len(miss_indices), self._batch_size):
+                batch_indices = miss_indices[start:start + self._batch_size]
+                batch_texts = [filtered_texts[i] for i in batch_indices]
+                self.logger.debug(
+                    f"Generando embeddings por lotes de misses: lote={len(batch_texts)}, batch_size={self._batch_size}"
+                )
+                batch_embs = self._openai.embed_documents(batch_texts)
+                for idx, emb in zip(batch_indices, batch_embs):
                     if isinstance(emb, np.ndarray):
-                        result_embeddings.append(emb.tolist())
-                    else:
-                        result_embeddings.append(emb)
-            self.logger.debug("Embeddings generados exitosamente (batched)")
-            return result_embeddings
+                        emb = emb.tolist()
+                    index_to_embedding[idx] = emb
+            # Ensamblar resultados y escribir en cache misses
+            for i in miss_indices:
+                emb = index_to_embedding.get(i)
+                if emb is None:
+                    # Fallback: vector de ceros si algo falló puntualmente
+                    vector_dim = getattr(settings, "default_embedding_dimension", 1536)
+                    emb = [0.0] * vector_dim
+                results[i] = emb
+                try:
+                    key = f"emb:doc:{self.model_name}:{self._hash_text(filtered_texts[i])}"
+                    cache.set(key, emb, cache.ttl)
+                except Exception:
+                    pass
+            # Convertir todos a List[List[float]]
+            final_embeddings: List[List[float]] = []
+            for emb in results:
+                if isinstance(emb, np.ndarray):
+                    final_embeddings.append(emb.tolist())
+                else:
+                    final_embeddings.append([0.0] * vector_dim)
+            self.logger.debug("Embeddings generados con soporte de caché")
+            return final_embeddings
         except Exception as e:
             self.logger.warning(f"Error al generar embeddings: {e}")
             # Fallback: devolver vectores de ceros
@@ -81,13 +124,26 @@ class EmbeddingManager:
 
     def embed_query(self, query: str) -> List[float]:
         """Genera embedding para una consulta usando OpenAI."""
-        self.logger.debug(f"Generando embedding para consulta: {query}")
+        # Intentar cache primero
+        key = f"emb:query:{self.model_name}:{self._hash_text(query)}"
+        try:
+            cached = cache.get(key)
+            if cached is not None:
+                self.logger.debug("Cache HIT embedding consulta")
+                return cached
+        except Exception:
+            pass
+        self.logger.debug(f"Cache MISS embedding consulta — generando: {query}")
         try:
             embedding = self._openai.embed_query(query)
             # Asegurar que el resultado es una lista, no un ndarray
             if isinstance(embedding, np.ndarray):
                 embedding = embedding.tolist()
             self.logger.debug("Embedding de consulta generado")
+            try:
+                cache.set(key, embedding, cache.ttl)
+            except Exception:
+                pass
             return embedding
         except Exception as e:
             self.logger.warning(f"Error al generar embedding para consulta: {e}")
