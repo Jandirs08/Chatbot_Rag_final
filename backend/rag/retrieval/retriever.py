@@ -102,7 +102,7 @@ class RAGRetriever:
         self._centroid_embedding: Optional[np.ndarray] = None
         # Umbral de similitud para gating (configurable vía settings, default 0.45)
         try:
-            self._gating_threshold: float = float(getattr(settings, "rag_gating_similarity_threshold", 0.40))
+            self._gating_threshold: float = float(getattr(settings, "rag_gating_similarity_threshold", 0.20))
         except Exception:
             self._gating_threshold = 0.45
         logger.info("RAGRetriever inicializado con optimizaciones y monitoreo de rendimiento.")

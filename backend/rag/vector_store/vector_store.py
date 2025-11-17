@@ -22,7 +22,8 @@ from qdrant_client.http.models import (
     MatchValue,
     FilterSelector,
     HnswConfigDiff,
-    OptimizersConfigDiff
+    OptimizersConfigDiff,
+    NearestQuery,
 )
 
 from config import settings
@@ -327,6 +328,13 @@ class VectorStore:
     #   SIMILARITY SEARCH — **CORREGIDO**
     # =====================================================================
 
+    # =====================================================================
+#   SIMILARITY SEARCH — FIX DEFINITIVO (usa search_points)
+# =====================================================================
+# =====================================================================
+#   SIMILARITY SEARCH — API COMPATIBLE CON SDK ACTUAL (query_points)
+# =====================================================================
+    
     async def _similarity_search(
         self,
         query_embedding: np.ndarray,
@@ -335,47 +343,83 @@ class VectorStore:
     ) -> List[Tuple[Document, float]]:
 
         try:
-            query_embedding = query_embedding.tolist()
+            # asegurar lista
+            vector = query_embedding.tolist()
 
+            # construir filtro viejo
             qfilter = None
             if filter:
-                must = []
-                for kf, vf in filter.items():
-                    must.append(FieldCondition(key=str(kf), match=MatchValue(value=vf)))
+                must = [
+                    FieldCondition(
+                        key=str(kf),
+                        match=MatchValue(value=vf)
+                    )
+                    for kf, vf in filter.items()
+                ]
                 qfilter = QFilter(must=must)
 
-            # 👇 FIX IMPORTANTE: query_filter en lugar de filter
-            # Evitar bloqueo: ejecutar búsqueda en hilo
-            res = await asyncio.to_thread(
-                self.client.search,
+            # 🚀 API compatible: usar query_points con NearestQuery
+            results = await asyncio.to_thread(
+                self.client.query_points,
                 collection_name="rag_collection",
-                query_vector=query_embedding,
+                query=NearestQuery(nearest=vector),
                 limit=max(1, k),
-                query_filter=qfilter
+                query_filter=qfilter,
+                with_payload=True,
+                with_vectors=False,
             )
 
-            out = []
-            for r in res:
-                meta = dict(r.payload or {})
+            # Aceptar el tipo real devuelto en este entorno:
+            # - QueryResponse con atributo `points`
+            # - Tupla (lista_de_puntos, offset)
+            # - Lista de puntos
+            if hasattr(results, "points"):
+                points = results.points
+            elif isinstance(results, tuple) and len(results) > 0:
+                points = results[0]
+            else:
+                points = results if isinstance(results, list) else []
 
-                # reconstruir embedding guardado
-                emb = meta.get("embedding")
+            output = []
+            for r in points:
+                # r es típicamente `ScoredPoint` en este entorno
+                payload = dict(getattr(r, "payload", {}) or {})
+
+                # id y vector tal como los provee Qdrant
+                rid = getattr(r, "id", None)
+                rvec = getattr(r, "vector", None)
+
+                # score nativo si está disponible (sin suponer métrica)
+                score = float(getattr(r, "score", 0.0) or 0.0)
+
+                # Normalizar embedding en metadata para MMR
+                emb = payload.get("embedding")
                 if isinstance(emb, list):
-                    emb = np.array(emb)
-                meta["embedding"] = emb
+                    try:
+                        emb = np.array(emb)
+                    except Exception:
+                        pass
+                payload["embedding"] = emb
+
+                # Enriquecer metadata con id/score/vector (si está presente)
+                payload["id"] = rid
+                if rvec is not None:
+                    payload["vector"] = rvec
 
                 doc = Document(
-                    page_content=meta.get("text", ""),
-                    metadata=meta
+                    page_content=payload.get("text", ""),
+                    metadata=payload
                 )
 
-                out.append((doc, float(getattr(r, "score", 0.0))))
+                output.append((doc, score))
 
-            return out
+            return output
 
         except Exception as e:
             logger.error(f"Error similarity search: {e}", exc_info=True)
             return []
+
+
 
 
     # =====================================================================

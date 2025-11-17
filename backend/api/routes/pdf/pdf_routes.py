@@ -2,7 +2,6 @@
 import logging
 import datetime
 from fastapi import APIRouter, HTTPException, UploadFile, File, Request, BackgroundTasks
-from typing import List
 from pathlib import Path
 from starlette.responses import FileResponse
 

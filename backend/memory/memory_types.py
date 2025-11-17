@@ -16,9 +16,3 @@ MEM_TO_CLASS = {
     "base-memory": BaseChatbotMemory,  # Corregido: Ahora usa BaseChatbotMemory para el tipo base
     "custom-memory": CustomMongoChatbotMemory
 }
-
-
-class BaseChatbotMemory:
-    """Base class for the chatbot memory."""
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)

@@ -1,5 +1,4 @@
 """API routes for chat management."""
-import logging
 from utils.logging_utils import get_logger
 import uuid
 import json
@@ -15,7 +14,6 @@ from api.schemas import (
     StreamEventData
 )
 
-from database.mongodb import MongodbClient
 
 logger = get_logger(__name__)
 router = APIRouter()
