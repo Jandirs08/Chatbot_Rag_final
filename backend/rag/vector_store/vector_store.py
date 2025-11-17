@@ -155,7 +155,9 @@ class VectorStore:
                     points.append(PointStruct(id=ids[idx], vector=vec, payload=payload))
 
                 try:
-                    self.client.upsert(
+                    # Ejecutar llamada síncrona de Qdrant en hilo para no bloquear el event loop
+                    await asyncio.to_thread(
+                        self.client.upsert,
                         collection_name="rag_collection",
                         points=points,
                         wait=True
@@ -223,7 +225,8 @@ class VectorStore:
         try:
             query_embedding = await self._get_document_embedding(query)
 
-            count = self.client.count(collection_name="rag_collection")
+            # Evitar bloqueo: ejecutar count en hilo
+            count = await asyncio.to_thread(self.client.count, collection_name="rag_collection")
             total_docs = int(getattr(count, "count", 0))
 
             if total_docs == 0:
@@ -342,7 +345,9 @@ class VectorStore:
                 qfilter = QFilter(must=must)
 
             # 👇 FIX IMPORTANTE: query_filter en lugar de filter
-            res = self.client.search(
+            # Evitar bloqueo: ejecutar búsqueda en hilo
+            res = await asyncio.to_thread(
+                self.client.search,
                 collection_name="rag_collection",
                 query_vector=query_embedding,
                 limit=max(1, k),
@@ -386,7 +391,12 @@ class VectorStore:
 
                 qfilter = QFilter(must=must)
                 selector = FilterSelector(filter=qfilter)
-                self.client.delete(collection_name="rag_collection", points_selector=selector)
+                # Ejecutar borrado en hilo para no bloquear
+                await asyncio.to_thread(
+                    self.client.delete,
+                    collection_name="rag_collection",
+                    points_selector=selector
+                )
             else:
                 await self.delete_collection()
 
@@ -404,8 +414,9 @@ class VectorStore:
     async def delete_collection(self) -> None:
         try:
             try:
-                self.client.delete_collection("rag_collection")
-            except:
+                # Ejecutar borrado de colección en hilo
+                await asyncio.to_thread(self.client.delete_collection, "rag_collection")
+            except Exception:
                 pass
 
             self._initialize_store()

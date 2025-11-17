@@ -203,6 +203,11 @@ async def lifespan(app: FastAPI):
             logger.info("Initializing persistent MongoDB client for application lifespan...")
             app.state.mongodb_client = get_mongodb_client()
             await app.state.mongodb_client.ensure_indexes()
+            # Asegurar índices de usuarios (únicos y de estado)
+            try:
+                await app.state.mongodb_client.ensure_user_indexes()
+            except Exception as e_idx:
+                logger.warning(f"No se pudieron aplicar índices de usuarios al arranque: {e_idx}")
             logger.info("🚀 Persistent MongoDB client initialized and indexes created successfully")
         except Exception as e:
             logger.error(f"⚠️ Error initializing persistent MongoDB client: {e}", exc_info=True)

@@ -93,6 +93,20 @@ class MongodbClient:
             logger.error(f"❌ Error aplicando índices MongoDB: {str(e)}")
             raise
 
+    async def ensure_user_indexes(self) -> None:
+        """Ensure indexes for users collection (unique and commonly queried fields)."""
+        try:
+            users_collection = self.db["users"]
+            # Índices únicos
+            await users_collection.create_index("username", unique=True)
+            await users_collection.create_index("email", unique=True)
+            # Índice para consultas por estado
+            await users_collection.create_index("is_active")
+            logger.info("✅ Índices de usuarios aplicados correctamente")
+        except Exception as e:
+            logger.error(f"❌ Error aplicando índices de usuarios: {str(e)}")
+            # No relanzamos para no bloquear el arranque; se puede reintentar luego
+
     
     async def close(self) -> None:
         """Close the MongoDB connection."""

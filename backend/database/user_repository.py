@@ -22,23 +22,12 @@ class UserRepository:
         """
         self.mongodb_client = mongodb_client
         self.collection_name = "users"
-        self._ensure_indexes()
+        # Los índices se aplican en el arranque de la aplicación (lifespan)
+        # para evitar corutinas no esperadas dentro de __init__.
     
     def _ensure_indexes(self):
-        """Ensure required indexes exist for the users collection."""
-        try:
-            users_collection = self.mongodb_client.db[self.collection_name]
-            
-            # Create unique indexes for username and email
-            users_collection.create_index("username", unique=True)
-            users_collection.create_index("email", unique=True)
-            
-            # Create index for active users
-            users_collection.create_index("is_active")
-            
-            logger.info("User collection indexes ensured successfully")
-        except Exception as e:
-            logger.error(f"Error ensuring user indexes: {e}")
+        """Deprecated: índices se aseguran desde MongodbClient en el startup."""
+        logger.debug("_ensure_indexes() no-op; índices manejados en app startup.")
     
     async def create_user(self, user_data: UserCreate, hashed_password: str) -> Optional[User]:
         """Create a new user in the database.

@@ -42,8 +42,6 @@ xlsxwriter>=3.1.0
 scikit-learn>=1.3.0,<2.0.0
 
 # Performance
-ujson>=5.8.0,<6.0.0
-orjson>=3.9.10,<4.0.0
 aiofiles>=23.2.1,<24.0.0
 httpx>=0.25.1,<1.0.0
 
@@ -51,9 +49,7 @@ httpx>=0.25.1,<1.0.0
 colorama>=0.4.6,<1.0.0
 
 # Monitoring & Observability
-prometheus-client>=0.17.1,<1.0.0
-opentelemetry-api>=1.20.0,<2.0.0
-opentelemetry-sdk>=1.20.0,<2.0.0
+
 
 # Development & Testing
 pytest>=7.4.3,<8.0.0
