@@ -112,3 +112,135 @@ def build_startup_summary(app: FastAPI) -> str:
     lines.append("Estado: OK si todos los ítems críticos están con ✓")
     lines.append("=" * 80)
     return "\n".join(lines)
+
+
+def build_enterprise_startup_summary(app: FastAPI) -> str:
+    """Return a clean AWS-like startup summary panel (printed once)."""
+    s = getattr(app.state, "settings", None)
+    sep = "\u2500" * 68
+
+    def val(x, default="-"):
+        return x if x not in (None, "") else default
+
+    try:
+        api_routes = [r for r in app.routes if isinstance(r, APIRoute)]
+        routes_count = len(api_routes)
+    except Exception:
+        routes_count = 0
+
+    embedding_manager = getattr(app.state, "embedding_manager", None)
+    embedding_model = val(getattr(embedding_manager, "model_name", None))
+    vector_store = getattr(app.state, "vector_store", None)
+    rag_ingestor = getattr(app.state, "rag_ingestor", None)
+    rag_retriever = getattr(app.state, "rag_retriever", None)
+    mongodb_client = getattr(app.state, "mongodb_client", None)
+    pdf_manager = getattr(app.state, "pdf_file_manager", None)
+    pdf_dir = val(getattr(pdf_manager, "pdf_dir", None))
+
+    env = val(getattr(s, "environment", None), "unknown")
+    log_level = val(getattr(s, "log_level", None), "INFO")
+    model_type = val(getattr(s, "model_type", None), "UNKNOWN")
+    base_model_name = val(getattr(s, "base_model_name", None))
+
+    lines: List[str] = []
+    lines.append(sep)
+    lines.append("SYSTEM STATUS")
+    lines.append(sep)
+    lines.append(f"\u2713 Environment ............... {env}")
+    lines.append(f"\u2713 Log Level ................ {log_level}")
+    lines.append(f"\u2713 Model Type ............... {model_type}")
+    lines.append(f"\u2713 Base Model ............... {base_model_name}")
+    lines.append(f"\u2713 Embeddings ............... {embedding_model}")
+    lines.append(f"\u2713 Vector Store ............. {'initialized' if vector_store else 'not initialized'}")
+    lines.append(f"\u2713 RAG Ingestor ............. {'OK' if rag_ingestor else 'N/A'}")
+    lines.append(f"\u2713 RAG Retriever ............ {'OK' if rag_retriever else 'N/A'}")
+    lines.append(f"\u2713 MongoDB .................. {'connected' if mongodb_client else 'not connected'}")
+    lines.append(f"\u2713 PDFs Directory ........... {pdf_dir}")
+    lines.append(f"\u2713 Routes Registered ........ {routes_count}")
+    lines.append(sep)
+    lines.append("STATUS: OK")
+    lines.append(sep)
+    return "\n".join(lines)
+
+
+def build_full_startup_summary(app: FastAPI) -> str:
+    """Return enterprise panel (once) followed by deep diagnostics (once)."""
+    s = getattr(app.state, "settings", None)
+    sep_mid = "\u2500" * 67
+
+    def val(x, default="-"):
+        return x if x not in (None, "") else default
+
+    # Datos
+    try:
+        api_routes = [r for r in app.routes if isinstance(r, APIRoute)]
+        routes_count = len(api_routes)
+    except Exception:
+        routes_count = 0
+
+    embedding_manager = getattr(app.state, "embedding_manager", None)
+    embedding_model = val(getattr(embedding_manager, "model_name", None))
+
+    vector_store = getattr(app.state, "vector_store", None)
+    vector_dir = "-"
+    vector_size = "-"
+    if vector_store and hasattr(vector_store, "persist_directory"):
+        try:
+            p = vector_store.persist_directory
+            vector_dir = str(p)
+            if p.exists():
+                size = sum(f.stat().st_size for f in p.glob("**/*") if f.is_file())
+                vector_size = _fmt_bytes(size)
+        except Exception:
+            pass
+
+    rag_ingestor = getattr(app.state, "rag_ingestor", None)
+    rag_retriever = getattr(app.state, "rag_retriever", None)
+    mongodb_client = getattr(app.state, "mongodb_client", None)
+
+    pdf_manager = getattr(app.state, "pdf_file_manager", None)
+    pdf_dir = val(getattr(pdf_manager, "pdf_dir", None))
+
+    env = val(getattr(s, "environment", None), "unknown")
+    log_level = val(getattr(s, "log_level", None), "INFO")
+    model_type = val(getattr(s, "model_type", None), "UNKNOWN")
+    base_model_name = val(getattr(s, "base_model_name", None))
+    main_prompt_name = val(getattr(s, "main_prompt_name", None))
+    mem_type = val(getattr(s, "memory_type", None))
+    cors_origins = val(getattr(s, "cors_origins", None), [])
+    cache_enabled = bool(getattr(s, "enable_cache", False))
+    metrics_enabled = bool(getattr(s, "enable_metrics", False))
+    tracing_enabled = bool(getattr(s, "enable_tracing", False))
+
+    # PANEL ENTERPRISE (solo una vez)
+    enterprise_panel = build_enterprise_startup_summary(app)
+
+    # DEEP DIAGNOSTIC
+    deep: List[str] = []
+    deep.append("(DEEP DIAGNOSTIC)")
+    deep.append(sep_mid)
+    deep.append(f"✓ Entorno: {env}")
+    deep.append(f"✓ Log Level: {log_level}")
+    deep.append(f"✓ Modelo Base: {model_type} / {base_model_name}")
+    deep.append(f"✓ Prompt Principal: {main_prompt_name}")
+    deep.append(f"✓ Tipo de Memoria: {mem_type}")
+    deep.append(f"✓ Embeddings: {embedding_model}")
+    deep.append(f"✓ Vector Store Path: {vector_dir}")
+    deep.append(f"✓ Vector Store Size: {vector_size}")
+    deep.append(f"✓ RAG Ingestor: {'OK' if rag_ingestor else 'No'}")
+    deep.append(f"✓ RAG Retriever: {'OK' if rag_retriever else 'No'}")
+    deep.append(f"✓ MongoDB: {'conectado' if mongodb_client else 'no disponible'}")
+    deep.append(f"✓ PDFs Dir: {pdf_dir}")
+    deep.append(f"✓ CORS Orígenes: {cors_origins}")
+    deep.append(f"✓ Auth Middleware: configurado")
+    deep.append(f"✓ Rutas API registradas: {routes_count}")
+    deep.append(f"✓ Caché: {'habilitada' if cache_enabled else 'deshabilitada'}")
+    deep.append(f"✓ Métricas: {'habilitadas' if metrics_enabled else 'deshabilitadas'}")
+    deep.append(f"✓ Tracing: {'habilitado' if tracing_enabled else 'deshabilitado'}")
+    deep.append(sep_mid)
+    deep.append("STATUS: OK")
+    deep.append(sep_mid)
+    return "\n".join([
+        enterprise_panel,
+        *deep
+    ])

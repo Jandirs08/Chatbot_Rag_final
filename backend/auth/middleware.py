@@ -1,19 +1,23 @@
 """
 Middleware de autenticación para proteger rutas administrativas.
 
-Este middleware intercepta requests automáticamente y valida tokens JWT
-solo para rutas administrativas, manteniendo las rutas públicas accesibles.
+Este middleware intercepta requests automáticamente y delega la validación
+de usuarios y permisos a las dependencias estándar, manteniendo las rutas
+públicas accesibles.
 """
 import logging
-from typing import List, Optional
+from typing import List
 from fastapi import Request, HTTPException, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
-from auth.jwt_handler import verify_token, JWTError
-from database.user_repository import UserRepository
-from database.mongodb import MongodbClient
+from auth.dependencies import (
+    security,
+    get_current_user,
+    get_current_active_user,
+    require_admin,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -63,73 +67,6 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         """Verifica si una ruta está protegida (requiere autenticación)."""
         return any(path.startswith(protected_path) for protected_path in self.protected_paths)
     
-    async def _extract_token_from_request(self, request: Request) -> Optional[str]:
-        """Extrae el token JWT del header Authorization."""
-        authorization: str = request.headers.get("Authorization")
-        if not authorization:
-            return None
-        
-        if not authorization.startswith("Bearer "):
-            return None
-        
-        return authorization.split(" ")[1]
-    
-    async def _validate_admin_user(self, request: Request, token: str) -> bool:
-        """
-        Valida que el token sea válido y pertenezca a un usuario admin activo.
-        
-        Args:
-            request: Request object para acceder al estado de la app
-            token: JWT token a validar
-            
-        Returns:
-            bool: True si el usuario es admin activo, False en caso contrario
-        """
-        try:
-            # Obtener MongoDB client del estado de la aplicación
-            if not hasattr(request.app.state, 'mongodb_client'):
-                logger.error("MongoDB client no disponible en el estado de la aplicación")
-                return False
-            
-            mongodb_client = request.app.state.mongodb_client
-            user_repository = UserRepository(mongodb_client)
-            
-            # Verificar y decodificar token
-            payload = verify_token(token)
-            user_id = payload.get("sub")
-            
-            if not user_id:
-                logger.warning("Token JWT sin user_id en payload")
-                return False
-            
-            # Obtener usuario de la base de datos por ID
-            user = await user_repository.get_user_by_id(user_id)
-            
-            if not user:
-                logger.warning(f"Usuario no encontrado con ID: {user_id}")
-                return False
-            
-            if not user.is_active:
-                logger.warning(f"Usuario inactivo con ID: {user_id}")
-                return False
-            
-            if not user.is_admin:
-                logger.warning(f"Usuario sin permisos de admin con ID: {user_id}")
-                return False
-            
-            # Actualizar último login
-            await user_repository.update_last_login(str(user.id))
-            
-            logger.info(f"Acceso autorizado para admin: {user.username} (ID: {user_id})")
-            return True
-            
-        except JWTError as e:
-            logger.warning(f"Error de validación JWT: {str(e)}")
-            return False
-        except Exception as e:
-            logger.error(f"Error inesperado en validación de admin: {str(e)}")
-            return False
-    
     async def dispatch(self, request: Request, call_next) -> Response:
         """
         Procesa cada request y aplica autenticación según la ruta.
@@ -148,14 +85,14 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
             logger.debug(f"Ruta pública permitida: {path}")
             return await call_next(request)
         
-        # Si es una ruta protegida, validar autenticación
+        # Si es una ruta protegida, validar autenticación delegando en dependencias
         if self._is_protected_path(path):
             logger.debug(f"Ruta protegida, validando autenticación: {path}")
             
-            # Extraer token
-            token = await self._extract_token_from_request(request)
+            # Obtener credenciales Bearer usando el esquema estándar
+            credentials = await security.__call__(request)
             
-            if not token:
+            if not credentials:
                 logger.warning(f"Acceso denegado - Token faltante para: {path}")
                 return JSONResponse(
                     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -166,11 +103,17 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
                     }
                 )
             
-            # Validar que sea admin
-            is_valid_admin = await self._validate_admin_user(request, token)
-            
-            if not is_valid_admin:
-                logger.warning(f"Acceso denegado - Token inválido o sin permisos admin para: {path}")
+            # Validación completa delegada:
+            try:
+                current_user = await get_current_user(credentials)
+                active_user = await get_current_active_user(current_user)
+                await require_admin(active_user)
+                logger.info(f"Acceso autorizado a ruta protegida: {path}")
+            except HTTPException as e:
+                logger.warning(
+                    f"Acceso denegado para ruta protegida {path} - {e.detail}"
+                )
+                # Mantener respuesta similar: usar 403 para fallos de autorización
                 return JSONResponse(
                     status_code=status.HTTP_403_FORBIDDEN,
                     content={
@@ -179,8 +122,16 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
                         "path": path
                     }
                 )
-            
-            logger.info(f"Acceso autorizado a ruta protegida: {path}")
+            except Exception as e:
+                logger.error(f"Error inesperado de autenticación en {path}: {str(e)}")
+                return JSONResponse(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    content={
+                        "detail": "Acceso denegado por error de autenticación",
+                        "error": "auth_error",
+                        "path": path
+                    }
+                )
         
         # Continuar con el request
         return await call_next(request)
