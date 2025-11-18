@@ -37,7 +37,7 @@ Sistema backend robusto y modular para un chatbot con capacidades RAG (Retrieval
        +--------------------------------------------------------------------------------+
        | Persistencia: MongoDB (collections: messages, users, bot_config)               |
        +--------------------------------------------------------------------------------+
-       | Storage: documentos/pdfs; vector_store/chroma_db (legado, no usado con Qdrant) |
+       | Storage: documentos/pdfs; vector_store/ (persistencia local; Qdrant externo)  |
        +--------------------------------------------------------------------------------+
        | Utilidades: logging_utils, deploy_log, chain_cache                              |
        +--------------------------------------------------------------------------------+
@@ -50,21 +50,29 @@ backend/
 ├── api/
 │   ├── app.py                 # Inicialización FastAPI, lifespan, CORS, middleware, routers
 │   ├── auth.py                # Endpoints de autenticación (login/me/refresh/logout)
-│   ├── routes/
-│   │   ├── health/health_routes.py
-│   │   ├── chat/chat_routes.py
-│   │   ├── pdf/pdf_routes.py
-│   │   ├── rag/rag_routes.py
-│   │   ├── bot/bot_routes.py
-│   │   ├── bot/config_routes.py
-│   │   └── users/users_routes.py
+│   ├── routes/                # Routers por dominio
+│   │   ├── bot/
+│   │   ├── chat/
+│   │   ├── health/
+│   │   ├── pdf/
+│   │   ├── rag/
+│   │   └── users/
 │   └── schemas/               # Esquemas Pydantic centralizados
+│       ├── base.py
+│       ├── chat.py
+│       ├── config.py
+│       ├── health.py
+│       ├── pdf.py
+│       └── rag.py
 ├── auth/
-│   ├── middleware.py          # Protección de rutas admin vía JWT
+│   ├── dependencies.py        # Dependencias FastAPI (get_current_user, require_admin, etc.)
 │   ├── jwt_handler.py         # Creación/verificación de tokens
-│   ├── dependencies.py        # Dependencias FastAPI (get_current_user, etc.)
-│   ├── password_handler.py    # Hash/verify
-│   └── password_handler_bcrypt.py
+│   ├── middleware.py          # Protección de rutas admin vía JWT
+│   └── password_handler.py    # Hash/verify
+├── cache/
+│   ├── manager.py             # Facade para caché
+│   ├── memory_backend.py      # Backend en memoria
+│   └── redis_backend.py       # Backend Redis opcional
 ├── chat/
 │   └── manager.py             # Orquestación de respuestas y registro en MongoDB
 ├── core/
@@ -72,13 +80,12 @@ backend/
 │   ├── chain.py               # ChainManager, prompts y modelo
 │   └── prompt.py              # Personalidad y plantillas principales
 ├── database/
-│   ├── mongodb.py             # Cliente MongoDB, índices para messages
+│   ├── config_repository.py   # Configuración del bot (system_prompt, nombre, UI extra)
+│   ├── mongodb.py             # Cliente MongoDB, índices
 │   ├── user_repository.py     # Repositorio de usuarios (CRUD, índices)
-│   └── config_repository.py   # Configuración del bot (system_prompt, nombre, UI extra)
+│   
 ├── memory/
 │   ├── base_memory.py
-│   ├── custom_memory.py
-│   ├── mongo_memory.py
 │   └── memory_types.py        # Enum + mapping
 ├── rag/
 │   ├── embeddings/embedding_manager.py
@@ -87,22 +94,31 @@ backend/
 │   ├── retrieval/retriever.py
 │   └── vector_store/vector_store.py
 ├── storage/
-│   ├── documents/pdf_manager.py
+│   ├── documents/
+│   │   ├── pdf_manager.py
 │   │   └── pdfs/                           # Carpeta de PDFs
-│   └── vector_store/chroma_db/             # Persistencia local (LEGADO); Qdrant es externo
+│   └── vector_store/                       # Persistencia local del vector store
 ├── common/
 │   ├── constants.py
 │   └── objects.py             # Message, roles, convenciones conversation_id
 ├── models/
 │   ├── auth.py                # DTOs auth (LoginRequest, TokenResponse, etc.)
+│   ├── model_types.py         # Tipos auxiliares
 │   └── user.py                # Modelo de usuario
 ├── utils/
 │   ├── logging_utils.py       # Filtros y supresión de ruido (cl100k_base)
 │   ├── chain_cache.py
-│   └── deploy_log.py          # Resumen de arranque
+│   ├── deploy_log.py          # Resumen de arranque y diagnósticos
+│   ├── memory/
+│   │   └── memory_audit_report.md
+│   └── rag_type_detector.py
 ├── config.py                  # Pydantic Settings (CORS, JWT, RAG, etc.)
 ├── main.py                    # Punto de entrada (Uvicorn)
-└── requirements.txt
+├── requirements.txt
+├── tests/                     # Pruebas
+│   ├── conftest.py
+│   └── test_auth_validation.py
+└── Dockerfile                 # Docker backend
 ```
 
 ## Flujo Interno de Datos

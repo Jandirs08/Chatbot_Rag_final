@@ -1,35 +1,22 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, Any, List, Protocol, Union
+from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone
 import logging
 import re
 
-class MessageStore(Protocol):
-    """Protocolo para almacenamiento de mensajes"""
-    def store(self, session_id: str, message: Dict[str, Any]) -> None: ...
-    def retrieve(self, session_id: str, limit: Optional[int] = None) -> List[Dict[str, Any]]: ...
-    def clear(self, session_id: str) -> None: ...
-
-class ContextManager(Protocol):
-    """Protocolo para gestión de contexto"""
-    def update(self, session_id: str, data: Dict[str, Any]) -> None: ...
-    def get(self, session_id: str) -> Dict[str, Any]: ...
+ 
 
 
 class AbstractChatbotMemory(ABC):
     """Clase base abstracta para la memoria del chatbot"""
     def __init__(
         self,
-        message_store: Optional[Any] = None,
-        context_manager: Optional[Any] = None,
         window_size: int = 5,
         settings = None,
         session_id: str = "default_session",
         k: Optional[int] = None,
         **kwargs
     ):
-        self.message_store = message_store
-        self.context_manager = context_manager
         self.window_size = window_size
         self.settings = settings
         self.session_id = session_id
@@ -42,7 +29,7 @@ class AbstractChatbotMemory(ABC):
         pass
 
     @abstractmethod
-    async def get_history(self, session_id: str) -> str:
+    async def get_history(self, session_id: str) -> List[Dict[str, Any]]:
         """Recupera el historial de forma asíncrona"""
         pass
 
@@ -55,8 +42,6 @@ class AbstractChatbotMemory(ABC):
 class BaseChatbotMemory(AbstractChatbotMemory):
     def __init__(
         self,
-        message_store: Optional[Any] = None,
-        context_manager: Optional[Any] = None,
         window_size: int = 5,
         settings = None,
         session_id: str = "default_session",
@@ -64,148 +49,111 @@ class BaseChatbotMemory(AbstractChatbotMemory):
         **kwargs
     ):
         super().__init__(
-            message_store=message_store,
-            context_manager=context_manager,
             window_size=window_size,
             settings=settings,
             session_id=session_id,
             k=k,
             **kwargs
         )
-        self._session_context = {}  # Diccionario para mantener el contexto de la sesión
-        self._message_history = []  # Lista para mantener el historial de mensajes en memoria
+        # Perfil mínimo por sesión: nombre, edad, gustos, metas
+        self._profiles: Dict[str, Dict[str, str]] = {}
+        # Historial por sesión (últimos k mensajes)
+        self._message_history: Dict[str, List[Dict[str, Any]]] = {}
 
-    def _extract_user_info(self, content: str) -> Dict[str, str]:
-        """Extrae información del usuario del mensaje usando expresiones regulares."""
-        user_info = {}
-        
-        # Patrones para extraer información
-        patterns = {
-            'name': r'(?:me llamo|mi nombre es|soy)\s+([A-Za-zÁáÉéÍíÓóÚúÑñ\s]+)',
-            'age': r'(?:tengo|mi edad es|soy de)\s+(\d+)\s+(?:años|año)',
-            'city': r'(?:vivo en|soy de|estoy en)\s+([A-Za-zÁáÉéÍíÓóÚúÑñ\s]+)',
-            'profession': r'(?:soy|trabajo como|mi profesión es)\s+([A-Za-zÁáÉéÍíÓóÚúÑñ\s]+)',
-            'likes': r'(?:me gusta|disfruto de|me interesa)\s+([A-Za-zÁáÉéÍíÓóÚúÑñ\s,]+)',
-            'preferences': r'(?:prefiero|me gusta más|me interesa más)\s+([A-Za-zÁáÉéÍíÓóÚúÑñ\s,]+)'
-        }
-        
-        # Buscar cada patrón en el contenido
-        for key, pattern in patterns.items():
-            match = re.search(pattern, content.lower())
-            if match:
-                user_info[key] = match.group(1).strip()
-        
-        return user_info
+    def _extract_profile(self, content: str) -> Dict[str, str]:
+        """Extrae un perfil mínimo del usuario desde su texto.
 
-    def _extract_topics(self, content: str) -> List[str]:
-        """Extrae temas de conversación del mensaje."""
-        topics = []
-        
-        # Palabras clave que indican temas
-        topic_keywords = {
-            'trabajo': ['trabajo', 'empleo', 'profesión', 'carrera'],
-            'estudios': ['estudio', 'universidad', 'escuela', 'carrera'],
-            'familia': ['familia', 'padres', 'hermanos', 'hijos'],
-            'hobbies': ['hobby', 'pasatiempo', 'interés', 'gusto'],
-            'viajes': ['viaje', 'viajar', 'turismo', 'destino'],
-            'tecnología': ['tecnología', 'computadora', 'software', 'hardware'],
-            'deportes': ['deporte', 'ejercicio', 'fútbol', 'baloncesto'],
-            'música': ['música', 'canción', 'artista', 'banda'],
-            'películas': ['película', 'cine', 'serie', 'actor']
-        }
-        
-        content_lower = content.lower()
-        for topic, keywords in topic_keywords.items():
-            if any(keyword in content_lower for keyword in keywords):
-                topics.append(topic)
-        
-        return topics
+        Campos soportados: nombre, edad, gustos, metas.
+        La extracción es simple y conservadora para evitar textos largos.
+        """
+        text = content.strip()
+        lower = text.lower()
 
-    def _update_session_context(self, session_id: str, content: str) -> None:
-        """Actualiza el contexto de la sesión con nueva información."""
-        if session_id not in self._session_context:
-            self._session_context[session_id] = {
-                'user_info': {},
-                'conversation_topics': set(),
-                'last_message': content,
-                'conversation_summary': []
-            }
-        
-        # Extraer y actualizar información del usuario
-        user_info = self._extract_user_info(content)
-        if user_info:
-            self._session_context[session_id]['user_info'].update(user_info)
-            # Añadir al resumen de la conversación
-            for key, value in user_info.items():
-                summary = f"El usuario mencionó que {key}: {value}"
-                self._session_context[session_id]['conversation_summary'].append(summary)
-        
-        # Extraer y actualizar temas de conversación
-        topics = self._extract_topics(content)
-        if topics:
-            self._session_context[session_id]['conversation_topics'].update(topics)
-            # Añadir al resumen de la conversación
-            for topic in topics:
-                if topic not in self._session_context[session_id]['conversation_summary']:
-                    summary = f"Se discutió sobre {topic}"
-                    self._session_context[session_id]['conversation_summary'].append(summary)
-        
-        # Actualizar último mensaje
-        self._session_context[session_id]['last_message'] = content
+        profile: Dict[str, str] = {}
+
+        # nombre
+        m = re.search(r"(?:me llamo|mi nombre es|soy)\s+([a-záéíóúñ\s]{2,50})", lower)
+        if m:
+            name = m.group(1).strip()
+            # Capitalizar simple por palabras
+            profile["nombre"] = " ".join(w.capitalize() for w in name.split())[:50]
+
+        # edad (número seguido de 'años')
+        m = re.search(r"(?:tengo|mi edad es)\s+(\d{1,3})\s+(?:años|año)", lower)
+        if m:
+            profile["edad"] = m.group(1)
+
+        # gustos: capturar una frase corta después de indicaciones comunes
+        m = re.search(r"(?:me gusta(?:n)?|disfruto de|me interesa(?:n)?)\s+([a-záéíóúñ\s,]{2,100})", lower)
+        if m:
+            likes = m.group(1).strip()
+            # Limitar longitud y número de elementos
+            items = [i.strip() for i in likes.split(",") if i.strip()]
+            profile["gustos"] = ", ".join(items[:3])[:100]
+
+        # metas/objetivos: frases cortas después de patrones comunes
+        m = re.search(r"(?:mi meta|mis metas|quiero|me gustaría|objetivo)\s+(?:es|es\s+)|(?:quiero|me gustaría)\s+([a-záéíóúñ\s,]{2,120})", lower)
+        if not m:
+            # alternativa genérica: buscar 'quiero ...'
+            m = re.search(r"quiero\s+([a-záéíóúñ\s,]{2,120})", lower)
+        if m:
+            goals = m.group(1).strip()
+            profile["metas"] = goals[:120]
+
+        return profile
+
+    # Eliminado: lógica de temas/resúmenes/contexto extenso.
+
+    # Eliminado: actualización de contexto de sesión complejo.
 
     async def add_message(self, session_id: str, role: str, content: str) -> None:
-        """Implementación para añadir un mensaje y mantener el contexto"""
+        """Añade un mensaje y actualiza el perfil mínimo si es del usuario."""
         self.logger.debug(f"Mensaje añadido a la sesión {session_id}: {role}: {content[:50]}...")
         
-        # Añadir mensaje al historial
-        self._message_history.append({
+        # Inicializar lista de historial para la sesión si no existe
+        if session_id not in self._message_history:
+            self._message_history[session_id] = []
+
+        # Añadir mensaje al historial de la sesión
+        self._message_history[session_id].append({
             "role": role,
             "content": content,
             "session_id": session_id,
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
+
+        # Mantener solo los últimos k mensajes para la sesión actual
+        if len(self._message_history[session_id]) > self.k_history:
+            self._message_history[session_id] = self._message_history[session_id][-self.k_history:]
         
-        # Mantener solo los últimos k mensajes
-        if len(self._message_history) > self.k_history:
-            self._message_history = self._message_history[-self.k_history:]
-        
-        # Extraer y actualizar el contexto solo para mensajes del usuario
+        # Actualizar perfil mínimo solo para mensajes del usuario
         if role == "human":
-            self._update_session_context(session_id, content)
+            extracted = self._extract_profile(content)
+            if extracted:
+                current = self._profiles.get(session_id, {})
+                current.update(extracted)
+                # Asegurar que solo las claves permitidas existan
+                allowed = {k: v for k, v in current.items() if k in {"nombre", "edad", "gustos", "metas"}}
+                self._profiles[session_id] = allowed
     
     async def get_history(self, session_id: str) -> List[Dict[str, Any]]:
-        """Implementación para obtener el historial con contexto"""
+        """Obtiene el historial y, si existe, antepone el perfil del usuario."""
         self.logger.debug(f"Obteniendo historial para la sesión {session_id}")
         
-        # Filtrar mensajes por session_id
-        session_messages = [msg for msg in self._message_history if msg["session_id"] == session_id]
+        # Obtener copia del historial de la sesión actual
+        session_messages = list(self._message_history.get(session_id, []))
         
-        # Añadir el contexto actual al historial
-        if session_id in self._session_context:
-            context = self._session_context[session_id]
-            context_str = "Contexto actual:\n"
-            
-            # Añadir información del usuario
-            if context["user_info"]:
-                context_str += "Información del usuario:\n"
-                for key, value in context["user_info"].items():
-                    context_str += f"- {key}: {value}\n"
-            
-            # Añadir temas de conversación
-            if context["conversation_topics"]:
-                context_str += "\nTemas de conversación:\n"
-                for topic in context["conversation_topics"]:
-                    context_str += f"- {topic}\n"
-            
-            # Añadir resumen de la conversación
-            if context["conversation_summary"]:
-                context_str += "\nResumen de la conversación:\n"
-                for summary in context["conversation_summary"][-5:]:  # Últimos 5 puntos del resumen
-                    context_str += f"- {summary}\n"
-            
+        # Anteponer un único mensaje "system" con el perfil, si existe
+        profile = self._profiles.get(session_id, {})
+        if profile:
+            # Construir una cadena resumida y breve
+            lines = ["Perfil del usuario:"]
+            for key in ("nombre", "edad", "gustos", "metas"):
+                if key in profile and profile[key]:
+                    lines.append(f"- {key}: {profile[key]}")
             context_message = {
                 "role": "system",
-                "content": context_str,
+                "content": "\n".join(lines),
                 "session_id": session_id
             }
             session_messages.insert(0, context_message)
@@ -213,7 +161,8 @@ class BaseChatbotMemory(AbstractChatbotMemory):
         return session_messages
     
     async def clear_history(self, session_id: str) -> None:
-        """Limpia el historial y el contexto de una sesión específica"""
-        self._message_history = [msg for msg in self._message_history if msg["session_id"] != session_id]
-        if session_id in self._session_context:
-            del self._session_context[session_id]
+        """Limpia el historial y el perfil de una sesión específica."""
+        if session_id in self._message_history:
+            del self._message_history[session_id]
+        if session_id in self._profiles:
+            del self._profiles[session_id]

@@ -117,7 +117,17 @@ class Bot:
         async def get_history_async(x):
             conversation_id = x.get("conversation_id")
             hist = await self.memory.get_history(conversation_id)
-            return self._format_history(hist)
+
+            # 🔥 LOG: ver historia cruda tal cual viene de la memoria
+            self.logger.warning(f"[DEBUG-HISTORY] Raw hist_list:\n{hist}")
+
+            formatted = self._format_history(hist)
+
+            # 🔥 LOG: ver cómo se formatea para insertarse en el prompt
+            self.logger.warning(f"[DEBUG-HISTORY] Formatted history for prompt:\n{formatted}")
+
+            return formatted
+
 
         async def get_context_async(x):
             """Inyecta contexto RAG SOLO si está habilitado."""
@@ -227,7 +237,10 @@ class Bot:
     def _format_history(self, hist_list):
         out = []
         for msg in hist_list:
-            if msg["role"] == "human":
+            if msg["role"] == "system":
+                # Incluir el mensaje del sistema tal cual (perfil de usuario)
+                out.append(msg["content"])
+            elif msg["role"] == "human":
                 out.append(f"Usuario: {msg['content']}")
             elif msg["role"] == "ai":
                 out.append(f"Asistente: {msg['content']}")
