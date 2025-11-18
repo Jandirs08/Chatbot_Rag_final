@@ -8,8 +8,7 @@ from memory import (
     MemoryTypes,
     MEM_TO_CLASS,
     AbstractChatbotMemory,
-    BaseChatbotMemory,
-    CustomMongoChatbotMemory
+    BaseChatbotMemory
 )
 from models import ModelTypes
 from common.objects import Message
@@ -173,11 +172,7 @@ class Bot:
         mem_cls = MEM_TO_CLASS[mem_type]
         final_params = {**params, "settings": self.settings}
 
-        if mem_cls == CustomMongoChatbotMemory:
-            final_params.setdefault("conversation_id", "default_session")
-            final_params.setdefault(
-                "k_history", getattr(self.settings, "max_memory_entries", 10)
-            )
+        
 
         try:
             return mem_cls(**final_params)
