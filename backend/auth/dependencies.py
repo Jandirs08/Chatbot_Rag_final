@@ -27,8 +27,8 @@ class AuthDependencies:
         self.user_repository = user_repository
     
     async def get_current_user(
-        self, 
-        credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+        self,
+        credentials: Optional[HTTPAuthorizationCredentials]
     ) -> User:
         """
         Get current authenticated user from JWT token.
@@ -105,8 +105,8 @@ class AuthDependencies:
             )
     
     async def get_current_active_user(
-        self, 
-        current_user: User = Depends(lambda deps=None: deps.get_current_user if deps else None)
+        self,
+        current_user: User
     ) -> User:
         """
         Get current authenticated and active user.
@@ -130,8 +130,8 @@ class AuthDependencies:
         return current_user
     
     async def require_admin(
-        self, 
-        current_user: User = Depends(lambda deps=None: deps.get_current_active_user if deps else None)
+        self,
+        current_user: User
     ) -> User:
         """
         Require admin privileges.
@@ -155,8 +155,8 @@ class AuthDependencies:
         return current_user
     
     async def get_optional_current_user(
-        self, 
-        credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+        self,
+        credentials: Optional[HTTPAuthorizationCredentials]
     ) -> Optional[User]:
         """
         Get current user if authenticated, None otherwise.

@@ -1,19 +1,61 @@
 """FastAPI application for the chatbot."""
+
+# ---- Builtins ----
 import logging
-from utils.logging_utils import get_logger, suppress_cl100k_warnings
 import time
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+# ---- Third-party ----
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from starlette.responses import JSONResponse
-from contextlib import asynccontextmanager
-from pathlib import Path
 
+# ---- Internos ----
+from utils.logging_utils import get_logger, suppress_cl100k_warnings
 from config import settings
 from chat.manager import ChatManager
 from rag.retrieval.retriever import RAGRetriever
 from storage.documents import PDFManager
 from database.config_repository import ConfigRepository
+
+# ---- Logging Setup ----
+def _setup_logging_and_warnings() -> None:
+    """Configura logging y suprime warnings ruidosos sin afectar la lógica."""
+    logging.basicConfig(
+        level=settings.log_level.upper(),
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    try:
+        suppress_cl100k_warnings()
+    except Exception:
+        pass
+    try:
+        import warnings
+        warnings.filterwarnings("ignore", category=DeprecationWarning, module="langchain._api.module_import")
+        warnings.filterwarnings("ignore", message=r".*cl100k_base.*", category=Warning)
+        warnings.filterwarnings("ignore", message=r".*model not found.*cl100k_base.*", category=Warning)
+        warnings.filterwarnings("ignore", module="langchain_openai.embeddings.base")
+        warnings.filterwarnings("ignore", module="tiktoken")
+        logging.getLogger("pymongo").setLevel(logging.WARNING)
+        logging.getLogger("motor").setLevel(logging.WARNING)
+        logging.getLogger("uvicorn").setLevel(logging.INFO)
+        logging.getLogger("uvicorn.error").setLevel(logging.INFO)
+        logging.getLogger("uvicorn.access").setLevel(logging.INFO)
+        logging.getLogger("watchfiles").setLevel(logging.WARNING)
+        logging.getLogger("langchain").setLevel(logging.WARNING)
+        logging.getLogger("langchain_core").setLevel(logging.WARNING)
+        logging.getLogger("langchain_openai").setLevel(logging.WARNING)
+        logging.getLogger("langchain_community").setLevel(logging.WARNING)
+        logging.getLogger("huggingface_hub").setLevel(logging.WARNING)
+        logging.getLogger("urllib3").setLevel(logging.WARNING)
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+        logging.getLogger("httpcore").setLevel(logging.WARNING)
+        logging.getLogger("qdrant_client.http").setLevel(logging.WARNING)
+    except Exception:
+        pass
 
 def get_cors_origins_list() -> list:
     """
@@ -72,7 +114,7 @@ def get_cors_origins_list() -> list:
     
     return unique_origins
 
-# Importar Routers
+# ---- Routers (import) ----
 from .routes.health.health_routes import router as health_router
 from .routes.pdf.pdf_routes import router as pdf_router
 from .routes.rag.rag_routes import router as rag_router
@@ -90,8 +132,9 @@ from rag.pdf_processor.pdf_loader import PDFContentLoader
 from rag.embeddings.embedding_manager import EmbeddingManager
 from rag.vector_store.vector_store import VectorStore
 from rag.ingestion.ingestor import RAGIngestor
-from utils.deploy_log import build_startup_summary
+from utils.deploy_log import build_full_startup_summary
 
+# ---- Lifespan ----
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan context manager for setup and teardown."""
@@ -237,9 +280,9 @@ async def lifespan(app: FastAPI):
 
         app.state.pdf_processor = PDFProcessorAdapter(app.state.pdf_file_manager, app.state.vector_store)
 
-        # Resumen de deploy del backend
+        # Resumen de deploy del backend (Enterprise Clean Mode)
         try:
-            summary = build_startup_summary(app)
+            summary = build_full_startup_summary(app)
             logger.info("\n" + summary)
         except Exception as e:
             logger.warning(f"No se pudo generar el resumen de deploy: {e}")
@@ -288,50 +331,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     """Create the FastAPI application."""
-    logging.basicConfig(
-        level=settings.log_level.upper(),
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-    # Suprimir avisos de cl100k_base de forma agresiva antes de inicializar librerías
-    try:
-        suppress_cl100k_warnings()
-    except Exception:
-        pass
-    # Reducir verbosidad de librerías de terceros para evitar ruido en consola
-    try:
-        import warnings
-        # Suprimir deprecations ruidosos conocidos de LangChain
-        warnings.filterwarnings("ignore", category=DeprecationWarning, module="langchain._api.module_import")
-        # Suprimir warnings específicos de encoding cl100k_base que no afectan funcionalidad
-        # Suprimir avisos de cl100k_base por cualquier categoría
-        warnings.filterwarnings(
-            "ignore",
-            message=r".*cl100k_base.*",
-            category=Warning
-        )
-        warnings.filterwarnings(
-            "ignore",
-            message=r".*model not found.*cl100k_base.*",
-            category=Warning
-        )
-        # Filtrar a nivel de módulo (algunas versiones no clasifican como UserWarning)
-        warnings.filterwarnings("ignore", module="langchain_openai.embeddings.base")
-        warnings.filterwarnings("ignore", module="tiktoken")
-        # Ajustar niveles de log de librerías
-        logging.getLogger("pymongo").setLevel(logging.WARNING)
-        logging.getLogger("motor").setLevel(logging.WARNING)
-        logging.getLogger("uvicorn").setLevel(logging.INFO)
-        logging.getLogger("uvicorn.error").setLevel(logging.INFO)
-        logging.getLogger("uvicorn.access").setLevel(logging.INFO)
-        logging.getLogger("watchfiles").setLevel(logging.WARNING)
-        logging.getLogger("langchain").setLevel(logging.WARNING)
-        logging.getLogger("huggingface_hub").setLevel(logging.WARNING)
-        logging.getLogger("urllib3").setLevel(logging.WARNING)
-        logging.getLogger("httpx").setLevel(logging.WARNING)
-    except Exception:
-        # No bloquear el arranque si no se puede ajustar
-        pass
+    _setup_logging_and_warnings()
     main_logger = get_logger(__name__)
     main_logger.info("Creando instancia de FastAPI...")
 
@@ -345,6 +345,7 @@ def create_app() -> FastAPI:
         version=settings.app_version or "1.0.0",
         lifespan=lifespan
     )
+    main_logger.info(enterprise_banner())
 
     @app.middleware("http")
     async def log_requests(request: Request, call_next):
@@ -371,6 +372,7 @@ def create_app() -> FastAPI:
         
         return response
 
+    # ---- CORS ----
     # Configurar CORS usando la función helper
     allow_origins_list = get_cors_origins_list()
             
@@ -386,10 +388,12 @@ def create_app() -> FastAPI:
     # Evitar duplicar logs de CORS; el detalle ya se muestra en get_cors_origins_list
     main_logger.debug(f"CORS configurado para orígenes: {allow_origins_list}")
 
+    # ---- Middleware ----
     # Agregar middleware de autenticación (se inicializará con MongoDB client en lifespan)
     app.add_middleware(AuthenticationMiddleware)
     main_logger.info("Middleware de autenticación configurado.")
 
+    # ---- Exception Handlers ----
     # Handlers globales de excepciones
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -406,6 +410,7 @@ def create_app() -> FastAPI:
         main_logger.error(f"Error no controlado: {exc}", exc_info=True)
         return JSONResponse(status_code=500, content={"detail": "Error interno del servidor"})
 
+    # ---- Routers ----
     # Registrar routers
     app.include_router(health_router, prefix="/api/v1", tags=["health"])
     app.include_router(auth_router, prefix="/api/v1", tags=["auth"])
@@ -423,3 +428,12 @@ def create_app() -> FastAPI:
 
 # --- Creación de la instancia global de la aplicación --- 
 # Esto permite que Uvicorn la encuentre si se ejecuta este archivo directamente (aunque es mejor usar main.py)
+
+def enterprise_banner() -> str:
+    """Banner limpio estilo enterprise para el arranque (una sola vez)."""
+    sep = "-" * 68
+    return (
+        f"\n{sep}\n"
+        f"  FASTAPI BACKEND INITIALIZED | Version {settings.app_version} | Env: {settings.environment}\n"
+        f"{sep}"
+    )

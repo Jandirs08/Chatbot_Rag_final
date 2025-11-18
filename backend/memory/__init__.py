@@ -1,12 +1,13 @@
 from .base_memory import AbstractChatbotMemory, BaseChatbotMemory
-from .mongo_memory import MongoChatbotMemory
-from .custom_memory import CustomMongoChatbotMemory
-from .memory_types import MemoryTypes  # <--- Añadir esta importación
+from .memory_types import MemoryTypes
+
+MEM_TO_CLASS = {
+    MemoryTypes.BASE_MEMORY.value: BaseChatbotMemory
+}
 
 __all__ = [
     "AbstractChatbotMemory",
     "BaseChatbotMemory",
-    "MongoChatbotMemory",
-    "CustomMongoChatbotMemory",
-    "MemoryTypes"
+    "MemoryTypes",
+    "MEM_TO_CLASS"
 ]

@@ -5,7 +5,7 @@ from langchain_core.runnables import RunnableLambda, RunnableMap, Runnable
 
 from memory import (
     AbstractChatbotMemory,
-    CustomMongoChatbotMemory
+    BaseChatbotMemory
 )
 from memory.memory_types import MEM_TO_CLASS, MemoryTypes
 from memory.base_memory import BaseChatbotMemory
@@ -171,11 +171,7 @@ class Bot:
         mem_cls = MEM_TO_CLASS[mem_type]
         final_params = {**params, "settings": self.settings}
 
-        if mem_cls == CustomMongoChatbotMemory:
-            final_params.setdefault("conversation_id", "default_session")
-            final_params.setdefault(
-                "k_history", getattr(self.settings, "max_memory_entries", 10)
-            )
+        
 
         try:
             return mem_cls(**final_params)

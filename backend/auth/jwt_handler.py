@@ -1,5 +1,6 @@
 """JWT token handling utilities."""
 import logging
+from uuid import uuid4
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, Union
 from jose import JWTError as JoseJWTError, jwt
@@ -128,7 +129,8 @@ class JWTHandler:
             to_encode.update({
                 "exp": expire,
                 "iat": datetime.now(timezone.utc),
-                "type": "refresh"
+                "type": "refresh",
+                "jti": str(uuid4())
             })
             
             encoded_jwt = jwt.encode(
@@ -160,6 +162,10 @@ class JWTHandler:
             JWTError: For other JWT-related errors
         """
         try:
+            header = jwt.get_unverified_header(token)
+            if header.get("alg") != self.algorithm:
+                raise InvalidTokenError("Invalid token algorithm")
+
             payload = jwt.decode(
                 token, 
                 self.secret_key, 
@@ -169,10 +175,15 @@ class JWTHandler:
             # Validate token type exists
             if "type" not in payload:
                 raise InvalidTokenError("Token missing type field")
+
+            if payload.get("type") == "refresh" and not payload.get("jti"):
+                raise InvalidTokenError("Refresh token missing jti")
             
             logger.debug(f"Successfully decoded {payload.get('type', 'unknown')} token")
             return payload
             
+        except InvalidTokenError:
+            raise
         except JoseJWTError as e:
             error_msg = str(e)
             logger.warning(f"JWT decode error: {error_msg}")
@@ -211,6 +222,8 @@ class JWTHandler:
         # Verify required fields
         if not payload.get("sub"):
             raise InvalidTokenError("Token missing subject (sub) field")
+        if token_type == "refresh" and not payload.get("jti"):
+            raise InvalidTokenError("Refresh token missing jti")
         
         logger.debug(f"Successfully verified {token_type} token for user: {payload.get('sub')}")
         return payload
