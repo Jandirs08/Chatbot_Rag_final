@@ -255,7 +255,16 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"⚠️ Error initializing persistent MongoDB client: {e}", exc_info=True)
             # No fallar la aplicación por esto, solo registrar el error
-
+        try:
+            from auth.dependencies import AuthDependencies
+            from database.user_repository import get_user_repository
+            
+            user_repo = get_user_repository()
+            app.state.auth_deps = AuthDependencies(user_repo)
+            logger.info("AuthDependencies inicializado correctamente en app.state.")
+        except Exception as e:
+            logger.error(f"Error inicializando AuthDependencies: {e}", exc_info=True)
+            raise
         # --- PDF Processor para RAG status ---
         class PDFProcessorAdapter:
             def __init__(self, pdf_manager, vector_store):
