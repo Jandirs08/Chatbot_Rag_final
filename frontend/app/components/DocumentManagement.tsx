@@ -23,6 +23,7 @@ import { ragService } from "@/app/lib/services/ragService";
 import { Progress } from "@/app/components/ui/progress";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/app/components/ui/dialog";
+import { Toaster } from "@/app/components/ui/toaster";
 
 interface PDFDocument {
   filename: string;
@@ -89,19 +90,30 @@ export function DocumentManagement() {
       });
       loadDocuments();
     } catch (error) {
-      toast({
-        title: "Error",
-        description:
-          error instanceof Error
-            ? error.message
-            : "No se pudo subir el PDF",
-        variant: "destructive",
-      });
+      const message = error instanceof Error ? error.message : String(error);
+      // Toast específico para duplicado
+      if (message.toLowerCase().includes("contenido duplicado")) {
+        toast({
+          title: "Documento duplicado",
+          description: "Este PDF está cargado, intenta agregando otro PDF diferente.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "No se pudo subir el PDF",
+          variant: "destructive",
+        });
+      }
     } finally {
       // Pequeña pausa para que el 100% sea visible antes de resetear
       await new Promise((r) => setTimeout(r, 300));
       setIsUploading(false);
       setUploadProgress(0);
+        // 👈 Esto permite volver a seleccionar el MISMO archivo
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 
@@ -225,6 +237,8 @@ export function DocumentManagement() {
 
   return (
     <div className="space-y-8 animate-fade-in">
+      {/* Toaster de shadcn montado localmente para garantizar render de useToast */}
+      <Toaster />
       {/* Header */}
       <div className="space-y-2">
         <h1 className="text-4xl font-bold text-foreground">
@@ -234,6 +248,8 @@ export function DocumentManagement() {
           Administra los PDFs que alimentan el conocimiento del bot
         </p>
       </div>
+
+      {/* Banner de duplicado eliminado; se usa toast en su lugar */}
 
       {/* Controles superiores */}
       <div className="flex flex-col sm:flex-row gap-4 justify-between">
