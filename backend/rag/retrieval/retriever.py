@@ -459,36 +459,65 @@ class RAGRetriever:
         return type_scores.get(content_type, 0.5)
 
     def _get_from_cache(self, query: str, k: int, filter_criteria: Optional[Dict[str, Any]] = None) -> Optional[List[Document]]:
-        """Obtiene resultados del caché usando CacheManager (TTL manejado globalmente)."""
+        """Obtiene resultados del caché y los deserializa a Document."""
         try:
             if not bool(getattr(settings, "enable_cache", True)) or not self.cache_enabled:
                 return None
+
             try:
                 filter_key = json.dumps(filter_criteria, sort_keys=True) if filter_criteria else ""
             except Exception:
                 filter_key = str(filter_criteria) if filter_criteria is not None else ""
+
             cache_key = f"rag:{query}:{k}:{filter_key}"
             cached = cache.get(cache_key)
-            return cached if cached else None
+
+            if not cached:
+                return None
+
+            # DESERIALIZACIÓN SEGURA (dict → Document)
+            docs = []
+            for item in cached:
+                try:
+                    docs.append(
+                        Document(
+                            page_content=item["page_content"],
+                            metadata=item["metadata"]
+                        )
+                    )
+                except Exception:
+                    continue
+
+            return docs
+
         except Exception as e:
-            logger.warning(f"Error al acceder al caché: {e}")
+            logger.warning(f"Error accediendo al caché: {e}")
             return None
 
     def _add_to_cache(self, query: str, k: int, filter_criteria: Optional[Dict[str, Any]], docs: List[Document]) -> None:
-        """Agrega resultados al caché usando CacheManager (TTL/tamaño controlado globalmente)."""
+        """Agrega resultados al caché usando CacheManager con serialización JSON segura."""
         try:
             if not bool(getattr(settings, "enable_cache", True)) or not self.cache_enabled:
                 return
+
             try:
                 filter_key = json.dumps(filter_criteria, sort_keys=True) if filter_criteria else ""
             except Exception:
                 filter_key = str(filter_criteria) if filter_criteria is not None else ""
+
             cache_key = f"rag:{query}:{k}:{filter_key}"
-            import collections.abc
-            if isinstance(docs, collections.abc.Awaitable):
-                logger.warning("Intento de almacenar una coroutine en caché, ignorado.")
-                return
-            cache.set(cache_key, docs)
+
+            # SERIALIZACIÓN SEGURA (Document → dict JSON-friendly)
+            serialized_docs = [
+                {
+                    "page_content": d.page_content,
+                    "metadata": d.metadata,
+                }
+                for d in docs
+            ]
+
+            cache.set(cache_key, serialized_docs)
+
         except Exception as e:
             logger.warning(f"Error al actualizar caché: {e}")
 

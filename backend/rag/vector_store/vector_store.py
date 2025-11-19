@@ -149,7 +149,7 @@ class VectorStore:
                         ch = doc.metadata.get("content_hash")
                         if ch:
                             try:
-                                await self.delete_documents(filter={"content_hash": ch})
+                                await self.delete_documents(filter={"pdf_hash": doc.metadata["pdf_hash"]})
                             except Exception as e:
                                 logger.error(f"Error eliminando hash previo: {e}")
                         processed_batch.append(doc)
