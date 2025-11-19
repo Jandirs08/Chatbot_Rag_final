@@ -20,6 +20,8 @@ class ChatManager:
         self.bot = bot_instance
         self.db = get_mongodb_client()
 
+        logger.warning(f"[MONGO] Cliente B (ChatManager): {id(self.db)}")
+
     async def generate_response(self, input_text: str, conversation_id: str, source: str | None = None):
         """Genera la respuesta usando el Bot (LCEL maneja el RAG automáticamente)."""
         try:

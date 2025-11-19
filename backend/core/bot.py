@@ -119,12 +119,12 @@ class Bot:
             hist = await self.memory.get_history(conversation_id)
 
             # 🔥 LOG: ver historia cruda tal cual viene de la memoria
-            self.logger.warning(f"[DEBUG-HISTORY] Raw hist_list:\n{hist}")
+            self.logger.debug(f"[DEBUG-HISTORY] Raw hist_list:\n{hist}")
 
             formatted = self._format_history(hist)
 
             # 🔥 LOG: ver cómo se formatea para insertarse en el prompt
-            self.logger.warning(f"[DEBUG-HISTORY] Formatted history for prompt:\n{formatted}")
+            self.logger.debug(f"[DEBUG-HISTORY] Formatted history for prompt:\n{formatted}")
 
             return formatted
 
@@ -137,6 +137,9 @@ class Bot:
                     query = str(query)
 
                 if not (self.settings.enable_rag_lcel and self.rag_retriever):
+                    return ""
+
+                if not query.strip():
                     return ""
 
                 # Gating

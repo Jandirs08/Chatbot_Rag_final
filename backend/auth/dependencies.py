@@ -6,7 +6,7 @@ Simplified, safer, no global singletons, no redundancy.
 import logging
 from typing import Optional
 from fastapi import Depends, HTTPException, Request, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordBearer
 
 from models.user import User
 from database.user_repository import UserRepository
@@ -20,6 +20,7 @@ from .jwt_handler import (
 logger = logging.getLogger(__name__)
 
 security = HTTPBearer(auto_error=False)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 
 class AuthDependencies:
@@ -104,9 +105,18 @@ def _get_auth_deps(request: Request) -> AuthDependencies:
 
 
 async def get_current_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    token: str = Depends(oauth2_scheme),
     deps: AuthDependencies = Depends(_get_auth_deps)
 ) -> User:
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Adapt token to existing extractor that expects HTTPAuthorizationCredentials
+    credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
     return await deps.extract_user_from_token(credentials)
 
 
@@ -125,12 +135,13 @@ async def require_admin(
 
 
 async def get_optional_current_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    token: Optional[str] = Depends(oauth2_scheme),
     deps: AuthDependencies = Depends(_get_auth_deps)
 ) -> Optional[User]:
     try:
-        if not credentials:
+        if not token:
             return None
+        credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
         return await deps.extract_user_from_token(credentials)
     except HTTPException:
         return None

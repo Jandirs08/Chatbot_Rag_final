@@ -6,13 +6,9 @@ import logging
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from fastapi.security import HTTPBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-from auth.dependencies import (
-    get_current_user,
-    get_current_active_user,
-    require_admin,
-)
+# No FastAPI dependency imports needed here; use app.state.auth_deps
 
 logger = logging.getLogger(__name__)
 
@@ -62,9 +58,17 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
                 )
 
             try:
-                user = await get_current_user(credentials, request=request)
-                user = await get_current_active_user(user, request=request)
-                await require_admin(user, request=request)
+                # Extract token string
+                token = credentials.credentials
+
+                # Get dependency container
+                auth_deps = request.app.state.auth_deps
+
+                # Build HTTPAuthorizationCredentials and perform checks
+                bearer_credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+                user = await auth_deps.extract_user_from_token(bearer_credentials)
+                user = await auth_deps.ensure_active_user(user)
+                await auth_deps.ensure_admin(user)
             except Exception as e:
                 # Mantener status original (401 o 403)
                 if hasattr(e, "status_code"):
