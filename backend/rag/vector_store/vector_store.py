@@ -136,6 +136,10 @@ class VectorStore:
     # =====================================================================
 
     async def add_documents(self, documents: List[Document], embeddings: list = None) -> None:
+        """
+        Inserta documentos en Qdrant SIN eliminar PDFs previos.
+        (La eliminación ahora la controla únicamente el Ingestor).
+        """
         if not documents:
             return
 
@@ -146,12 +150,6 @@ class VectorStore:
 
                 for doc in batch:
                     try:
-                        ch = doc.metadata.get("content_hash")
-                        if ch:
-                            try:
-                                await self.delete_documents(filter={"pdf_hash": doc.metadata["pdf_hash"]})
-                            except Exception as e:
-                                logger.error(f"Error eliminando hash previo: {e}")
                         processed_batch.append(doc)
                     except Exception:
                         continue
@@ -163,6 +161,7 @@ class VectorStore:
                 points = []
 
                 for idx, doc in enumerate(processed_batch):
+                    # Obtener embedding
                     if embeddings is not None:
                         vec = embeddings[idx]
                         vec = vec.tolist() if isinstance(vec, np.ndarray) else vec
@@ -170,6 +169,7 @@ class VectorStore:
                         vec = await self._get_document_embedding(doc.page_content)
                         vec = vec.tolist() if isinstance(vec, np.ndarray) else vec
 
+                    # Validación de embedding
                     try:
                         vec = [float(x) for x in vec]
                     except:
@@ -179,6 +179,7 @@ class VectorStore:
                     if len(vec) != dim:
                         continue
 
+                    # Payload final
                     payload = {
                         **doc.metadata,
                         "text": doc.page_content,
@@ -187,6 +188,7 @@ class VectorStore:
 
                     points.append(PointStruct(id=ids[idx], vector=vec, payload=payload))
 
+                # Subida batch a Qdrant
                 try:
                     await asyncio.to_thread(
                         self.client.upsert,
@@ -198,14 +200,13 @@ class VectorStore:
                     logger.error(f"Error agregando puntos a Qdrant: {e}", exc_info=True)
                     raise RuntimeError("Falló la inserción en Qdrant")
 
+            # Invalidar caché después de ingesta
             await self._invalidate_cache()
             logger.info(f"Ingesta completada: {len(documents)} documentos agregados.")
 
         except Exception as e:
             logger.error(f"Error general ingesta: {str(e)}", exc_info=True)
             raise
-
-
 
     # =====================================================================
     #   EMBEDDINGS
