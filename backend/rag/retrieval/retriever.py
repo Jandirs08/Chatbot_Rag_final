@@ -19,6 +19,11 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
+
+# ============================================================
+#   WRAPPER: MEASURE TIME
+# ============================================================
+
 def measure_time(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
@@ -36,9 +41,14 @@ def measure_time(func):
                     pass
     return wrapper
 
+
+# ============================================================
+#   PERFORMANCE METRICS
+# ============================================================
+
 class PerformanceMetrics:
     """Clase para almacenar y analizar métricas de rendimiento."""
-    
+
     def __init__(self):
         self.metrics = {
             'query_processing': [],
@@ -48,14 +58,12 @@ class PerformanceMetrics:
             'cache_operations': [],
             'total_time': []
         }
-    
+
     def add_metric(self, operation: str, time_taken: float):
-        """Agrega una métrica de tiempo para una operación."""
         if operation in self.metrics:
             self.metrics[operation].append(time_taken)
-    
+
     def get_statistics(self) -> Dict[str, Dict[str, float]]:
-        """Obtiene estadísticas de todas las métricas."""
         stats = {}
         for operation, times in self.metrics.items():
             if times:
@@ -67,9 +75,8 @@ class PerformanceMetrics:
                     'count': len(times)
                 }
         return stats
-    
+
     def log_statistics(self):
-        """Registra las estadísticas en el log."""
         stats = self.get_statistics()
         logger.info("Estadísticas de rendimiento:")
         for operation, metrics in stats.items():
@@ -77,8 +84,13 @@ class PerformanceMetrics:
             for metric, value in metrics.items():
                 logger.info(f"  {metric}: {value:.3f}s" if metric != 'count' else f"  {metric}: {value}")
 
+
+# ============================================================
+#   RAG RETRIEVER
+# ============================================================
+
 class RAGRetriever:
-    """Retriever optimizado para RAG con reranking y filtrado avanzado."""
+    """Retriever optimizado para RAG con reranking avanzado + gating premium robusto."""
 
     def __init__(
         self,
@@ -86,26 +98,65 @@ class RAGRetriever:
         embedding_manager: Optional[Any] = None,
         cache_enabled: bool = True
     ):
-        """Inicializa el RAGRetriever.
-        
-        Args:
-            vector_store: Instancia configurada de VectorStore.
-            embedding_manager: Instancia opcional de EmbeddingManager.
-            cache_enabled: Si se debe habilitar el caché de resultados.
-        """
         self.vector_store = vector_store
         self.embedding_manager = embedding_manager
         self.cache_enabled = cache_enabled
-        # Cache unificado: toda lectura/escritura pasa por CacheManager
         self.performance_metrics = PerformanceMetrics()
-        # Centroide cacheado para gating de RAG (lazy-load)
+
+        # Centroide cacheado
         self._centroid_embedding: Optional[np.ndarray] = None
-        # Umbral de similitud para gating (configurable vía settings, default 0.45)
+
+        # Umbral de gating
         try:
-            self._gating_threshold: float = float(getattr(settings, "rag_gating_similarity_threshold", 0.20))
+            self._gating_threshold: float = float(
+                getattr(settings, "rag_gating_similarity_threshold", 0.20)
+            )
         except Exception:
             self._gating_threshold = 0.45
-        logger.info("RAGRetriever inicializado con optimizaciones y monitoreo de rendimiento.")
+
+        logger.info("RAGRetriever inicializado con optimizaciones y gating robusto.")
+
+
+    # ============================================================
+    #   VECTOR CLEANER (Patch 3)
+    # ============================================================
+
+    def _clean_vector(self, v: Any) -> Optional[np.ndarray]:
+        """
+        Normaliza y valida un vector proveniente de Qdrant o metadata.
+        - Rechaza vectores corruptos
+        - Rechaza dimensiones incorrectas
+        - Normaliza unitariamente
+        """
+        try:
+            if v is None:
+                return None
+
+            if isinstance(v, np.ndarray):
+                arr = v.astype(np.float32)
+            else:
+                arr = np.array(v, dtype=np.float32)
+
+            if arr.ndim != 1:
+                arr = arr.reshape(-1)
+
+            dim = int(getattr(settings, "default_embedding_dimension", 1536))
+            if arr.size != dim:
+                return None
+
+            norm = np.linalg.norm(arr)
+            if norm == 0:
+                return None
+
+            return arr / norm
+
+        except Exception:
+            return None
+
+
+    # ============================================================
+    #   DOCUMENT RETRIEVAL
+    # ============================================================
 
     @measure_time
     async def retrieve_documents(
@@ -115,49 +166,44 @@ class RAGRetriever:
         filter_criteria: Optional[Dict[str, Any]] = None,
         use_semantic_ranking: bool = True
     ) -> List[Document]:
-        """Recupera y reordena documentos relevantes con monitoreo de rendimiento."""
+        """
+        Recupera documentos relevantes con reranking avanzado.
+        Incluye patch 2: NO filtramos nada en vector_store.
+        """
+
         start_time = time.perf_counter()
-        
-        # Validación de entrada y optimización para consultas triviales
         query = query.strip() if query else ""
-        
-        # Lista de consultas triviales que no necesitan RAG
+
         trivial_queries = [
-            "hola", "buenos días", "buenas tardes", "buenas noches", 
+            "hola", "buenos días", "buenas tardes", "buenas noches",
             "como estás", "qué tal", "gracias", "adios", "hasta luego",
             "ayuda", "quien eres", "como te llamas"
         ]
-        
-        # Verificar si la consulta es trivial o demasiado corta
+
         if query.lower() in trivial_queries or len(query) < 5:
-            logger.info(f"Consulta trivial o corta: '{query}'. Omitiendo recuperación RAG.")
+            logger.info(f"Consulta trivial: '{query}', omitiendo RAG.")
             return []
-            
-        logger.info(f"Buscando documentos para: '{query}' (k={k})")
-        
-        # Verificar caché con manejo mejorado de errores
+
+        # ====== Cache =======
         cache_start = time.perf_counter()
         if self.cache_enabled and bool(getattr(settings, "enable_cache", True)):
             try:
                 cached_results = self._get_from_cache(query, k, filter_criteria)
                 if cached_results:
-                    cache_time = time.perf_counter() - cache_start
-                    self.performance_metrics.add_metric('cache_operations', cache_time)
-                    logger.info("Resultados recuperados desde caché")
+                    self.performance_metrics.add_metric(
+                        'cache_operations',
+                        time.perf_counter() - cache_start
+                    )
                     return cached_results
-            except Exception as e:
-                logger.warning(f"Error al acceder al caché: {e}. Continuando sin caché.")
-        
+            except Exception:
+                pass
+
+        # ====== VectorStore retrieve =======
         try:
-            # Recuperación de vectores con timeout
             vector_start = time.perf_counter()
-            initial_k = min(k * settings.retrieval_k_multiplier, 20)  # Limitar para evitar sobrecarga
-            
-            # Añadir timeout para evitar bloqueos largos
+            initial_k = min(k * settings.retrieval_k_multiplier, 20)
+
             try:
-                # Importante: desactivar MMR en el VectorStore para evitar
-                # cálculos de embeddings por documento allí. Recuperamos por
-                # similitud directa y aplicamos reranking/MMR aquí con batching.
                 relevant_docs = await asyncio.wait_for(
                     self.vector_store.retrieve(
                         query,
@@ -165,65 +211,72 @@ class RAGRetriever:
                         filter=filter_criteria,
                         use_mmr=False
                     ),
-                    timeout=5.0  # Timeout de 5 segundos máximo
+                    timeout=5.0
                 )
             except asyncio.TimeoutError:
-                logger.warning("Timeout en recuperación de vectores, continuando con lo obtenido hasta ahora")
                 relevant_docs = []
-            except Exception as e:
-                logger.error(f"Error en vector_store.retrieve: {str(e)}")
+            except Exception:
                 relevant_docs = []
-                
-            vector_time = time.perf_counter() - vector_start
-            self.performance_metrics.add_metric('vector_retrieval', vector_time)
+
+            self.performance_metrics.add_metric(
+                'vector_retrieval',
+                time.perf_counter() - vector_start
+            )
 
             if not relevant_docs:
-                logger.info("No se encontraron documentos relevantes")
                 return []
 
-            # Si tenemos menos o igual número de documentos que k, no es necesario reordenarlos
+            # ====== No need for reranking if <= k =======
             if len(relevant_docs) <= k:
-                logger.info(f"Se encontraron solo {len(relevant_docs)} documentos, omitiendo reranking")
                 return relevant_docs
 
-            # Reranking optimizado
+            # ====== Reranking =======
             final_docs = []
-            if use_semantic_ranking and len(relevant_docs) > k:
+            if use_semantic_ranking:
                 rerank_start = time.perf_counter()
-                reranked_docs = await self._semantic_reranking(query, relevant_docs)
-                rerank_time = time.perf_counter() - rerank_start
-                self.performance_metrics.add_metric('semantic_reranking', rerank_time)
-                final_docs = reranked_docs[:k]
+                reranked = await self._semantic_reranking(query, relevant_docs)
+                self.performance_metrics.add_metric(
+                    'semantic_reranking',
+                    time.perf_counter() - rerank_start
+                )
+                final_docs = reranked[:k]
             else:
-                # Si no usamos reranking semántico o hay pocos documentos, usar MMR
                 mmr_start = time.perf_counter()
                 final_docs = await self._apply_mmr(query, relevant_docs, k)
-                mmr_time = time.perf_counter() - mmr_start
-                self.performance_metrics.add_metric('mmr_application', mmr_time)
+                self.performance_metrics.add_metric(
+                    'mmr_application',
+                    time.perf_counter() - mmr_start
+                )
 
-            # Actualizar caché con manejo de errores
-            if self.cache_enabled and bool(getattr(settings, "enable_cache", True)) and final_docs:
+            # ====== Cache store =======
+            if self.cache_enabled and bool(getattr(settings, "enable_cache", True)):
                 try:
-                    cache_update_start = time.perf_counter()
+                    cache_update = time.perf_counter()
                     self._add_to_cache(query, k, filter_criteria, final_docs)
-                    cache_update_time = time.perf_counter() - cache_update_start
-                    self.performance_metrics.add_metric('cache_operations', cache_update_time)
-                except Exception as e:
-                    logger.warning(f"Error al actualizar caché: {e}")
+                    self.performance_metrics.add_metric(
+                        'cache_operations',
+                        time.perf_counter() - cache_update
+                    )
+                except Exception:
+                    pass
 
+            # ====== Stats =======
             total_time = time.perf_counter() - start_time
             self.performance_metrics.add_metric('total_time', total_time)
-            
-            # Registrar estadísticas cada 5 consultas en lugar de 10
+
             if len(self.performance_metrics.metrics['total_time']) % 5 == 0:
                 self.performance_metrics.log_statistics()
 
-            logger.info(f"Recuperados {len(final_docs)} documentos después de reranking")
             return final_docs
 
         except Exception as e:
-            logger.error(f"Error en recuperación: {str(e)}", exc_info=True)
+            logger.error(f"Error retrieve_documents: {e}", exc_info=True)
             return []
+
+
+    # ============================================================
+    #   TRACE MODE
+    # ============================================================
 
     async def retrieve_with_trace(
         self,
@@ -232,30 +285,15 @@ class RAGRetriever:
         filter_criteria: Optional[Dict[str, Any]] = None,
         include_context: bool = True,
     ) -> Dict[str, Any]:
-        """Recupera documentos y construye una traza auditable.
 
-        Args:
-            query: Consulta del usuario.
-            k: Número de documentos objetivo.
-            filter_criteria: Filtros opcionales para el vector store.
-            include_context: Si debe incluirse el contexto formateado.
-
-        Returns:
-            Diccionario con `query`, `k`, `retrieved` (lista con metadatos clave),
-            `context` (opcional) y `timings` con estadísticas de rendimiento.
-        """
         try:
-            docs = await self.retrieve_documents(
-                query=query,
-                k=k,
-                filter_criteria=filter_criteria,
-                use_semantic_ranking=True,
-            )
+            docs = await self.retrieve_documents(query, k, filter_criteria)
+            items = []
 
-            items: List[Dict[str, Any]] = []
             for doc in docs:
                 meta = doc.metadata or {}
                 preview = doc.page_content[:300] if doc.page_content else ""
+
                 items.append({
                     "score": float(meta.get("score", 0.0)),
                     "source": meta.get("source"),
@@ -266,88 +304,66 @@ class RAGRetriever:
                     "preview": preview,
                 })
 
-            context_str: Optional[str] = None
-            if include_context:
-                context_str = self.format_context_from_documents(docs)
-
-            timings = self.performance_metrics.get_statistics()
-
             return {
                 "query": query,
                 "k": k,
                 "retrieved": items,
-                "context": context_str,
-                "timings": timings,
+                "context": self.format_context_from_documents(docs) if include_context else None,
+                "timings": self.performance_metrics.get_statistics(),
             }
+
         except Exception as e:
-            logger.error(f"Error construyendo traza de recuperación: {str(e)}", exc_info=True)
-            # Fallo seguro: devolver estructura vacía manteniendo contrato
+            logger.error(f"Error retrieve_with_trace: {e}")
             return {
                 "query": query,
                 "k": k,
                 "retrieved": [],
-                "context": None if include_context else None,
+                "context": None,
                 "timings": {},
             }
 
+
+    # ============================================================
+    #   SEMANTIC RERANKING
+    # ============================================================
+
     async def _semantic_reranking(self, query: str, docs: List[Document]) -> List[Document]:
-        """Reordena documentos usando múltiples criterios semánticos.
-        
-        Args:
-            query: Consulta original.
-            docs: Documentos a reordenar.
-            
-        Returns:
-            Documentos reordenados por relevancia.
-        """
         if not self.embedding_manager:
-            logger.warning("EmbeddingManager no disponible para reranking semántico")
             return docs
 
         try:
-            # Generar embedding de la consulta
             query_embedding = self.embedding_manager.embed_query(query)
 
-            # Preparar un único batch de textos sin embedding
             texts_to_embed = []
             missing_indices = []
+
             for idx, doc in enumerate(docs):
                 if doc.metadata.get("embedding") is None:
                     texts_to_embed.append(doc.page_content)
                     missing_indices.append(idx)
 
             if texts_to_embed:
-                logger.debug(f"Reranking: calculando embeddings por lote para {len(texts_to_embed)} documentos")
                 batch_embeddings = self.embedding_manager.embed_documents(texts_to_embed)
                 for pos, emb in enumerate(batch_embeddings):
-                    # Guardar embedding en los metadatos para futuras consultas/caché
                     docs[missing_indices[pos]].metadata["embedding"] = emb
 
-            # Calcular scores para cada documento
             scored_docs = []
+
             for doc in docs:
-                # 1. Score de similitud semántica
                 doc_embedding = doc.metadata.get("embedding")
                 semantic_score = 0.0
+
                 if doc_embedding is not None:
-                    semantic_score = float(cosine_similarity([query_embedding], [doc_embedding])[0][0])
+                    semantic_score = float(
+                        cosine_similarity([query_embedding], [doc_embedding])[0][0]
+                    )
 
-                # 2. Score de calidad del chunk
                 quality_score = float(doc.metadata.get('quality_score', 0.5))
-
-                # 3. Score por longitud relevante
                 length_score = min(len(doc.page_content.split()) / 100, 1.0)
-
-                # 4. Score por tipo de contenido
                 content_type_score = self._get_content_type_score(doc.metadata.get('chunk_type', 'text'))
 
-                # 5. Factor de prioridad para PDFs
-                pdf_priority_factor = 1.0
-                source_path = doc.metadata.get('source', '')
-                if source_path and source_path.lower().endswith('.pdf'):
-                    pdf_priority_factor = 1.5
+                pdf_priority_factor = 1.5 if str(doc.metadata.get("source", "")).lower().endswith(".pdf") else 1.0
 
-                # Combinar scores con pesos
                 final_score = (
                     semantic_score * 0.5 +
                     quality_score * 0.35 +
@@ -357,41 +373,28 @@ class RAGRetriever:
 
                 scored_docs.append((doc, final_score))
 
-            # Ordenar por score final
-            reranked = [doc for doc, _ in sorted(scored_docs, key=lambda x: x[1], reverse=True)]
-            return reranked
+            return [doc for doc, _ in sorted(scored_docs, key=lambda x: x[1], reverse=True)]
 
         except Exception as e:
-            logger.error(f"Error en reranking semántico: {str(e)}", exc_info=True)
+            logger.error(f"Error en reranking semántico: {e}")
             return docs
 
-    async def _apply_mmr(
-        self,
-        query: str,
-        docs: List[Document],
-        k: int,
-        lambda_mult: float = 0.5
-    ) -> List[Document]:
-        """Aplica Maximum Marginal Relevance para diversidad.
-        
-        Args:
-            query: Consulta original.
-            docs: Documentos candidatos.
-            k: Número de documentos a seleccionar.
-            lambda_mult: Balance entre relevancia y diversidad.
-            
-        Returns:
-            Documentos seleccionados con MMR.
-        """
+
+    # ============================================================
+    #   MMR
+    # ============================================================
+
+    async def _apply_mmr(self, query: str, docs: List[Document], k: int, lambda_mult: float = 0.5) -> List[Document]:
         if not self.embedding_manager:
             return docs[:k]
 
         try:
-            # Obtener embeddings
             query_embedding = self.embedding_manager.embed_query(query)
+
             doc_embeddings = []
             texts_to_embed = []
             missing_indices = []
+
             for idx, doc in enumerate(docs):
                 emb = doc.metadata.get("embedding")
                 if emb is None:
@@ -402,219 +405,106 @@ class RAGRetriever:
                     doc_embeddings.append(emb)
 
             if texts_to_embed:
-                logger.debug(f"MMR: calculando embeddings por lote para {len(texts_to_embed)} documentos")
                 batch_embeddings = self.embedding_manager.embed_documents(texts_to_embed)
                 for pos, emb in enumerate(batch_embeddings):
-                    doc_idx = missing_indices[pos]
-                    docs[doc_idx].metadata["embedding"] = emb
-                    doc_embeddings[doc_idx] = emb
+                    d_idx = missing_indices[pos]
+                    docs[d_idx].metadata["embedding"] = emb
+                    doc_embeddings[d_idx] = emb
 
-            # Inicializar selección MMR
             selected_indices = []
-            remaining_indices = list(range(len(docs)))
+            remaining = list(range(len(docs)))
 
             for _ in range(min(k, len(docs))):
-                if not remaining_indices:
-                    break
-
-                # Calcular scores MMR
                 mmr_scores = []
-                for idx in remaining_indices:
-                    # Relevancia con la consulta
+
+                for idx in remaining:
                     relevance = float(cosine_similarity([query_embedding], [doc_embeddings[idx]])[0][0])
-                    
-                    # Diversidad respecto a documentos seleccionados
+
                     if selected_indices:
-                        selected_embeddings = [doc_embeddings[i] for i in selected_indices]
-                        similarities = cosine_similarity([doc_embeddings[idx]], selected_embeddings)[0]
+                        selected_embeds = [doc_embeddings[i] for i in selected_indices]
+                        similarities = cosine_similarity([doc_embeddings[idx]], selected_embeds)[0]
                         diversity = 1 - max(similarities)
                     else:
                         diversity = 1.0
 
-                    # Combinar con lambda
                     mmr_score = lambda_mult * relevance + (1 - lambda_mult) * diversity
                     mmr_scores.append((idx, mmr_score))
 
-                # Seleccionar documento con mayor score MMR
-                selected_idx = max(mmr_scores, key=lambda x: x[1])[0]
-                selected_indices.append(selected_idx)
-                remaining_indices.remove(selected_idx)
+                best_idx = max(mmr_scores, key=lambda x: x[1])[0]
+                selected_indices.append(best_idx)
+                remaining.remove(best_idx)
 
-            # Devolver documentos en orden MMR
             return [docs[i] for i in selected_indices]
 
-        except Exception as e:
-            logger.error(f"Error aplicando MMR: {str(e)}", exc_info=True)
+        except Exception:
             return docs[:k]
 
-    def _get_content_type_score(self, content_type: str) -> float:
-        """Asigna scores según el tipo de contenido."""
-        type_scores = {
-            "header": 1.0,
-            "paragraph": 0.8,
-            "numbered_list": 0.7,
-            "bullet_list": 0.7,
-            "text": 0.6
-        }
-        return type_scores.get(content_type, 0.5)
 
-    def _get_from_cache(self, query: str, k: int, filter_criteria: Optional[Dict[str, Any]] = None) -> Optional[List[Document]]:
-        """Obtiene resultados del caché y los deserializa a Document."""
-        try:
-            if not bool(getattr(settings, "enable_cache", True)) or not self.cache_enabled:
-                return None
-
-            try:
-                filter_key = json.dumps(filter_criteria, sort_keys=True) if filter_criteria else ""
-            except Exception:
-                filter_key = str(filter_criteria) if filter_criteria is not None else ""
-
-            cache_key = f"rag:{query}:{k}:{filter_key}"
-            cached = cache.get(cache_key)
-
-            if not cached:
-                return None
-
-            # DESERIALIZACIÓN SEGURA (dict → Document)
-            docs = []
-            for item in cached:
-                try:
-                    docs.append(
-                        Document(
-                            page_content=item["page_content"],
-                            metadata=item["metadata"]
-                        )
-                    )
-                except Exception:
-                    continue
-
-            return docs
-
-        except Exception as e:
-            logger.warning(f"Error accediendo al caché: {e}")
-            return None
-
-    def _add_to_cache(self, query: str, k: int, filter_criteria: Optional[Dict[str, Any]], docs: List[Document]) -> None:
-        """Agrega resultados al caché usando CacheManager con serialización JSON segura."""
-        try:
-            if not bool(getattr(settings, "enable_cache", True)) or not self.cache_enabled:
-                return
-
-            try:
-                filter_key = json.dumps(filter_criteria, sort_keys=True) if filter_criteria else ""
-            except Exception:
-                filter_key = str(filter_criteria) if filter_criteria is not None else ""
-
-            cache_key = f"rag:{query}:{k}:{filter_key}"
-
-            # SERIALIZACIÓN SEGURA (Document → dict JSON-friendly)
-            serialized_docs = [
-                {
-                    "page_content": d.page_content,
-                    "metadata": d.metadata,
-                }
-                for d in docs
-            ]
-
-            cache.set(cache_key, serialized_docs)
-
-        except Exception as e:
-            logger.warning(f"Error al actualizar caché: {e}")
-
-    def invalidate_rag_cache(self) -> None:
-        """Invalidación por prefijo para resultados RAG."""
-        try:
-            if bool(getattr(settings, "enable_cache", True)):
-                cache.invalidate_prefix("rag:")
-        except Exception as e:
-            logger.warning(f"Error invalidando caché RAG: {e}")
+    # ============================================================
+    #   CONTEXT FORMATTER
+    # ============================================================
 
     def format_context_from_documents(self, documents: List[Document]) -> str:
-        """Formatea los documentos en un contexto coherente."""
         if not documents:
-            return "No se encontró información relevante en los documentos consultados para esta pregunta."
-            
-        logger.info(f"Formateando {len(documents)} documentos como contexto")
-        
-        # Agrupar por tipo de contenido
-        grouped_docs = self._group_documents_by_type(documents)
-        
-        # Construir contexto estructurado
-        context_parts = ["Información relevante encontrada:"]
-        
-        # Primero los encabezados
-        if "header" in grouped_docs:
-            context_parts.extend([
-                f"## {doc.page_content.strip()}"
-                for doc in grouped_docs["header"]
-            ])
-            context_parts.append("")  # Separador
-        
-        # Luego párrafos principales
-        if "paragraph" in grouped_docs:
-            context_parts.extend([
-                doc.page_content.strip()
-                for doc in grouped_docs["paragraph"]
-            ])
-            context_parts.append("")  # Separador
-        
-        # Listas numeradas y con viñetas
-        for list_type in ["numbered_list", "bullet_list"]:
-            if list_type in grouped_docs:
-                context_parts.extend([
-                    doc.page_content.strip()
-                    for doc in grouped_docs[list_type]
-                ])
-                context_parts.append("")  # Separador
-        
-        # Resto del contenido
-        if "text" in grouped_docs:
-            context_parts.extend([
-                doc.page_content.strip()
-                for doc in grouped_docs["text"]
-            ])
-        
-        # Unir todo con formato apropiado
-        context = "\n\n".join(filter(None, context_parts))
-        
-        logger.info(f"Contexto formateado ({len(context)} caracteres)")
-        return context.strip()
+            return "No se encontró información relevante para esta pregunta."
+
+        grouped = self._group_documents_by_type(documents)
+        parts = ["Información relevante encontrada:"]
+
+        if "header" in grouped:
+            parts.extend([f"## {d.page_content.strip()}" for d in grouped["header"]])
+            parts.append("")
+
+        if "paragraph" in grouped:
+            parts.extend([d.page_content.strip() for d in grouped["paragraph"]])
+            parts.append("")
+
+        for ltype in ["numbered_list", "bullet_list"]:
+            if ltype in grouped:
+                parts.extend([d.page_content.strip() for d in grouped[ltype]])
+                parts.append("")
+
+        if "text" in grouped:
+            parts.extend([d.page_content.strip() for d in grouped["text"]])
+
+        return "\n\n".join(filter(None, parts))
+
 
     def _group_documents_by_type(self, documents: List[Document]) -> Dict[str, List[Document]]:
-        """Agrupa documentos por su tipo de contenido."""
         grouped = {}
         for doc in documents:
-            doc_type = doc.metadata.get('chunk_type', 'text')
-            if doc_type not in grouped:
-                grouped[doc_type] = []
-            grouped[doc_type].append(doc)
+            t = doc.metadata.get("chunk_type", "text")
+            grouped.setdefault(t, []).append(doc)
         return grouped
 
-    # =============================================================
-    #   PREMIUM GATING: should_use_rag(query)
-    # =============================================================
-    def _ensure_centroid(self) -> bool:
-        """Calcula y cachea el centroide de embeddings una sola vez.
 
-        Retorna True si el centroide está disponible, False en caso contrario.
+    # ============================================================
+    #   PREMIUM GATING (Patch 3)
+    # ============================================================
+
+    def _ensure_centroid(self) -> bool:
         """
+        Calcula un centroide ROBUSTO:
+        - Limpia embeddings corruptos
+        - Normaliza vectores
+        - Evita vectores mal formados
+        """
+
         try:
             if isinstance(self._centroid_embedding, np.ndarray) and self._centroid_embedding.size > 0:
                 return True
 
             client = getattr(self.vector_store, "client", None)
             if client is None:
-                logger.warning("VectorStore client no disponible para calcular centroide")
+                logger.warning("VectorStore no disponible para centroide.")
                 return False
 
-            embeddings: List[np.ndarray] = []
-
-            # Usar scroll para obtener embeddings en lotes
+            embeddings = []
             limit = 1000
             next_offset = None
+
             while True:
                 try:
-                    # Qdrant puede devolver ScrollResponse o tupla según versión
                     res = client.scroll(
                         collection_name="rag_collection",
                         limit=limit,
@@ -622,137 +512,168 @@ class RAGRetriever:
                         with_payload=True,
                         with_vectors=True
                     )
+
                     points = getattr(res, "points", None)
                     next_offset = getattr(res, "next_page_offset", None)
+
+                    # compat
                     if points is None and isinstance(res, tuple) and len(res) == 2:
                         points, next_offset = res
+
                     if not points:
                         break
 
                     for p in points:
-                        try:
-                            payload = getattr(p, "payload", {}) or {}
-                            emb = None
+                        payload = getattr(p, "payload", {}) or {}
+                        emb = None
 
-                            # Intentar varias claves en payload
-                            for key in ("embedding", "vector", "text_vector"):
-                                val = payload.get(key)
-                                if val is not None:
-                                    try:
-                                        if isinstance(val, np.ndarray):
-                                            emb = val.astype(np.float32)
-                                        else:
-                                            emb = np.array(val, dtype=np.float32)
-                                        break
-                                    except Exception:
-                                        emb = None
+                        # Order of preference
+                        if "embedding" in payload:
+                            emb = self._clean_vector(payload["embedding"])
 
-                            # Si no está en payload, intentar campo nativo de Qdrant
-                            if emb is None:
+                        if emb is None and "vector" in payload:
+                            emb = self._clean_vector(payload["vector"])
+
+                        if emb is None and "text_vector" in payload:
+                            emb = self._clean_vector(payload["text_vector"])
+
+                        if emb is None:
+                            emb = self._clean_vector(getattr(p, "vector", None))
+
+                        if emb is None:
+                            vs = getattr(p, "vectors", None)
+                            if isinstance(vs, dict) and vs:
                                 try:
-                                    val = getattr(p, "vector", None)
-                                    if val is not None:
-                                        emb = np.array(val, dtype=np.float32)
+                                    emb = self._clean_vector(next(iter(vs.values())))
                                 except Exception:
-                                    emb = None
+                                    pass
 
-                            # Último intento: estructura de vectores nombrados
-                            if emb is None:
-                                try:
-                                    vs = getattr(p, "vectors", None)
-                                    if isinstance(vs, dict) and vs:
-                                        first = next(iter(vs.values()))
-                                        emb = np.array(first, dtype=np.float32)
-                                except Exception:
-                                    emb = None
-
-                            # Validar y agregar
-                            if isinstance(emb, np.ndarray) and emb.size > 0:
-                                # Opcional: validar dimensión
-                                dim = int(getattr(settings, "default_embedding_dimension", 1536))
-                                if emb.ndim != 1:
-                                    try:
-                                        emb = emb.reshape(-1)
-                                    except Exception:
-                                        continue
-                                if emb.size == dim:
-                                    embeddings.append(emb)
-                        except Exception:
-                            continue
+                        if emb is not None:
+                            embeddings.append(emb)
 
                     if not next_offset:
                         break
+
                 except Exception as e:
-                    logger.warning(f"Error haciendo scroll en Qdrant para centroide: {e}")
+                    logger.warning(f"Error scroll centroide: {e}")
                     break
 
             if not embeddings:
-                logger.info("No hay embeddings disponibles en el vector store para calcular centroide")
+                logger.info("No embeddings disponibles para centroide.")
                 return False
 
-            try:
-                mat = np.vstack(embeddings)
-                centroid = mat.mean(axis=0)
-                self._centroid_embedding = centroid
-                logger.info("Centroide de documentos calculado y cacheado para gating")
-                return True
-            except Exception as e:
-                logger.warning(f"Error calculando centroide: {e}")
+            mat = np.vstack(embeddings)
+            centroid = mat.mean(axis=0)
+
+            norm = np.linalg.norm(centroid)
+            if norm == 0:
                 return False
+
+            self._centroid_embedding = centroid / norm
+            logger.info("Centroide calculado exitosamente.")
+            return True
+
         except Exception as e:
-            logger.warning(f"Fallo en _ensure_centroid: {e}")
+            logger.warning(f"Error _ensure_centroid: {e}")
             return False
 
-    def should_use_rag(self, query: str) -> bool:
-        """Decide si activar RAG comparando similitud(query, centroide).
 
-        - Usa `embedding_manager.embed_query` para obtener el embedding de la query.
-        - Calcula/usa el centroide de embeddings de documentos y cachea el resultado.
-        - Retorna True si la similitud coseno >= umbral; en caso contrario False.
-        - Diseño seguro: si faltan recursos (sin embeddings, sin centroide), retorna False para evitar RAG innecesario.
-        """
+    def should_use_rag(self, query: str) -> bool:
+        """Decide activación RAG de manera segura."""
+
         try:
             q = (query or "").strip()
             if len(q) < 1:
                 return False
 
             if not self.embedding_manager:
-                logger.warning("EmbeddingManager no disponible; gating retorna False")
                 return False
 
-            # Calcular centroide (lazy)
             if not self._ensure_centroid():
-                # Si no hay centroide (p.ej., sin documentos), mejor no activar RAG
                 return False
 
-            # Embedding de la query (sincrónico y rápido)
             q_emb = self.embedding_manager.embed_query(q)
-            q_vec = np.array(q_emb, dtype=np.float32)
+            q_vec = self._clean_vector(q_emb)
             c_vec = self._centroid_embedding
 
-            if not isinstance(c_vec, np.ndarray) or c_vec.size == 0:
+            if q_vec is None or c_vec is None:
                 return False
 
-            # Alinear dimensiones si hiciera falta
-            if q_vec.ndim == 1:
-                q_vec = q_vec.reshape(1, -1)
-            if c_vec.ndim == 1:
-                c_vec = c_vec.reshape(1, -1)
-
             try:
-                sim = float(cosine_similarity(q_vec, c_vec)[0][0])
+                sim = float(cosine_similarity(q_vec.reshape(1, -1), c_vec.reshape(1, -1))[0][0])
             except Exception:
-                # Normalización manual como fallback
-                qn = q_vec / (np.linalg.norm(q_vec) + 1e-8)
-                cn = c_vec / (np.linalg.norm(c_vec) + 1e-8)
-                sim = float(np.dot(qn.flatten(), cn.flatten()))
+                sim = float(np.dot(q_vec, c_vec))
 
-            logger.debug(f"Gating similitud centroide={sim:.4f} (umbral={self._gating_threshold})")
+            logger.debug(f"Gating → similitud={sim:.4f}, umbral={self._gating_threshold}")
             return sim >= self._gating_threshold
+
         except Exception as e:
-            logger.warning(f"Error en should_use_rag: {e}")
+            logger.warning(f"Error should_use_rag: {e}")
             return False
 
-    # El método clear() original tenía lógica para el vector store y el directorio de PDFs.
-    # La limpieza del vector store ahora debe ser manejada por RAGIngestor.
-    # RAGRetriever en sí mismo no mantiene estado que requiera limpieza.
+
+    # ============================================================
+    #   CACHE
+    # ============================================================
+
+    def _get_from_cache(self, query: str, k: int, filter_criteria: Optional[Dict[str, Any]]) -> Optional[List[Document]]:
+        try:
+            if not bool(getattr(settings, "enable_cache", True)) or not self.cache_enabled:
+                return None
+
+            try:
+                filter_key = json.dumps(filter_criteria, sort_keys=True) if filter_criteria else ""
+            except Exception:
+                filter_key = str(filter_criteria or "")
+
+            cache_key = f"rag:{query}:{k}:{filter_key}"
+            cached = cache.get(cache_key)
+
+            if not cached:
+                return None
+
+            docs = []
+            for item in cached:
+                try:
+                    docs.append(Document(page_content=item["page_content"], metadata=item["metadata"]))
+                except Exception:
+                    pass
+
+            return docs
+
+        except Exception:
+            return None
+
+
+    def _add_to_cache(self, query: str, k: int, filter_criteria: Optional[Dict[str, Any]], docs: List[Document]):
+        try:
+            if not bool(getattr(settings, "enable_cache", True)) or not self.cache_enabled:
+                return
+
+            try:
+                filter_key = json.dumps(filter_criteria, sort_keys=True) if filter_criteria else ""
+            except Exception:
+                filter_key = str(filter_criteria or "")
+
+            cache_key = f"rag:{query}:{k}:{filter_key}"
+
+            serialized_docs = [
+                {
+                    "page_content": d.page_content,
+                    "metadata": d.metadata
+                }
+                for d in docs
+            ]
+
+            cache.set(cache_key, serialized_docs)
+
+        except Exception as e:
+            logger.warning(f"Cache update error: {e}")
+
+
+    def invalidate_rag_cache(self) -> None:
+        try:
+            if bool(getattr(settings, "enable_cache", True)):
+                cache.invalidate_prefix("rag:")
+        except Exception:
+            pass

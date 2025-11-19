@@ -274,14 +274,9 @@ class VectorStore:
             else:
                 docs = await self._similarity_search(query_embedding, k, filter)
 
-            threshold = float(getattr(settings, "similarity_threshold", 0.3))
-            out = []
             for d, score in docs:
                 d.metadata["score"] = score
-                if score >= threshold:
-                    out.append(d)
-
-            return out
+            return [d for d, _ in docs]
 
         except Exception as e:
             logger.error(f"Error retrieve(): {e}", exc_info=True)
