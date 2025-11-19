@@ -51,8 +51,6 @@ class VectorStore:
         self.cache_ttl = cache_ttl
         self.batch_size = batch_size
         
-        # Cache local removido: usar CacheManager para invalidación por prefijo
-
         self._initialize_store()
 
         logger.info(
@@ -87,9 +85,50 @@ class VectorStore:
                     hnsw_config=HnswConfigDiff(m=16, ef_construct=200),
                     optimizers_config=OptimizersConfigDiff(default_segment_number=1)
                 )
+
+            # 🚀 CREAR / ASEGURAR ÍNDICES NECESARIOS
+            self._ensure_payload_indexes()
+            logger.info("Índices de payload verificados/creados.")
+
         except Exception as e:
             logger.error(f"Error inicializando Qdrant: {str(e)}", exc_info=True)
             raise
+
+
+
+    # =====================================================================
+    #   ASEGURAR ÍNDICES PAYLOAD (FIX CRÍTICO)
+    # =====================================================================
+
+    def _ensure_payload_indexes(self):
+        """
+        Garantiza que los índices necesarios existan en Qdrant.
+        Evita errores 400 al hacer filtros por metadata.
+        """
+        try:
+            required_indexes = {
+                "source": "keyword",
+                "pdf_hash": "keyword",
+                "content_hash": "keyword",
+            }
+
+            for field, idx_type in required_indexes.items():
+                try:
+                    self.client.create_payload_index(
+                        collection_name="rag_collection",
+                        field_name=field,
+                        field_schema=idx_type,
+                    )
+                    logger.info(f"Índice asegurado para campo '{field}' ({idx_type})")
+                except Exception as e:
+                    msg = str(e).lower()
+                    if "already exists" in msg:
+                        continue
+                    logger.warning(f"No se pudo crear índice para '{field}': {e}")
+
+        except Exception as e:
+            logger.error(f"Error asegurando índices de payload: {e}")
+
 
 
     # =====================================================================
@@ -146,17 +185,9 @@ class VectorStore:
                         "embedding": vec
                     }
 
-                    try:
-                        pv = (payload.get("text") or "")[:100]
-                        src = payload.get("source")
-                        logger.info(f"upsert[{i//self.batch_size + 1}:{idx}] source={src} preview={pv}")
-                    except Exception:
-                        pass
-
                     points.append(PointStruct(id=ids[idx], vector=vec, payload=payload))
 
                 try:
-                    # Ejecutar llamada síncrona de Qdrant en hilo para no bloquear el event loop
                     await asyncio.to_thread(
                         self.client.upsert,
                         collection_name="rag_collection",
@@ -173,6 +204,7 @@ class VectorStore:
         except Exception as e:
             logger.error(f"Error general ingesta: {str(e)}", exc_info=True)
             raise
+
 
 
     # =====================================================================
@@ -208,6 +240,7 @@ class VectorStore:
             return np.zeros(dim, dtype=np.float32)
 
 
+
     # =====================================================================
     #   RETRIEVE
     # =====================================================================
@@ -226,7 +259,6 @@ class VectorStore:
         try:
             query_embedding = await self._get_document_embedding(query)
 
-            # Evitar bloqueo: ejecutar count en hilo
             count = await asyncio.to_thread(self.client.count, collection_name="rag_collection")
             total_docs = int(getattr(count, "count", 0))
 
@@ -253,6 +285,7 @@ class VectorStore:
         except Exception as e:
             logger.error(f"Error retrieve(): {e}", exc_info=True)
             return []
+
 
 
     # =====================================================================
@@ -324,17 +357,11 @@ class VectorStore:
             return await self._similarity_search(query_embedding, k, filter)
 
 
-    # =====================================================================
-    #   SIMILARITY SEARCH — **CORREGIDO**
-    # =====================================================================
 
     # =====================================================================
-#   SIMILARITY SEARCH — FIX DEFINITIVO (usa search_points)
-# =====================================================================
-# =====================================================================
-#   SIMILARITY SEARCH — API COMPATIBLE CON SDK ACTUAL (query_points)
-# =====================================================================
-    
+    #   SIMILARITY SEARCH
+    # =====================================================================
+
     async def _similarity_search(
         self,
         query_embedding: np.ndarray,
@@ -343,22 +370,16 @@ class VectorStore:
     ) -> List[Tuple[Document, float]]:
 
         try:
-            # asegurar lista
             vector = query_embedding.tolist()
 
-            # construir filtro viejo
             qfilter = None
             if filter:
                 must = [
-                    FieldCondition(
-                        key=str(kf),
-                        match=MatchValue(value=vf)
-                    )
+                    FieldCondition(key=str(kf), match=MatchValue(value=vf))
                     for kf, vf in filter.items()
                 ]
                 qfilter = QFilter(must=must)
 
-            # 🚀 API compatible: usar query_points con NearestQuery
             results = await asyncio.to_thread(
                 self.client.query_points,
                 collection_name="rag_collection",
@@ -369,10 +390,6 @@ class VectorStore:
                 with_vectors=False,
             )
 
-            # Aceptar el tipo real devuelto en este entorno:
-            # - QueryResponse con atributo `points`
-            # - Tupla (lista_de_puntos, offset)
-            # - Lista de puntos
             if hasattr(results, "points"):
                 points = results.points
             elif isinstance(results, tuple) and len(results) > 0:
@@ -382,17 +399,12 @@ class VectorStore:
 
             output = []
             for r in points:
-                # r es típicamente `ScoredPoint` en este entorno
                 payload = dict(getattr(r, "payload", {}) or {})
 
-                # id y vector tal como los provee Qdrant
                 rid = getattr(r, "id", None)
                 rvec = getattr(r, "vector", None)
-
-                # score nativo si está disponible (sin suponer métrica)
                 score = float(getattr(r, "score", 0.0) or 0.0)
 
-                # Normalizar embedding en metadata para MMR
                 emb = payload.get("embedding")
                 if isinstance(emb, list):
                     try:
@@ -401,7 +413,6 @@ class VectorStore:
                         pass
                 payload["embedding"] = emb
 
-                # Enriquecer metadata con id/score/vector (si está presente)
                 payload["id"] = rid
                 if rvec is not None:
                     payload["vector"] = rvec
@@ -421,7 +432,6 @@ class VectorStore:
 
 
 
-
     # =====================================================================
     #   DELETE DOCUMENTS
     # =====================================================================
@@ -435,7 +445,7 @@ class VectorStore:
 
                 qfilter = QFilter(must=must)
                 selector = FilterSelector(filter=qfilter)
-                # Ejecutar borrado en hilo para no bloquear
+
                 await asyncio.to_thread(
                     self.client.delete,
                     collection_name="rag_collection",
@@ -451,6 +461,7 @@ class VectorStore:
             raise
 
 
+
     # =====================================================================
     #   DELETE COLLECTION
     # =====================================================================
@@ -458,7 +469,6 @@ class VectorStore:
     async def delete_collection(self) -> None:
         try:
             try:
-                # Ejecutar borrado de colección en hilo
                 await asyncio.to_thread(self.client.delete_collection, "rag_collection")
             except Exception:
                 pass
@@ -471,16 +481,15 @@ class VectorStore:
             raise
 
 
+
     # =====================================================================
     #   CACHÉ
     # =====================================================================
 
     async def _invalidate_cache(self) -> None:
         try:
-            # Respetar configuración global de caché
             if not getattr(settings, "enable_cache", True):
                 return
-            # Invalidación unificada por prefijo
             cache.invalidate_prefix("vs:")
         except Exception as e:
-            logger.error(f"Error invalidando caché: {e}", exc_info=True)
+            logger.error(f"Error invalidando caché: {e}")
