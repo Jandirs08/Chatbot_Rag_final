@@ -1,5 +1,6 @@
 """
 Middleware de autenticación seguro sin errores 401/403 mezclados.
+Corregido: PUBLIC no expone rutas internas por accidente.
 """
 
 import logging
@@ -8,8 +9,6 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-# No FastAPI dependency imports needed here; use app.state.auth_deps
-
 logger = logging.getLogger(__name__)
 
 security = HTTPBearer(auto_error=False)
@@ -17,15 +16,18 @@ security = HTTPBearer(auto_error=False)
 
 class AuthenticationMiddleware(BaseHTTPMiddleware):
 
-    PUBLIC = {
+    # PUBLIC paths must be exact unless explicitly intended.
+    PUBLIC_EXACT = {
         "/api/v1/health",
-        "/api/v1/auth",
-        "/api/v1/chat",
+        "/api/v1/auth/login",
+        "/api/v1/auth/refresh",
+        "/api/v1/chat",           # POST chat (SSE / mensajes)
         "/docs",
         "/redoc",
         "/openapi.json",
     }
 
+    # Prefix-based admin protection remains OK.
     ADMIN = {
         "/api/v1/pdfs",
         "/api/v1/rag",
@@ -33,9 +35,11 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         "/api/v1/users",
     }
 
-    def _match(self, path: str, patterns: set[str]) -> bool:
-        """Prefix match but safe."""
-        return any(path == p or path.startswith(p + "/") for p in patterns)
+    def _is_public_exact(self, path: str) -> bool:
+        return path in self.PUBLIC_EXACT
+
+    def _is_admin_path(self, path: str) -> bool:
+        return any(path == p or path.startswith(p + "/") for p in self.ADMIN)
 
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
@@ -44,12 +48,12 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         if method == "OPTIONS":
             return await call_next(request)
 
-        # 1. Rutas públicas
-        if self._match(path, self.PUBLIC):
+        # --- PUBLIC exact paths
+        if self._is_public_exact(path):
             return await call_next(request)
 
-        # 2. Rutas admin
-        if self._match(path, self.ADMIN):
+        # --- ADMIN protected paths
+        if self._is_admin_path(path):
             credentials = await security.__call__(request)
             if not credentials:
                 return JSONResponse(
@@ -58,21 +62,24 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
                 )
 
             try:
-                # Extract token string
                 token = credentials.credentials
-
-                # Get dependency container
                 auth_deps = request.app.state.auth_deps
 
-                # Build HTTPAuthorizationCredentials and perform checks
-                bearer_credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
-                user = await auth_deps.extract_user_from_token(bearer_credentials)
+                bearer = HTTPAuthorizationCredentials(
+                    scheme="Bearer",
+                    credentials=token,
+                )
+
+                user = await auth_deps.extract_user_from_token(bearer)
                 user = await auth_deps.ensure_active_user(user)
                 await auth_deps.ensure_admin(user)
+
             except Exception as e:
-                # Mantener status original (401 o 403)
                 if hasattr(e, "status_code"):
-                    return JSONResponse(status_code=e.status_code, content={"detail": e.detail})
+                    return JSONResponse(
+                        status_code=e.status_code,
+                        content={"detail": e.detail},
+                    )
 
                 logger.error(f"Unexpected authentication error: {e}")
                 return JSONResponse(

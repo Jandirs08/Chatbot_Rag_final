@@ -6,8 +6,8 @@ import logging
 from uuid import uuid4
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
-from jose import jwt, JWTError as JoseJWTError
 
+from jose import jwt, JWTError as JoseJWTError
 from config import Settings
 
 logger = logging.getLogger(__name__)
@@ -48,25 +48,31 @@ class JWTHandler:
 
     def create_access_token(self, data: Dict[str, Any]) -> str:
         payload = data.copy()
+        now = datetime.now(timezone.utc)
+
         payload.update({
-            "exp": datetime.now(timezone.utc) + timedelta(
+            "exp": now + timedelta(
                 minutes=self.settings.jwt_access_token_expire_minutes
             ),
-            "iat": datetime.now(timezone.utc),
+            "iat": now,
             "type": "access",
         })
+
         return jwt.encode(payload, self.secret, algorithm=self.algorithm)
 
     def create_refresh_token(self, data: Dict[str, Any]) -> str:
         payload = data.copy()
+        now = datetime.now(timezone.utc)
+
         payload.update({
-            "exp": datetime.now(timezone.utc) + timedelta(
+            "exp": now + timedelta(
                 days=self.settings.jwt_refresh_token_expire_days
             ),
-            "iat": datetime.now(timezone.utc),
+            "iat": now,
             "type": "refresh",
             "jti": str(uuid4()),
         })
+
         return jwt.encode(payload, self.secret, algorithm=self.algorithm)
 
     # ------ Token Verification ------
@@ -75,18 +81,26 @@ class JWTHandler:
         try:
             header = jwt.get_unverified_header(token)
             if header.get("alg") != self.algorithm:
+                logger.warning(
+                    f"Invalid JWT algorithm: {header.get('alg')}"
+                )
                 raise InvalidTokenError("Invalid algorithm")
 
             return jwt.decode(
-                token, self.secret, algorithms=[self.algorithm]
+                token,
+                self.secret,
+                algorithms=[self.algorithm],
             )
 
         except JoseJWTError as e:
+            # jose ya incluye detalle suficiente
             if "expired" in str(e).lower():
                 raise TokenExpiredError("Token expired")
+
             raise InvalidTokenError("Invalid token")
 
         except Exception as e:
+            logger.error(f"Unexpected JWT decode error: {e}")
             raise JWTError(f"Decode error: {str(e)}")
 
     def verify_token(self, token: str, token_type: str = "access") -> Dict[str, Any]:

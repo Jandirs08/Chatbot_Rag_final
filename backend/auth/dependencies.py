@@ -5,8 +5,13 @@ Simplified, safer, no global singletons, no redundancy.
 
 import logging
 from typing import Optional
+
 from fastapi import Depends, HTTPException, Request, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordBearer
+from fastapi.security import (
+    HTTPBearer,
+    HTTPAuthorizationCredentials,
+    OAuth2PasswordBearer,
+)
 
 from models.user import User
 from database.user_repository import UserRepository
@@ -14,13 +19,16 @@ from .jwt_handler import (
     verify_token,
     TokenExpiredError,
     InvalidTokenError,
-    JWTError
+    JWTError,
 )
 
 logger = logging.getLogger(__name__)
 
 security = HTTPBearer(auto_error=False)
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
+oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl="/api/v1/auth/login",
+    auto_error=False,
+)
 
 
 class AuthDependencies:
@@ -31,7 +39,7 @@ class AuthDependencies:
 
     async def extract_user_from_token(
         self,
-        credentials: Optional[HTTPAuthorizationCredentials]
+        credentials: Optional[HTTPAuthorizationCredentials],
     ) -> User:
         """Decode JWT, validate it, and load user from DB."""
         if not credentials:
@@ -48,6 +56,7 @@ class AuthDependencies:
             user_id = payload.get("sub")
 
             if not user_id:
+                logger.warning("JWT missing 'sub' claim")
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid token: missing subject",
@@ -55,6 +64,7 @@ class AuthDependencies:
 
             user = await self.user_repository.get_user_by_id(user_id)
             if not user:
+                logger.warning(f"User not found for id: {user_id}")
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="User not found",
@@ -74,7 +84,8 @@ class AuthDependencies:
                 detail="Invalid token",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        except JWTError:
+        except JWTError as e:
+            logger.error(f"JWT error: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Authentication error",
@@ -84,7 +95,7 @@ class AuthDependencies:
         if not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="User is inactive"
+                detail="User is inactive",
             )
         return user
 
@@ -92,7 +103,7 @@ class AuthDependencies:
         if not user.is_admin:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Admin privileges required"
+                detail="Admin privileges required",
             )
         return user
 
@@ -106,7 +117,7 @@ def _get_auth_deps(request: Request) -> AuthDependencies:
 
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
-    deps: AuthDependencies = Depends(_get_auth_deps)
+    deps: AuthDependencies = Depends(_get_auth_deps),
 ) -> User:
     if not token:
         raise HTTPException(
@@ -115,33 +126,40 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Adapt token to existing extractor that expects HTTPAuthorizationCredentials
-    credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+    credentials = HTTPAuthorizationCredentials(
+        scheme="Bearer",
+        credentials=token,
+    )
     return await deps.extract_user_from_token(credentials)
 
 
 async def get_current_active_user(
     user: User = Depends(get_current_user),
-    deps: AuthDependencies = Depends(_get_auth_deps)
+    deps: AuthDependencies = Depends(_get_auth_deps),
 ) -> User:
     return await deps.ensure_active_user(user)
 
 
 async def require_admin(
     user: User = Depends(get_current_active_user),
-    deps: AuthDependencies = Depends(_get_auth_deps)
+    deps: AuthDependencies = Depends(_get_auth_deps),
 ) -> User:
     return await deps.ensure_admin(user)
 
 
 async def get_optional_current_user(
     token: Optional[str] = Depends(oauth2_scheme),
-    deps: AuthDependencies = Depends(_get_auth_deps)
+    deps: AuthDependencies = Depends(_get_auth_deps),
 ) -> Optional[User]:
+    if not token:
+        return None
+
     try:
-        if not token:
-            return None
-        credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+        credentials = HTTPAuthorizationCredentials(
+            scheme="Bearer",
+            credentials=token,
+        )
         return await deps.extract_user_from_token(credentials)
-    except HTTPException:
+    except Exception:
+        # Token inválido o expirado → tratamos como "no autenticado"
         return None
