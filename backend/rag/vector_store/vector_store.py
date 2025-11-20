@@ -456,6 +456,21 @@ class VectorStore:
             logger.error(f"Error eliminando documentos: {e}", exc_info=True)
             raise
 
+    async def delete_by_pdf_hash(self, pdf_hash: str) -> None:
+        try:
+            must = [FieldCondition(key="pdf_hash", match=MatchValue(value=pdf_hash))]
+            qfilter = QFilter(must=must)
+            selector = FilterSelector(filter=qfilter)
+            await asyncio.to_thread(
+                self.client.delete,
+                collection_name="rag_collection",
+                points_selector=selector
+            )
+            await self._invalidate_cache()
+        except Exception as e:
+            logger.error(f"Error eliminando por pdf_hash: {e}", exc_info=True)
+            raise
+
 
 
     # =====================================================================

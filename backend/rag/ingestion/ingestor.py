@@ -76,6 +76,13 @@ class RAGIngestor:
                 logger.info(f"⏭️ {filename} omitido — ya existe en Qdrant")
                 return {"filename": filename, "status": "skipped"}
 
+            # FORCE UPDATE: limpiar vectores previos SOLO de este PDF
+            if force_update:
+                try:
+                    await self.vector_store.delete_by_pdf_hash(pdf_hash)
+                except Exception as e:
+                    return {"filename": filename, "status": "error", "error": f"No se pudo limpiar previo: {e}"}
+
             # Procesar PDF → chunks
             chunks = self.pdf_content_loader.load_and_split_pdf(pdf_path)
             if not chunks:

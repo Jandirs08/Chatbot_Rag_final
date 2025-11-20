@@ -677,3 +677,6 @@ class RAGRetriever:
                 cache.invalidate_prefix("rag:")
         except Exception:
             pass
+
+    def reset_centroid(self) -> None:
+        self._centroid_embedding = None

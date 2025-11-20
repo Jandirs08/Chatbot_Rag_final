@@ -172,6 +172,16 @@ async def reindex_pdf(request: Request, payload: ReindexPDFRequest):
             detail = result.get("error", result)
             raise HTTPException(status_code=500, detail=f"Fallo en reindexación: {detail}")
 
+        try:
+            if payload.force_update:
+                retriever = request.app.state.rag_retriever
+                if hasattr(retriever, "reset_centroid"):
+                    retriever.reset_centroid()
+                if hasattr(retriever, "invalidate_rag_cache"):
+                    retriever.invalidate_rag_cache()
+        except Exception:
+            pass
+
         return ReindexPDFResponse(
             status="success",
             message=f"Reindexación completada para '{payload.filename}'",
