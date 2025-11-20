@@ -4,6 +4,7 @@ import logging
 from utils.logging_utils import get_logger
 from cache.manager import cache
 import hashlib
+import asyncio
 
 from config import settings
 from database.mongodb import get_mongodb_client
@@ -37,15 +38,32 @@ class ChatManager:
                 cached_response = cache.get(cache_key)
             except Exception:
                 cached_response = None
+
             if cached_response is not None:
                 logger.debug("Cache HIT respuesta LLM para conversación")
                 response_content = cached_response
             else:
                 logger.debug("Cache MISS respuesta LLM — generando con Bot")
                 bot_input = {"input": input_text, "conversation_id": conversation_id}
-                result = await self.bot(bot_input)
-                ai_response_message = BotMessage(message=result["output"], role=settings.ai_prefix)
+
+                try:
+                    result = await asyncio.wait_for(
+                        self.bot(bot_input),
+                        timeout=getattr(settings, "llm_timeout", 25)
+                    )
+                except asyncio.TimeoutError:
+                    logger.error("Timeout al generar respuesta con el modelo LLM.")
+                    return (
+                        "Lo siento, la respuesta está tardando más de lo esperado. "
+                        "Por favor, inténtalo nuevamente en unos segundos."
+                    )
+
+                ai_response_message = BotMessage(
+                    message=result["output"],
+                    role=settings.ai_prefix
+                )
                 response_content = ai_response_message.message
+
                 # Guardar en cache
                 try:
                     cache.set(cache_key, response_content, cache.ttl)
@@ -67,3 +85,65 @@ class ChatManager:
         """Cierra la conexión de MongoDB."""
         await self.db.close()
         logger.info("MongoDB client cerrado en ChatManager.")
+
+    async def generate_streaming_response(self, input_text: str, conversation_id: str, source: str | None = None):
+        try:
+            logger.info(f"[ChatManager] Streaming start conv={conversation_id}")
+            await self.db.add_message(conversation_id, USER_ROLE, input_text, source)
+
+            cache_key = f"resp:{conversation_id}:{hashlib.sha256((input_text or '').strip().encode('utf-8')).hexdigest()}"
+            cached_response = None
+            try:
+                cached_response = cache.get(cache_key)
+            except Exception:
+                cached_response = None
+
+            if cached_response is not None:
+                final_text = cached_response
+                yield final_text
+                await self.db.add_message(conversation_id, ASSISTANT_ROLE, final_text, source)
+                await self.bot.add_to_memory(human=input_text, ai=final_text, conversation_id=conversation_id)
+                return
+
+            bot_input = {"input": input_text, "conversation_id": conversation_id}
+            stream = self.bot.astream_chunked(bot_input)
+
+            final_text = ""
+            try:
+                first = await asyncio.wait_for(stream.__anext__(), timeout=getattr(settings, "llm_timeout", 25))
+                final_text += first
+                try:
+                    logger.debug(f"[ChatManager] First chunk len={len(first)}")
+                except Exception:
+                    pass
+                yield first
+            except asyncio.TimeoutError:
+                raise
+            except StopAsyncIteration:
+                await self.db.add_message(conversation_id, ASSISTANT_ROLE, final_text, source)
+                await self.bot.add_to_memory(human=input_text, ai=final_text, conversation_id=conversation_id)
+                try:
+                    cache.set(cache_key, final_text, cache.ttl)
+                except Exception:
+                    pass
+                return
+
+            async for chunk in stream:
+                final_text += chunk
+                try:
+                    logger.debug(f"[ChatManager] Chunk len={len(chunk)}")
+                except Exception:
+                    pass
+                yield chunk
+
+            await self.db.add_message(conversation_id, ASSISTANT_ROLE, final_text, source)
+            await self.bot.add_to_memory(human=input_text, ai=final_text, conversation_id=conversation_id)
+
+            try:
+                cache.set(cache_key, final_text, cache.ttl)
+            except Exception:
+                pass
+            logger.info(f"[ChatManager] Streaming end conv={conversation_id} total_len={len(final_text)}")
+        except Exception as e:
+            logger.error(f"Error generando respuesta streaming en ChatManager: {e}", exc_info=True)
+            raise

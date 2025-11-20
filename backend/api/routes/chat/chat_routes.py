@@ -2,6 +2,7 @@
 from utils.logging_utils import get_logger
 import uuid
 import json
+import asyncio
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse, JSONResponse, Response
 from io import BytesIO
@@ -10,8 +11,7 @@ from zoneinfo import ZoneInfo
 
 # Importar modelos Pydantic desde el módulo centralizado
 from api.schemas import (
-    ChatRequest,
-    StreamEventData
+    ChatRequest
 )
 
 
@@ -54,25 +54,30 @@ async def chat_stream_log(request: Request):
         
         logger.info(f"Recibida solicitud de chat: '{input_text}' para conversación {conversation_id}")
         
-        response_content = await chat_manager.generate_response(input_text, conversation_id, source)
-        logger.info("Respuesta generada por ChatManager")
-        
-        response_data_obj = StreamEventData(
-            streamed_output=response_content,
-            ops=None 
-        )
-        
         async def generate():
             try:
-                yield f"data: {response_data_obj.model_dump_json()}\n\n"
+                logger.info(f"[SSE] Iniciando streaming para conv={conversation_id}")
+                stream_gen = chat_manager.generate_streaming_response(input_text, conversation_id, source)
+                async for chunk in stream_gen:
+                    try:
+                        payload = json.dumps({"stream": chunk})
+                    except Exception:
+                        payload = json.dumps({"stream": str(chunk)})
+                    try:
+                        logger.debug(f"[SSE] Chunk emitido len={len(str(chunk))}")
+                    except Exception:
+                        pass
+                    yield f"data: {payload}\n\n"
+                logger.info(f"[SSE] Streaming finalizado para conv={conversation_id}")
+                yield "event: end\ndata: {}\n\n"
+            except asyncio.TimeoutError:
+                err_payload = json.dumps({"message": "timeout"})
+                yield f"event: error\ndata: {err_payload}\n\n"
                 yield "event: end\ndata: {}\n\n"
             except Exception as e_stream:
                 logger.error(f"Error en streaming: {str(e_stream)}", exc_info=True)
-                error_event_data = StreamEventData(
-                    streamed_output="Lo siento, hubo un error al procesar tu solicitud durante el streaming.",
-                    ops=None
-                )
-                yield f"event: error\ndata: {error_event_data.model_dump_json()}\n\n"
+                err_payload = json.dumps({"message": "Error interno"})
+                yield f"event: error\ndata: {err_payload}\n\n"
                 yield "event: end\ndata: {}\n\n"
         
         return StreamingResponse(

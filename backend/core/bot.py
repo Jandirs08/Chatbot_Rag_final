@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, AsyncGenerator
 from operator import itemgetter
 
 from langchain_core.runnables import RunnableLambda, RunnableMap, Runnable
@@ -223,6 +223,55 @@ class Bot:
         )
 
         return {"output": final_text}
+
+    async def astream_chunked(self, x: Dict[str, Any], min_chunk_chars: int = 128) -> AsyncGenerator[str, None]:
+        conversation_id = x.get("conversation_id", "default_session")
+        inp = {
+            "input": x["input"],
+            "conversation_id": conversation_id,
+        }
+
+        buffer = ""
+
+        def _extract_text(p: Any) -> str:
+            c = getattr(p, "content", None)
+            if isinstance(c, str):
+                return c
+            if isinstance(c, list):
+                try:
+                    parts = []
+                    for item in c:
+                        if isinstance(item, dict):
+                            if item.get("type") == "text" and isinstance(item.get("text"), str):
+                                parts.append(item.get("text") or "")
+                        else:
+                            t = getattr(item, "text", None)
+                            tp = getattr(item, "type", None)
+                            if tp == "text" and isinstance(t, str):
+                                parts.append(t)
+                    return "".join(parts)
+                except Exception:
+                    try:
+                        return "".join(str(x) for x in c)
+                    except Exception:
+                        return ""
+            t = getattr(p, "text", None)
+            if isinstance(t, str):
+                return t
+            if isinstance(p, str):
+                return p
+            return ""
+
+        async for part in self.chain_manager.runnable_chain.astream(inp):
+            txt = _extract_text(part)
+            if not txt:
+                continue
+            buffer += txt
+            if len(buffer) >= min_chunk_chars:
+                yield buffer
+                buffer = ""
+        if buffer:
+            yield buffer
 
     async def add_to_memory(self, human, ai, conversation_id):
         if isinstance(human, str):

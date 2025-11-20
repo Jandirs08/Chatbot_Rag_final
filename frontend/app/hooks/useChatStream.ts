@@ -84,31 +84,28 @@ export function useChatStream(conversationId: string, initialMessages?: Message[
           if (msg.data) {
             try {
               const chunk = JSON.parse(msg.data);
-
-              if (chunk.streamed_output) {
-                const responseText = chunk.streamed_output;
-
-                // Actualizar el último mensaje del asistente o crear uno nuevo
+              const delta: string | undefined = chunk.stream ?? chunk.streamed_output;
+              if (typeof delta === "string" && delta.length > 0) {
+                try {
+                  console.debug("[SSE] chunk received", { len: delta.length });
+                } catch {}
                 setMessages((prevMessages) => {
-                  const lastMessage = prevMessages[prevMessages.length - 1];
-                  if (lastMessage && lastMessage.role === "assistant") {
-                    // Actualizar el último mensaje
+                  const last = prevMessages[prevMessages.length - 1];
+                  if (last && last.role === "assistant") {
                     return [
                       ...prevMessages.slice(0, -1),
-                      { ...lastMessage, content: responseText },
-                    ];
-                  } else {
-                    // Crear nuevo mensaje
-                    return [
-                      ...prevMessages,
-                      {
-                        id: (crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`),
-                        content: responseText,
-                        role: "assistant",
-                        createdAt: new Date(),
-                      },
+                      { ...last, content: (last.content || "") + delta },
                     ];
                   }
+                  return [
+                    ...prevMessages,
+                    {
+                      id: (crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`),
+                      content: delta,
+                      role: "assistant",
+                      createdAt: new Date(),
+                    },
+                  ];
                 });
               }
             } catch (e) {
