@@ -49,7 +49,7 @@ class EmbeddingManager:
         return hashlib.sha256(norm.encode("utf-8")).hexdigest()
 
     # ----------------------------------------------------------------------
-    #   EMBED DOCUMENTS — FIXED VERSION
+    #   EMBED DOCUMENTS — FIX 1 COMPLETO
     # ----------------------------------------------------------------------
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """Genera embeddings para una lista de textos usando OpenAI."""
@@ -58,10 +58,10 @@ class EmbeddingManager:
             self.logger.debug("No hay textos para generar embeddings")
             return []
 
-        # ✅ FIX 1: Inicializar dimension SIEMPRE
+        # FIX 1: Siempre fijar dimensión
         vector_dim = getattr(settings, "default_embedding_dimension", 1536)
 
-        # Normalizar textos
+        # Normalizar textos mínimos
         filtered_texts = [t if (t and len(t.strip()) >= 3) else "placeholder_text" for t in texts]
 
         # Intento de cache
@@ -73,7 +73,11 @@ class EmbeddingManager:
             try:
                 cached = cache.get(key)
                 if cached is not None:
-                    results[i] = cached
+                    # FIX 1: Validar que el embedding cacheado tenga dimensión correcta
+                    if isinstance(cached, list) and len(cached) == vector_dim:
+                        results[i] = cached
+                    else:
+                        miss_indices.append(i)
                 else:
                     miss_indices.append(i)
             except Exception:
@@ -103,16 +107,21 @@ class EmbeddingManager:
                 batch_embs = self._openai.embed_documents(batch_texts)
 
                 for idx, emb in zip(batch_indices, batch_embs):
+                    # FIX 1: Validación estricta de vectores
                     if isinstance(emb, np.ndarray):
                         emb = emb.tolist()
+
+                    if not emb or not isinstance(emb, list) or len(emb) != vector_dim:
+                        emb = [0.0] * vector_dim
+
                     index_to_embedding[idx] = emb
 
             # Ensamblar resultados
             for i in miss_indices:
                 emb = index_to_embedding.get(i)
 
-                if not emb:
-                    # fallback seguro
+                # FIX 1: fallback garantizado
+                if not emb or len(emb) != vector_dim:
                     emb = [0.0] * vector_dim
 
                 results[i] = emb
@@ -125,19 +134,19 @@ class EmbeddingManager:
                     pass
 
             # ------------------------------------------------------------------
-            #   FINALIZAR EMBEDDINGS — FIX 2
+            # FINAL: asegurar uniformidad
             # ------------------------------------------------------------------
             final_embeddings: List[List[float]] = []
 
             for emb in results:
                 if isinstance(emb, np.ndarray):
                     final_embeddings.append(emb.tolist())
-                elif isinstance(emb, list):
+                elif isinstance(emb, list) and len(emb) == vector_dim:
                     final_embeddings.append(emb)
                 else:
                     final_embeddings.append([0.0] * vector_dim)
 
-            self.logger.debug("Embeddings generados con soporte de caché")
+            self.logger.debug("Embeddings generados con FIX #1 aplicado")
             return final_embeddings
 
         except Exception as e:
@@ -168,7 +177,9 @@ class EmbeddingManager:
             if isinstance(embedding, np.ndarray):
                 embedding = embedding.tolist()
 
-            self.logger.debug("Embedding de consulta generado")
+            # FIX 1 — validar dimensión
+            if not embedding or len(embedding) != vector_dim:
+                embedding = [0.0] * vector_dim
 
             try:
                 cache.set(key, embedding, cache.ttl)
