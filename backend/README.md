@@ -1,169 +1,331 @@
-```
- ____                    _                 _       ____ _           _           _   
-| __ )  ___  __ _  __ _| |__   ___   ___ | | __  / ___| |__   __ _| |__   ___ | |_ 
-|  _ \ / _ \/ _` |/ _` | '_ \ / _ \ / _ \| |/ / | |   | '_ \ / _` | '_ \ / _ \| __|
-| |_) |  __/ (_| | (_| | |_) | (_) | (_) |   <  | |___| | | | (_| | |_) | (_) | |_ 
-|____/ \___|\__, |\__,_|_.__/ \___/ \___/|_|\_\  \____|_| |_|\__,_|_.__/ \___/ \__|
-             |___/                                                                  
-```
-
 # Backend Chatbot RAG
 
-Sistema backend robusto y modular para un chatbot con capacidades RAG (Retrieval-Augmented Generation), autenticación JWT, middleware de protección administrativa, streaming SSE, y persistencia en MongoDB. Este documento describe la arquitectura, módulos, flujos internos y contratos principales de la API, sin incluir guías de despliegue ni instalación.
+Backend en FastAPI para un chatbot con RAG (Retrieval-Augmented Generation), autenticación JWT, streaming SSE y persistencia en MongoDB. Este README refleja el estado actual del proyecto y proporciona guía de instalación, configuración y operación.
 
-## Arquitectura General (ASCII)
+## Descripción del Proyecto
 
+- API HTTP que expone endpoints para autenticación, chat en streaming, gestión de PDFs, administración de RAG y usuarios.
+- Recuperación de contexto con Qdrant como vector store y embeddings de OpenAI.
+- Persistencia de mensajes y usuarios en MongoDB; caché opcional en memoria o Redis.
+- Arquitectura modular con inicialización controlada vía `lifespan` y middleware de autenticación para rutas administrativas.
+
+## Requisitos del Sistema
+
+- Python `3.11` (recomendado; ver `Dockerfile` base)
+- Pip `>=23`
+- MongoDB `>=4.4` accesible (por defecto `chatbot_rag_db`)
+- Qdrant `>=1.7` accesible en `QDRANT_URL` (por defecto `http://localhost:6333`)
+- Redis opcional para caché (`REDIS_URL`)
+- Clave de OpenAI válida (`OPENAI_API_KEY`)
+
+Nota: No se requiere Node.js para el backend. El frontend (si existe) puede requerir Node, pero no forma parte de este documento.
+
+## Configuración Inicial
+
+1. Clonar el repositorio
+   - `git clone <URL_DEL_REPO>`
+   - `cd Chatbot_Rag_final/backend`
+2. Crear y activar entorno virtual
+   - Linux/macOS: `python3 -m venv .venv && source .venv/bin/activate`
+   - Windows: `python -m venv .venv && .\.venv\Scripts\activate`
+3. Instalar dependencias
+   - `pip install --upgrade pip`
+   - `pip install -r requirements.txt`
+   - Para exportar a Excel: `pip install xlsxwriter` (usado por `export-conversations`)
+4. Configurar variables de entorno
+   - Crear `backend/.env` con los campos de la sección Variables de Entorno
+5. Arrancar servicios externos
+   - MongoDB accesible según `MONGO_URI`
+   - Qdrant accesible según `QDRANT_URL` (puede ser contenedor local)
+
+## Variables de Entorno
+
+Ejemplo de `backend/.env` mínimo funcional:
+
+```env
+# Servidor
+HOST=0.0.0.0
+PORT=8000
+ENVIRONMENT=development
+LOG_LEVEL=INFO
+DEBUG=false
+
+# Seguridad (JWT)
+JWT_SECRET=super-secret-jwt-key
+JWT_ALGORITHM=HS256
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
+JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
+
+# CORS
+CORS_ORIGINS=http://localhost:3000
+CORS_ORIGINS_WIDGET=
+CORS_ORIGINS_ADMIN=
+CLIENT_ORIGIN_URL=
+CORS_MAX_AGE=3600
+
+# Modelo y OpenAI
+MODEL_TYPE=OPENAI
+OPENAI_API_KEY=<tu-api-key>
+BASE_MODEL_NAME=gpt-3.5-turbo
+MAX_TOKENS=2000
+TEMPERATURE=0.7
+
+# MongoDB
+MONGO_URI=mongodb://localhost:27017
+MONGO_DATABASE_NAME=chatbot_rag_db
+MONGO_COLLECTION_NAME=messages
+MONGO_MAX_POOL_SIZE=100
+MONGO_TIMEOUT_MS=5000
+
+# Redis (opcional)
+REDIS_URL=
+
+# RAG - PDFs
+RAG_CHUNK_SIZE=1000
+RAG_CHUNK_OVERLAP=150
+MIN_CHUNK_LENGTH=100
+MAX_FILE_SIZE_MB=10
+
+# RAG - Recuperación
+RETRIEVAL_K=4
+RETRIEVAL_K_MULTIPLIER=3
+MMR_LAMBDA_MULT=0.5
+SIMILARITY_THRESHOLD=0.3
+
+# RAG - Ingesta
+BATCH_SIZE=100
+DEDUP_THRESHOLD=0.95
+
+# RAG - Vector Store
+VECTOR_STORE_PATH=./backend/storage/vector_store/chroma_db
+DISTANCE_STRATEGY=cosine
+QDRANT_URL=http://localhost:6333
+QDRANT_API_KEY=
+
+# RAG - Embeddings
+EMBEDDING_MODEL=openai:text-embedding-3-small
+EMBEDDING_BATCH_SIZE=32
+DEFAULT_EMBEDDING_DIMENSION=1536
+
+# Caché local
+MAX_CACHE_SIZE=1024
+CACHE_STORE_EMBEDDINGS=true
+ENABLE_CACHE=true
+CACHE_TTL=3600
+
+# Directorios
+STORAGE_DIR=./backend/storage
+DOCUMENTS_DIR=./backend/storage/documents
+PDFS_DIR=./backend/storage/documents/pdfs
+CACHE_DIR=./backend/storage/cache
+TEMP_DIR=./backend/storage/temp
+BACKUP_DIR=./backend/storage/backups
+
+# UI dinámica (opcional)
+BOT_NAME=
+UI_PROMPT_EXTRA=
 ```
-                          +-------------------------------------------+
-                          |               FastAPI App                 |
-                          |        (create_app + lifespan)            |
-                          +--------------------+----------------------+
-                                               |
-       +---------------------------------------+---------------------------------------+
-       |                     Routers / Controladores (API)                            |
-       |   /health   /auth   /chat   /pdfs   /rag   /bot   /users                     |
-       +--------------------------------------------------------------------------------+
-       | Middleware: AuthenticationMiddleware (protege /pdfs, /rag, /bot, /users)       |
-       +--------------------------------------------------------------------------------+
-       | Servicios core:                                                               |
-       | - ChatManager (gestión de diálogo, logs en MongoDB)                           |
-       | - Bot (LCEL + ChainManager + Memoria + Tools)                                 |
-       | - RAGRetriever (búsqueda contextual, reranking, MMR)                          |
-       +--------------------------------------------------------------------------------+
-       | Subsistema RAG:                                                               |
-       | - PDFContentLoader (chunking)  - EmbeddingManager                              |
-       | - VectorStore (Qdrant + caché) - RAGIngestor (ingesta asincrónica)            |
-       | - RAG gating premium (centroide + similitud)                                  |
-       +--------------------------------------------------------------------------------+
-       | Persistencia: MongoDB (collections: messages, users, bot_config)               |
-       +--------------------------------------------------------------------------------+
-       | Storage: documentos/pdfs; vector_store/ (persistencia local; Qdrant externo)  |
-       +--------------------------------------------------------------------------------+
-       | Utilidades: logging_utils, deploy_log, chain_cache                              |
-       +--------------------------------------------------------------------------------+
-```
 
-## Mapa de Carpetas (backend)
+Validaciones clave:
+- En producción: `JWT_SECRET` obligatorio y CORS sin comodín.
+- `OPENAI_API_KEY` requerido si `MODEL_TYPE=OPENAI`.
+- `MONGO_URI` y `QDRANT_URL` deben apuntar a servicios accesibles.
+
+## Endpoints API
+
+Los endpoints se registran con prefijo base `
+`/api/v1`.
+
+- Autenticación
+  - `POST /api/v1/auth/login` — body: `{ email, password }` → tokens `{ access_token, refresh_token }`
+  - `GET /api/v1/auth/me` — header `Authorization: Bearer <token>` → perfil
+  - `POST /api/v1/auth/refresh` — body: `{ refresh_token }` → nuevos tokens
+  - `POST /api/v1/auth/logout` — requiere token; operación lógica de cliente
+
+- Chat
+  - `POST /api/v1/chat/` — body: `{ input, conversation_id?, source? }` → streaming SSE (`data: {stream}`)
+  - `GET /api/v1/chat/history/{conversation_id}` — historial ordenado
+  - `GET /api/v1/chat/export-conversations` — descarga Excel
+  - `GET /api/v1/chat/stats` — métricas básicas
+
+- PDFs (Admin)
+  - `POST /api/v1/pdfs/upload` — `multipart/form-data` con archivo `file`
+  - `GET /api/v1/pdfs/list`
+  - `DELETE /api/v1/pdfs/{filename}`
+  - `GET /api/v1/pdfs/download/{filename}`
+  - `GET /api/v1/pdfs/view/{filename}`
+
+- RAG (Admin)
+  - `GET /api/v1/rag/rag-status`
+  - `POST /api/v1/rag/clear-rag`
+  - `POST /api/v1/rag/retrieve-debug` — body: `{ query, k?, filter_criteria?, include_context? }`
+  - `POST /api/v1/rag/reindex-pdf` — body: `{ filename, force_update? }`
+
+- Bot (Admin)
+  - `GET /api/v1/bot/state`
+  - `POST /api/v1/bot/toggle`
+  - `GET /api/v1/bot/runtime`
+  - `GET /api/v1/bot/config`
+  - `PUT /api/v1/bot/config` — body: `{ system_prompt?, temperature?, bot_name?, ui_prompt_extra? }`
+  - `POST /api/v1/bot/config/reset`
+
+- Usuarios (Admin)
+  - `GET /api/v1/users/users` — query: `skip`, `limit`, `search`, `role`, `is_active`
+  - `POST /api/v1/users/users` — body: `{ email, password, full_name?, is_admin? }`
+  - `PATCH /api/v1/users/users/{user_id}` — body: campos parciales
+  - `DELETE /api/v1/users/users/{user_id}`
+
+OpenAPI y documentación interactiva:
+- `http://localhost:8000/docs`
+- `http://localhost:8000/redoc`
+
+## Ejecución del Proyecto
+
+- Desarrollo
+  - `python backend/main.py`
+  - o `python -m uvicorn backend.main:app --reload --port 8000`
+
+- Producción
+  - `ENVIRONMENT=production python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 4`
+
+- Testing
+  - Requiere backend corriendo y servicios (MongoDB/Qdrant)
+  - `pytest -q` (desde `backend/`)
+
+## Estructura de Directorios
 
 ```text
 backend/
 ├── api/
-│   ├── app.py                 # Inicialización FastAPI, lifespan, CORS, middleware, routers
-│   ├── auth.py                # Endpoints de autenticación (login/me/refresh/logout)
-│   ├── routes/                # Routers por dominio
+│   ├── app.py                        # Crea FastAPI, CORS, middleware, lifespan y registra routers
+│   ├── auth.py                       # Endpoints de autenticación: login, me, refresh, logout
+│   ├── routes/
 │   │   ├── bot/
+│   │   │   ├── bot_routes.py         # Estado del bot, toggle y runtime (admin)
+│   │   │   └── config_routes.py      # Config persistida del bot: GET/PUT/reset (admin)
 │   │   ├── chat/
+│   │   │   └── chat_routes.py        # Chat SSE, historial, exportación y estadísticas (público)
 │   │   ├── health/
+│   │   │   └── health_routes.py      # Health check del backend
 │   │   ├── pdf/
+│   │   │   └── pdf_routes.py         # Upload/list/delete/download/view de PDFs (admin)
 │   │   ├── rag/
+│   │   │   └── rag_routes.py         # Estado, limpieza, auditoría y reindexación RAG (admin)
 │   │   └── users/
-│   └── schemas/               # Esquemas Pydantic centralizados
-│       ├── base.py
-│       ├── chat.py
-│       ├── config.py
-│       ├── health.py
-│       ├── pdf.py
-│       └── rag.py
+│   │       └── users_routes.py       # CRUD admin de usuarios
+│   └── schemas/
+│       ├── base.py                   # BaseResponse y utilidades comunes
+│       ├── chat.py                   # ChatRequest y modelos de streaming
+│       ├── config.py                 # BotConfigDTO y UpdateBotConfigRequest
+│       ├── health.py                 # HealthResponse
+│       ├── pdf.py                    # PDFListItem/Response y payloads de PDFs
+│       └── rag.py                    # Esquemas de estado/clear/retrieve/reindex para RAG
 ├── auth/
-│   ├── dependencies.py        # Dependencias FastAPI (get_current_user, require_admin, etc.)
-│   ├── jwt_handler.py         # Creación/verificación de tokens
-│   ├── middleware.py          # Protección de rutas admin vía JWT
-│   └── password_handler.py    # Hash/verify
+│   ├── dependencies.py               # get_current_user/active_user y require_admin
+│   ├── jwt_handler.py                # Creación/verificación de JWT con validaciones endurecidas
+│   ├── middleware.py                 # AuthenticationMiddleware (listas PUBLIC/ADMIN y verificación)
+│   └── password_handler.py           # Hash/verify de contraseñas (bcrypt)
 ├── cache/
-│   ├── manager.py             # Facade para caché
-│   ├── memory_backend.py      # Backend en memoria
-│   └── redis_backend.py       # Backend Redis opcional
+│   ├── manager.py                    # Facade de caché con TTL y tamaño máximo
+│   ├── memory_backend.py             # Implementación en memoria del backend de caché
+│   └── redis_backend.py              # Implementación Redis (por URL) para caché
 ├── chat/
-│   └── manager.py             # Orquestación de respuestas y registro en MongoDB
+│   └── manager.py                    # Orquesta respuestas del Bot y persiste mensajes en Mongo
 ├── core/
-│   ├── bot.py                 # Agente LCEL, memoria, contexto RAG
-│   ├── chain.py               # ChainManager, prompts y modelo
-│   └── prompt.py              # Personalidad y plantillas principales
+│   ├── bot.py                        # Clase Bot: integra memoria, chain y RAGRetriever
+│   ├── chain.py                      # ChainManager: compone prompts y ejecuta el modelo
+│   └── prompt.py                     # Plantillas y personalidad base del bot
 ├── database/
-│   ├── config_repository.py   # Configuración del bot (system_prompt, nombre, UI extra)
-│   ├── mongodb.py             # Cliente MongoDB, índices
-│   ├── user_repository.py     # Repositorio de usuarios (CRUD, índices)
-│   
+│   ├── config_repository.py          # Persistencia de config del bot en Mongo (colección bot_config)
+│   ├── mongodb.py                    # Cliente MongoDB (mensajes) e índices para rendimiento
+│   └── user_repository.py            # Acceso a usuarios: búsquedas, creación, actualización
 ├── memory/
-│   ├── base_memory.py
-│   └── memory_types.py        # Enum + mapping
+│   ├── base_memory.py                # Interfaz/base de memorias de conversación
+│   └── memory_types.py               # Enum y mapeo de tipos de memoria disponibles
 ├── rag/
-│   ├── embeddings/embedding_manager.py
-│   ├── ingestion/ingestor.py
-│   ├── pdf_processor/pdf_loader.py
-│   ├── retrieval/retriever.py
-│   └── vector_store/vector_store.py
+│   ├── embeddings/
+│   │   └── embedding_manager.py      # Gestión de embeddings (OpenAI) y batch
+│   ├── ingestion/
+│   │   └── ingestor.py               # Ingesta de PDFs → chunks → embeddings → vector store
+│   ├── pdf_processor/
+│   │   └── pdf_loader.py             # Carga/chunking de PDFs (pypdf), overlap y mínimos
+│   ├── retrieval/
+│   │   └── retriever.py              # Recuperación con MMR/reranking, gating por centroide y caché
+│   └── vector_store/
+│       └── vector_store.py           # QdrantClient, colección, filtros y operaciones de documentos
 ├── storage/
 │   ├── documents/
-│   │   ├── pdf_manager.py
-│   │   └── pdfs/                           # Carpeta de PDFs
-│   └── vector_store/                       # Persistencia local del vector store
+│   │   ├── pdf_manager.py            # Guardado/listado/borrado de PDFs y metadatos
+│   │   └── pdfs/                     # Carpeta física de PDFs ingeridos
+│   └── vector_store/                 # Carpeta local para persistencia del vector store
 ├── common/
-│   ├── constants.py
-│   └── objects.py             # Message, roles, convenciones conversation_id
+│   ├── constants.py                  # Constantes compartidas
+│   └── objects.py                    # Tipos de mensajes y roles
 ├── models/
-│   ├── auth.py                # DTOs auth (LoginRequest, TokenResponse, etc.)
-│   ├── model_types.py         # Tipos auxiliares
-│   └── user.py                # Modelo de usuario
+│   ├── auth.py                       # DTOs de autenticación (LoginRequest, TokenResponse, etc.)
+│   ├── model_types.py                # Tipos auxiliares del modelo
+│   └── user.py                       # Modelo de usuario y DTOs de respuesta/actualización
 ├── utils/
-│   ├── logging_utils.py       # Filtros y supresión de ruido (cl100k_base)
-│   ├── chain_cache.py
-│   ├── deploy_log.py          # Resumen de arranque y diagnósticos
+│   ├── logging_utils.py              # Setup y supresión de ruido (cl100k_base, tiktoken)
+│   ├── chain_cache.py                # Utilidades de caché para chain
+│   ├── deploy_log.py                 # Resumen de arranque y diagnóstico
 │   ├── memory/
-│   │   └── memory_audit_report.md
-│   └── rag_type_detector.py
-├── config.py                  # Pydantic Settings (CORS, JWT, RAG, etc.)
-├── main.py                    # Punto de entrada (Uvicorn)
-├── requirements.txt
-├── tests/                     # Pruebas
-│   ├── conftest.py
-│   └── test_auth_validation.py
-└── Dockerfile                 # Docker backend
+│   │   └── memory_audit_report.md    # Informe interno de memoria
+│   └── rag_type_detector.py          # Detección de tipos de fragmentos RAG
+├── config.py                         # Pydantic Settings (JWT, CORS, RAG, Mongo, Qdrant, etc.)
+├── main.py                           # Punto de entrada; arranca uvicorn y soporta reload
+├── requirements.txt                  # Dependencias del backend
+├── tests/
+│   ├── conftest.py                   # Configuración de pruebas
+│   └── test_auth_validation.py       # Tests de validación/seguridad de tokens y acceso admin
+└── Dockerfile                        # Imagen base Python 3.11; instala deps y lanza uvicorn
 ```
 
-## Flujo Interno de Datos
+### Detalle por módulos
 
-- Recepción: el cliente envía una solicitud al router correspondiente (por ejemplo, `/api/v1/chat/`).
-- Middleware: AuthenticationMiddleware permite libre acceso a `/health`, `/auth`, `/chat`; exige usuario admin para `/pdfs`, `/rag`, `/bot`, `/users`.
-- Lifespan de app: al iniciar, se crean y comparten en `app.state` los managers y recursos (PDFManager, EmbeddingManager, VectorStore, RAGIngestor, RAGRetriever, Bot, ChatManager, MongoDB client). Al cerrar, se liberan ordenadamente.
-- ChatManager: valida estado del bot, parsea `ChatRequest`, genera respuesta llamando al `Bot` y guarda ambos mensajes en MongoDB (`messages`), manteniendo índices para rendimiento.
- - Bot (LCEL): ChainManager compone el prompt con personalidad, historial (memoria configurable) y contexto RAG (si `enable_rag_lcel` está activo). Ejecuta la cadena directamente vía LCEL (sin agentes ni parsers ReAct).
-- RAG: RAGRetriever consulta `VectorStore` (Qdrant), aplica reranking semántico o MMR, y opcionalmente cachea resultados; formatea contexto para el prompt.
-- Gating premium: antes de recuperar, se evalúa la similitud del embedding de la consulta contra un centroide de documentos; si está por debajo del umbral, se omite inyección de contexto.
-- Streaming SSE: el endpoint de chat retorna `StreamingResponse` emitiendo eventos `data` y `end` para consumo progresivo en el frontend.
-- Logging y observabilidad: middleware de logging registra método, ruta, tiempo y—si `DEBUG`—cuerpo. Se suprimen warnings/tiktoken. Excepciones globales devuelven respuestas con `detail` consistente.
+- `api/app.py`: inicializa la aplicación y registra routers con prefijos:
+  - `include_router(health_router, prefix="/api/v1", tags=["health"])`
+  - `include_router(auth_router, prefix="/api/v1", tags=["auth"])`
+  - `include_router(pdf_router, prefix="/api/v1/pdfs", tags=["pdfs"])`
+  - `include_router(rag_router, prefix="/api/v1/rag", tags=["rag"])`
+  - `include_router(chat_router, prefix="/api/v1/chat", tags=["chat"])`
+  - `include_router(bot_router, prefix="/api/v1/bot", tags=["bot"])`
+  - `include_router(bot_config_router, prefix="/api/v1/bot", tags=["bot"])`
+  - `include_router(users_router, prefix="/api/v1", tags=["users"])`
 
-## Endpoints Principales
+- `auth/middleware.py`: define listas de rutas `PUBLIC` y `ADMIN`; protege `/pdfs`, `/rag`, `/bot`, `/users` validando token y rol admin.
 
-| Endpoint | Método | Descripción | Auth |
-|---|---|---|---|
-| `/api/v1/health` | GET | Health check del backend | Público |
-| `/api/v1/auth/login` | POST | Autentica y emite tokens JWT (access/refresh) | Público |
-| `/api/v1/auth/me` | GET | Perfil del usuario autenticado | Requiere token |
-| `/api/v1/auth/refresh` | POST | Renueva access token con refresh | Público |
-| `/api/v1/auth/logout` | POST | Logout lógico (cliente elimina tokens) | Requiere token |
-| `/api/v1/chat/` | POST | Chat con respuesta en streaming SSE | Público |
-| `/api/v1/chat/export-conversations` | GET | Exporta conversaciones a Excel | Público |
-| `/api/v1/chat/stats` | GET | Métricas básicas de uso y PDFs | Público |
-| `/api/v1/pdfs/upload` | POST | Sube PDF y dispara ingesta asíncrona | Admin |
-| `/api/v1/pdfs/list` | GET | Lista PDFs disponibles en storage | Admin |
-| `/api/v1/pdfs/{filename}` | DELETE | Elimina PDF y sus embeddings del vector store | Admin |
-| `/api/v1/pdfs/download/{filename}` | GET | Descarga directa del PDF | Admin |
-| `/api/v1/pdfs/view/{filename}` | GET | Visualización inline del PDF | Admin |
-| `/api/v1/rag/rag-status` | GET | Estado del RAG (PDFs, tamaño vector store) | Admin |
-| `/api/v1/rag/clear-rag` | POST | Limpia PDFs y el almacén vectorial | Admin |
-| `/api/v1/rag/retrieve-debug` | POST | Traza detallada de recuperación (auditoría) | Admin |
-| `/api/v1/rag/reindex-pdf` | POST | Reindexa un PDF específico | Admin |
-| `/api/v1/bot/state` | GET | Estado activo/inactivo del bot | Admin |
-| `/api/v1/bot/toggle` | POST | Activa/desactiva el bot | Admin |
-| `/api/v1/bot/runtime` | GET | Inspección de configuración runtime | Admin |
-| `/api/v1/bot/config` | GET | Obtiene configuración persistida del bot | Admin |
-| `/api/v1/bot/config` | PUT | Actualiza configuración y recarga chain | Admin |
-| `/api/v1/bot/config/reset` | POST | Limpia campos UI y recarga chain | Admin |
-| `/api/v1/users/users` | GET | Lista paginada de usuarios con filtros | Admin |
-| `/api/v1/users/users` | POST | Crea usuario (validaciones de unicidad) | Admin |
-| `/api/v1/users/users/{user_id}` | PATCH | Actualiza campos (validaciones y política de password) | Admin |
-| `/api/v1/users/users/{user_id}` | DELETE | Elimina usuario | Admin |
+- `rag/vector_store/vector_store.py`: operaciones sobre Qdrant (crear/borrar colección, insertar/buscar, filtros).
+
+- `rag/retrieval/retriever.py`: aplica estrategias de recuperación, MMR, gating por centroide y caché de resultados.
+
+- `database/mongodb.py`: cliente Mongo con índices para `messages` y `users` y métodos utilitarios.
+
+- `api/routes/*_routes.py`: controladores por dominio (públicos o admin) con validaciones y manejo de errores consistente.
+
+- `utils/deploy_log.py`: genera un resumen legible del arranque para auditoría rápida.
+
+- `tests/test_auth_validation.py`: verifica flujos de login/refresh y acceso admin/usuario sobre `/pdfs/list`.
+
+## Docker
+
+Construir y ejecutar el backend en contenedor:
+
+- Build
+  - `docker build -t chatbot-backend .`
+- Run
+  - `docker run --rm -p 8000:8000 --env-file ./backend/.env --name chatbot-backend chatbot-backend`
+  - Variables clave: `OPENAI_API_KEY`, `MONGO_URI`, `QDRANT_URL`, `JWT_SECRET`
+
+El contenedor expone `8000` y ejecuta `uvicorn` contra `main:app`. Se crean directorios de `storage` con permisos adecuados.
+
+## Enlaces Relevantes
+
+- FastAPI: https://fastapi.tiangolo.com/
+- Qdrant: https://qdrant.tech/
+- OpenAI Python: https://platform.openai.com/docs/api-reference
+- MongoDB Motor: https://motor.readthedocs.io/
+
 
 ## Dependencias Clave y Propósito
 
