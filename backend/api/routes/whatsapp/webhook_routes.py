@@ -7,9 +7,6 @@ from utils.whatsapp.client import WhatsAppClient
 from config import settings
 import httpx
 import re
-import hmac
-import hashlib
-import base64
 
 logger = get_logger(__name__)
 router = APIRouter(tags=["whatsapp"])
@@ -25,32 +22,6 @@ async def whatsapp_webhook(request: Request):
         logger.info("[WhatsApp] webhook start")
     except Exception as e:
         logger.error(f"[WhatsApp] fallo al registrar inicio de webhook: {e}")
-
-    try:
-        sig_header = request.headers.get("X-Twilio-Signature")
-        token = getattr(settings, "twilio_auth_token", None)
-        if token and sig_header:
-            url = str(request.url)
-            items = sorted([(str(k), str(v)) for k, v in dict(form).items()])
-            payload = url + "".join([k + v for k, v in items])
-            digest = hmac.new(token.encode("utf-8"), payload.encode("utf-8"), hashlib.sha1).digest()
-            expected = base64.b64encode(digest).decode("utf-8")
-            if expected != sig_header:
-                try:
-                    logger.warning("[WhatsApp] firma inválida en webhook")
-                except Exception as le:
-                    logger.error(f"[WhatsApp] fallo al loggear firma inválida: {le}")
-                raise HTTPException(status_code=403, detail="Firma inválida")
-        elif token:
-            raise HTTPException(status_code=400, detail="Encabezado de firma ausente")
-    except HTTPException:
-        raise
-    except Exception as e:
-        try:
-            logger.error(f"[WhatsApp] error validando firma: {e}")
-        except Exception as le:
-            logger.error(f"[WhatsApp] fallo al loggear error de firma: {le}")
-        raise HTTPException(status_code=400, detail="Error validando firma")
 
     wa_id = str(form.get("From", "")).strip().strip("`\"'")
     text = str(form.get("Body", "")).strip()
