@@ -56,3 +56,22 @@ class WhatsAppClient:
             except Exception:
                 pass
             return False
+
+    async def send_text_diagnostics(self, wa_id: str, text: str) -> dict:
+        if not self.account_sid or not self.auth_token or not self.from_number:
+            return {"ok": False, "status": 400, "body": {"message": "Credenciales Twilio incompletas"}}
+
+        url = f"{self.api_base.rstrip('/')}/2010-04-01/Accounts/{self.account_sid}/Messages.json"
+        headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        data = {"From": self.from_number, "To": wa_id, "Body": text}
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(url, data=data, headers=headers, auth=(self.account_sid, self.auth_token))
+            body = None
+            try:
+                body = resp.json()
+            except Exception:
+                body = (resp.text or "")[:500]
+            return {"ok": 200 <= resp.status_code < 300, "status": resp.status_code, "body": body}
+        except Exception as e:
+            return {"ok": False, "status": 500, "body": {"message": str(e)}}

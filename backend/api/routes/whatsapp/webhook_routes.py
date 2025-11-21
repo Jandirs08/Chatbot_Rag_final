@@ -134,3 +134,19 @@ async def whatsapp_diag():
         }
     except Exception:
         return {"loaded": False}
+
+@router.get("/send-test")
+async def whatsapp_send_test(request: Request):
+    try:
+        params = dict(request.query_params)
+        to = str(params.get("to", "")).strip().strip("`\"'")
+        text = str(params.get("text", "Hola desde send-test")).strip()
+        if not to or not to.startswith("whatsapp:+"):
+            return {"status": "error", "message": "Parámetro 'to' debe ser 'whatsapp:+NNNN'"}
+        client = WhatsAppClient()
+        result = await client.send_text_diagnostics(to, text or "Hola")
+        if result.get("ok"):
+            return {"status": "ok", "twilio": result}
+        return {"status": "error", "twilio": result}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
