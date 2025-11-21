@@ -7,9 +7,9 @@ export interface BotConfigDTO {
   updated_at: string;
   bot_name?: string;
   ui_prompt_extra?: string;
-  whatsapp_api_base_url?: string | null;
-  whatsapp_token?: string | null;
-  whatsapp_phone_number_id?: string | null;
+  twilio_account_sid?: string | null;
+  twilio_auth_token?: string | null;
+  twilio_whatsapp_from?: string | null;
 }
 
 export interface UpdateBotConfigRequest {
@@ -17,9 +17,9 @@ export interface UpdateBotConfigRequest {
   temperature?: number;
   bot_name?: string;
   ui_prompt_extra?: string;
-  whatsapp_api_base_url?: string;
-  whatsapp_token?: string;
-  whatsapp_phone_number_id?: string;
+  twilio_account_sid?: string;
+  twilio_auth_token?: string;
+  twilio_whatsapp_from?: string;
 }
 
 export const getBotConfig = async (): Promise<BotConfigDTO> => {

@@ -5,6 +5,7 @@ from database.whatsapp_session_repository import WhatsAppSessionRepository
 from utils.whatsapp.formatter import format_text
 from utils.whatsapp.client import WhatsAppClient
 from config import settings
+import httpx
 
 logger = get_logger(__name__)
 router = APIRouter(tags=["whatsapp"])
@@ -12,36 +13,17 @@ router = APIRouter(tags=["whatsapp"])
 @router.post("/webhook")
 async def whatsapp_webhook(request: Request):
     try:
-        data = await request.json()
+        form = await request.form()
     except Exception:
-        raise HTTPException(status_code=400, detail="JSON malformado")
+        raise HTTPException(status_code=400, detail="Formulario malformado")
 
     try:
         logger.info("[WhatsApp] webhook start")
     except Exception:
         pass
 
-    wa_id = None
-    text = None
-
-    try:
-        if isinstance(data, dict):
-            if "entry" in data:
-                entry = data.get("entry") or []
-                if entry:
-                    changes = (entry[0] or {}).get("changes") or []
-                    if changes:
-                        value = (changes[0] or {}).get("value") or {}
-                        messages = value.get("messages") or []
-                        if messages:
-                            msg = messages[0] or {}
-                            text = (msg.get("text") or {}).get("body") or msg.get("body")
-                            wa_id = msg.get("from") or msg.get("author")
-            if not wa_id and "from" in data and "text" in data:
-                wa_id = data.get("from")
-                text = data.get("text")
-    except Exception:
-        pass
+    wa_id = form.get("From")
+    text = form.get("Body")
 
     if not wa_id:
         try:
@@ -49,7 +31,7 @@ async def whatsapp_webhook(request: Request):
         except Exception:
             pass
         return JSONResponse(status_code=200, content={"status": "ignored"})
-    if not isinstance(text, str) or not text.strip():
+    if not isinstance(text, str) or not str(text).strip():
         try:
             logger.info(f"[WhatsApp] webhook ignored: texto vacío wa_id={wa_id}")
         except Exception:
@@ -73,7 +55,7 @@ async def whatsapp_webhook(request: Request):
     try:
         chat_manager = request.app.state.chat_manager
         response_text = await chat_manager.generate_response(
-            input_text=text,
+            input_text=str(text),
             conversation_id=conversation_id,
             source="whatsapp",
         )
@@ -110,9 +92,16 @@ async def whatsapp_webhook(request: Request):
 @router.get("/test")
 async def whatsapp_test():
     try:
-        ok = bool(getattr(settings, "whatsapp_api_base_url", None)) and bool(getattr(settings, "whatsapp_token", None))
-        if ok:
+        sid = getattr(settings, "twilio_account_sid", None)
+        token = getattr(settings, "twilio_auth_token", None)
+        api_base = getattr(settings, "twilio_api_base", "https://api.twilio.com")
+        if not sid or not token:
+            return {"status": "error", "message": "Credenciales incompletas"}
+        url = f"{api_base.rstrip('/')}/2010-04-01/Accounts/{sid}.json"
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(url, auth=(sid, token))
+        if 200 <= resp.status_code < 300:
             return {"status": "ok"}
-        return {"status": "error", "message": "Credenciales incompletas"}
+        return {"status": "error", "message": f"HTTP {resp.status_code}"}
     except Exception:
         return {"status": "error"}

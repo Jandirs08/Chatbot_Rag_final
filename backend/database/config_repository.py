@@ -17,6 +17,9 @@ class BotConfig(BaseModel):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     bot_name: Optional[str] = Field(default=None, description="Display name of the bot")
     ui_prompt_extra: Optional[str] = Field(default=None, description="Additional instructions to complement base personality")
+    twilio_account_sid: Optional[str] = Field(default=None)
+    twilio_auth_token: Optional[str] = Field(default=None)
+    twilio_whatsapp_from: Optional[str] = Field(default=None)
 
 
 class ConfigRepository:
@@ -43,6 +46,9 @@ class ConfigRepository:
                 temperature=getattr(app_settings, "temperature", 0.7),
                 bot_name=prompt_module.BOT_NAME,
                 ui_prompt_extra=None,
+                twilio_account_sid=getattr(app_settings, "twilio_account_sid", None),
+                twilio_auth_token=getattr(app_settings, "twilio_auth_token", None),
+                twilio_whatsapp_from=getattr(app_settings, "twilio_whatsapp_from", None),
             )
             await self._collection.update_one(
                 {"_id": "default"},
@@ -54,7 +60,8 @@ class ConfigRepository:
 
         return BotConfig(**{k: v for k, v in doc.items() if k != "_id"})
 
-    async def update_config(self, system_prompt: Optional[str] = None, temperature: Optional[float] = None, bot_name: Optional[str] = None, ui_prompt_extra: Optional[str] = None) -> BotConfig:
+
+    async def update_config(self, system_prompt: Optional[str] = None, temperature: Optional[float] = None, bot_name: Optional[str] = None, ui_prompt_extra: Optional[str] = None, twilio_account_sid: Optional[str] = None, twilio_auth_token: Optional[str] = None, twilio_whatsapp_from: Optional[str] = None) -> BotConfig:
         """Update bot configuration fields and return the new config."""
         update_data = {"updated_at": datetime.now(timezone.utc)}
         if system_prompt is not None:
@@ -68,6 +75,12 @@ class ConfigRepository:
             if len(ui_text) > 3000:
                 ui_text = ui_text[:3000]
             update_data["ui_prompt_extra"] = ui_text
+        if twilio_account_sid is not None:
+            update_data["twilio_account_sid"] = twilio_account_sid
+        if twilio_auth_token is not None:
+            update_data["twilio_auth_token"] = twilio_auth_token
+        if twilio_whatsapp_from is not None:
+            update_data["twilio_whatsapp_from"] = twilio_whatsapp_from
 
         await self._collection.update_one(
             {"_id": "default"},

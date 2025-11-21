@@ -42,6 +42,9 @@ async def update_bot_config(request: Request, payload: UpdateBotConfigRequest) -
             temperature=payload.temperature,
             bot_name=payload.bot_name,
             ui_prompt_extra=payload.ui_prompt_extra,
+            twilio_account_sid=payload.twilio_account_sid,
+            twilio_auth_token=payload.twilio_auth_token,
+            twilio_whatsapp_from=payload.twilio_whatsapp_from,
         )
         # Aplicar en runtime: actualizar settings y recargar chain del bot
         if hasattr(request.app.state, "settings") and request.app.state.settings:
@@ -53,6 +56,12 @@ async def update_bot_config(request: Request, payload: UpdateBotConfigRequest) -
             try:
                 request.app.state.settings.bot_name = updated.bot_name
                 request.app.state.settings.ui_prompt_extra = updated.ui_prompt_extra
+            except Exception:
+                pass
+            try:
+                request.app.state.settings.twilio_account_sid = updated.twilio_account_sid
+                request.app.state.settings.twilio_auth_token = updated.twilio_auth_token
+                request.app.state.settings.twilio_whatsapp_from = updated.twilio_whatsapp_from
             except Exception:
                 pass
 

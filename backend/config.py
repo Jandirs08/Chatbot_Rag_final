@@ -138,9 +138,10 @@ class Settings(BaseSettings):
     # Configuración personalizada para cantidad máxima de documentos recuperados
     max_documents: int = Field(default=5, env="MAX_DOCUMENTS")
 
-    whatsapp_api_base_url: Optional[str] = Field(default=None, env="WHATSAPP_API_BASE_URL")
-    whatsapp_token: Optional[str] = Field(default=None, env="WHATSAPP_TOKEN")
-    whatsapp_phone_number_id: Optional[str] = Field(default=None, env="WHATSAPP_PHONE_NUMBER_ID")
+    twilio_account_sid: Optional[str] = Field(default=None, env="TWILIO_ACCOUNT_SID")
+    twilio_auth_token: Optional[str] = Field(default=None, env="TWILIO_AUTH_TOKEN")
+    twilio_whatsapp_from: Optional[str] = Field(default=None, env="TWILIO_WHATSAPP_FROM")
+    twilio_api_base: str = Field(default="https://api.twilio.com", env="TWILIO_API_BASE")
     
     # Nota: Config ya no aplica en Pydantic v2; usamos model_config arriba.
 
