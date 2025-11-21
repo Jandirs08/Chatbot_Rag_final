@@ -22,8 +22,8 @@ async def whatsapp_webhook(request: Request):
     except Exception:
         pass
 
-    wa_id = form.get("From")
-    text = form.get("Body")
+    wa_id = str(form.get("From", "")).strip().strip("`\"'")
+    text = str(form.get("Body", "")).strip()
 
     if not wa_id:
         try:
@@ -95,10 +95,10 @@ async def whatsapp_test():
         sid = getattr(settings, "twilio_account_sid", None)
         token = getattr(settings, "twilio_auth_token", None)
         api_base = str(getattr(settings, "twilio_api_base", "https://api.twilio.com")).strip().strip("`\"'")
-        from_ = getattr(settings, "twilio_whatsapp_from", None)
+        from_ = str(getattr(settings, "twilio_whatsapp_from", "")).strip().strip("`\"'")
         if not sid or not token:
             return {"status": "error", "message": "Credenciales incompletas"}
-        if not from_ or not str(from_).startswith("whatsapp:+"):
+        if not from_ or not from_.startswith("whatsapp:+"):
             return {"status": "error", "message": "TWILIO_WHATSAPP_FROM debe ser 'whatsapp:+NNNN'"}
         if not str(sid).startswith("AC"):
             return {"status": "error", "message": "TWILIO_ACCOUNT_SID debe empezar con 'AC'"}

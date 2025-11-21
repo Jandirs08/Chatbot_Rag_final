@@ -10,7 +10,8 @@ class WhatsAppClient:
         self.logger = get_logger(self.__class__.__name__)
         self.account_sid = getattr(settings, "twilio_account_sid", None)
         self.auth_token = getattr(settings, "twilio_auth_token", None)
-        self.from_number = getattr(settings, "twilio_whatsapp_from", None)
+        from_number_raw = getattr(settings, "twilio_whatsapp_from", None)
+        self.from_number = str(from_number_raw or "").strip().strip("`\"'")
         api_base_raw = getattr(settings, "twilio_api_base", "https://api.twilio.com")
         self.api_base = str(api_base_raw).strip().strip("`\"'")
 

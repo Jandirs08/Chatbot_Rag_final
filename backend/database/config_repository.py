@@ -80,7 +80,8 @@ class ConfigRepository:
         if twilio_auth_token is not None:
             update_data["twilio_auth_token"] = twilio_auth_token
         if twilio_whatsapp_from is not None:
-            update_data["twilio_whatsapp_from"] = twilio_whatsapp_from
+            cleaned_from = str(twilio_whatsapp_from).strip().strip("`\"'")
+            update_data["twilio_whatsapp_from"] = cleaned_from
 
         await self._collection.update_one(
             {"_id": "default"},
