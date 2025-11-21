@@ -19,6 +19,7 @@ from chat.manager import ChatManager
 from rag.retrieval.retriever import RAGRetriever
 from storage.documents import PDFManager
 from database.config_repository import ConfigRepository
+from database.whatsapp_session_repository import WhatsAppSessionRepository
 
 # ---- Logging Setup ----
 def _setup_logging_and_warnings() -> None:
@@ -119,6 +120,7 @@ from .routes.health.health_routes import router as health_router
 from .routes.pdf.pdf_routes import router as pdf_router
 from .routes.rag.rag_routes import router as rag_router
 from .routes.chat.chat_routes import router as chat_router
+from .routes.whatsapp.webhook_routes import router as whatsapp_router
 from .routes.bot.bot_routes import router as bot_router
 from .routes.bot.config_routes import router as bot_config_router
 from .routes.users.users_routes import router as users_router
@@ -252,6 +254,11 @@ async def lifespan(app: FastAPI):
                 await app.state.mongodb_client.ensure_user_indexes()
             except Exception as e_idx:
                 logger.warning(f"No se pudieron aplicar índices de usuarios al arranque: {e_idx}")
+            try:
+                wa_repo = WhatsAppSessionRepository(app.state.mongodb_client)
+                await wa_repo.ensure_indexes()
+            except Exception as e_idx:
+                logger.warning(f"No se pudieron aplicar índices de whatsapp_sessions al arranque: {e_idx}")
             logger.info("🚀 Persistent MongoDB client initialized and indexes created successfully")
         except Exception as e:
             logger.error(f"⚠️ Error initializing persistent MongoDB client: {e}", exc_info=True)
@@ -427,6 +434,7 @@ def create_app() -> FastAPI:
     app.include_router(pdf_router, prefix="/api/v1/pdfs", tags=["pdfs"])
     app.include_router(rag_router, prefix="/api/v1/rag", tags=["rag"])
     app.include_router(chat_router, prefix="/api/v1/chat", tags=["chat"])
+    app.include_router(whatsapp_router, prefix="/api/v1/whatsapp", tags=["whatsapp"])
     app.include_router(bot_router, prefix="/api/v1/bot", tags=["bot"])
     app.include_router(bot_config_router, prefix="/api/v1/bot", tags=["bot"])
     app.include_router(users_router, prefix="/api/v1", tags=["users"])

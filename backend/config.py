@@ -137,6 +137,10 @@ class Settings(BaseSettings):
 
     # Configuración personalizada para cantidad máxima de documentos recuperados
     max_documents: int = Field(default=5, env="MAX_DOCUMENTS")
+
+    whatsapp_api_base_url: Optional[str] = Field(default=None, env="WHATSAPP_API_BASE_URL")
+    whatsapp_token: Optional[str] = Field(default=None, env="WHATSAPP_TOKEN")
+    whatsapp_phone_number_id: Optional[str] = Field(default=None, env="WHATSAPP_PHONE_NUMBER_ID")
     
     # Nota: Config ya no aplica en Pydantic v2; usamos model_config arriba.
 
