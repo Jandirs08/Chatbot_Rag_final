@@ -94,14 +94,43 @@ async def whatsapp_test():
     try:
         sid = getattr(settings, "twilio_account_sid", None)
         token = getattr(settings, "twilio_auth_token", None)
-        api_base = getattr(settings, "twilio_api_base", "https://api.twilio.com")
+        api_base = str(getattr(settings, "twilio_api_base", "https://api.twilio.com")).strip().strip("`\"'")
+        from_ = getattr(settings, "twilio_whatsapp_from", None)
         if not sid or not token:
             return {"status": "error", "message": "Credenciales incompletas"}
+        if not from_ or not str(from_).startswith("whatsapp:+"):
+            return {"status": "error", "message": "TWILIO_WHATSAPP_FROM debe ser 'whatsapp:+NNNN'"}
+        if not str(sid).startswith("AC"):
+            return {"status": "error", "message": "TWILIO_ACCOUNT_SID debe empezar con 'AC'"}
         url = f"{api_base.rstrip('/')}/2010-04-01/Accounts/{sid}.json"
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(url, auth=(sid, token))
         if 200 <= resp.status_code < 300:
             return {"status": "ok"}
-        return {"status": "error", "message": f"HTTP {resp.status_code}"}
+        details = None
+        try:
+            details = resp.json()
+        except Exception:
+            details = {"raw": (resp.text or "")[:300]}
+        return {"status": "error", "message": f"HTTP {resp.status_code}", "twilio": details}
     except Exception:
         return {"status": "error"}
+
+@router.get("/diag")
+async def whatsapp_diag():
+    try:
+        sid = getattr(settings, "twilio_account_sid", None) or ""
+        token = getattr(settings, "twilio_auth_token", None) or ""
+        from_ = getattr(settings, "twilio_whatsapp_from", None) or ""
+        api_base = str(getattr(settings, "twilio_api_base", "https://api.twilio.com")).strip().strip("`\"'")
+        masked_sid = sid[:4] + "..." + sid[-6:] if len(sid) >= 10 else sid
+        masked_token = ("***" + token[-6:]) if len(token) >= 6 else token
+        return {
+            "loaded": bool(sid and token and from_),
+            "sid": masked_sid,
+            "token": masked_token,
+            "from": from_,
+            "api_base": api_base,
+        }
+    except Exception:
+        return {"loaded": False}

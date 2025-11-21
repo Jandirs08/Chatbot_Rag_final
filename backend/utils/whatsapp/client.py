@@ -11,7 +11,8 @@ class WhatsAppClient:
         self.account_sid = getattr(settings, "twilio_account_sid", None)
         self.auth_token = getattr(settings, "twilio_auth_token", None)
         self.from_number = getattr(settings, "twilio_whatsapp_from", None)
-        self.api_base = getattr(settings, "twilio_api_base", "https://api.twilio.com")
+        api_base_raw = getattr(settings, "twilio_api_base", "https://api.twilio.com")
+        self.api_base = str(api_base_raw).strip().strip("`\"'")
 
     async def send_text(self, wa_id: str, text: str) -> bool:
         if not self.account_sid or not self.auth_token or not self.from_number:
@@ -37,6 +38,14 @@ class WhatsAppClient:
                 return True
             try:
                 self.logger.warning(f"WhatsApp send_text fallo: status={resp.status_code} body={resp.text}")
+                try:
+                    j = resp.json()
+                    code = j.get("code")
+                    msg = j.get("message")
+                    more = j.get("more_info")
+                    self.logger.warning(f"Twilio error code={code} message={msg} more_info={more}")
+                except Exception:
+                    pass
             except Exception:
                 pass
             return False
