@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 from database.whatsapp_session_repository import WhatsAppSessionRepository
 from utils.whatsapp.formatter import format_text
 from utils.whatsapp.client import WhatsAppClient
+from config import settings
 
 logger = get_logger(__name__)
 router = APIRouter(tags=["whatsapp"])
@@ -105,3 +106,13 @@ async def whatsapp_webhook(request: Request):
         response_preview = None
 
     return JSONResponse(status_code=200, content={"status": "ok", "conversation_id": conversation_id, "response_preview": response_preview})
+
+@router.get("/test")
+async def whatsapp_test():
+    try:
+        ok = bool(getattr(settings, "whatsapp_api_base_url", None)) and bool(getattr(settings, "whatsapp_token", None))
+        if ok:
+            return {"status": "ok"}
+        return {"status": "error", "message": "Credenciales incompletas"}
+    except Exception:
+        return {"status": "error"}

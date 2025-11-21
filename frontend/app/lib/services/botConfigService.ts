@@ -7,6 +7,9 @@ export interface BotConfigDTO {
   updated_at: string;
   bot_name?: string;
   ui_prompt_extra?: string;
+  whatsapp_api_base_url?: string | null;
+  whatsapp_token?: string | null;
+  whatsapp_phone_number_id?: string | null;
 }
 
 export interface UpdateBotConfigRequest {
@@ -14,6 +17,9 @@ export interface UpdateBotConfigRequest {
   temperature?: number;
   bot_name?: string;
   ui_prompt_extra?: string;
+  whatsapp_api_base_url?: string;
+  whatsapp_token?: string;
+  whatsapp_phone_number_id?: string;
 }
 
 export const getBotConfig = async (): Promise<BotConfigDTO> => {
