@@ -8,6 +8,7 @@ import {
   Code,
   Users,
   MessageCircle,
+  MessageSquareText,
   LogOut,
 } from "lucide-react";
 import {
@@ -42,6 +43,11 @@ const baseMenuItems = [
     title: "Widget",
     url: "/widget",
     icon: Code,
+  },
+  {
+    title: "Configuración WhatsApp",
+    url: "/configuracion-whatsapp",
+    icon: MessageSquareText,
   },
   {
     title: "Documentos",

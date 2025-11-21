@@ -73,7 +73,7 @@ TEMPERATURE=0.7
 # MongoDB
 MONGO_URI=mongodb://localhost:27017
 MONGO_DATABASE_NAME=chatbot_rag_db
-MONGO_COLLECTION_NAME=messages
+# MONGO_COLLECTION_NAME actualmente no usado por el cliente Mongo
 MONGO_MAX_POOL_SIZE=100
 MONGO_TIMEOUT_MS=5000
 
@@ -124,6 +124,12 @@ BACKUP_DIR=./backend/storage/backups
 # UI dinámica (opcional)
 BOT_NAME=
 UI_PROMPT_EXTRA=
+
+# WhatsApp (Twilio)
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_WHATSAPP_FROM=
+TWILIO_API_BASE=https://api.twilio.com
 ```
 
 Validaciones clave:
@@ -133,8 +139,7 @@ Validaciones clave:
 
 ## Endpoints API
 
-Los endpoints se registran con prefijo base `
-`/api/v1`.
+Los endpoints se registran con prefijo base `/api/v1`.
 
 - Autenticación
   - `POST /api/v1/auth/login` — body: `{ email, password }` → tokens `{ access_token, refresh_token }`
@@ -175,11 +180,18 @@ Los endpoints se registran con prefijo base `
   - `PATCH /api/v1/users/users/{user_id}` — body: campos parciales
   - `DELETE /api/v1/users/users/{user_id}`
 
+- WhatsApp
+  - `POST /api/v1/whatsapp/webhook` — recepción de mensajes (público)
+  - `GET /api/v1/whatsapp/test` — verificación de credenciales Twilio (admin)
+  - `GET /api/v1/whatsapp/diag` — diagnóstico de configuración (admin)
+  - `GET /api/v1/whatsapp/send-test?to=whatsapp:+NNNN&text=...` — envío de prueba (admin)
+
 OpenAPI y documentación interactiva:
 - `http://localhost:8000/docs`
 - `http://localhost:8000/redoc`
 
 ## Ejecución del Proyecto
+
 
 - Desarrollo
   - `python backend/main.py`
@@ -188,97 +200,100 @@ OpenAPI y documentación interactiva:
 - Producción
   - `ENVIRONMENT=production python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 4`
 
-- Testing
-  - Requiere backend corriendo y servicios (MongoDB/Qdrant)
-  - `pytest -q` (desde `backend/`)
+- Tests
+  - No hay pruebas incluidas actualmente en `backend/`. Las dependencias permiten añadir `pytest` cuando se requiera.
+  - Para el endpoint de exportación, instalar `xlsxwriter`: `pip install xlsxwriter`.
 
 ## Estructura de Directorios
 
 ```text
 backend/
 ├── api/
-│   ├── app.py                        # Crea FastAPI, CORS, middleware, lifespan y registra routers
+│   ├── app.py                        # Inicializa FastAPI, CORS, middleware, lifespan y registra routers
 │   ├── auth.py                       # Endpoints de autenticación: login, me, refresh, logout
 │   ├── routes/
 │   │   ├── bot/
 │   │   │   ├── bot_routes.py         # Estado del bot, toggle y runtime (admin)
 │   │   │   └── config_routes.py      # Config persistida del bot: GET/PUT/reset (admin)
 │   │   ├── chat/
-│   │   │   └── chat_routes.py        # Chat SSE, historial, exportación y estadísticas (público)
+│   │   │   └── chat_routes.py        # Chat SSE (streaming), historial, exportación Excel y estadísticas
 │   │   ├── health/
 │   │   │   └── health_routes.py      # Health check del backend
 │   │   ├── pdf/
 │   │   │   └── pdf_routes.py         # Upload/list/delete/download/view de PDFs (admin)
 │   │   ├── rag/
 │   │   │   └── rag_routes.py         # Estado, limpieza, auditoría y reindexación RAG (admin)
-│   │   └── users/
-│   │       └── users_routes.py       # CRUD admin de usuarios
+│   │   ├── users/
+│   │   │   └── users_routes.py       # CRUD admin de usuarios
+│   │   └── whatsapp/
+│   │       └── webhook_routes.py     # Webhook Twilio, diagnóstico y envío de prueba (admin/público)
 │   └── schemas/
 │       ├── base.py                   # BaseResponse y utilidades comunes
 │       ├── chat.py                   # ChatRequest y modelos de streaming
 │       ├── config.py                 # BotConfigDTO y UpdateBotConfigRequest
 │       ├── health.py                 # HealthResponse
-│       ├── pdf.py                    # PDFListItem/Response y payloads de PDFs
-│       └── rag.py                    # Esquemas de estado/clear/retrieve/reindex para RAG
+│       ├── pdf.py                    # Modelos de PDF (lista y respuestas)
+│       └── rag.py                    # Esquemas de RAG (estado/clear/retrieve/reindex)
 ├── auth/
 │   ├── dependencies.py               # get_current_user/active_user y require_admin
-│   ├── jwt_handler.py                # Creación/verificación de JWT con validaciones endurecidas
-│   ├── middleware.py                 # AuthenticationMiddleware (listas PUBLIC/ADMIN y verificación)
+│   ├── jwt_handler.py                # Creación/verificación de JWT con validaciones
+│   ├── middleware.py                 # AuthenticationMiddleware (listas públicas y prefijos admin)
 │   └── password_handler.py           # Hash/verify de contraseñas (bcrypt)
 ├── cache/
 │   ├── manager.py                    # Facade de caché con TTL y tamaño máximo
 │   ├── memory_backend.py             # Implementación en memoria del backend de caché
-│   └── redis_backend.py              # Implementación Redis (por URL) para caché
+│   └── redis_backend.py              # Implementación Redis por URL para caché
 ├── chat/
-│   └── manager.py                    # Orquesta respuestas del Bot y persiste mensajes en Mongo
+│   └── manager.py                    # Orquesta respuestas del Bot y persiste en Mongo
+├── common/
+│   ├── constants.py                  # Constantes compartidas
+│   └── objects.py                    # Tipos de mensajes y roles
 ├── core/
 │   ├── bot.py                        # Clase Bot: integra memoria, chain y RAGRetriever
 │   ├── chain.py                      # ChainManager: compone prompts y ejecuta el modelo
 │   └── prompt.py                     # Plantillas y personalidad base del bot
 ├── database/
 │   ├── config_repository.py          # Persistencia de config del bot en Mongo (colección bot_config)
-│   ├── mongodb.py                    # Cliente MongoDB (mensajes) e índices para rendimiento
-│   └── user_repository.py            # Acceso a usuarios: búsquedas, creación, actualización
+│   ├── mongodb.py                    # Cliente Mongo (colección fija 'messages') e índices
+│   ├── user_repository.py            # Acceso a usuarios: búsquedas, creación, actualización
+│   └── whatsapp_session_repository.py# Sesiones WhatsApp por `wa_id` e índices
 ├── memory/
 │   ├── base_memory.py                # Interfaz/base de memorias de conversación
 │   └── memory_types.py               # Enum y mapeo de tipos de memoria disponibles
+├── models/
+│   ├── auth.py                       # DTOs de autenticación
+│   ├── model_types.py                # Tipos auxiliares del modelo
+│   └── user.py                       # Modelo de usuario y DTOs
 ├── rag/
 │   ├── embeddings/
 │   │   └── embedding_manager.py      # Gestión de embeddings (OpenAI) y batch
 │   ├── ingestion/
-│   │   └── ingestor.py               # Ingesta de PDFs → chunks → embeddings → vector store
+│   │   └── ingestor.py               # Ingesta PDFs → chunks → embeddings → vector store
 │   ├── pdf_processor/
-│   │   └── pdf_loader.py             # Carga/chunking de PDFs (pypdf), overlap y mínimos
+│   │   └── pdf_loader.py             # Carga/chunking de PDFs (pypdf)
 │   ├── retrieval/
 │   │   └── retriever.py              # Recuperación con MMR/reranking, gating por centroide y caché
 │   └── vector_store/
-│       └── vector_store.py           # QdrantClient, colección, filtros y operaciones de documentos
+│       └── vector_store.py           # QdrantClient, colección, filtros y operaciones
 ├── storage/
-│   ├── documents/
-│   │   ├── pdf_manager.py            # Guardado/listado/borrado de PDFs y metadatos
-│   │   └── pdfs/                     # Carpeta física de PDFs ingeridos
-│   └── vector_store/                 # Carpeta local para persistencia del vector store
-├── common/
-│   ├── constants.py                  # Constantes compartidas
-│   └── objects.py                    # Tipos de mensajes y roles
-├── models/
-│   ├── auth.py                       # DTOs de autenticación (LoginRequest, TokenResponse, etc.)
-│   ├── model_types.py                # Tipos auxiliares del modelo
-│   └── user.py                       # Modelo de usuario y DTOs de respuesta/actualización
+│   └── documents/
+│       ├── pdf_manager.py            # Guardado/listado/borrado de PDFs
+│       └── pdfs/
+│           └── rag-doc-7.pdf         # Ejemplo de PDF ingerido
 ├── utils/
-│   ├── logging_utils.py              # Setup y supresión de ruido (cl100k_base, tiktoken)
 │   ├── chain_cache.py                # Utilidades de caché para chain
 │   ├── deploy_log.py                 # Resumen de arranque y diagnóstico
+│   ├── logging_utils.py              # Setup y supresión de logs ruidosos
+│   ├── rag_type_detector.py          # Detección de tipos de fragmentos RAG
 │   ├── memory/
 │   │   └── memory_audit_report.md    # Informe interno de memoria
-│   └── rag_type_detector.py          # Detección de tipos de fragmentos RAG
-├── config.py                         # Pydantic Settings (JWT, CORS, RAG, Mongo, Qdrant, etc.)
-├── main.py                           # Punto de entrada; arranca uvicorn y soporta reload
-├── requirements.txt                  # Dependencias del backend
-├── tests/
-│   ├── conftest.py                   # Configuración de pruebas
-│   └── test_auth_validation.py       # Tests de validación/seguridad de tokens y acceso admin
-└── Dockerfile                        # Imagen base Python 3.11; instala deps y lanza uvicorn
+│   └── whatsapp/
+│       ├── client.py                 # Cliente Twilio para WhatsApp
+│       └── formatter.py              # Formateadores de mensajes de WhatsApp
+├── config.py                          # Pydantic Settings (JWT, CORS, RAG, Mongo, Qdrant, Twilio)
+├── main.py                            # Punto de entrada; arranca uvicorn y soporta reload
+├── requirements.txt                   # Dependencias del backend
+└── Dockerfile                         # Imagen base Python 3.11; instala deps y lanza uvicorn
 ```
 
 ### Detalle por módulos
@@ -292,6 +307,7 @@ backend/
   - `include_router(bot_router, prefix="/api/v1/bot", tags=["bot"])`
   - `include_router(bot_config_router, prefix="/api/v1/bot", tags=["bot"])`
   - `include_router(users_router, prefix="/api/v1", tags=["users"])`
+  - `include_router(whatsapp_router, prefix="/api/v1/whatsapp", tags=["whatsapp"])`
 
 - `auth/middleware.py`: define listas de rutas `PUBLIC` y `ADMIN`; protege `/pdfs`, `/rag`, `/bot`, `/users` validando token y rol admin.
 
@@ -305,19 +321,35 @@ backend/
 
 - `utils/deploy_log.py`: genera un resumen legible del arranque para auditoría rápida.
 
-- `tests/test_auth_validation.py`: verifica flujos de login/refresh y acceso admin/usuario sobre `/pdfs/list`.
 
 ## Docker
 
 Construir y ejecutar el backend en contenedor:
 
 - Build
-  - `docker build -t chatbot-backend .`
+  - `docker build -t chatbot-backend ./backend`
 - Run
   - `docker run --rm -p 8000:8000 --env-file ./backend/.env --name chatbot-backend chatbot-backend`
   - Variables clave: `OPENAI_API_KEY`, `MONGO_URI`, `QDRANT_URL`, `JWT_SECRET`
 
 El contenedor expone `8000` y ejecuta `uvicorn` contra `main:app`. Se crean directorios de `storage` con permisos adecuados.
+
+## Notas de Seguridad y CORS
+
+- Prefijos admin protegidos: `/api/v1/pdfs`, `/api/v1/rag`, `/api/v1/bot`, `/api/v1/users`.
+- Rutas públicas exactas: `/api/v1/health`, `/api/v1/auth/login`, `/api/v1/auth/refresh`, `/api/v1/chat`, `/api/v1/whatsapp/webhook`, `/docs`, `/redoc`, `/openapi.json`.
+- En producción, definir `CLIENT_ORIGIN_URL` y evitar comodín `*`.
+
+## Integración WhatsApp (Twilio)
+
+- Endpoints de recepción (`webhook`) y diagnóstico (`test`, `diag`, `send-test`).
+- Variables: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`, `TWILIO_API_BASE`.
+
+## Observaciones de Configuración
+
+- `MONGO_COLLECTION_NAME` no se usa actualmente; la colección de mensajes es `messages`.
+- `VECTOR_STORE_PATH` permanece por compatibilidad; el store activo es Qdrant (`QDRANT_URL`).
+- `enable_rag_lcel` habilita integración LCEL en el pipeline de RAG.
 
 ## Enlaces Relevantes
 
@@ -331,21 +363,18 @@ El contenedor expone `8000` y ejecuta `uvicorn` contra `main:app`. Se crean dire
 
 | Paquete | Rol en el sistema |
 |---|---|
-| `fastapi`, `uvicorn` | Framework ASGI y servidor para routing, middleware y streaming.
-| `pydantic` v2, `pydantic-settings`, `python-dotenv` | Modelado/validación de datos y configuración tipada.
-| `python-jose[cryptography]`, `passlib`, `bcrypt` | Manejo de JWT y hashing de contraseñas.
-| `motor`, `pymongo` | Cliente async de MongoDB y operaciones de repositorio/índices.
-| `langchain-core`, `langchain`, `langchain-openai` | Orquestación LCEL y modelos LLM.
-| `qdrant-client` | Almacenamiento vectorial (Qdrant) para RAG.
-| `tiktoken` | Tokenización eficiente; se suprimen logs ruidosos.
-| `openai` | Cliente para proveedores OpenAI cuando `MODEL_TYPE=OPENAI`.
-| `pypdf` | Lectura básica de PDF para ingestión sin OCR.
-| `numpy`, `pandas`, `xlsxwriter` | Procesamiento de datos y exportación de conversaciones a Excel.
-| `scikit-learn` | Cálculos de similitud/cosinor y utilidades en RAG.
-| `orjson`, `ujson`, `aiofiles`, `httpx` | Rendimiento en JSON, IO asíncrono y HTTP.
-| `prometheus-client`, `opentelemetry-*` | Métricas y trazabilidad opcional.
-| `colorama` | Mejor UX en consola para mensajes de arranque.
-| `pytest*`, `black`, `isort`, `flake8`, `mypy` | Calidad, pruebas y estilo de código.
+| `fastapi`, `uvicorn` | API ASGI y servidor.
+| `pydantic` v2, `pydantic-settings`, `python-dotenv` | Modelado y configuración tipada.
+| `python-jose[cryptography]`, `bcrypt`, `python-multipart`, `email-validator` | JWT, hashing y validación de formularios.
+| `motor`, `pymongo` | Cliente async de MongoDB y acceso a colecciones.
+| `langchain-core`, `langchain`, `langchain-community`, `langchain-openai` | Orquestación LCEL y uso de LLM/embeddings.
+| `qdrant-client`, `redis` | Vector store (Qdrant) y backend de caché opcional.
+| `tiktoken`, `openai` | Tokenización y cliente OpenAI.
+| `pypdf` | Procesamiento de PDFs para ingestión.
+| `numpy`, `pandas`, `scikit-learn` | Procesamiento de datos y cálculos de similitud.
+| `aiofiles`, `httpx` | IO asíncrono y HTTP.
+| `pytest`, `pytest-asyncio`, `pytest-cov`, `black`, `isort`, `flake8`, `mypy` | Calidad y pruebas.
+| `xlsxwriter` | Requerido por el endpoint de exportación Excel.
 
 ## Ciclo de Vida del Chatbot
 
