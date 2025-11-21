@@ -140,6 +140,8 @@ async def whatsapp_send_test(request: Request):
     try:
         params = dict(request.query_params)
         to = str(params.get("to", "")).strip().strip("`\"'")
+        if to.startswith("whatsapp: ") and not to.startswith("whatsapp:+"):
+            to = to.replace("whatsapp: ", "whatsapp:+", 1)
         text = str(params.get("text", "Hola desde send-test")).strip()
         if not to or not to.startswith("whatsapp:+"):
             return {"status": "error", "message": "Parámetro 'to' debe ser 'whatsapp:+NNNN'"}
