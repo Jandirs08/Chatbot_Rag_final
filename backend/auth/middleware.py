@@ -28,6 +28,12 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         "/openapi.json",
     }
 
+    PROTECTED_EXACT = {
+        "/api/v1/whatsapp/test",
+        "/api/v1/whatsapp/diag",
+        "/api/v1/whatsapp/send-test",
+    }
+
     # Prefix-based admin protection remains OK.
     ADMIN = {
         "/api/v1/pdfs",
@@ -55,6 +61,41 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
 
         # --- ADMIN protected paths
         if self._is_admin_path(path):
+            credentials = await security.__call__(request)
+            if not credentials:
+                return JSONResponse(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    content={"detail": "Authentication required"},
+                )
+
+            try:
+                token = credentials.credentials
+                auth_deps = request.app.state.auth_deps
+
+                bearer = HTTPAuthorizationCredentials(
+                    scheme="Bearer",
+                    credentials=token,
+                )
+
+                user = await auth_deps.extract_user_from_token(bearer)
+                user = await auth_deps.ensure_active_user(user)
+                await auth_deps.ensure_admin(user)
+
+            except Exception as e:
+                if hasattr(e, "status_code"):
+                    return JSONResponse(
+                        status_code=e.status_code,
+                        content={"detail": e.detail},
+                    )
+
+                logger.error(f"Unexpected authentication error: {e}")
+                return JSONResponse(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    content={"detail": "Authorization error"},
+                )
+
+        # --- PROTECTED exact paths (admin required)
+        if path in self.PROTECTED_EXACT:
             credentials = await security.__call__(request)
             if not credentials:
                 return JSONResponse(

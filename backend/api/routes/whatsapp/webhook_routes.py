@@ -6,6 +6,10 @@ from utils.whatsapp.formatter import format_text
 from utils.whatsapp.client import WhatsAppClient
 from config import settings
 import httpx
+import re
+import hmac
+import hashlib
+import base64
 
 logger = get_logger(__name__)
 router = APIRouter(tags=["whatsapp"])
@@ -19,24 +23,57 @@ async def whatsapp_webhook(request: Request):
 
     try:
         logger.info("[WhatsApp] webhook start")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"[WhatsApp] fallo al registrar inicio de webhook: {e}")
+
+    try:
+        sig_header = request.headers.get("X-Twilio-Signature")
+        token = getattr(settings, "twilio_auth_token", None)
+        if token and sig_header:
+            url = str(request.url)
+            items = sorted([(str(k), str(v)) for k, v in dict(form).items()])
+            payload = url + "".join([k + v for k, v in items])
+            digest = hmac.new(token.encode("utf-8"), payload.encode("utf-8"), hashlib.sha1).digest()
+            expected = base64.b64encode(digest).decode("utf-8")
+            if expected != sig_header:
+                try:
+                    logger.warning("[WhatsApp] firma inválida en webhook")
+                except Exception as le:
+                    logger.error(f"[WhatsApp] fallo al loggear firma inválida: {le}")
+                raise HTTPException(status_code=403, detail="Firma inválida")
+        elif token:
+            raise HTTPException(status_code=400, detail="Encabezado de firma ausente")
+    except HTTPException:
+        raise
+    except Exception as e:
+        try:
+            logger.error(f"[WhatsApp] error validando firma: {e}")
+        except Exception as le:
+            logger.error(f"[WhatsApp] fallo al loggear error de firma: {le}")
+        raise HTTPException(status_code=400, detail="Error validando firma")
 
     wa_id = str(form.get("From", "")).strip().strip("`\"'")
     text = str(form.get("Body", "")).strip()
 
-    if not wa_id:
+    wa_pattern = r"^whatsapp:\+\d{6,15}$"
+    if not wa_id or not re.match(wa_pattern, wa_id):
         try:
-            logger.info("[WhatsApp] webhook ignored: wa_id ausente")
-        except Exception:
-            pass
-        return JSONResponse(status_code=200, content={"status": "ignored"})
-    if not isinstance(text, str) or not str(text).strip():
+            logger.error(f"[WhatsApp] wa_id inválido: '{wa_id}'")
+        except Exception as e:
+            logger.error(f"[WhatsApp] fallo al loggear wa_id inválido: {e}")
+        return JSONResponse(status_code=400, content={"detail": "Parámetro 'wa_id' inválido"})
+    if not isinstance(text, str) or not text.strip():
         try:
-            logger.info(f"[WhatsApp] webhook ignored: texto vacío wa_id={wa_id}")
-        except Exception:
-            pass
-        return JSONResponse(status_code=200, content={"status": "ignored"})
+            logger.error(f"[WhatsApp] texto inválido (vacío) para wa_id={wa_id}")
+        except Exception as e:
+            logger.error(f"[WhatsApp] fallo al loggear texto vacío: {e}")
+        return JSONResponse(status_code=400, content={"detail": "Parámetro 'text' inválido: vacío"})
+    if re.search(r"[\x00-\x08\x0B\x0C\x0E-\x1F]", text):
+        try:
+            logger.error(f"[WhatsApp] texto contiene caracteres no permitidos para wa_id={wa_id}")
+        except Exception as e:
+            logger.error(f"[WhatsApp] fallo al loggear texto no permitido: {e}")
+        return JSONResponse(status_code=400, content={"detail": "Parámetro 'text' contiene caracteres no permitidos"})
 
     try:
         logger.info(f"[WhatsApp] wa_id recibido: {wa_id}")
@@ -44,12 +81,12 @@ async def whatsapp_webhook(request: Request):
         conversation_id = await repo.get_or_create(wa_id)
         await repo.touch(wa_id)
         logger.info(f"[WhatsApp] conversación resuelta: {conversation_id}")
-    except Exception:
+    except Exception as e:
         conversation_id = None
         try:
-            logger.warning("[WhatsApp] no se pudo obtener/crear conversación")
-        except Exception:
-            pass
+            logger.error(f"[WhatsApp] error al obtener/crear conversación: {e}")
+        except Exception as le:
+            logger.error(f"[WhatsApp] fallo al loggear error de conversación: {le}")
 
     response_preview = None
     try:
@@ -61,8 +98,8 @@ async def whatsapp_webhook(request: Request):
         )
         try:
             logger.info(f"[WhatsApp] preview generado len={len(response_text)} first50={str(response_text)[:50]}")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"[WhatsApp] fallo al loggear preview: {e}")
         response_preview = (response_text or "")[:100]
         try:
             formatted_text = format_text(response_text)
@@ -73,18 +110,18 @@ async def whatsapp_webhook(request: Request):
                     logger.info("[WhatsApp] envío OK")
                 else:
                     logger.warning("[WhatsApp] envío falló (False)")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"[WhatsApp] fallo al loggear resultado de envío: {e}")
         except Exception as e:
             try:
-                logger.warning(f"[WhatsApp] error en envío: {e}")
-            except Exception:
-                pass
+                logger.error(f"[WhatsApp] error en envío: {e}")
+            except Exception as le:
+                logger.error(f"[WhatsApp] fallo al loggear error de envío: {le}")
     except Exception as e:
         try:
             logger.error(f"[WhatsApp] error generando respuesta del bot: {e}")
-        except Exception:
-            pass
+        except Exception as le:
+            logger.error(f"[WhatsApp] fallo al loggear error del bot: {le}")
         response_preview = None
 
     return JSONResponse(status_code=200, content={"status": "ok", "conversation_id": conversation_id, "response_preview": response_preview})

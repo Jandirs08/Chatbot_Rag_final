@@ -19,8 +19,8 @@ class WhatsAppClient:
         if not self.account_sid or not self.auth_token or not self.from_number:
             try:
                 self.logger.warning("WhatsAppClient no configurado: credenciales Twilio ausentes")
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.error(f"WhatsAppClient fallo al loggear credenciales ausentes: {e}")
             return False
 
 
@@ -38,23 +38,23 @@ class WhatsAppClient:
             if 200 <= resp.status_code < 300:
                 return True
             try:
-                self.logger.warning(f"WhatsApp send_text fallo: status={resp.status_code} body={resp.text}")
+                self.logger.error(f"WhatsApp send_text fallo: status={resp.status_code} body={resp.text}")
                 try:
                     j = resp.json()
                     code = j.get("code")
                     msg = j.get("message")
                     more = j.get("more_info")
-                    self.logger.warning(f"Twilio error code={code} message={msg} more_info={more}")
-                except Exception:
-                    pass
-            except Exception:
-                pass
+                    self.logger.error(f"Twilio error code={code} message={msg} more_info={more}")
+                except Exception as je:
+                    self.logger.error(f"Error parseando respuesta de Twilio: {je}")
+            except Exception as le:
+                self.logger.error(f"Fallo al loggear error de Twilio: {le}")
             return False
         except Exception as e:
             try:
                 self.logger.error(f"WhatsApp send_text error: {e}")
-            except Exception:
-                pass
+            except Exception as le:
+                self.logger.error(f"Fallo al loggear error en send_text: {le}")
             return False
 
     async def send_text_diagnostics(self, wa_id: str, text: str) -> dict:
