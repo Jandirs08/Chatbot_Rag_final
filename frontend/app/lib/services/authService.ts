@@ -38,45 +38,24 @@ export interface AuthError {
 
 // Clase para manejar el almacenamiento de tokens
 class TokenManager {
-  private static readonly TOKEN_KEY = 'auth_token';
-  private static readonly TOKEN_EXPIRY_KEY = 'auth_token_expiry';
+  private static token: string | null = null;
+  private static expiryTime: number | null = null;
 
   static setToken(token: string, expiresIn: number): void {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(this.TOKEN_KEY, token);
-      const expiryTime = Date.now() + (expiresIn * 1000);
-      localStorage.setItem(this.TOKEN_EXPIRY_KEY, expiryTime.toString());
-      // Guardar también en cookie para que el middleware pueda verificar en el edge
-      const maxAge = Math.max(0, Math.floor(expiresIn));
-      document.cookie = `auth_token=${token}; Path=/; Max-Age=${maxAge}`;
-    }
+    this.token = token;
+    this.expiryTime = Date.now() + expiresIn * 1000;
   }
 
   static getToken(): string | null {
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem(this.TOKEN_KEY);
-      const expiry = localStorage.getItem(this.TOKEN_EXPIRY_KEY);
-      
-      if (token && expiry) {
-        const expiryTime = parseInt(expiry);
-        if (Date.now() < expiryTime) {
-          return token;
-        } else {
-          // Token expirado, limpiar
-          this.clearToken();
-        }
-      }
+    if (this.token && this.expiryTime && Date.now() < this.expiryTime) {
+      return this.token;
     }
     return null;
   }
 
   static clearToken(): void {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(this.TOKEN_KEY);
-      localStorage.removeItem(this.TOKEN_EXPIRY_KEY);
-      // Borrar cookie
-      document.cookie = 'auth_token=; Path=/; Max-Age=0';
-    }
+    this.token = null;
+    this.expiryTime = null;
   }
 
   static isTokenValid(): boolean {
@@ -100,6 +79,7 @@ export const authService = {
           email: credentials.email,
           password: credentials.password
         }),
+        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -113,7 +93,6 @@ export const authService = {
       const authData: AuthResponse = await response.json();
       console.log("Login exitoso");
       
-      // Guardar token
       TokenManager.setToken(authData.access_token, authData.expires_in);
       
       return authData;
@@ -158,16 +137,17 @@ export const authService = {
   async getCurrentUser(): Promise<User> {
     try {
       const token = TokenManager.getToken();
-      if (!token) {
-        throw new Error('No hay token de autenticación');
+      const baseHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token) {
+        baseHeaders['Authorization'] = `Bearer ${token}`;
       }
 
       const response = await fetch(`${API_URL}/auth/me`, {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers: baseHeaders,
+        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -194,22 +174,18 @@ export const authService = {
   // Logout
   async logout(): Promise<void> {
     try {
-      const token = TokenManager.getToken();
-      
-      if (token) {
-        // Intentar logout en el servidor
-        try {
-          await fetch(`${API_URL}/auth/logout`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          });
-        } catch (error) {
-          console.warn("Error al hacer logout en servidor:", error);
-          // Continuar con logout local aunque falle el servidor
-        }
+      try {
+        const token = TokenManager.getToken();
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        await fetch(`${API_URL}/auth/logout`, {
+          method: 'POST',
+          headers,
+          credentials: 'include',
+        });
+      } catch (error) {
+        console.warn("Error al hacer logout en servidor:", error);
       }
 
       // Limpiar token local
@@ -236,16 +212,13 @@ export const authService = {
   async refreshToken(): Promise<AuthResponse> {
     try {
       const token = TokenManager.getToken();
-      if (!token) {
-        throw new Error('No hay token para renovar');
-      }
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const response = await fetch(`${API_URL}/auth/refresh`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers,
+        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -266,20 +239,18 @@ export const authService = {
 
 // Función helper para hacer requests autenticados
 export const authenticatedFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
-  const token = authService.getAuthToken();
-  
-  const headers = {
-    'Content-Type': 'application/json',
-    ...options.headers,
-  };
+  const token = TokenManager.getToken();
+  const headers = new Headers(options.headers as HeadersInit);
+  headers.set('Content-Type', 'application/json');
 
   if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+    headers.set('Authorization', `Bearer ${token}`);
   }
 
   return fetch(url, {
     ...options,
     headers,
+    credentials: 'include',
   });
 };
 

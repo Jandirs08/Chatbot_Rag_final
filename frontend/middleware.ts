@@ -32,7 +32,10 @@ export function middleware(req: NextRequest) {
   // Intentar leer cookie de forma segura; si hay cualquier problema, continuar
   let token: string | undefined;
   try {
-    token = req.cookies.get('auth_token')?.value;
+    token =
+      req.cookies.get('auth_token')?.value ||
+      req.cookies.get('access_token')?.value ||
+      req.cookies.get('session_id')?.value;
   } catch {
     // No romper en Edge si cookies falla
     token = undefined;

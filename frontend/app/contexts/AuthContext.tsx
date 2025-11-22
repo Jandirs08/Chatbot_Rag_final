@@ -2,18 +2,9 @@
 
 import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
 import { authService } from '@/lib/services/authService';
+import type { User } from '@/lib/services/authService';
 
 // Types
-export interface User {
-  id: string;
-  email: string;
-  full_name?: string;
-  is_active: boolean;
-  is_admin: boolean;
-  created_at: string;
-  updated_at: string;
-  last_login?: string;
-}
 
 export interface AuthState {
   user: User | null;
@@ -35,10 +26,10 @@ export interface AuthContextType extends AuthState {
 // Action types
 type AuthAction =
   | { type: 'AUTH_START' }
-  | { type: 'AUTH_SUCCESS'; payload: { user: User; token: string; refreshToken: string } }
+  | { type: 'AUTH_SUCCESS'; payload: { user: User; token: string | null; refreshToken: string | null } }
   | { type: 'AUTH_FAILURE'; payload: string }
   | { type: 'AUTH_LOGOUT' }
-  | { type: 'AUTH_REFRESH_SUCCESS'; payload: { token: string; refreshToken: string } }
+  | { type: 'AUTH_REFRESH_SUCCESS'; payload: { token: string | null; refreshToken: string | null } }
   | { type: 'SET_USER'; payload: User }
   | { type: 'CLEAR_ERROR' }
   | { type: 'SET_LOADING'; payload: boolean };
@@ -141,29 +132,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Auto-refresh token before expiration
   useEffect(() => {
-    if (state.token && state.refreshToken) {
+    if (state.isAuthenticated) {
       const refreshInterval = setInterval(() => {
         refreshAuth();
-      }, 25 * 60 * 1000); // Refresh every 25 minutes (token expires in 30)
-
+      }, 25 * 60 * 1000);
       return () => clearInterval(refreshInterval);
     }
-  }, [state.token, state.refreshToken]);
+  }, [state.isAuthenticated]);
 
   const checkAuthStatus = async () => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
-      const token = authService.getAuthToken();
-
-      if (token) {
-        const user = await authService.getCurrentUser();
-        dispatch({
-          type: 'AUTH_SUCCESS',
-          payload: { user, token, refreshToken: null }
-        });
-      } else {
-        dispatch({ type: 'AUTH_LOGOUT' });
-      }
+      const user = await authService.getCurrentUser();
+      dispatch({
+        type: 'AUTH_SUCCESS',
+        payload: { user, token: null, refreshToken: null }
+      });
     } catch (error) {
       console.error('Auth check failed:', error);
       dispatch({ type: 'AUTH_LOGOUT' });
@@ -201,18 +185,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const refreshAuth = async () => {
     try {
-      const token = authService.getAuthToken();
-      if (!token) {
-        throw new Error('No token available');
-      }
-
       const response = await authService.refreshToken();
-      
       dispatch({
         type: 'AUTH_REFRESH_SUCCESS',
         payload: {
           token: response.access_token,
-          refreshToken: null
+          refreshToken: null,
         }
       });
     } catch (error) {

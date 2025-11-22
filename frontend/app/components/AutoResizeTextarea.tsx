@@ -1,10 +1,9 @@
 import ResizeTextarea from "react-textarea-autosize";
 import React from "react";
 import { cn } from "../lib/utils";
+import type { TextareaAutosizeProps } from "react-textarea-autosize";
 
-interface AutoResizeTextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
-  maxRows?: number;
-}
+interface AutoResizeTextareaProps extends TextareaAutosizeProps {}
 
 export const AutoResizeTextarea = React.forwardRef<
   HTMLTextAreaElement,

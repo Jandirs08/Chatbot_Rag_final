@@ -390,7 +390,6 @@ export default function Dashboard() {
                   key={index}
                   role="button"
                   aria-label={action.title}
-                  onClick={action.onClick}
                 >
                   {content}
                 </div>

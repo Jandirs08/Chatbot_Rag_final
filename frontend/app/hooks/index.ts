@@ -7,5 +7,6 @@ export {
   default as useAuthGuardDefault 
 } from './useAuthGuard';
 
-// Re-export types from AuthContext
-export type { User, AuthState, AuthContextType } from '../contexts/AuthContext';
+// Re-export types
+export type { AuthState, AuthContextType } from '../contexts/AuthContext';
+export type { User } from '../lib/services/authService';
