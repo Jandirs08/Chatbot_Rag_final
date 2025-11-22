@@ -16,11 +16,12 @@ Informe técnico de análisis estático sobre la implementación de WhatsApp en 
 - [x] Falta de validación de firma del webhook (riesgo de reintentos y duplicados)
   - Implementado validación con RequestValidator en 2025-11-21
 
-  - Evidencia: `backend/api/routes/whatsapp/webhook_routes.py:22-31`
-  - Observación: El endpoint procesa el formulario sin verificar `X-Twilio-Signature`. Bajo carga o ataques, Twilio puede reintentar y generar duplicados si la respuesta tarda.
-  - Sugerencia: Validar `X-Twilio-Signature` usando el `TWILIO_AUTH_TOKEN` antes de leer y procesar (`pre-auth`). Rechazar con `403` si no coincide.
+  - Evidencia: `backend/api/routes/whatsapp/webhook_routes.py:61-106`
+  - Observación: Validación de firma activa con `RequestValidator`.
+  - Sugerencia: Mantener token seguro y revisar headers `X-Forwarded-Proto` en despliegues tras proxy.
 
-- [ ] Tiempo de respuesta del webhook depende del LLM
+- [x] Tiempo de respuesta del webhook depende del LLM
+  - Procesamiento en background y respuesta inmediata implementado en 2025-11-21
 
   - Evidencia: `backend/api/routes/whatsapp/webhook_routes.py:55-66` + `backend/chat/manager.py:49-59`
   - Observación: El webhook espera a que el LLM responda (timeout configurable de 25s). Twilio recomienda responder rápido para evitar reintentos/duplicados.
@@ -29,11 +30,12 @@ Informe técnico de análisis estático sobre la implementación de WhatsApp en 
 - [x] Rate limiting de Twilio (códigos 429 / 20429) no manejado explícitamente
   - Implementado backoff exponencial con jitter en 2025-11-21
 
-  - Evidencia: `backend/utils/whatsapp/client.py:51-72`
+  - Evidencia: `backend/utils/whatsapp/client.py:58-99`
   - Observación: El cliente reintenta ante 5xx y excepciones con backoff exponencial, pero no contempla 429 (rate limit) ni el `code` específico `20429` de Twilio.
   - Sugerencia: Añadir manejo de `429`/`20429` con backoff exponencial + jitter y un máximo de cola; registrar métricas para ajustar umbrales.
 
-- [ ] Conversación nula ante fallo de repositorio
+- [x] Conversación nula ante fallo de repositorio
+  - Fallback determinístico `fallback_{wa_id}` implementado en 2025-11-21
   - Evidencia: `backend/api/routes/whatsapp/webhook_routes.py:50-52`
   - Observación: Si falla la obtención/creación de conversación, se continúa con `conversation_id=None`. El flujo tolera esto, pero puede afectar trazabilidad.
   - Sugerencia: Asignar fallback determinístico (p.ej., hash de `wa_id`) o cortar con `503` y reintento controlado.
@@ -48,13 +50,15 @@ Informe técnico de análisis estático sobre la implementación de WhatsApp en 
   - Observación: Se encuentran valores reales de `OPENAI_API_KEY`, `TWILIO_ACCOUNT_SID` y `TWILIO_AUTH_TOKEN` en el archivo de entorno dentro del árbol del proyecto.
   - Sugerencia: Eliminar `backend/.env` del repositorio, rotar claves, usar `ENV VARS` del entorno de despliegue y proveer solo `backend/.env.example` sin secretos.
 
-- [ ] Webhook público sin autenticación de origen
+- [x] Webhook público sin autenticación de origen
+  - Validación de firma con RequestValidator en 2025-11-21
 
   - Evidencia: `backend/auth/middleware.py:20-29`
   - Observación: La ruta `/api/v1/whatsapp/webhook` es pública por diseño. Sin validación de firma, cualquier actor puede hacer POST y forzar el envío vía Twilio.
   - Sugerencia: Implementar verificación de `X-Twilio-Signature` y limitar IPs si aplica (proxies/ACL), más rate limiting por IP.
 
-- [ ] Sanitización básica, pero sin chequeos de payloads complejos
+- [x] Sanitización básica, pero sin chequeos de payloads complejos
+  - Limitación de Body a 1500 caracteres + truncado en 2025-11-21
   - Evidencia: `backend/api/routes/whatsapp/webhook_routes.py:32-41`
   - Observación: Se valida `wa_id` y se sanitiza `text` evitando control chars. Es correcto, pero no hay validación de longitudes extremas antes del formateo.
   - Sugerencia: Limitar `Body` por tamaño (p.ej., 2–4 KB) antes de pasar a LLM; rechazar exceso con `413`.
@@ -76,7 +80,8 @@ Informe técnico de análisis estático sobre la implementación de WhatsApp en 
   - Observación: Se envuelven logs en `try/except` para robustez; útil, pero repetitivo y puede ocultar fallos de logging.
   - Sugerencia: Centralizar un helper de logging seguro o configurar el logger para no lanzar excepciones.
 
-- [ ] Envío de mensaje acoplado a generación de respuesta
+- [x] Envío de mensaje acoplado a generación de respuesta
+  - Desacoplado mediante BackgroundTasks en 2025-11-21
   - Evidencia: `backend/api/routes/whatsapp/webhook_routes.py:55-70`
   - Observación: La lógica de negocio (LLM) y la entrega (Twilio) están en el mismo ciclo. Bajo carga, separarlo reduce latencia y mejora tolerancia a fallos.
   - Sugerencia: Abstraer a una cola/trabajo asíncrono (`task queue`), con reintentos y métricas por separado.
@@ -109,7 +114,7 @@ Informe técnico de análisis estático sobre la implementación de WhatsApp en 
 
 ## Puntaje de Salud del Código
 
-- Evaluación: 7/10
-- Justificación: Buena base asíncrona, validaciones y reintentos parciales. Riesgos principales por ausencia de verificación de firma en webhook y secretos en `.env` versionados. Con las correcciones propuestas, puede alcanzar 9/10.
+- Evaluación: 9/10
+- Justificación: Se corrigen firma del webhook, protección de endpoints de diagnóstico, manejo de rate limiting (429/20429), desac acople del webhook respecto del LLM, sanitización y fallback de conversación. Pendiente: retirada de secretos de `.env` del repo.
 - [x] Seguridad en Endpoints de Diagnóstico
   - Protegidos con require_admin en 2025-11-21

@@ -108,6 +108,8 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
     # 3. Extraer y Validar Datos
     wa_id = str(form.get("From", "")).strip().strip("`\"'")
     text = str(form.get("Body", "")).strip()
+    if len(text) > 1500:
+        text = text[:1500] + " ... [truncado]"
 
     wa_pattern = r"^whatsapp:\+\d{6,15}$"
     if not wa_id or not re.match(wa_pattern, wa_id):
@@ -126,8 +128,7 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
         await repo.touch(wa_id)
     except Exception as e:
         log_error(f"Error DB sesión: {e}", wa_id)
-        # Fallback: Si falla la DB, generamos un ID temporal o cortamos. 
-        # Por ahora continuamos, pero el chat manager podría quejarse si conversation_id es None.
+        conversation_id = f"fallback_{wa_id}"
     
     # 5. Encolar Tarea (Background)
     # Pasamos 'request.app.state' porque 'request' se destruye al retornar
