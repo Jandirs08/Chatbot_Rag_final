@@ -30,6 +30,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { logger } from "@/app/lib/logger";
 import { useRequireAuth } from "./hooks";
 import { botService } from "./lib/services/botService";
 import { exportService } from "./lib/services/exportService";
@@ -65,15 +66,15 @@ export default function Dashboard() {
         if (botRes.status === "fulfilled") {
           setIsBotActive(botRes.value.is_active);
         } else {
-          console.warn("Estado del bot no disponible:", botRes.reason);
+          logger.warn("Estado del bot no disponible:", botRes.reason);
         }
         if (statsRes.status === "fulfilled") {
           setStats(statsRes.value);
         } else {
-          console.warn("Estadísticas no disponibles:", statsRes.reason);
+          logger.warn("Estadísticas no disponibles:", statsRes.reason);
         }
       } catch (error) {
-        console.error("Error al obtener datos:", error);
+        logger.error("Error al obtener datos:", error);
         toast.error("Error al obtener datos del dashboard");
       } finally {
         setIsLoading(false);
@@ -93,7 +94,7 @@ export default function Dashboard() {
       setIsBotActive(state.is_active);
       toast.success(state.message);
     } catch (error) {
-      console.error("Error al cambiar el estado del bot:", error);
+      logger.error("Error al cambiar el estado del bot:", error);
       toast.error("Error al cambiar el estado del bot");
       // Revertir el estado en caso de error
       setIsBotActive(!checked);

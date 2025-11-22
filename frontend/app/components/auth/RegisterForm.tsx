@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { logger } from "@/app/lib/logger";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
@@ -119,7 +120,7 @@ export function RegisterForm({ onSuccess, redirectTo = "/auth/login" }: Register
       }, 2000);
       
     } catch (err) {
-      console.error("Error en registro:", err);
+      logger.error("Error en registro:", err);
       setError(err instanceof Error ? err.message : "Error en el registro");
     } finally {
       setIsLoading(false);

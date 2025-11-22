@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
+import { logger } from "@/app/lib/logger";
 import { authService } from '@/lib/services/authService';
 import type { User } from '@/lib/services/authService';
 
@@ -149,7 +150,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         payload: { user, token: null, refreshToken: null }
       });
     } catch (error) {
-      console.error('Auth check failed:', error);
+      logger.error('Auth check failed:', error);
       dispatch({ type: 'AUTH_LOGOUT' });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
@@ -194,7 +195,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
       });
     } catch (error) {
-      console.error('Failed to refresh auth:', error);
+      logger.error('Failed to refresh auth:', error);
       dispatch({ type: 'AUTH_LOGOUT' });
       throw error;
     }

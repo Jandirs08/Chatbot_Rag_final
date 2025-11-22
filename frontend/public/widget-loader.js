@@ -52,7 +52,7 @@
     var heightPx = parsePx(scriptEl.getAttribute("data-height"), 600);
     var position = parsePosition(scriptEl.getAttribute("data-position") || "");
     var bubbleBg = sanitizeBackground(
-      scriptEl.getAttribute("data-bubble-background") || defaultBg
+      scriptEl.getAttribute("data-bubble-background") || defaultBg,
     );
 
     var button = document.createElement("button");
@@ -125,7 +125,7 @@
       var path = document.createElementNS(SVG_NS, "path");
       path.setAttribute(
         "d",
-        "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+        "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z",
       );
       svg.appendChild(path);
       return svg;
@@ -175,19 +175,20 @@
       button.setAttribute("aria-label", open ? "Cerrar chat" : "Abrir chat");
       if (open) {
         msgIcon.style.opacity = "0";
-        msgIcon.style.transform = "translate(-50%, -50%) scale(0.5) rotate(90deg)";
+        msgIcon.style.transform =
+          "translate(-50%, -50%) scale(0.5) rotate(90deg)";
         xIcon.style.opacity = "1";
         xIcon.style.transform = "translate(-50%, -50%) scale(1) rotate(0deg)";
       } else {
         msgIcon.style.opacity = "1";
         msgIcon.style.transform = "translate(-50%, -50%) scale(1) rotate(0deg)";
         xIcon.style.opacity = "0";
-        xIcon.style.transform = "translate(-50%, -50%) scale(0.5) rotate(-90deg)";
+        xIcon.style.transform =
+          "translate(-50%, -50%) scale(0.5) rotate(-90deg)";
       }
     });
 
     document.body.appendChild(button);
     document.body.appendChild(iframe);
-  } catch (_) {
-  }
+  } catch (_) {}
 })();

@@ -20,12 +20,20 @@ export function ChatWindow(props: {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const [input, setInput] = React.useState("");
 
-  const { placeholder, titleText = "An LLM", conversationId, initialMessages } = props;
+  const {
+    placeholder,
+    titleText = "An LLM",
+    conversationId,
+    initialMessages,
+  } = props;
   const [botName, setBotName] = React.useState<string | undefined>(undefined);
   const [isBotActive, setIsBotActive] = React.useState(true);
-  
+
   // Usar el hook personalizado para manejar el chat
-  const { messages, isLoading, sendMessage, clearMessages } = useChatStream(conversationId, initialMessages);
+  const { messages, isLoading, sendMessage, clearMessages } = useChatStream(
+    conversationId,
+    initialMessages,
+  );
 
   // Función para hacer scroll al último mensaje
   const scrollToBottom = () => {
@@ -71,10 +79,10 @@ export function ChatWindow(props: {
     if (messageContainerRef.current) {
       messageContainerRef.current.classList.add("grow");
     }
-    
+
     const messageValue = message ?? input;
     if (messageValue.trim() === "") return;
-    
+
     setInput("");
     // Intentar mantener el foco en el input
     if (inputRef.current && !isLoading) {
@@ -99,7 +107,9 @@ export function ChatWindow(props: {
               <MessageCircle className="w-6 h-6 text-white" />
             </div>
             <div className="flex-1">
-              <h1 className="text-xl font-bold text-white">{botName ?? "Asistente"}</h1>
+              <h1 className="text-xl font-bold text-white">
+                {botName ?? "Asistente"}
+              </h1>
             </div>
             <div className="flex items-center gap-2">
               <div
@@ -123,7 +133,7 @@ export function ChatWindow(props: {
             </div>
           </div>
         </div>
-        
+
         {/* Decoración inferior */}
         <div className="h-1 bg-gradient-to-r from-transparent via-white/30 to-transparent"></div>
       </div>
@@ -138,7 +148,10 @@ export function ChatWindow(props: {
           messages.map((message, i) => {
             const isUser = message.role === "user";
             return (
-              <div key={message.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+              <div
+                key={message.id}
+                className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+              >
                 <ChatMessageBubble
                   message={message}
                   aiEmoji="🤖"
@@ -152,14 +165,27 @@ export function ChatWindow(props: {
         )}
         {(() => {
           const last = messages[messages.length - 1];
-          const lastIsAssistantWithContent = !!last && last.role === "assistant" && (last as any).content && (last as any).content.length > 0;
+          const lastIsAssistantWithContent =
+            !!last &&
+            last.role === "assistant" &&
+            (last as any).content &&
+            (last as any).content.length > 0;
           const showTyping = isLoading && !lastIsAssistantWithContent;
           return showTyping ? (
             <div className="flex justify-start">
               <div className="bg-gray-100 dark:bg-slate-800 rounded-2xl rounded-tl-none p-4 inline-flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-gray-400 dark:bg-slate-500 animate-bounce" style={{ animationDelay: "0ms" }} />
-                <span className="h-2 w-2 rounded-full bg-gray-400 dark:bg-slate-500 animate-bounce" style={{ animationDelay: "150ms" }} />
-                <span className="h-2 w-2 rounded-full bg-gray-400 dark:bg-slate-500 animate-bounce" style={{ animationDelay: "300ms" }} />
+                <span
+                  className="h-2 w-2 rounded-full bg-gray-400 dark:bg-slate-500 animate-bounce"
+                  style={{ animationDelay: "0ms" }}
+                />
+                <span
+                  className="h-2 w-2 rounded-full bg-gray-400 dark:bg-slate-500 animate-bounce"
+                  style={{ animationDelay: "150ms" }}
+                />
+                <span
+                  className="h-2 w-2 rounded-full bg-gray-400 dark:bg-slate-500 animate-bounce"
+                  style={{ animationDelay: "300ms" }}
+                />
               </div>
             </div>
           ) : null;

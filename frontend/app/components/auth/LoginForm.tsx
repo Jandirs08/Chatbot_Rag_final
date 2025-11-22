@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { logger } from "@/app/lib/logger";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -63,7 +64,7 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
       }
     } catch (err) {
       // El error ya se maneja en el contexto
-      console.error("Error en login:", err);
+      logger.error("Error en login:", err);
     }
   };
 

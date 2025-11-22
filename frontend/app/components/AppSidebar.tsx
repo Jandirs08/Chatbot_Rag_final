@@ -26,12 +26,14 @@ import {
   SidebarFooter,
   useSidebar,
 } from "./ui/sidebar";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "../hooks/useAuth";
 import { Button } from "./ui/button";
 // removed Switch in favor of a simple toggle button
 import { useRouter } from "next/navigation";
 import { getBotConfig } from "../lib/services/botConfigService";
+import { logger } from "@/app/lib/logger";
 
 const baseMenuItems = [
   {
@@ -67,11 +69,11 @@ const baseMenuItems = [
 ];
 
 const integrationItems = baseMenuItems.filter(
-  (item) => item.title === "Widget" || item.title === "Configuración WhatsApp"
+  (item) => item.title === "Widget" || item.title === "Configuración WhatsApp",
 );
 
 const mainMenuItems = baseMenuItems.filter(
-  (item) => item.title !== "Widget" && item.title !== "Configuración WhatsApp"
+  (item) => item.title !== "Widget" && item.title !== "Configuración WhatsApp",
 );
 
 export function AppSidebar() {
@@ -87,14 +89,15 @@ export function AppSidebar() {
       await logout();
       router.push("/auth/login");
     } catch (error) {
-      console.error("Error al cerrar sesión:", error);
+      logger.error("Error al cerrar sesión:", error);
     }
   };
 
   React.useEffect(() => {
     if (typeof document !== "undefined") {
       const saved = localStorage.getItem("theme");
-      const isDarkClass = saved === "dark" || document.documentElement.classList.contains("dark");
+      const isDarkClass =
+        saved === "dark" || document.documentElement.classList.contains("dark");
       document.documentElement.classList.toggle("dark", isDarkClass);
       setIsDark(isDarkClass);
     }
@@ -127,8 +130,12 @@ export function AppSidebar() {
             <Bot className="w-6 h-6" />
           </div>
           <div className={state === "collapsed" ? "hidden" : ""}>
-            <h2 className="text-lg font-bold text-foreground dark:text-white">{botName ?? "Asistente"}</h2>
-            <p className="text-sm text-muted-foreground dark:text-slate-400">{botName ?? "Becas Grupo Romero"}</p>
+            <h2 className="text-lg font-bold text-foreground dark:text-white">
+              {botName ?? "Asistente"}
+            </h2>
+            <p className="text-sm text-muted-foreground dark:text-slate-400">
+              {botName ?? "Becas Grupo Romero"}
+            </p>
           </div>
         </div>
       </SidebarHeader>
@@ -144,18 +151,33 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {(isAdmin ? [...mainMenuItems, { title: "Usuarios", url: "/usuarios", icon: Users }] : mainMenuItems).map((item) => (
+              {(isAdmin
+                ? [
+                    ...mainMenuItems,
+                    { title: "Usuarios", url: "/usuarios", icon: Users },
+                  ]
+                : mainMenuItems
+              ).map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
                     isActive={pathname === item.url}
                     className={`hover:bg-primary/10 hover:text-primary transition-all duration-200 dark:hover:bg-slate-800 dark:hover:text-white ${state === "collapsed" ? "flex flex-col items-center justify-center" : ""}`}
-                    tooltip={{ children: item.title, className: "bg-slate-900 text-white text-xs rounded px-2 py-1 z-50" }}
+                    tooltip={{
+                      children: item.title,
+                      className:
+                        "bg-slate-900 text-white text-xs rounded px-2 py-1 z-50",
+                    }}
                   >
-                    <a href={item.url} className={`flex ${state === "collapsed" ? "flex-col items-center justify-center" : "items-center"} gap-3`}>
-                      <item.icon className={`${state === "collapsed" ? "w-6 h-6" : "w-5 h-5"}`} />
+                    <Link
+                      href={item.url}
+                      className={`flex ${state === "collapsed" ? "flex-col items-center justify-center" : "items-center"} gap-3`}
+                    >
+                      <item.icon
+                        className={`${state === "collapsed" ? "w-6 h-6" : "w-5 h-5"}`}
+                      />
                       {state !== "collapsed" && <span>{item.title}</span>}
-                    </a>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -179,12 +201,21 @@ export function AppSidebar() {
                     asChild
                     isActive={pathname === item.url}
                     className={`hover:bg-primary/10 hover:text-primary transition-all duration-200 ${state === "collapsed" ? "flex flex-col items-center justify-center" : ""}`}
-                    tooltip={{ children: item.title, className: "bg-slate-900 text-white text-xs rounded px-2 py-1 z-50" }}
+                    tooltip={{
+                      children: item.title,
+                      className:
+                        "bg-slate-900 text-white text-xs rounded px-2 py-1 z-50",
+                    }}
                   >
-                    <a href={item.url} className={`flex ${state === "collapsed" ? "flex-col items-center justify-center" : "items-center"} gap-3`}>
-                      <item.icon className={`${state === "collapsed" ? "w-6 h-6" : "w-5 h-5"}`} />
+                    <Link
+                      href={item.url}
+                      className={`flex ${state === "collapsed" ? "flex-col items-center justify-center" : "items-center"} gap-3`}
+                    >
+                      <item.icon
+                        className={`${state === "collapsed" ? "w-6 h-6" : "w-5 h-5"}`}
+                      />
                       {state !== "collapsed" && <span>{item.title}</span>}
-                    </a>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -220,7 +251,9 @@ export function AppSidebar() {
               <LogOut className="w-4 h-4" />
               {state !== "collapsed" && <span>Cerrar Sesión</span>}
             </Button>
-            <div className={`w-full ${state === "collapsed" ? "flex justify-center" : "px-2"}`}>
+            <div
+              className={`w-full ${state === "collapsed" ? "flex justify-center" : "px-2"}`}
+            >
               {state === "collapsed" ? (
                 <Button
                   variant="outline"
@@ -232,16 +265,24 @@ export function AppSidebar() {
                     setIsDark(next);
                   }}
                   className="h-8 w-8 bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700 dark:hover:bg-slate-700"
-                  aria-label={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+                  aria-label={
+                    isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"
+                  }
                 >
-                  {isDark ? <Sun className="w-4 h-4 text-yellow-500" /> : <Moon className="w-4 h-4 text-orange-400" />}
+                  {isDark ? (
+                    <Sun className="w-4 h-4 text-yellow-500" />
+                  ) : (
+                    <Moon className="w-4 h-4 text-orange-400" />
+                  )}
                 </Button>
               ) : (
                 <div className="relative inline-flex items-center gap-2">
                   <Sun className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                   <div
                     role="button"
-                    aria-label={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+                    aria-label={
+                      isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"
+                    }
                     onClick={() => {
                       const next = !isDark;
                       document.documentElement.classList.toggle("dark", next);
@@ -250,8 +291,14 @@ export function AppSidebar() {
                     }}
                     className={`relative h-7 w-14 rounded-full transition-colors ${isDark ? "bg-slate-800" : "bg-gray-200"}`}
                   >
-                    <div className={`absolute top-0.5 ${isDark ? "right-0.5" : "left-0.5"} h-6 w-6 rounded-full bg-white shadow transition-all flex items-center justify-center`}>
-                      {isDark ? <Moon className="w-4 h-4 text-slate-700" /> : <Sun className="w-4 h-4 text-yellow-500" />}
+                    <div
+                      className={`absolute top-0.5 ${isDark ? "right-0.5" : "left-0.5"} h-6 w-6 rounded-full bg-white shadow transition-all flex items-center justify-center`}
+                    >
+                      {isDark ? (
+                        <Moon className="w-4 h-4 text-slate-700" />
+                      ) : (
+                        <Sun className="w-4 h-4 text-yellow-500" />
+                      )}
                     </div>
                   </div>
                   <Moon className="w-4 h-4 text-gray-500 dark:text-slate-400" />

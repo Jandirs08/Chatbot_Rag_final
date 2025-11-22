@@ -1,6 +1,7 @@
 // JS backend not used by default, see README for instructions.
 
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/app/lib/logger";
 
 import { Client } from "langsmith";
 
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
       { status: 200 },
     );
   } catch (e: any) {
-    console.log(e);
+    logger.error(e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
@@ -49,7 +50,7 @@ export async function PATCH(req: NextRequest) {
       { status: 200 },
     );
   } catch (e: any) {
-    console.log(e);
+    logger.error(e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

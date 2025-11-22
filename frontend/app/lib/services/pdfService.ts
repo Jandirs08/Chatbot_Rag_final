@@ -1,5 +1,5 @@
 import { API_URL } from "../constants";
-import { authService } from "./authService";
+import { authService, authenticatedFetch } from "./authService";
 
 // Normaliza el base URL y evita duplicar el prefijo "/api/v1" al construir endpoints
 function buildApiUrl(base: string, path: string): string {
@@ -93,7 +93,7 @@ export class PDFService {
     }>;
   }> {
     const token = authService.getAuthToken();
-    const response = await fetch(buildApiUrl(API_URL, "/api/v1/pdfs/list"), {
+    const response = await authenticatedFetch(buildApiUrl(API_URL, "/api/v1/pdfs/list"), {
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     });
 
@@ -107,7 +107,7 @@ export class PDFService {
 
   static async deletePDF(filename: string): Promise<{ message: string }> {
     const token = authService.getAuthToken();
-    const response = await fetch(buildApiUrl(API_URL, `/api/v1/pdfs/${filename}`), {
+    const response = await authenticatedFetch(buildApiUrl(API_URL, `/api/v1/pdfs/${filename}`), {
       method: "DELETE",
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     });
@@ -138,7 +138,7 @@ export class PDFService {
       ? this.getPDFViewUrl(filename)
       : this.getPDFDownloadUrl(filename);
 
-    const response = await fetch(endpoint, {
+    const response = await authenticatedFetch(endpoint, {
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     });
 

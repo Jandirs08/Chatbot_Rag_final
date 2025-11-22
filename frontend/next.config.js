@@ -1,46 +1,42 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Optimizaciones de rendimiento
   experimental: {
     optimizeCss: true,
     optimizePackageImports: ["lucide-react", "@radix-ui/react-icons"],
   },
-  // Compresión y optimización de imágenes
+
   compress: true,
+
   images: {
     formats: ["image/webp", "image/avif"],
-    minimumCacheTTL: 60 * 60 * 24 * 30, // 30 días
+    minimumCacheTTL: 60 * 60 * 24 * 30,
   },
+
   webpack: (config, { dev, isServer }) => {
-    // Optimizaciones de bundle splitting
     if (!dev && !isServer) {
       config.optimization = {
         ...config.optimization,
         splitChunks: {
           chunks: "all",
           cacheGroups: {
-            // Vendor chunks separados para librerías grandes
             vendor: {
               test: /[\\/]node_modules[\\/]/,
               name: "vendors",
               chunks: "all",
               priority: 10,
             },
-            // Chunk separado para UI components
             ui: {
               test: /[\\/]app[\\/]components[\\/]ui[\\/]/,
               name: "ui-components",
               chunks: "all",
               priority: 20,
             },
-            // Chunk separado para recharts (librería pesada)
             recharts: {
               test: /[\\/]node_modules[\\/](recharts|d3-)[\\/]/,
               name: "recharts",
               chunks: "all",
               priority: 30,
             },
-            // Chunk separado para radix-ui
             radix: {
               test: /[\\/]node_modules[\\/]@radix-ui[\\/]/,
               name: "radix-ui",
@@ -52,97 +48,75 @@ const nextConfig = {
       };
     }
 
-    // Tree shaking mejorado (compatible con Next.js)
     if (config.optimization.sideEffects === undefined) {
       config.optimization.sideEffects = false;
     }
 
     return config;
   },
-  // Headers de seguridad diferenciados
+
   async headers() {
-    // Determinar si estamos en desarrollo o producción
-    const isDevelopment = process.env.NODE_ENV === "development";
+    const isDev = process.env.NODE_ENV !== "production";
+    let apiOrigin = "http://localhost:8000";
+    try {
+      const u = new URL(
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1",
+      );
+      apiOrigin = u.origin;
+    } catch {}
 
-    // Obtener dominios permitidos para el widget desde variables de entorno (fuente única)
-    const corsOriginsWidget = process.env.CORS_ORIGINS_WIDGET || "";
-
-    // Configurar frame-ancestors para /chat basado en el entorno
-    let chatFrameAncestors;
-    if (isDevelopment) {
-      // En desarrollo: permitir orígenes HTTP explícitos
-      chatFrameAncestors = "'self' http://localhost:3000 http://localhost:8080";
-    } else {
-      // En producción: usar dominios específicos de CORS_ORIGINS_WIDGET
-      if (corsOriginsWidget) {
-        // Convertir la lista de dominios separados por coma en formato CSP
-        const allowedDomains = corsOriginsWidget
-          .split(",")
-          .map((domain) => domain.trim())
-          .filter(
-            (domain) => domain && domain !== "*" && !domain.startsWith("file"),
-          )
-          .join(" ");
-        chatFrameAncestors = allowedDomains
-          ? `'self' ${allowedDomains}`
-          : "'self'";
-      } else {
-        // Fallback: solo mismo origen si no hay configuración específica
-        chatFrameAncestors = "'self'";
-      }
-    }
+    const chatCsp = `default-src 'self'; script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}; style-src 'unsafe-inline' 'self'; connect-src 'self' ${apiOrigin}; frame-ancestors *`;
 
     return [
       {
-        // Configuración para /chat - permite embedding controlado
+        source: "/:path*",
+        headers: [
+          { key: "X-DNS-Prefetch-Control", value: "on" },
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=63072000; includeSubDomains; preload",
+          },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "origin-when-cross-origin" },
+        ],
+      },
+
+      {
+        // widget
         source: "/chat",
         headers: [
           {
-            key: "X-Content-Type-Options",
-            value: "nosniff",
-          },
-          {
             key: "Content-Security-Policy",
-            value: `frame-ancestors ${chatFrameAncestors}`,
-          },
-          {
-            key: "X-XSS-Protection",
-            value: "1; mode=block",
-          },
-          {
-            key: "Referrer-Policy",
-            value: "strict-origin-when-cross-origin",
+            value: chatCsp,
           },
         ],
       },
+
       {
-        // Configuración restrictiva para todas las demás rutas
-        source: "/((?!chat).*)",
+        source: "/dashboard/:path*",
         headers: [
-          {
-            key: "X-Content-Type-Options",
-            value: "nosniff",
-          },
-          {
-            key: "X-Frame-Options",
-            value: "DENY",
-          },
+          { key: "X-Frame-Options", value: "DENY" },
           {
             key: "Content-Security-Policy",
-            value: "frame-ancestors 'none'",
-          },
-          {
-            key: "X-XSS-Protection",
-            value: "1; mode=block",
-          },
-          {
-            key: "Referrer-Policy",
-            value: "strict-origin-when-cross-origin",
+            value:
+              "default-src 'self'; script-src 'self' 'unsafe-inline'; frame-ancestors 'self'",
           },
         ],
       },
+
       {
-        // Headers de caching para recursos estáticos
+        source: "/login",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          {
+            key: "Content-Security-Policy",
+            value:
+              "default-src 'self'; script-src 'self' 'unsafe-inline'; frame-ancestors 'self'",
+          },
+        ],
+      },
+
+      {
         source: "/static/(.*)",
         headers: [
           {

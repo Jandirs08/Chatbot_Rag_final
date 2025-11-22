@@ -10,6 +10,7 @@ import {
   BotRuntimeDTO,
 } from "@/app/lib/services/botConfigService";
 import { toast } from "sonner";
+import { logger } from "@/app/lib/logger";
 import { Button } from "@/app/components/ui/button";
 import { Terminal } from "lucide-react";
 import {
@@ -57,7 +58,7 @@ export default function SettingsPage() {
         const [cfg, state] = await Promise.all([
           getBotConfig(),
           botService.getState().catch((e) => {
-            console.warn("No se pudo obtener estado del bot", e);
+            logger.warn("No se pudo obtener estado del bot", e);
             return { is_active: false, message: "Estado no disponible" };
           }),
         ]);

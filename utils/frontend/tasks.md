@@ -63,7 +63,16 @@
 
 - Endurecer CSP y cabeceras de seguridad
   - Prioridad: Alta (P1) · Complejidad: Media
-  - Referencias: `frontend/next.config.js:79-167`
+  - Referencias: `frontend/next.config.js:66-76,79-87,90-102,105-114`
+  - Checklist — Implementación actual
+    - [x] Cabeceras globales (`/:path*`): `X-DNS-Prefetch-Control`, `Strict-Transport-Security`, `X-Content-Type-Options`, `Referrer-Policy` (`frontend/next.config.js:66-76`)
+    - [x] Excepción `/chat`: `CSP: frame-ancestors *` y `script-src 'self' 'unsafe-inline'` (`frontend/next.config.js:79-87`)
+    - [x] Dashboard: `X-Frame-Options: DENY` y `CSP: frame-ancestors 'self'` (`frontend/next.config.js:90-102`)
+    - [x] Login: `X-Frame-Options: DENY` y `CSP: frame-ancestors 'self'` (`frontend/next.config.js:105-114`)
+    - [ ] General: aplicar `X-Frame-Options: DENY` y `frame-ancestors 'self'` a todas las rutas excepto `/chat` (actualmente solo `dashboard` y `login`)
+    - [ ] Ajustar ruta de login real a `/auth/login` si corresponde (ver `frontend/app/auth/login/page.tsx:1-26`)
+    - [ ] Completar CSP por ruta: `style-src`, `img-src`, `font-src`, `connect-src` (API/SSE)
+    - [ ] Reducir `unsafe-inline` cuando el widget loader salga de inline
 - Dividir `sidebar.tsx` en subcomponentes
   - Prioridad: Alta (P1) · Complejidad: Alta
   - Referencias: `frontend/app/components/ui/sidebar.tsx:1-755`

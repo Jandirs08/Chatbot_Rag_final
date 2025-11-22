@@ -6,25 +6,34 @@ import { apiBaseUrl } from "../utils/constants";
 import type { Message as HookMessage } from "../hooks/useChatStream";
 
 export default function ChatPage() {
-  const [conversationId, setConversationId] = React.useState<string | null>(null);
-  const [initialMessages, setInitialMessages] = React.useState<HookMessage[] | null>(null);
+  const [conversationId, setConversationId] = React.useState<string | null>(
+    null,
+  );
+  const [initialMessages, setInitialMessages] = React.useState<
+    HookMessage[] | null
+  >(null);
 
   React.useEffect(() => {
     try {
       const key = "conversation_id";
-      const existing = typeof window !== "undefined" ? window.localStorage.getItem(key) : null;
+      const existing =
+        typeof window !== "undefined" ? window.localStorage.getItem(key) : null;
       if (existing && existing.trim()) {
         setConversationId(existing);
         return;
       }
-      const newId = (crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+      const newId = crypto?.randomUUID
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random()}`;
       if (typeof window !== "undefined") {
         window.localStorage.setItem(key, newId);
       }
       setConversationId(newId);
     } catch (_e) {
       // Fallback silencioso si localStorage no está disponible
-      const newId = (crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+      const newId = crypto?.randomUUID
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random()}`;
       setConversationId(newId);
     }
   }, []);
@@ -34,11 +43,14 @@ export default function ChatPage() {
     const loadHistory = async () => {
       if (!conversationId) return;
       try {
-        const resp = await fetch(`${apiBaseUrl}/chat/history/${conversationId}`, {
-          method: "GET",
-          headers: { Accept: "application/json" },
-          credentials: "include",
-        });
+        const resp = await fetch(
+          `${apiBaseUrl}/chat/history/${conversationId}`,
+          {
+            method: "GET",
+            headers: { Accept: "application/json" },
+            credentials: "include",
+          },
+        );
         if (!resp.ok) {
           setInitialMessages([]);
           return;
@@ -59,11 +71,15 @@ export default function ChatPage() {
     };
     loadHistory();
   }, [conversationId]);
-  
+
   return (
     <div className="h-screen w-screen">
-      {conversationId && initialMessages && (
-        <ChatWindow titleText="Chatbot" conversationId={conversationId} initialMessages={initialMessages} />
+      {conversationId && (
+        <ChatWindow
+          titleText="Chatbot"
+          conversationId={conversationId}
+          initialMessages={initialMessages || undefined}
+        />
       )}
     </div>
   );
