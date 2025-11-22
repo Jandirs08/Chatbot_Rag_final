@@ -2,7 +2,7 @@
 import logging
 from datetime import timedelta
 from typing import Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from fastapi.security import HTTPAuthorizationCredentials
 
 from models.auth import (
@@ -52,7 +52,8 @@ settings = get_settings()
 )
 async def login(
     login_data: LoginRequest,
-    user_repository: UserRepository = Depends(get_user_repository)
+    user_repository: UserRepository = Depends(get_user_repository),
+    response: Response = None,
 ) -> TokenResponse:
     """
     Authenticate user and return JWT tokens.
@@ -112,6 +113,18 @@ async def login(
         
         logger.info(f"Successful login for user: {login_data.email}")
         
+        if response is not None:
+            secure_flag = str(settings.environment).lower() in ("production", "prod", "staging")
+            response.set_cookie(
+                key="access_token",
+                value=access_token,
+                httponly=True,
+                samesite="lax",
+                secure=secure_flag,
+                max_age=settings.jwt_access_token_expire_minutes * 60,
+                path="/",
+            )
+
         return TokenResponse(
             access_token=access_token,
             refresh_token=refresh_token,
@@ -190,7 +203,8 @@ async def get_current_user_profile(
 )
 async def refresh_access_token(
     refresh_data: RefreshTokenRequest,
-    user_repository: UserRepository = Depends(get_user_repository)
+    user_repository: UserRepository = Depends(get_user_repository),
+    response: Response = None,
 ) -> TokenResponse:
     """
     Refresh access token using refresh token.
@@ -250,6 +264,18 @@ async def refresh_access_token(
         
         logger.info(f"Token refreshed for user: {user.email}")
         
+        if response is not None:
+            secure_flag = str(settings.environment).lower() in ("production", "prod", "staging")
+            response.set_cookie(
+                key="access_token",
+                value=access_token,
+                httponly=True,
+                samesite="lax",
+                secure=secure_flag,
+                max_age=settings.jwt_access_token_expire_minutes * 60,
+                path="/",
+            )
+
         return TokenResponse(
             access_token=access_token,
             refresh_token=new_refresh_token,
@@ -299,7 +325,8 @@ async def refresh_access_token(
     }
 )
 async def logout(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    response: Response = None,
 ) -> Dict[str, str]:
     """
     Logout current user.
@@ -316,6 +343,8 @@ async def logout(
     """
     logger.info(f"User logged out: {current_user.email}")
     
+    if response is not None:
+        response.delete_cookie(key="access_token", path="/")
     return {"message": "Successfully logged out"}
 
 

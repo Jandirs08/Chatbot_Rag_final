@@ -18,6 +18,8 @@ export function WidgetPreview() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [position, setPosition] = useState("bottom-right");
   const [theme, setTheme] = useState("default");
+  const [bubbleStartColor, setBubbleStartColor] = useState("#667eea");
+  const [bubbleEndColor, setBubbleEndColor] = useState("#764ba2");
   const [iframeCode, setIframeCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -52,45 +54,19 @@ export function WidgetPreview() {
 
   const updateIframeCode = () => {
     const baseUrl = getBaseUrl();
-    const positionStyles = getPositionStyles();
-    const themeParam = theme !== "default" ? `?theme=${theme}` : "";
-    
-    // Generar código que incluye el botón flotante del widget
-    const code = `<!-- Widget del Chatbot -->
-<div id="chatbot-widget" style="${positionStyles} z-index: 1000;">
-  <!-- Botón flotante del widget -->
-  <div id="chatbot-button" style="width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 20px rgba(0,0,0,0.15); transition: transform 0.2s ease;" onclick="toggleChatbot()">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-    </svg>
-  </div>
-  
-  <!-- Iframe del chat (inicialmente oculto) -->
-  <iframe 
-    id="chatbot-iframe"
-    src="${baseUrl}${themeParam}" 
-    width="${width}" 
-    height="${height}" 
-    frameborder="0" 
-    style="display: none; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.1); margin-bottom: 10px;"
-    title="AI Chatbot Widget">
-  </iframe>
-</div>
-
-<script>
-function toggleChatbot() {
-  var iframe = document.getElementById('chatbot-iframe');
-  var button = document.getElementById('chatbot-button');
-  
-  if (iframe.style.display === 'none') {
-    iframe.style.display = 'block';
-    button.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
-  } else {
-    iframe.style.display = 'none';
-    button.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>';
-  }
-}
-</script>`;
+    const hostUrl = typeof window !== 'undefined'
+      ? `${window.location.protocol}//${window.location.host}`
+      : (process.env.NEXT_PUBLIC_WIDGET_HOST || "http://localhost:3000");
+    const bubbleBackground = `linear-gradient(135deg, ${bubbleStartColor} 0%, ${bubbleEndColor} 100%)`;
+    const code = `<script 
+  src="${hostUrl}/widget-loader.js" 
+  data-chat-url="${baseUrl}" 
+  data-width="${width}" 
+  data-height="${height}" 
+  data-position="${position}" 
+  data-bubble-background="${bubbleBackground}" 
+  defer 
+></script>`;
     
     setIframeCode(code);
   };
@@ -98,7 +74,7 @@ function toggleChatbot() {
   // Actualizar código automáticamente cuando cambien los parámetros
   useEffect(() => {
     updateIframeCode();
-  }, [width, height, position, theme]);
+  }, [width, height, position, theme, bubbleStartColor, bubbleEndColor]);
 
   const handleWidthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setWidth(e.target.value);
@@ -144,7 +120,7 @@ function toggleChatbot() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Vista previa */}
         <Card className="border-border/50">
-          <CardHeader>
+          <CardHeader className="p-4">
             <CardTitle className="flex items-center gap-2">
               <Eye className="w-5 h-5 text-primary" />
               Vista Previa
@@ -153,8 +129,11 @@ function toggleChatbot() {
               Así se verá el bot en tu sitio web
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="relative bg-gradient-to-br from-muted/30 to-secondary/10 p-8 rounded-lg h-[600px] border border-border/30 flex flex-col justify-center overflow-visible">
+          <CardContent className="p-4">
+            <div
+              className="relative bg-gradient-to-br from-muted/30 to-secondary/10 p-6 rounded-lg border border-border/30 flex flex-col justify-center overflow-visible h-full"
+              style={{ minHeight: `${parseInt(height, 10) + 120}px` }}
+            >
               {/* Simulación de una página web */}
               {!isPreviewOpen && (
                 <div className="space-y-4 text-sm text-muted-foreground">
@@ -166,84 +145,89 @@ function toggleChatbot() {
                 </div>
               )}
 
-              {/* Widget flotante simulado - Ahora incluye el botón flotante */}
-              {!isPreviewOpen && (
-                <div
-                  className={`absolute ${
-                    position === 'bottom-right' ? 'bottom-4 right-4' :
-                    position === 'bottom-left' ? 'bottom-4 left-4' :
-                    position === 'top-right' ? 'top-4 right-4' :
-                    'top-4 left-4'
-                  } w-16 h-16 rounded-full gradient-primary flex items-center justify-center shadow-lg hover:scale-110 transition-transform cursor-pointer`}
-                  onClick={() => {
-                    setIsPreviewOpen(true);
+              <div
+                style={{
+                  position: 'absolute',
+                  ...(position === 'bottom-right' ? { bottom: 20, right: 20 } :
+                    position === 'bottom-left' ? { bottom: 20, left: 20 } :
+                    position === 'top-right' ? { top: 20, right: 20 } : { top: 20, left: 20 }),
+                  width: '60px',
+                  height: '60px',
+                  borderRadius: '50%',
+                  background: `linear-gradient(135deg, ${bubbleStartColor} 0%, ${bubbleEndColor} 100%)`,
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                  zIndex: 1000,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+                onClick={() => {
+                  const next = !isPreviewOpen;
+                  setIsPreviewOpen(next);
+                  if (next) {
                     setIsLoading(true);
                     setError("");
+                  }
+                }}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2}
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: isPreviewOpen
+                      ? 'translate(-50%, -50%) scale(0.5) rotate(90deg)'
+                      : 'translate(-50%, -50%) scale(1) rotate(0deg)',
+                    opacity: isPreviewOpen ? 0 : 1,
+                    transition: 'all 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55)'
                   }}
                 >
-                  <MessageCircle className="w-8 h-8 text-white" />
-                </div>
-              )}
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2}
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: isPreviewOpen
+                      ? 'translate(-50%, -50%) scale(1) rotate(0deg)'
+                      : 'translate(-50%, -50%) scale(0.5) rotate(-90deg)',
+                    opacity: isPreviewOpen ? 1 : 0,
+                    transition: 'all 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55)'
+                  }}
+                >
+                  <path d="M18 6L6 18" />
+                  <path d="M6 6L18 18" />
+                </svg>
+              </div>
 
               {/* Vista previa del iframe */}
-              {isPreviewOpen && (
-                <div
-                  className="absolute inset-0 flex items-center justify-center z-50"
-                  style={{ width: "100%", height: "100%" }}
-                >
-                  <div
-                    className="relative"
-                    style={{ width: `${width}px`, height: `${height}px` }}
-                  >
-                    {isLoading && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-background/80 rounded-2xl">
-                        <div className="text-center">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
-                          <p className="text-sm text-muted-foreground">Cargando widget...</p>
-                        </div>
-                      </div>
-                    )}
-                    {error && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-background/80 rounded-2xl">
-                        <div className="text-center p-4">
-                          <div className="text-destructive mb-2">⚠️</div>
-                          <p className="text-sm text-destructive">{error}</p>
-                        </div>
-                      </div>
-                    )}
-                    <iframe
-                      src={getBaseUrl()}
-                      width={width}
-                      height={height}
-                      style={{
-                        border: "none",
-                        borderRadius: "16px",
-                        boxShadow: "0 8px 32px rgba(0,0,0,0.1)",
-                      }}
-                      title="AI Chatbot Widget Preview"
-                      onLoad={handleIframeLoad}
-                      onError={handleIframeError}
-                    />
-                    <button
-                      onClick={() => {
-                        setIsPreviewOpen(false);
-                        setIsLoading(false);
-                        setError("");
-                      }}
-                      className="absolute -top-2 -right-2 w-8 h-8 rounded-full bg-destructive text-white flex items-center justify-center shadow-md z-50 hover:bg-destructive/90 transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              )}
+              <iframe
+                src={getBaseUrl()}
+                width={width}
+                height={height}
+                style={{
+                  position: 'absolute',
+                  ...(position === 'bottom-right' ? { bottom: 90, right: 20 } :
+                    position === 'bottom-left' ? { bottom: 90, left: 20 } :
+                    position === 'top-right' ? { top: 90, right: 20 } : { top: 90, left: 20 }),
+                  display: isPreviewOpen ? 'block' : 'none',
+                  border: 'none',
+                  borderRadius: '16px',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
+                }}
+                title="AI Chatbot Widget Preview"
+                onLoad={handleIframeLoad}
+                onError={handleIframeError}
+              />
             </div>
           </CardContent>
         </Card>
 
         {/* Integración: código + pasos */}
         <Card className="border-border/50">
-          <CardHeader>
+          <CardHeader className="p-4">
             <CardTitle className="flex items-center gap-2">
               <Copy className="w-5 h-5 text-primary" />
               Integración
@@ -252,11 +236,11 @@ function toggleChatbot() {
               Copia este código y pégalo en tu sitio web. Los cambios se actualizan automáticamente.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <CardContent className="space-y-4 p-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="iframe-code">Código completo del widget</Label>
-                <div className="relative mt-2">
+                <div className="relative mt-1">
                   <textarea
                     id="iframe-code"
                     value={iframeCode}
@@ -271,9 +255,7 @@ function toggleChatbot() {
                     <Copy className="w-4 h-4" />
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Este código incluye el botón flotante y el iframe del chat. Se actualiza automáticamente cuando cambias la configuración.
-                </p>
+                <p className="text-xs text-muted-foreground mt-1">Copia nuevamente el código si cambias la configuración.</p>
               </div>
               <div>
                 <h3 className="text-sm font-medium text-foreground mb-3">Lista de Pasos</h3>
@@ -304,9 +286,9 @@ function toggleChatbot() {
             </div>
 
             {/* Configuración básica */}
-            <div className="space-y-4">
+            <div className="space-y-3">
               <h3 className="text-sm font-medium text-foreground">Configuración Básica</h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label htmlFor="width">Ancho (px)</Label>
                   <Input
@@ -314,7 +296,7 @@ function toggleChatbot() {
                     type="number"
                     value={width}
                     onChange={handleWidthChange}
-                    className="mt-1"
+                    className="mt-1 h-11"
                     min="200"
                     max="800"
                   />
@@ -326,7 +308,7 @@ function toggleChatbot() {
                     type="number"
                     value={height}
                     onChange={handleHeightChange}
-                    className="mt-1"
+                    className="mt-1 h-11"
                     min="300"
                     max="1000"
                   />
@@ -335,41 +317,64 @@ function toggleChatbot() {
             </div>
 
             {/* Configuración avanzada */}
-            <div className="space-y-4 border-t pt-4">
-              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                <Settings className="w-4 h-4" />
-                Configuración Avanzada
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="position">Posición</Label>
-                  <select
-                    id="position"
-                    value={position}
-                    onChange={handlePositionChange}
-                    className="w-full mt-1 p-2 border border-border rounded-md bg-background"
-                  >
-                    <option value="bottom-right">Abajo Derecha</option>
-                    <option value="bottom-left">Abajo Izquierda</option>
-                    <option value="top-right">Arriba Derecha</option>
-                    <option value="top-left">Arriba Izquierda</option>
-                  </select>
+              <div className="space-y-3 border-t pt-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                  <Settings className="w-4 h-4" />
+                  Configuración Avanzada
                 </div>
-                <div>
-                  <Label htmlFor="theme">Tema</Label>
-                  <select
-                    id="theme"
-                    value={theme}
-                    onChange={handleThemeChange}
-                    className="w-full mt-1 p-2 border border-border rounded-md bg-background"
-                  >
-                    <option value="default">Por Defecto</option>
-                    <option value="light">Claro</option>
-                    <option value="dark">Oscuro</option>
-                  </select>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="position">Posición</Label>
+                    <select
+                      id="position"
+                      value={position}
+                      onChange={handlePositionChange}
+                      className="w-full mt-1 h-11 px-2 border border-border rounded-md bg-background"
+                    >
+                      <option value="bottom-right">Abajo Derecha</option>
+                      <option value="bottom-left">Abajo Izquierda</option>
+                      <option value="top-right">Arriba Derecha</option>
+                      <option value="top-left">Arriba Izquierda</option>
+                    </select>
+                  </div>
+                  <div>
+                    <Label htmlFor="theme">Tema</Label>
+                    <select
+                      id="theme"
+                      value={theme}
+                      onChange={handleThemeChange}
+                      className="w-full mt-1 h-11 px-2 border border-border rounded-md bg-background"
+                    >
+                      <option value="default">Por Defecto</option>
+                      <option value="light">Claro</option>
+                      <option value="dark">Oscuro</option>
+                    </select>
+                  </div>
                 </div>
-              </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="bubbleStartColor">Color Inicio</Label>
+                    <Input
+                      id="bubbleStartColor"
+                      type="color"
+                      value={bubbleStartColor}
+                      onChange={(e) => setBubbleStartColor(e.target.value)}
+                      className="mt-1 h-11 p-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="bubbleEndColor">Color Fin</Label>
+                    <Input
+                      id="bubbleEndColor"
+                      type="color"
+                      value={bubbleEndColor}
+                      onChange={(e) => setBubbleEndColor(e.target.value)}
+                      className="mt-1 h-11 p-1"
+                    />
+                  </div>
+                </div>
               
               <div className="bg-muted/30 p-3 rounded-lg">
                 <p className="text-xs text-muted-foreground">

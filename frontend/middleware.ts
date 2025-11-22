@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // Rutas públicas: permitir acceso sin autenticación
 const PUBLIC_PATHS = [
   '/chat',
+  '/widget-loader.js',
   '/favicon.ico',
   '/404',
   '/500',

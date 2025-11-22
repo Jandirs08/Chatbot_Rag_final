@@ -53,9 +53,9 @@
 - Descripción: Elegir stack (recomendado: Tailwind+Radix) y migrar componentes Chakra/Emotion.
 - Objetivo: Reducir bundle, mejorar accesibilidad y coherencia.
 - Checklist:
-  - [ ] Inventariar componentes Chakra (`frontend/app/components/FloatingChatWidget.tsx:1-53`).
-  - [ ] Reescribir componentes equivalentes en Tailwind+Radix.
-  - [ ] Eliminar dependencias Chakra/Emotion de `package.json`.
+  - [x] Inventariar componentes Chakra (grep global limpio en `frontend/**`).
+  - [x] Reescribir `FloatingChatWidget` en Tailwind (`frontend/app/components/FloatingChatWidget.tsx:1`).
+  - [x] Eliminar dependencias Chakra/Emotion de `package.json` (`frontend/package.json:14-53`).
   - [ ] Revisar estilos globales y tokens.
   - [ ] Validar accesibilidad (focus/aria) en componentes migrados.
 

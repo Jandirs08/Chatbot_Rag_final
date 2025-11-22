@@ -115,10 +115,25 @@ def _get_auth_deps(request: Request) -> AuthDependencies:
     return request.app.state.auth_deps
 
 
+def _extract_token_from_request(request: Request) -> Optional[str]:
+    auth_header = request.headers.get("Authorization")
+    if auth_header and isinstance(auth_header, str):
+        parts = auth_header.split(" ")
+        if len(parts) == 2 and parts[0].lower() == "bearer" and parts[1]:
+            return parts[1]
+
+    cookie_token = request.cookies.get("access_token")
+    if cookie_token:
+        return cookie_token
+
+    return None
+
+
 async def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    request: Request,
     deps: AuthDependencies = Depends(_get_auth_deps),
 ) -> User:
+    token = _extract_token_from_request(request)
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -148,9 +163,10 @@ async def require_admin(
 
 
 async def get_optional_current_user(
-    token: Optional[str] = Depends(oauth2_scheme),
+    request: Request,
     deps: AuthDependencies = Depends(_get_auth_deps),
 ) -> Optional[User]:
+    token = _extract_token_from_request(request)
     if not token:
         return None
 

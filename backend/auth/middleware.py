@@ -7,11 +7,11 @@ import logging
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials
+from .dependencies import _extract_token_from_request
 
 logger = logging.getLogger(__name__)
 
-security = HTTPBearer(auto_error=False)
 
 
 class AuthenticationMiddleware(BaseHTTPMiddleware):
@@ -55,15 +55,14 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
 
         # --- ADMIN protected paths
         if self._is_admin_path(path):
-            credentials = await security.__call__(request)
-            if not credentials:
+            token = _extract_token_from_request(request)
+            if not token:
                 return JSONResponse(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     content={"detail": "Authentication required"},
                 )
 
             try:
-                token = credentials.credentials
                 auth_deps = request.app.state.auth_deps
 
                 bearer = HTTPAuthorizationCredentials(

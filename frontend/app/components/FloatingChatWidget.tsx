@@ -1,53 +1,42 @@
+"use client";
 import React, { useState } from "react";
 import { ChatWindow } from "./ChatWindow";
-import { IconButton, Box } from "@chakra-ui/react";
-import { ChatIcon, CloseIcon } from "@chakra-ui/icons";
+import { Button } from "./ui/button";
+import { MessageCircle, X } from "lucide-react";
 
 export const FloatingChatWidget = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const conversationId = (crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+  const conversationId = crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
 
   return (
-    <Box position="fixed" bottom="20px" right="20px" zIndex={1000}>
+    <div className="fixed bottom-5 right-5 z-50">
       {isOpen ? (
-        <Box
-          width="350px"
-          height="500px"
-          bg="gray.900"
-          borderRadius="md"
-          boxShadow="0 4px 12px rgba(0, 0, 0, 0.5)"
-          overflow="hidden"
-          position="relative"
-          animation="slideInChat 0.3s ease-out forwards"
-        >
-          <Box position="absolute" top="5px" right="5px" zIndex={1}>
-            <IconButton
+        <div className="w-[350px] h-[500px] bg-gray-900 dark:bg-slate-900 rounded-md shadow-xl overflow-hidden relative">
+          <div className="absolute top-2 right-2 z-10">
+            <Button
               aria-label="Cerrar chat"
-              icon={<CloseIcon />}
-              size="sm"
-              colorScheme="red"
               variant="ghost"
+              size="icon"
               onClick={() => setIsOpen(false)}
-            />
-          </Box>
-          <Box height="100%" width="100%">
-            <ChatWindow
-              titleText="Gestor de Becas"
-              conversationId={conversationId}
-            />
-          </Box>
-        </Box>
+              className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="h-full w-full">
+            <ChatWindow titleText="Gestor de Becas" conversationId={conversationId} />
+          </div>
+        </div>
       ) : (
-        <IconButton
+        <Button
           aria-label="Abrir chat"
-          icon={<ChatIcon />}
-          colorScheme="blue"
-          size="lg"
-          borderRadius="full"
-          boxShadow="0 4px 12px rgba(0, 0, 0, 0.3)"
+          size="icon"
           onClick={() => setIsOpen(true)}
-        />
+          className="h-12 w-12 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-md"
+        >
+          <MessageCircle className="h-6 w-6" />
+        </Button>
       )}
-    </Box>
+    </div>
   );
 };
