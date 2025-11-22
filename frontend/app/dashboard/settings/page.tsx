@@ -11,6 +11,7 @@ import {
 } from "@/app/lib/services/botConfigService";
 import { toast } from "sonner";
 import { Button } from "@/app/components/ui/button";
+import { Terminal } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -40,6 +41,7 @@ export default function SettingsPage() {
   const [runtimeOpen, setRuntimeOpen] = useState<boolean>(false);
   const [runtimeData, setRuntimeData] = useState<BotRuntimeDTO | null>(null);
   const [runtimeLoading, setRuntimeLoading] = useState<boolean>(false);
+  const [isBotActive, setIsBotActive] = useState<boolean>(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthorized) {
@@ -47,16 +49,23 @@ export default function SettingsPage() {
     }
   }, [isLoading, isAuthorized, redirectToLogin]);
 
-  // Cargar la configuración SOLO cuando el usuario esté autorizado (admin)
+  // Cargar la configuración y estado del bot SOLO cuando el usuario esté autorizado (admin)
   useEffect(() => {
     const loadConfig = async () => {
       try {
         setLoading(true);
-        const cfg = await getBotConfig();
+        const [cfg, state] = await Promise.all([
+          getBotConfig(),
+          botService.getState().catch((e) => {
+            console.warn("No se pudo obtener estado del bot", e);
+            return { is_active: false, message: "Estado no disponible" };
+          }),
+        ]);
         setPrompt(cfg.system_prompt || "");
         setUiExtra(cfg.ui_prompt_extra || "");
         setBotName(cfg.bot_name || "");
         setTemperature(cfg.temperature ?? 0.7);
+        setIsBotActive(!!state.is_active);
         // Inicializar baselines para habilitar Guardar solo si hay cambios
         setBaselineUiExtra(cfg.ui_prompt_extra || "");
         setBaselineBotName(cfg.bot_name || "");
@@ -130,6 +139,14 @@ export default function SettingsPage() {
     return `${base}${extra}`;
   }, [prompt, uiExtra]);
 
+  const isDirty = useMemo(() => {
+    return (
+      botName !== baselineBotName ||
+      uiExtra !== baselineUiExtra ||
+      temperature !== baselineTemperature
+    );
+  }, [botName, baselineBotName, uiExtra, baselineUiExtra, temperature, baselineTemperature]);
+
   const handleOpenRuntime = async () => {
     try {
       setRuntimeLoading(true);
@@ -149,19 +166,6 @@ export default function SettingsPage() {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <div className="text-sm text-muted-foreground">
-          Ajustes del bot (complemento seguro)
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleOpenRuntime}
-          disabled={runtimeLoading}
-        >
-          {runtimeLoading ? "Cargando..." : "Ver Runtime"}
-        </Button>
-      </div>
       <BotConfiguration
         botName={botName}
         onBotNameChange={setBotName}
@@ -177,10 +181,19 @@ export default function SettingsPage() {
         error={error || undefined}
         previewText={effectivePreview}
         showPreview={true}
-        canSave={
-          botName !== baselineBotName ||
-          uiExtra !== baselineUiExtra ||
-          temperature !== baselineTemperature
+        canSave={isDirty}
+        isBotActive={isBotActive}
+        canReset={isDirty}
+        rightAction={
+          <Button
+            size="sm"
+            onClick={handleOpenRuntime}
+            disabled={runtimeLoading}
+            className="bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-100 hover:text-orange-700"
+          >
+            <Terminal className="w-4 h-4 mr-2" />
+            {runtimeLoading ? "Cargando..." : "Ver Runtime"}
+          </Button>
         }
       />
 
@@ -220,3 +233,4 @@ export default function SettingsPage() {
     </>
   );
 }
+import { botService } from "@/app/lib/services/botService";

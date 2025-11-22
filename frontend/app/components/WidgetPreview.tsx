@@ -154,7 +154,7 @@ function toggleChatbot() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="relative bg-gradient-to-br from-muted/30 to-secondary/10 p-8 rounded-lg min-h-[400px] border border-border/30">
+            <div className="relative bg-gradient-to-br from-muted/30 to-secondary/10 p-8 rounded-lg h-[600px] border border-border/30 flex flex-col justify-center overflow-visible">
               {/* Simulación de una página web */}
               {!isPreviewOpen && (
                 <div className="space-y-4 text-sm text-muted-foreground">
@@ -241,38 +241,66 @@ function toggleChatbot() {
           </CardContent>
         </Card>
 
-        {/* Código del iframe */}
+        {/* Integración: código + pasos */}
         <Card className="border-border/50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Copy className="w-5 h-5 text-primary" />
-              Código para Incrustar
+              Integración
             </CardTitle>
             <CardDescription>
               Copia este código y pégalo en tu sitio web. Los cambios se actualizan automáticamente.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div>
-              <Label htmlFor="iframe-code">Código completo del widget</Label>
-              <div className="relative mt-2">
-                <textarea
-                  id="iframe-code"
-                  value={iframeCode}
-                  className="w-full h-64 p-3 text-sm border border-border rounded-md bg-background font-mono resize-none"
-                  readOnly
-                />
-                <Button
-                  size="sm"
-                  onClick={copyToClipboard}
-                  className="absolute top-2 right-2 gradient-primary hover:opacity-90"
-                >
-                  <Copy className="w-4 h-4" />
-                </Button>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div>
+                <Label htmlFor="iframe-code">Código completo del widget</Label>
+                <div className="relative mt-2">
+                  <textarea
+                    id="iframe-code"
+                    value={iframeCode}
+                    className="w-full h-64 p-3 text-sm border border-border rounded-md bg-background font-mono resize-none dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700"
+                    readOnly
+                  />
+                  <Button
+                    size="sm"
+                    onClick={copyToClipboard}
+                    className="absolute top-2 right-2 gradient-primary hover:opacity-90"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Este código incluye el botón flotante y el iframe del chat. Se actualiza automáticamente cuando cambias la configuración.
+                </p>
               </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                Este código incluye el botón flotante y el iframe del chat. Se actualiza automáticamente cuando cambias la configuración.
-              </p>
+              <div>
+                <h3 className="text-sm font-medium text-foreground mb-3">Lista de Pasos</h3>
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">1</div>
+                    <div>
+                      <div className="text-sm font-medium">Copia el código</div>
+                      <div className="text-xs text-muted-foreground">Usa el botón de copiar del bloque de código</div>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">2</div>
+                    <div>
+                      <div className="text-sm font-medium">Pégalo en tu &lt;body&gt;</div>
+                      <div className="text-xs text-muted-foreground">Inserta el snippet antes de cerrar la etiqueta &lt;/body&gt;</div>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">3</div>
+                    <div>
+                      <div className="text-sm font-medium">¡Listo!</div>
+                      <div className="text-xs text-muted-foreground">Verás un botón flotante que abre el chat</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Configuración básica */}
@@ -356,43 +384,7 @@ function toggleChatbot() {
         </Card>
       </div>
 
-      {/* Instrucciones */}
-      <Card className="border-border/50">
-        <CardHeader>
-          <CardTitle>Instrucciones de Instalación</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="text-center p-4 border border-border/30 rounded-lg">
-              <div className="w-10 h-10 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center mx-auto mb-3">
-                1
-              </div>
-              <h3 className="font-semibold mb-2">Copia el código</h3>
-              <p className="text-sm text-muted-foreground">
-                Haz clic en el botón copiar para obtener el código completo del widget
-              </p>
-            </div>
-            <div className="text-center p-4 border border-border/30 rounded-lg">
-              <div className="w-10 h-10 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center mx-auto mb-3">
-                2
-              </div>
-              <h3 className="font-semibold mb-2">Pega en tu web</h3>
-              <p className="text-sm text-muted-foreground">
-                Inserta el código antes del cierre del tag &lt;/body&gt; en tu HTML
-              </p>
-            </div>
-            <div className="text-center p-4 border border-border/30 rounded-lg">
-              <div className="w-10 h-10 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center mx-auto mb-3">
-                3
-              </div>
-              <h3 className="font-semibold mb-2">¡Listo!</h3>
-              <p className="text-sm text-muted-foreground">
-                El chatbot aparecerá como un botón flotante que abre el chat
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Se eliminaron tarjetas grandes de instrucciones; ahora están dentro de Integración */}
     </div>
   );
 }

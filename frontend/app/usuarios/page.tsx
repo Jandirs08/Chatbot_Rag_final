@@ -238,21 +238,21 @@ export default function UsuariosPage() {
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="text-left border-b">
-                    <th className="py-2">Usuario</th>
-                    <th className="py-2">Email</th>
-                    <th className="py-2">Nombre</th>
-                    <th className="py-2">Activo</th>
-                    <th className="py-2">Rol</th>
-                    <th className="py-2">Acciones</th>
+                    <th className="py-2 text-gray-500 font-medium">Usuario</th>
+                    <th className="py-2 text-gray-500 font-medium">Email</th>
+                    <th className="py-2 text-gray-500 font-medium">Nombre</th>
+                    <th className="py-2 text-gray-500 font-medium">Activo</th>
+                    <th className="py-2 text-gray-500 font-medium">Rol</th>
+                    <th className="py-2 text-gray-500 font-medium">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {users.map(u => (
                     <tr key={u.id} className="border-b">
-                      <td className="py-2">{u.username}</td>
-                      <td className="py-2">{u.email}</td>
-                      <td className="py-2">{u.full_name || "-"}</td>
-                      <td className="py-2">
+                      <td className="py-2 align-middle">{u.username}</td>
+                      <td className="py-2 align-middle">{u.email}</td>
+                      <td className="py-2 align-middle">{u.full_name || "-"}</td>
+                      <td className="py-2 align-middle">
                         <div className="flex items-center gap-2">
                           <Switch
                             checked={u.is_active}
@@ -263,13 +263,13 @@ export default function UsuariosPage() {
                           <span className="text-sm text-muted-foreground">{u.is_active ? "Activo" : "Inactivo"}</span>
                         </div>
                       </td>
-                      <td className="py-2">{u.is_admin ? "Administrador" : "Usuario"}</td>
-                      <td className="py-2">
+                      <td className="py-2 align-middle">{u.is_admin ? "Administrador" : "Usuario"}</td>
+                      <td className="py-2 align-middle">
                         <div className="flex gap-2">
-                          <Button variant="outline" size="sm" onClick={() => openEdit(u)}>Editar</Button>
+                          <Button variant="outline" size="sm" onClick={() => openEdit(u)} className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600">Editar</Button>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <Button variant="destructive" size="sm">Eliminar</Button>
+                              <Button variant="outline" size="sm" className="text-gray-500 hover:text-red-600 hover:bg-red-50 dark:text-slate-400 dark:hover:text-red-500 dark:bg-slate-700 dark:border-slate-600 dark:hover:bg-red-900/20">Eliminar</Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
@@ -298,9 +298,9 @@ export default function UsuariosPage() {
               </table>
               {/* Paginación simple */}
               <div className="flex items-center justify-end gap-2 mt-4">
-                <Button variant="outline" size="sm" disabled={skip===0} onClick={() => setSkip(Math.max(0, skip - limit))}>Anterior</Button>
+                <Button variant="outline" size="sm" disabled={skip===0} onClick={() => setSkip(Math.max(0, skip - limit))} className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600">Anterior</Button>
                 <span className="text-sm">Página {Math.floor(skip/limit)+1} de {Math.max(1, Math.ceil(total/limit))}</span>
-                <Button variant="outline" size="sm" disabled={skip+limit>=total} onClick={() => setSkip(skip + limit)}>Siguiente</Button>
+                <Button variant="outline" size="sm" disabled={skip+limit>=total} onClick={() => setSkip(skip + limit)} className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600">Siguiente</Button>
                 <Select value={String(limit)} onValueChange={(v)=>{ setLimit(Number(v)); setSkip(0); }}>
                   <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -349,7 +349,7 @@ export default function UsuariosPage() {
                   </Select>
                 </div>
             <div className="flex gap-2 justify-end">
-              <Button type="button" variant="secondary" onClick={() => setShowCreate(false)}>Cancelar</Button>
+              <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>Cancelar</Button>
               <Button type="submit">Crear</Button>
             </div>
           </form>
@@ -402,7 +402,7 @@ export default function UsuariosPage() {
                   </div>
                 </div>
             <div className="flex gap-2 justify-end">
-              <Button type="button" variant="secondary" onClick={() => setEditingUser(null)}>Cancelar</Button>
+              <Button type="button" variant="outline" onClick={() => setEditingUser(null)}>Cancelar</Button>
               <Button type="submit">Guardar</Button>
             </div>
           </form>

@@ -1,7 +1,20 @@
-import { MouseEvent } from "react";
+import { MouseEvent, useEffect, useState } from "react";
+import { getBotConfig } from "../lib/services/botConfigService";
 import { MessageCircle, Sparkles, BookOpen, Calendar } from "lucide-react";
 
 export function EmptyState(props: { onSubmit: (question: string) => any }) {
+  const [botName, setBotName] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const cfg = await getBotConfig();
+        setBotName(cfg.bot_name || undefined);
+      } catch {
+        setBotName(undefined);
+      }
+    })();
+  }, []);
   const handleClick = (e: MouseEvent) => {
     const target = e.target as HTMLElement;
     if (target.textContent) {
@@ -51,7 +64,7 @@ export function EmptyState(props: { onSubmit: (question: string) => any }) {
         </div>
         
         <h2 className="text-3xl font-bold bg-gradient-to-r from-[#da5b3e] to-[#c54a33] bg-clip-text text-transparent mb-3">
-          Becas Grupo Romero
+          {botName ?? "Becas Grupo Romero"}
         </h2>
 
       </div>

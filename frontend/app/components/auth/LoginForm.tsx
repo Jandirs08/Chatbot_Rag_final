@@ -73,15 +73,6 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
 
   return (
     <Card className="w-full max-w-md mx-auto">
-      <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl font-bold text-center">
-          Iniciar Sesión
-        </CardTitle>
-        <CardDescription className="text-center">
-          Ingresa tus credenciales para acceder al panel de administración
-        </CardDescription>
-      </CardHeader>
-      
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
           {error && (
@@ -96,12 +87,13 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
               id="email"
               name="email"
               type="email"
-              placeholder="Ingresa tu correo electrónico"
+              placeholder="nombre@empresa.com"
               value={formData.email}
               onChange={handleInputChange}
               disabled={isLoading}
               required
               autoComplete="email"
+              className="h-12 rounded-lg"
             />
           </div>
           
@@ -118,7 +110,7 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
                 disabled={isLoading}
                 required
                 autoComplete="current-password"
-                className="pr-10"
+                className="pr-10 h-12 rounded-lg"
               />
               <Button
                 type="button"
@@ -138,13 +130,16 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
                 </span>
               </Button>
             </div>
+            <div className="flex justify-end">
+              <a href="#" className="text-sm text-orange-600 hover:text-orange-700 font-medium">Olvidé mi contraseña</a>
+            </div>
           </div>
         </CardContent>
         
         <CardFooter className="flex flex-col space-y-4">
           <Button 
             type="submit" 
-            className="w-full" 
+            className="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold shadow-md" 
             disabled={isLoading}
           >
             {isLoading ? (

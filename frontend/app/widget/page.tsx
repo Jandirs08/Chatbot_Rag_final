@@ -1,6 +1,5 @@
 "use client";
 import { Suspense, lazy } from "react";
-import { Layout } from "@/app/components/Layout";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import { useRequireAuth } from "../hooks";
 
@@ -64,10 +63,8 @@ export default function Widget() {
   if (!isAuthorized) return null;
 
   return (
-    <Layout>
-      <Suspense fallback={<WidgetPreviewSkeleton />}>
-        <WidgetPreview />
-      </Suspense>
-    </Layout>
+    <Suspense fallback={<WidgetPreviewSkeleton />}>
+      <WidgetPreview />
+    </Suspense>
   );
 }

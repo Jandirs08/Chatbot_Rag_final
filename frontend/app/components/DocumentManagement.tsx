@@ -358,10 +358,10 @@ export function DocumentManagement() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nombre</TableHead>
-                <TableHead>Fecha</TableHead>
-                <TableHead>Tamaño</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
+                <TableHead className='py-4'>Nombre</TableHead>
+                <TableHead className='py-4'>Fecha</TableHead>
+                <TableHead className='py-4'>Tamaño</TableHead>
+                <TableHead className="text-right py-4">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -369,7 +369,7 @@ export function DocumentManagement() {
                 // Skeletons mientras carga por primera vez
                 Array.from({ length: 3 }).map((_, idx) => (
                   <TableRow key={`skeleton-${idx}`}>
-                    <TableCell>
+                    <TableCell className='py-4'>
                       <div className="flex items-center gap-2">
                         <Skeleton className="h-4 w-4 rounded" />
                         <Skeleton className="h-4 w-40" />
@@ -405,6 +405,7 @@ export function DocumentManagement() {
                           onClick={() => handlePreview(doc.filename)}
                           disabled={isLoadingList || isUploading}
                           title="Preview"
+                          className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600"
                         >
                           <Search className="w-4 h-4" />
                         </Button>
@@ -414,6 +415,7 @@ export function DocumentManagement() {
                           onClick={() => handleDownload(doc.filename)}
                           disabled={isLoadingList || isUploading}
                           title="Download"
+                          className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600"
                         >
                           <Download className="w-4 h-4" />
                         </Button>
@@ -421,7 +423,7 @@ export function DocumentManagement() {
                           variant="outline"
                           size="sm"
                           onClick={() => handleDelete(doc.filename)}
-                          className="text-destructive hover:text-destructive"
+                          className="text-gray-500 hover:text-red-600 hover:bg-red-50 dark:text-slate-400 dark:hover:text-red-500 dark:bg-slate-700 dark:border-slate-600 dark:hover:bg-red-900/20"
                           disabled={isLoadingList || isUploading}
                         >
                           <Trash2 className="w-4 h-4" />

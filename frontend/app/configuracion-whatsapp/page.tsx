@@ -120,26 +120,26 @@ export default function ConfiguracionWhatsAppPage() {
               <Button variant="outline" onClick={() => setFieldsLocked((v) => !v)}>
                 {fieldsLocked ? "Editar" : "Bloquear"}
               </Button>
-              <Button variant="secondary" onClick={onTest}>Test Connection</Button>
+              <Button onClick={onTest}>Test Connection</Button>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="twilio_sid">Twilio Account SID</Label>
-            <Input id="twilio_sid" value={twilioSid} onChange={(e) => { setTwilioSid(e.target.value); setStatus("dirty"); }} placeholder="ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" disabled={fieldsLocked} />
+            <Input id="twilio_sid" className="font-mono bg-gray-50" value={twilioSid} onChange={(e) => { setTwilioSid(e.target.value); setStatus("dirty"); }} placeholder="ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" disabled={fieldsLocked} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="twilio_token">Twilio Auth Token</Label>
-            <Input id="twilio_token" type="password" value={twilioToken} onChange={(e) => { setTwilioToken(e.target.value); setStatus("dirty"); }} placeholder="Auth Token" disabled={fieldsLocked} />
+            <Input id="twilio_token" className="font-mono bg-gray-50" type="password" value={twilioToken} onChange={(e) => { setTwilioToken(e.target.value); setStatus("dirty"); }} placeholder="Auth Token" disabled={fieldsLocked} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="twilio_from">Twilio WhatsApp From</Label>
-            <Input id="twilio_from" value={twilioFrom} onChange={(e) => { setTwilioFrom(e.target.value); setStatus("dirty"); }} placeholder="whatsapp:+123456789" disabled={fieldsLocked} />
+            <Input id="twilio_from" className="font-mono bg-gray-50" value={twilioFrom} onChange={(e) => { setTwilioFrom(e.target.value); setStatus("dirty"); }} placeholder="whatsapp:+123456789" disabled={fieldsLocked} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="wa_webhook">Webhook URL</Label>
-            <Input id="wa_webhook" value={webhookUrl} readOnly />
+            <Input id="wa_webhook" className="font-mono bg-gray-50" value={webhookUrl} readOnly />
           </div>
           <div className="flex gap-3">
             <Button onClick={onSave} disabled={loading || fieldsLocked}>Guardar cambios</Button>
