@@ -27,7 +27,7 @@ export interface AuthContextType extends AuthState {
 // Action types
 type AuthAction =
   | { type: 'AUTH_START' }
-  | { type: 'AUTH_SUCCESS'; payload: { user: User; token: string | null; refreshToken: string | null } }
+  | { type: 'AUTH_SUCCESS'; payload: { user: User | null; token: string | null; refreshToken: string | null } }
   | { type: 'AUTH_FAILURE'; payload: string }
   | { type: 'AUTH_LOGOUT' }
   | { type: 'AUTH_REFRESH_SUCCESS'; payload: { token: string | null; refreshToken: string | null } }
@@ -162,7 +162,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       dispatch({ type: 'AUTH_START' });
       
       const response = await authService.login({ email, password });
-      const user = await authService.getCurrentUser();
+      let user: User | null = null;
+      try {
+        user = await authService.getCurrentUser();
+      } catch (_err) {
+        user = null;
+      }
       
       dispatch({
         type: 'AUTH_SUCCESS',
