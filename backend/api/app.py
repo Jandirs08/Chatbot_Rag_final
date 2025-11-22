@@ -89,11 +89,24 @@ def get_cors_origins_list() -> list:
     if settings.cors_origins_admin:
         all_origins.extend(settings.cors_origins_admin)
     
-    # Eliminar duplicados manteniendo el orden
+    # Normalizar y eliminar duplicados manteniendo el orden
+    def _normalize_origin(val: str) -> str:
+        try:
+            # Intentar extraer sólo esquema+host(+puerto)
+            from urllib.parse import urlparse
+            p = urlparse(val.strip())
+            if p.scheme and p.netloc:
+                return f"{p.scheme}://{p.netloc}"
+        except Exception:
+            pass
+        # Fallback: quitar barras finales y espacios
+        return val.strip().rstrip('/')
+
     unique_origins = []
     for origin in all_origins:
-        if origin not in unique_origins:
-            unique_origins.append(origin)
+        norm = _normalize_origin(origin)
+        if norm and norm not in unique_origins:
+            unique_origins.append(norm)
     
     # Si no hay orígenes configurados, usar default
     if not unique_origins:
@@ -105,7 +118,7 @@ def get_cors_origins_list() -> list:
 
     # En producción, si se configuró CLIENT_ORIGIN_URL, forzar su uso explícito
     if settings.environment == "production" and getattr(settings, "client_origin_url", None):
-        unique_origins = [settings.client_origin_url]
+        unique_origins = [_normalize_origin(settings.client_origin_url)]
     
     # Consolidar logs de CORS para reducir redundancia en consola
     main_logger.info(f"CORS Origins configurados: {unique_origins}")
