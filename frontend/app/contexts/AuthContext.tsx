@@ -1,9 +1,15 @@
-'use client';
+"use client";
 
-import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useReducer,
+  useEffect,
+  ReactNode,
+} from "react";
 import { logger } from "@/app/lib/logger";
-import { authService } from '@/lib/services/authService';
-import type { User } from '@/lib/services/authService';
+import { authService } from "@/lib/services/authService";
+import type { User } from "@/lib/services/authService";
 
 // Types
 
@@ -26,14 +32,24 @@ export interface AuthContextType extends AuthState {
 
 // Action types
 type AuthAction =
-  | { type: 'AUTH_START' }
-  | { type: 'AUTH_SUCCESS'; payload: { user: User | null; token: string | null; refreshToken: string | null } }
-  | { type: 'AUTH_FAILURE'; payload: string }
-  | { type: 'AUTH_LOGOUT' }
-  | { type: 'AUTH_REFRESH_SUCCESS'; payload: { token: string | null; refreshToken: string | null } }
-  | { type: 'SET_USER'; payload: User }
-  | { type: 'CLEAR_ERROR' }
-  | { type: 'SET_LOADING'; payload: boolean };
+  | { type: "AUTH_START" }
+  | {
+      type: "AUTH_SUCCESS";
+      payload: {
+        user: User;
+        token: string | null;
+        refreshToken: string | null;
+      };
+    }
+  | { type: "AUTH_FAILURE"; payload: string }
+  | { type: "AUTH_LOGOUT" }
+  | {
+      type: "AUTH_REFRESH_SUCCESS";
+      payload: { token: string | null; refreshToken: string | null };
+    }
+  | { type: "SET_USER"; payload: User }
+  | { type: "CLEAR_ERROR" }
+  | { type: "SET_LOADING"; payload: boolean };
 
 // Initial state
 const initialState: AuthState = {
@@ -48,14 +64,14 @@ const initialState: AuthState = {
 // Reducer
 function authReducer(state: AuthState, action: AuthAction): AuthState {
   switch (action.type) {
-    case 'AUTH_START':
+    case "AUTH_START":
       return {
         ...state,
         isLoading: true,
         error: null,
       };
 
-    case 'AUTH_SUCCESS':
+    case "AUTH_SUCCESS":
       return {
         ...state,
         user: action.payload.user,
@@ -66,7 +82,7 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
         error: null,
       };
 
-    case 'AUTH_FAILURE':
+    case "AUTH_FAILURE":
       return {
         ...state,
         user: null,
@@ -77,13 +93,13 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
         error: action.payload,
       };
 
-    case 'AUTH_LOGOUT':
+    case "AUTH_LOGOUT":
       return {
         ...initialState,
         isLoading: false,
       };
 
-    case 'AUTH_REFRESH_SUCCESS':
+    case "AUTH_REFRESH_SUCCESS":
       return {
         ...state,
         token: action.payload.token,
@@ -91,19 +107,19 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
         error: null,
       };
 
-    case 'SET_USER':
+    case "SET_USER":
       return {
         ...state,
         user: action.payload,
       };
 
-    case 'CLEAR_ERROR':
+    case "CLEAR_ERROR":
       return {
         ...state,
         error: null,
       };
 
-    case 'SET_LOADING':
+    case "SET_LOADING":
       return {
         ...state,
         isLoading: action.payload,
@@ -134,80 +150,79 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Auto-refresh token before expiration
   useEffect(() => {
     if (state.isAuthenticated) {
-      const refreshInterval = setInterval(() => {
-        refreshAuth();
-      }, 25 * 60 * 1000);
+      const refreshInterval = setInterval(
+        () => {
+          refreshAuth();
+        },
+        25 * 60 * 1000,
+      );
       return () => clearInterval(refreshInterval);
     }
   }, [state.isAuthenticated]);
 
   const checkAuthStatus = async () => {
     try {
-      dispatch({ type: 'SET_LOADING', payload: true });
+      dispatch({ type: "SET_LOADING", payload: true });
       const user = await authService.getCurrentUser();
       dispatch({
-        type: 'AUTH_SUCCESS',
-        payload: { user, token: null, refreshToken: null }
+        type: "AUTH_SUCCESS",
+        payload: { user, token: null, refreshToken: null },
       });
     } catch (error) {
-      logger.error('Auth check failed:', error);
-      dispatch({ type: 'AUTH_LOGOUT' });
+      logger.error("Auth check failed:", error);
+      dispatch({ type: "AUTH_LOGOUT" });
     } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
+      dispatch({ type: "SET_LOADING", payload: false });
     }
   };
 
   const login = async (email: string, password: string) => {
     try {
-      dispatch({ type: 'AUTH_START' });
-      
+      dispatch({ type: "AUTH_START" });
+
       const response = await authService.login({ email, password });
-      let user: User | null = null;
-      try {
-        user = await authService.getCurrentUser();
-      } catch (_err) {
-        user = null;
-      }
-      
+      const user = await authService.getCurrentUser();
+
       dispatch({
-        type: 'AUTH_SUCCESS',
+        type: "AUTH_SUCCESS",
         payload: {
           user,
           token: response.access_token,
-          refreshToken: response.refresh_token
-        }
+          refreshToken: response.refresh_token,
+        },
       });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Login failed';
-      dispatch({ type: 'AUTH_FAILURE', payload: errorMessage });
+      const errorMessage =
+        error instanceof Error ? error.message : "Login failed";
+      dispatch({ type: "AUTH_FAILURE", payload: errorMessage });
       throw error;
     }
   };
 
   const logout = () => {
     authService.logout();
-    dispatch({ type: 'AUTH_LOGOUT' });
+    dispatch({ type: "AUTH_LOGOUT" });
   };
 
   const refreshAuth = async () => {
     try {
       const response = await authService.refreshToken();
       dispatch({
-        type: 'AUTH_REFRESH_SUCCESS',
+        type: "AUTH_REFRESH_SUCCESS",
         payload: {
           token: response.access_token,
           refreshToken: null,
-        }
+        },
       });
     } catch (error) {
-      logger.error('Failed to refresh auth:', error);
-      dispatch({ type: 'AUTH_LOGOUT' });
+      logger.error("Failed to refresh auth:", error);
+      dispatch({ type: "AUTH_LOGOUT" });
       throw error;
     }
   };
 
   const clearError = () => {
-    dispatch({ type: 'CLEAR_ERROR' });
+    dispatch({ type: "CLEAR_ERROR" });
   };
 
   const contextValue: AuthContextType = {
@@ -220,9 +235,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   return (
-    <AuthContext.Provider value={contextValue}>
-      {children}
-    </AuthContext.Provider>
+    <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>
   );
 }
 
@@ -230,7 +243,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 export function useAuthContext(): AuthContextType {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuthContext must be used within an AuthProvider');
+    throw new Error("useAuthContext must be used within an AuthProvider");
   }
   return context;
 }

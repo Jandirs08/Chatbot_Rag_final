@@ -94,6 +94,11 @@ export const authService = {
       console.log("Login exitoso");
       
       TokenManager.setToken(authData.access_token, authData.expires_in);
+      try {
+        const maxAge = Math.max(0, Math.floor(authData.expires_in));
+        const secure = typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : '';
+        document.cookie = `auth_token=${authData.access_token}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
+      } catch (_e) {}
       
       return authData;
     } catch (error) {
@@ -190,6 +195,9 @@ export const authService = {
 
       // Limpiar token local
       TokenManager.clearToken();
+      try {
+        document.cookie = 'auth_token=; Path=/; Max-Age=0; SameSite=Lax';
+      } catch (_e) {}
       console.log("Logout completado");
     } catch (error) {
       console.error("Error en authService.logout:", error);
@@ -228,7 +236,12 @@ export const authService = {
 
       const authData: AuthResponse = await response.json();
       TokenManager.setToken(authData.access_token, authData.expires_in);
-      
+      try {
+        const maxAge = Math.max(0, Math.floor(authData.expires_in));
+        const secure = typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : '';
+        document.cookie = `auth_token=${authData.access_token}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
+      } catch (_e) {}
+
       return authData;
     } catch (error) {
       console.error("Error en authService.refreshToken:", error);
