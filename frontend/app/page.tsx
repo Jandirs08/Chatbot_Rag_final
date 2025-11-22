@@ -9,13 +9,21 @@ import {
 import { Button } from "./components/ui/button";
 import { Switch } from "./components/ui/switch";
 import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "./components/ui/dropdown-menu";
+import {
   Bot,
   FileText,
   Settings,
   TrendingUp,
   Users,
   MessageCircle,
-  FileDown,
+  Download,
   Monitor,
   Upload,
   Clock,
@@ -31,10 +39,11 @@ import { toast } from "sonner";
 export default function Dashboard() {
   // Proteger la ruta sin UI de loading; middleware se encarga del redirect
   const { isAuthorized } = useRequireAuth();
-  
+
   // Declarar hooks SIEMPRE antes de cualquier return para mantener el orden estable
   const [isBotActive, setIsBotActive] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
   const [stats, setStats] = useState({
     total_queries: 0,
     total_users: 0,
@@ -102,14 +111,14 @@ export default function Dashboard() {
       href: "/Documents",
     },
     {
-      title: "Consultas",
+      title: "Mensajes",
       value: stats.total_queries.toString(),
       icon: MessageCircle,
       color: "text-accent",
       href: "/chat",
     },
     {
-      title: "Usuarios Activos",
+      title: "Usuarios únicos",
       value: stats.total_users.toString(),
       icon: Users,
       color: "text-primary",
@@ -138,20 +147,7 @@ export default function Dashboard() {
       href: "/dashboard/settings",
       gradient: "gradient-primary",
     },
-    {
-      title: "Exportar Conversaciones",
-      description: "Descarga todas las conversaciones en Excel",
-      icon: FileDown,
-      onClick: async () => {
-        try {
-          await exportService.exportConversations();
-          toast.success("Conversaciones exportadas exitosamente");
-        } catch (error) {
-          toast.error("Error al exportar conversaciones");
-        }
-      },
-      gradient: "gradient-secondary",
-    },
+    { title: "__EXPORT__", gradient: "gradient-secondary" },
   ];
 
   return (
@@ -159,7 +155,9 @@ export default function Dashboard() {
       {/* Header */}
       <div className="space-y-2">
         <div className="flex items-center gap-4">
-          <h1 className="text-5xl font-bold text-foreground">Panel de Control</h1>
+          <h1 className="text-5xl font-bold text-foreground">
+            Panel de Control
+          </h1>
           <span
             className={`inline-flex items-center gap-2 px-3 py-1 rounded-[20px] text-xs font-semibold ${
               isBotActive
@@ -217,9 +215,7 @@ export default function Dashboard() {
                 }`}
               ></div>
               <div>
-                <p
-                  className={`font-medium text-[#333]`}
-                >
+                <p className={`font-medium text-[#333]`}>
                   {isBotActive ? "Bot Respondiendo" : "Bot Pausado"}
                 </p>
                 <p
@@ -238,9 +234,7 @@ export default function Dashboard() {
                 </p>
               </div>
             </div>
-            <div
-              className={`text-right text-sm text-muted-foreground`}
-            >
+            <div className={`text-right text-sm text-muted-foreground`}>
               <p className="flex items-center justify-end gap-2 text-muted-foreground">
                 <Clock className="w-4 h-4" />
                 <span>Última actividad: Hace 2 min</span>
@@ -254,7 +248,9 @@ export default function Dashboard() {
       {/* Quick Actions */}
       <hr className="my-6 border-t border-border/60" />
       <div className="space-y-4">
-        <h2 className="text-3xl font-semibold text-foreground">Acciones Rápidas</h2>
+        <h2 className="text-3xl font-semibold text-foreground">
+          Acciones Rápidas
+        </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {quickActions.map((action, index) => {
             const content = (
@@ -263,26 +259,110 @@ export default function Dashboard() {
                   <div
                     className={`w-12 h-12 rounded-lg ${action.gradient} flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}
                   >
-                    <action.icon className="w-6 h-6 text-white" />
+                    {action.title === "__EXPORT__" ? (
+                      <Download className="w-6 h-6 text-white" />
+                    ) : (
+                      // @ts-ignore
+                      <action.icon className="w-6 h-6 text-white" />
+                    )}
                   </div>
                   <div>
-                    <CardTitle className="text-xl group-hover:text-primary transition-colors">
-                      {action.title}
-                    </CardTitle>
-                    <CardDescription className="mt-2">
-                      {action.description}
-                    </CardDescription>
+                    {action.title === "__EXPORT__" ? (
+                      <>
+                        <CardTitle className="text-xl group-hover:text-primary transition-colors">
+                          Exportar Conversaciones
+                        </CardTitle>
+                        <CardDescription className="mt-2">
+                          Descarga en Excel, CSV o JSON
+                        </CardDescription>
+                      </>
+                    ) : (
+                      <>
+                        <CardTitle className="text-xl group-hover:text-primary transition-colors">
+                          {action.title}
+                        </CardTitle>
+                        <CardDescription className="mt-2">
+                          {action.description}
+                        </CardDescription>
+                      </>
+                    )}
                   </div>
                 </CardHeader>
               </Card>
             );
 
+            if (action.title === "__EXPORT__") {
+              return (
+                <DropdownMenu key={index}>
+                  <DropdownMenuTrigger asChild>
+                    <div aria-label="Exportar Conversaciones" role="button">
+                      {content}
+                    </div>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel>Exportar</DropdownMenuLabel>
+                    <DropdownMenuItem
+                      onClick={async () => {
+                        try {
+                          setIsExporting(true);
+                          await exportService.exportConversations("xlsx");
+                          toast.success("Exportado Excel");
+                        } catch {
+                          toast.error("Error exportando Excel");
+                        } finally {
+                          setIsExporting(false);
+                        }
+                      }}
+                    >
+                      Excel (.xlsx)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={async () => {
+                        try {
+                          setIsExporting(true);
+                          await exportService.exportConversations("csv");
+                          toast.success("Exportado CSV");
+                        } catch {
+                          toast.error("Error exportando CSV");
+                        } finally {
+                          setIsExporting(false);
+                        }
+                      }}
+                    >
+                      CSV
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={async () => {
+                        try {
+                          setIsExporting(true);
+                          await exportService.exportConversations("json", {
+                            pretty: true,
+                          });
+                          toast.success("Exportado JSON");
+                        } catch {
+                          toast.error("Error exportando JSON");
+                        } finally {
+                          setIsExporting(false);
+                        }
+                      }}
+                    >
+                      JSON
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              );
+            }
             return action.href ? (
               <a key={index} href={action.href} aria-label={action.title}>
                 {content}
               </a>
             ) : (
-              <div key={index} role="button" aria-label={action.title} onClick={action.onClick}>
+              <div
+                key={index}
+                role="button"
+                aria-label={action.title}
+                onClick={action.onClick}
+              >
                 {content}
               </div>
             );
@@ -322,7 +402,6 @@ export default function Dashboard() {
           </a>
         ))}
       </div>
-
     </div>
   );
 }

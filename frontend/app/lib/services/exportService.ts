@@ -2,11 +2,13 @@ import { API_URL } from "../config";
 import { authenticatedFetch } from "./authService";
 
 class ExportService {
-  async exportConversations(): Promise<void> {
+  async exportConversations(format: 'xlsx' | 'csv' | 'json' = 'xlsx', options?: { sep?: 'comma' | 'semicolon' | 'tab', pretty?: boolean }): Promise<void> {
     try {
-      const response = await authenticatedFetch(`${API_URL}/chat/export-conversations`, {
-        method: "GET",
-      });
+      const params = new URLSearchParams();
+      params.set('format', format);
+      if (format === 'csv' && options?.sep) params.set('sep', options.sep);
+      if (format === 'json' && typeof options?.pretty !== 'undefined') params.set('pretty', String(options.pretty));
+      const response = await authenticatedFetch(`${API_URL}/chat/export-conversations?${params.toString()}`, { method: "GET" });
 
       if (!response.ok) {
         throw new Error("Error al exportar conversaciones");
@@ -14,7 +16,7 @@ class ExportService {
 
       // Obtener el nombre del archivo del header Content-Disposition
       const contentDisposition = response.headers.get("Content-Disposition") || response.headers.get("content-disposition");
-      let filename = "conversaciones.xlsx";
+      let filename = format === 'csv' ? 'conversaciones.csv' : format === 'json' ? 'conversaciones.json' : 'conversaciones.xlsx';
       if (contentDisposition) {
         const filenameMatch = contentDisposition.match(/filename="(.+)"/);
         if (filenameMatch) {

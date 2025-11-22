@@ -117,6 +117,24 @@ class RAGRetriever:
         logger.info("RAGRetriever inicializado con optimizaciones y gating robusto.")
 
 
+    def _get_content_type_score(self, chunk_type: str) -> float:
+        try:
+            t = str(chunk_type or "text").lower()
+            mapping = {
+                "header": 1.0,
+                "title": 0.95,
+                "subtitle": 0.9,
+                "paragraph": 0.8,
+                "text": 0.75,
+                "list": 0.7,
+                "bullet": 0.7,
+                "table": 0.6,
+                "code": 0.5,
+            }
+            return float(mapping.get(t, 0.6))
+        except Exception:
+            return 0.6
+
     # ============================================================
     #   VECTOR CLEANER (Patch 3)
     # ============================================================

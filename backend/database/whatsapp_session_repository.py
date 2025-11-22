@@ -68,6 +68,11 @@ class WhatsAppSessionRepository:
         last = doc.get("updated_at")
         now = datetime.now(timezone.utc)
         if isinstance(last, datetime):
+            try:
+                if last.tzinfo is None:
+                    last = last.replace(tzinfo=timezone.utc)
+            except Exception:
+                pass
             delta = (now - last).total_seconds()
             if delta < 60:
                 return
