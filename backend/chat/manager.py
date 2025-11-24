@@ -1,5 +1,5 @@
 """Chat manager for handling conversations with LLMs."""
-from typing import Any, Dict
+from typing import Any, Dict, List
 import logging
 from utils.logging_utils import get_logger
 from cache.manager import cache
@@ -10,6 +10,7 @@ from config import settings
 from database.mongodb import get_mongodb_client
 from common.constants import USER_ROLE, ASSISTANT_ROLE
 from common.objects import Message as BotMessage
+from api.schemas import DebugInfo, RetrievedDocument
 from core.bot import Bot
 
 logger = get_logger(__name__)
@@ -23,7 +24,7 @@ class ChatManager:
 
         logger.warning(f"[MONGO] Cliente B (ChatManager): {id(self.db)}")
 
-    async def generate_response(self, input_text: str, conversation_id: str, source: str | None = None):
+    async def generate_response(self, input_text: str, conversation_id: str, source: str | None = None, debug_mode: bool = False):
         """Genera la respuesta usando el Bot (LCEL maneja el RAG automáticamente)."""
         try:
             if getattr(settings, "enable_rag_lcel", False):
@@ -70,11 +71,37 @@ class ChatManager:
                 except Exception:
                     pass
 
-            # Guardar ambos mensajes en MongoDB
-            await self.db.add_message(conversation_id, USER_ROLE, input_text, source)
-            await self.db.add_message(conversation_id, ASSISTANT_ROLE, response_content, source)
+            if not debug_mode:
+                await self.db.add_message(conversation_id, USER_ROLE, input_text, source)
+                await self.db.add_message(conversation_id, ASSISTANT_ROLE, response_content, source)
 
-            logger.info(f"Respuesta generada y guardada para conversación {conversation_id}")
+            if debug_mode:
+                try:
+                    docs = getattr(self.bot, "_last_retrieved_docs", []) or []
+                    items: List[RetrievedDocument] = []
+                    for d in docs:
+                        meta = getattr(d, "metadata", {}) or {}
+                        items.append(
+                            RetrievedDocument(
+                                text=getattr(d, "page_content", "") or "",
+                                source=meta.get("source"),
+                                score=(meta.get("score") if isinstance(meta.get("score"), (int, float)) else None),
+                            )
+                        )
+                    prompt_str = getattr(self.bot.chain_manager, "prompt_template_str", "") or ""
+                    model_params = getattr(self.bot.chain_manager, "model_kwargs", {}) or {}
+                    self._last_debug_info = DebugInfo(
+                        retrieved_documents=items,
+                        system_prompt_used=str(prompt_str),
+                        model_params=dict(model_params),
+                    )
+                except Exception:
+                    self._last_debug_info = DebugInfo(
+                        retrieved_documents=[],
+                        system_prompt_used="",
+                        model_params={},
+                    )
+            logger.info(f"Respuesta generada{' y guardada' if not debug_mode else ''} para conversación {conversation_id}")
             return response_content
 
         except Exception as e:
@@ -86,10 +113,11 @@ class ChatManager:
         await self.db.close()
         logger.info("MongoDB client cerrado en ChatManager.")
 
-    async def generate_streaming_response(self, input_text: str, conversation_id: str, source: str | None = None):
+    async def generate_streaming_response(self, input_text: str, conversation_id: str, source: str | None = None, debug_mode: bool = False):
         try:
             logger.info(f"[ChatManager] Streaming start conv={conversation_id}")
-            await self.db.add_message(conversation_id, USER_ROLE, input_text, source)
+            if not debug_mode:
+                await self.db.add_message(conversation_id, USER_ROLE, input_text, source)
 
             cache_key = f"resp:{conversation_id}:{hashlib.sha256((input_text or '').strip().encode('utf-8')).hexdigest()}"
             cached_response = None
@@ -101,8 +129,9 @@ class ChatManager:
             if cached_response is not None:
                 final_text = cached_response
                 yield final_text
-                await self.db.add_message(conversation_id, ASSISTANT_ROLE, final_text, source)
-                await self.bot.add_to_memory(human=input_text, ai=final_text, conversation_id=conversation_id)
+                if not debug_mode:
+                    await self.db.add_message(conversation_id, ASSISTANT_ROLE, final_text, source)
+                    await self.bot.add_to_memory(human=input_text, ai=final_text, conversation_id=conversation_id)
                 return
 
             bot_input = {"input": input_text, "conversation_id": conversation_id}
@@ -120,8 +149,9 @@ class ChatManager:
             except asyncio.TimeoutError:
                 raise
             except StopAsyncIteration:
-                await self.db.add_message(conversation_id, ASSISTANT_ROLE, final_text, source)
-                await self.bot.add_to_memory(human=input_text, ai=final_text, conversation_id=conversation_id)
+                if not debug_mode:
+                    await self.db.add_message(conversation_id, ASSISTANT_ROLE, final_text, source)
+                    await self.bot.add_to_memory(human=input_text, ai=final_text, conversation_id=conversation_id)
                 try:
                     cache.set(cache_key, final_text, cache.ttl)
                 except Exception:
@@ -136,13 +166,42 @@ class ChatManager:
                     pass
                 yield chunk
 
-            await self.db.add_message(conversation_id, ASSISTANT_ROLE, final_text, source)
-            await self.bot.add_to_memory(human=input_text, ai=final_text, conversation_id=conversation_id)
+            if not debug_mode:
+                await self.db.add_message(conversation_id, ASSISTANT_ROLE, final_text, source)
+                await self.bot.add_to_memory(human=input_text, ai=final_text, conversation_id=conversation_id)
 
             try:
                 cache.set(cache_key, final_text, cache.ttl)
             except Exception:
                 pass
+            try:
+                if debug_mode:
+                    docs = getattr(self.bot, "_last_retrieved_docs", []) or []
+                    items: List[RetrievedDocument] = []
+                    for d in docs:
+                        meta = getattr(d, "metadata", {}) or {}
+                        items.append(
+                            RetrievedDocument(
+                                text=getattr(d, "page_content", "") or "",
+                                source=meta.get("source"),
+                                score=(meta.get("score") if isinstance(meta.get("score"), (int, float)) else None),
+                            )
+                        )
+                    prompt_str = getattr(self.bot.chain_manager, "prompt_template_str", "") or ""
+                    model_params = getattr(self.bot.chain_manager, "model_kwargs", {}) or {}
+                    self._last_debug_info = DebugInfo(
+                        retrieved_documents=items,
+                        system_prompt_used=str(prompt_str),
+                        model_params=dict(model_params),
+                    )
+                else:
+                    self._last_debug_info = None
+            except Exception:
+                self._last_debug_info = DebugInfo(
+                    retrieved_documents=[],
+                    system_prompt_used="",
+                    model_params={},
+                )
             logger.info(f"[ChatManager] Streaming end conv={conversation_id} total_len={len(final_text)}")
         except Exception as e:
             logger.error(f"Error generando respuesta streaming en ChatManager: {e}", exc_info=True)

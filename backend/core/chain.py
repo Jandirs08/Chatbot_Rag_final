@@ -44,6 +44,7 @@ class ChainManager:
 
         # Modelo
         model_kwargs = self._build_model_kwargs(model_type)
+        self.model_kwargs = dict(model_kwargs)
         self._model = self._get_model(
             model_type=model_type,
             parameters=model_kwargs
@@ -51,6 +52,7 @@ class ChainManager:
 
         # Prompt
         prompt_str = getattr(prompt_module, self.settings.main_prompt_name)
+        self.prompt_template_str = str(prompt_str)
         self._prompt = PromptTemplate.from_template(prompt_str)
         self._prompt = self._prompt.partial(**self.prompt_vars)
 

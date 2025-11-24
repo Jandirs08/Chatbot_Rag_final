@@ -15,7 +15,8 @@ export interface Message {
 export interface UseChatStreamReturn {
   messages: Message[];
   isLoading: boolean;
-  sendMessage: (message: string) => Promise<void>;
+  debugData?: any;
+  sendMessage: (message: string, opts?: { debug?: boolean; body?: Record<string, any> }) => Promise<void>;
   clearMessages: () => void;
 }
 
@@ -25,9 +26,10 @@ export function useChatStream(
 ): UseChatStreamReturn {
   const [messages, setMessages] = useState<Message[]>(initialMessages ?? []);
   const [isLoading, setIsLoading] = useState(false);
+  const [debugData, setDebugData] = useState<any | undefined>(undefined);
 
   const sendMessage = useCallback(
-    async (messageText: string) => {
+    async (messageText: string, opts?: { debug?: boolean; body?: Record<string, any> }) => {
       if (isLoading || !messageText.trim()) {
         return;
       }
@@ -51,6 +53,7 @@ export function useChatStream(
           "@microsoft/fetch-event-source"
         );
 
+        setDebugData(undefined);
         await fetchEventSource(apiBaseUrl + "/chat/", {
           method: "POST",
           headers: {
@@ -64,6 +67,8 @@ export function useChatStream(
             conversation_id: conversationId,
             // Campo opcional para rastrear el origen/embebido
             source: "embed-default",
+            debug_mode: Boolean(opts?.debug),
+            ...(opts?.body || {}),
           }),
           openWhenHidden: true,
           async onopen(response) {
@@ -129,6 +134,13 @@ export function useChatStream(
             if (msg.event === "end") {
               logger.log("Evento end recibido");
               setIsLoading(false);
+            } else if (msg.event === "debug") {
+              try {
+                const dataObj = JSON.parse(msg.data ?? "{}");
+                setDebugData(dataObj);
+              } catch (e) {
+                logger.warn("No se pudo parsear debug data", e);
+              }
             } else if (msg.event === "error") {
               logger.warn("Evento error recibido", msg.data);
               setIsLoading(false);
@@ -174,6 +186,7 @@ export function useChatStream(
   return {
     messages,
     isLoading,
+    debugData,
     sendMessage,
     clearMessages,
   };

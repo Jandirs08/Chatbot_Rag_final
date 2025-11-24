@@ -66,6 +66,7 @@ const nextConfig = {
     } catch {}
 
     const chatCsp = `default-src 'self'; script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}; style-src 'unsafe-inline' 'self'; connect-src 'self' ${apiOrigin}; frame-ancestors *`;
+    const dashCsp = `default-src 'self'; script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}; style-src 'unsafe-inline' 'self'; connect-src 'self' ${apiOrigin}; frame-ancestors 'self'`;
 
     return [
       {
@@ -96,11 +97,7 @@ const nextConfig = {
         source: "/dashboard/:path*",
         headers: [
           { key: "X-Frame-Options", value: "DENY" },
-          {
-            key: "Content-Security-Policy",
-            value:
-              "default-src 'self'; script-src 'self' 'unsafe-inline'; frame-ancestors 'self'",
-          },
+          { key: "Content-Security-Policy", value: dashCsp },
         ],
       },
 

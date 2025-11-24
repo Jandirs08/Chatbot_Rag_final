@@ -73,6 +73,8 @@ class Bot:
         )
 
         # Compone pipeline LCEL completo
+        self._last_retrieved_docs = []
+        self._last_context = ""
         self._build_pipeline()
 
     def reload_chain(self, new_settings: Optional[Settings] = None):
@@ -155,8 +157,10 @@ class Bot:
                 if not docs:
                     return ""
 
+                self._last_retrieved_docs = docs
                 ctx = self.rag_retriever.format_context_from_documents(docs)
-                return ctx or ""
+                self._last_context = ctx or ""
+                return self._last_context
 
             except Exception as e:
                 self.logger.warning(f"Context RAG failed: {e}")

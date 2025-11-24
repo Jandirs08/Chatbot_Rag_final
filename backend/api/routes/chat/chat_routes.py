@@ -49,6 +49,7 @@ async def chat_stream_log(request: Request):
         input_text = chat_input.input
         conversation_id = chat_input.conversation_id or str(uuid.uuid4())
         source = getattr(chat_input, "source", None) or "embed-default"
+        debug_mode = bool(getattr(chat_input, "debug_mode", False))
         
         if not input_text:
             raise HTTPException(status_code=400, detail="El mensaje no puede estar vacío")
@@ -58,7 +59,7 @@ async def chat_stream_log(request: Request):
         async def generate():
             try:
                 logger.info(f"[SSE] Iniciando streaming para conv={conversation_id}")
-                stream_gen = chat_manager.generate_streaming_response(input_text, conversation_id, source)
+                stream_gen = chat_manager.generate_streaming_response(input_text, conversation_id, source, debug_mode)
                 async for chunk in stream_gen:
                     try:
                         payload = json.dumps({"stream": chunk})
@@ -70,6 +71,15 @@ async def chat_stream_log(request: Request):
                         pass
                     yield f"data: {payload}\n\n"
                 logger.info(f"[SSE] Streaming finalizado para conv={conversation_id}")
+                if debug_mode:
+                    try:
+                        dbg = getattr(chat_manager, "_last_debug_info", None)
+                        if dbg is not None:
+                            dct = dbg.model_dump() if hasattr(dbg, "model_dump") else dbg.dict() if hasattr(dbg, "dict") else None
+                            if dct is not None:
+                                yield f"event: debug\ndata: {json.dumps(dct)}\n\n"
+                    except Exception:
+                        pass
                 yield "event: end\ndata: {}\n\n"
             except asyncio.TimeoutError:
                 err_payload = json.dumps({"message": "timeout"})

@@ -15,7 +15,9 @@ from .chat import (
     ChatRequest,
     ChatResponse,
     StreamEventOp,
-    StreamEventData
+    StreamEventData,
+    RetrievedDocument,
+    DebugInfo
 )
 from .rag import (
     RAGStatusPDFDetail,
@@ -45,6 +47,8 @@ __all__ = [
     "ChatResponse",
     "StreamEventOp",
     "StreamEventData",
+    "RetrievedDocument",
+    "DebugInfo",
     
     # RAG
     "RAGStatusPDFDetail",

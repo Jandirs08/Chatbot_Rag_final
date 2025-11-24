@@ -15,6 +15,8 @@ export function ChatWindow(props: {
   titleText?: string;
   conversationId: string;
   initialMessages?: import("../hooks/useChatStream").Message[];
+  forceDebug?: boolean;
+  onDebugData?: (data: any) => void;
 }) {
   const messageContainerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -25,12 +27,14 @@ export function ChatWindow(props: {
     titleText = "An LLM",
     conversationId,
     initialMessages,
+    forceDebug = false,
+    onDebugData,
   } = props;
   const [botName, setBotName] = React.useState<string | undefined>(undefined);
   const [isBotActive, setIsBotActive] = React.useState(true);
 
   // Usar el hook personalizado para manejar el chat
-  const { messages, isLoading, sendMessage, clearMessages } = useChatStream(
+  const { messages, isLoading, debugData, sendMessage, clearMessages } = useChatStream(
     conversationId,
     initialMessages,
   );
@@ -75,6 +79,12 @@ export function ChatWindow(props: {
     })();
   }, []);
 
+  useEffect(() => {
+    if (typeof onDebugData === "function") {
+      onDebugData(debugData);
+    }
+  }, [debugData, onDebugData]);
+
   const handleSendMessage = async (message?: string) => {
     if (messageContainerRef.current) {
       messageContainerRef.current.classList.add("grow");
@@ -88,11 +98,11 @@ export function ChatWindow(props: {
     if (inputRef.current && !isLoading) {
       inputRef.current.focus();
     }
-    await sendMessage(messageValue);
+    await sendMessage(messageValue, { debug: forceDebug });
   };
 
   const sendInitialQuestion = async (question: string) => {
-    await sendMessage(question);
+    await sendMessage(question, { debug: forceDebug });
   };
 
   // Limpieza de conversación eliminada: la sesión se pierde al refrescar pantalla

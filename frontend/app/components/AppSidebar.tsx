@@ -35,7 +35,7 @@ import { useRouter } from "next/navigation";
 import { getBotConfig } from "../lib/services/botConfigService";
 import { logger } from "@/app/lib/logger";
 
-const baseMenuItems = [
+  const baseMenuItems = [
   {
     title: "Home",
     url: "/",
@@ -65,6 +65,11 @@ const baseMenuItems = [
     title: "Ajustes",
     url: "/dashboard/settings",
     icon: Settings,
+  },
+  {
+    title: "Playground",
+    url: "/dashboard/playground",
+    icon: Code,
   },
 ];
 
