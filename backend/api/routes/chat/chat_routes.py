@@ -314,3 +314,79 @@ async def get_stats(request: Request):
     except Exception as e:
         logger.error(f"Error al obtener estadísticas: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error al obtener estadísticas: {str(e)}")
+
+
+@router.get("/stats/history")
+async def get_stats_history(request: Request, days: int = 7):
+    """
+    Estadísticas históricas agrupadas por día.
+
+    - Param: `days` en {7, 30, 90}
+    - Fuente: colección `messages` en MongoDB
+    - Aggregation: `$match` por rango de fechas y `$group` por día usando `$dateToString`
+    - `users_count`: cardinalidad de `conversation_id` por día usando `$addToSet` + `$size`
+    - Rellena días faltantes con 0 para no romper la línea del gráfico
+    """
+    try:
+        allowed = {7, 30, 90}
+        if days not in allowed:
+            days = 7
+
+        chat_manager = request.app.state.chat_manager
+        db = chat_manager.db
+
+        from datetime import datetime, timedelta, timezone, time
+        from zoneinfo import ZoneInfo
+
+        tz = ZoneInfo("America/Lima")
+        now_local = datetime.now(tz)
+        start_local_date = (now_local - timedelta(days=days - 1)).date()
+        end_local_date = now_local.date()
+        start_local = datetime.combine(start_local_date, time.min, tz)
+        end_local = datetime.combine(end_local_date, time.max, tz)
+        start_utc = start_local.astimezone(timezone.utc)
+        end_utc = end_local.astimezone(timezone.utc)
+
+        pipeline = [
+            {"$match": {"timestamp": {"$gte": start_utc, "$lte": end_utc}}},
+            {
+                "$group": {
+                    "_id": {
+                        "$dateToString": {
+                            "format": "%Y-%m-%d",
+                            "date": "$timestamp",
+                            "timezone": "America/Lima",
+                        }
+                    },
+                    "messages_count": {"$sum": 1},
+                    "users_set": {"$addToSet": "$conversation_id"},
+                }
+            },
+            {
+                "$project": {
+                    "_id": 0,
+                    "date": "$_id",
+                    "messages_count": 1,
+                    "users_count": {"$size": "$users_set"},
+                }
+            },
+            {"$sort": {"date": 1}},
+        ]
+
+        cursor = db.messages.aggregate(pipeline)
+        results = await cursor.to_list(length=None)
+
+        by_date = {r["date"]: r for r in results}
+        filled = []
+        for i in range(days):
+            d = (start_local_date + timedelta(days=i)).isoformat()
+            item = by_date.get(d)
+            if item:
+                filled.append(item)
+            else:
+                filled.append({"date": d, "messages_count": 0, "users_count": 0})
+
+        return filled
+    except Exception as e:
+        logger.error(f"Error en stats history: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error al obtener estadísticas históricas: {str(e)}")

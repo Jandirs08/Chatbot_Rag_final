@@ -88,7 +88,7 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
               id="email"
               name="email"
               type="email"
-              placeholder="nombre@empresa.com"
+              placeholder="Ingresa tu email"
               value={formData.email}
               onChange={handleInputChange}
               disabled={isLoading}
@@ -131,17 +131,19 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
                 </span>
               </Button>
             </div>
-            <div className="flex justify-end">
-              <a href="#" className="text-sm text-orange-600 hover:text-orange-700 font-medium">Olvidé mi contraseña</a>
-            </div>
+            {/* hint removed to relocate link above submit */}
           </div>
         </CardContent>
         
         <CardFooter className="flex flex-col space-y-4">
+          <div className="flex justify-end">
+            <a href="/auth/forgot-password" className="text-sm text-orange-600 hover:text-orange-700 font-medium">¿Olvidaste tu contraseña?</a>
+          </div>
           <Button 
             type="submit" 
             className="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold shadow-md" 
             disabled={isLoading}
+            aria-busy={isLoading}
           >
             {isLoading ? (
               <>

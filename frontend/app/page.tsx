@@ -36,6 +36,7 @@ import { botService } from "./lib/services/botService";
 import { exportService } from "./lib/services/exportService";
 import { statsService } from "./lib/services/statsService";
 import { toast } from "sonner";
+import DashboardCharts from "./components/dashboard/DashboardCharts";
 
 export default function Dashboard() {
   // Proteger la ruta sin UI de loading; middleware se encarga del redirect
@@ -273,6 +274,7 @@ export default function Dashboard() {
                 );
               })}
             </div>
+            <DashboardCharts />
           </div>
         </div>
 

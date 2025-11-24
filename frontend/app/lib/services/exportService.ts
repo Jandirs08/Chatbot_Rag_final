@@ -1,5 +1,6 @@
 import { API_URL } from "../config";
 import { authenticatedFetch } from "./authService";
+ 
 
 class ExportService {
   async exportConversations(format: 'xlsx' | 'csv' | 'json' = 'xlsx', options?: { sep?: 'comma' | 'semicolon' | 'tab', pretty?: boolean }): Promise<void> {
@@ -26,6 +27,7 @@ class ExportService {
 
       // Convertir la respuesta a blob y descargar
       const blob = await response.blob();
+      const contentType = response.headers.get('Content-Type') || response.headers.get('content-type') || '';
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -39,6 +41,8 @@ class ExportService {
       throw error;
     }
   }
+
+  
 }
 
 export const exportService = new ExportService();

@@ -47,12 +47,12 @@ const baseMenuItems = [
     icon: MessageCircle,
   },
   {
-    title: "Widget",
+    title: "Web",
     url: "/widget",
     icon: Code,
   },
   {
-    title: "Configuración WhatsApp",
+    title: "WhatsApp",
     url: "/configuracion-whatsapp",
     icon: MessageSquareText,
   },

@@ -185,6 +185,30 @@ class UserRepository:
         except Exception as e:
             logger.error(f"Error updating last login: {e}")
             return False
+
+    async def update_password_by_id(self, user_id: str, hashed_password: str) -> bool:
+        try:
+            users_collection = self.mongodb_client.db[self.collection_name]
+            result = await users_collection.update_one(
+                {"_id": ObjectId(user_id)},
+                {"$set": {"hashed_password": hashed_password, "updated_at": datetime.now(timezone.utc)}}
+            )
+            return result.modified_count > 0
+        except Exception as e:
+            logger.error(f"Error updating password by id: {e}")
+            return False
+
+    async def update_password_by_email(self, email: str, hashed_password: str) -> bool:
+        try:
+            users_collection = self.mongodb_client.db[self.collection_name]
+            result = await users_collection.update_one(
+                {"email": email},
+                {"$set": {"hashed_password": hashed_password, "updated_at": datetime.now(timezone.utc)}}
+            )
+            return result.modified_count > 0
+        except Exception as e:
+            logger.error(f"Error updating password by email: {e}")
+            return False
     
     async def deactivate_user(self, user_id: str) -> bool:
         """Deactivate a user account.

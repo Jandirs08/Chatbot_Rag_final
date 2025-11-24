@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
     jwt_access_token_expire_minutes: int = Field(default=30, env="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
     jwt_refresh_token_expire_days: int = Field(default=7, env="JWT_REFRESH_TOKEN_EXPIRE_DAYS")
+    reset_token_expire_minutes: int = Field(default=15, env="RESET_TOKEN_EXPIRE_MINUTES")
     
     # CORS - Configuraciones de origen cruzado (acepta string o lista para evitar errores de parseo)
     cors_origins: Union[str, List[str]] = Field(default=["*"], env="CORS_ORIGINS")
@@ -132,6 +133,10 @@ class Settings(BaseSettings):
     cache_dir: str = Field(default="./backend/storage/cache", env="CACHE_DIR")
     temp_dir: str = Field(default="./backend/storage/temp", env="TEMP_DIR")
     backup_dir: str = Field(default="./backend/storage/backups", env="BACKUP_DIR")
+
+    resend_api_key: Optional[SecretStr] = Field(default=None, env="RESEND_API_KEY")
+    email_from: Optional[str] = Field(default=None, env="EMAIL_FROM")
+    password_reset_url_base: Optional[str] = Field(default=None, env="PASSWORD_RESET_URL_BASE")
     
     
 

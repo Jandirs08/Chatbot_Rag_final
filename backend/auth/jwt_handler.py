@@ -75,6 +75,18 @@ class JWTHandler:
 
         return jwt.encode(payload, self.secret, algorithm=self.algorithm)
 
+    def create_reset_token(self, data: Dict[str, Any]) -> str:
+        payload = data.copy()
+        now = datetime.now(timezone.utc)
+        minutes = getattr(self.settings, "reset_token_expire_minutes", 15)
+        payload.update({
+            "exp": now + timedelta(minutes=minutes),
+            "iat": now,
+            "type": "reset",
+            "jti": str(uuid4()),
+        })
+        return jwt.encode(payload, self.secret, algorithm=self.algorithm)
+
     # ------ Token Verification ------
 
     def decode(self, token: str) -> Dict[str, Any]:
@@ -133,5 +145,6 @@ def get_jwt_handler() -> JWTHandler:
 
 def create_access_token(data): return get_jwt_handler().create_access_token(data)
 def create_refresh_token(data): return get_jwt_handler().create_refresh_token(data)
+def create_reset_token(data): return get_jwt_handler().create_reset_token(data)
 def verify_token(token, token_type="access"): return get_jwt_handler().verify_token(token, token_type)
 def decode_token(token): return get_jwt_handler().decode(token)

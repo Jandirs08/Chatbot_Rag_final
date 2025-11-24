@@ -107,6 +107,48 @@ export const authService = {
     }
   },
 
+  async requestPasswordReset(email: string): Promise<void> {
+    try {
+      const response = await fetch(`${API_URL}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+        credentials: 'include',
+      });
+      try {
+        await response.json().catch(() => ({}));
+      } catch (_e) {}
+    } catch (error) {
+      console.error('Error en authService.requestPasswordReset:', error);
+      throw error;
+    }
+  },
+
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    try {
+      const response = await fetch(`${API_URL}/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, new_password: newPassword }),
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        let detail = `Error ${response.status}: ${response.statusText}`;
+        try {
+          const err = await response.json();
+          detail = err?.detail || detail;
+        } catch (_e) {}
+        const e = new Error(detail) as Error & { status?: number };
+        e.status = response.status;
+        throw e;
+      }
+    } catch (error) {
+      console.error('Error en authService.resetPassword:', error);
+      throw error;
+    }
+  },
+
   // Registro de usuario (si está habilitado)
   async register(userData: RegisterData): Promise<User> {
     try {

@@ -6,23 +6,27 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response
 from fastapi.security import HTTPAuthorizationCredentials
 
 from models.auth import (
-    LoginRequest, 
-    TokenResponse, 
-    RefreshTokenRequest, 
+    LoginRequest,
+    TokenResponse,
+    RefreshTokenRequest,
     UserProfileResponse,
-    AuthErrorResponse
+    AuthErrorResponse,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
 )
 from models.user import User
 from database.user_repository import UserRepository, get_user_repository
 from auth.jwt_handler import (
-    create_access_token, 
-    create_refresh_token, 
+    create_access_token,
+    create_refresh_token,
+    create_reset_token,
     verify_token,
     TokenExpiredError,
     InvalidTokenError,
-    JWTError
+    JWTError,
 )
-from auth.password_handler import verify_password
+from auth.password_handler import verify_password, hash_password
+from services.email_service import EmailService
 from auth.dependencies import get_current_user, get_current_active_user
 from config import get_settings
 
@@ -346,6 +350,59 @@ async def logout(
     if response is not None:
         response.delete_cookie(key="access_token", path="/")
     return {"message": "Successfully logged out"}
+
+
+@router.post(
+    "/forgot-password",
+    status_code=status.HTTP_200_OK,
+    tags=["Authentication"],
+)
+async def forgot_password(
+    payload: ForgotPasswordRequest,
+    user_repository: UserRepository = Depends(get_user_repository),
+) -> Dict[str, str]:
+    try:
+        user = await user_repository.get_user_by_email(payload.email)
+        if user and user.is_active:
+            token = create_reset_token({"sub": str(user.id)})
+            base = getattr(settings, "password_reset_url_base", None)
+            if not base:
+                origin = getattr(settings, "client_origin_url", None) or "http://localhost:3000"
+                base = f"{origin.rstrip('/')}/auth/reset-password"
+            link = f"{base}?token={token}"
+            svc = EmailService()
+            await svc.send_reset_password(payload.email, link)
+        return {"status": "ok"}
+    except Exception:
+        return {"status": "ok"}
+
+
+@router.post(
+    "/reset-password",
+    status_code=status.HTTP_200_OK,
+    tags=["Authentication"],
+)
+async def reset_password(
+    payload: ResetPasswordRequest,
+    user_repository: UserRepository = Depends(get_user_repository),
+) -> Dict[str, str]:
+    try:
+        data = verify_token(payload.token, token_type="reset")
+        user_id = data.get("sub")
+        if not user_id:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        user = await user_repository.get_user_by_id(user_id)
+        if not user or not user.is_active:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        hp = hash_password(payload.new_password)
+        ok = await user_repository.update_password_by_id(str(user.id), hp)
+        if not ok:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update password")
+        return {"status": "ok"}
+    except TokenExpiredError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
+    except InvalidTokenError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
 
 # Health check endpoint for auth service

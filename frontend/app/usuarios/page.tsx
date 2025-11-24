@@ -2,6 +2,8 @@
 import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../components/ui/dropdown-menu";
+import { MoreHorizontal } from "lucide-react";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { toast } from "sonner";
@@ -12,6 +14,7 @@ import { Skeleton } from "../components/ui/skeleton";
 import { useRequireAdmin } from "../hooks";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "../components/ui/select";
 import { userService, CreateUserData, UserListItem, PaginatedUsersResponse } from "../lib/services/userService";
+import { authService } from "../lib/services/authService";
 
 export default function UsuariosPage() {
   const { isAuthorized } = useRequireAdmin();
@@ -26,6 +29,7 @@ export default function UsuariosPage() {
   const [editForm, setEditForm] = useState<{ email: string; full_name: string; role: string; is_active: boolean; password: string }>({ email: "", full_name: "", role: "admin", is_active: true, password: "" });
   const [editPasswordHints, setEditPasswordHints] = useState({ len: false, upper: false, special: false });
   const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set());
+  const [deleteUser, setDeleteUser] = useState<UserListItem | null>(null);
   // Filtros y paginación
   const [search, setSearch] = useState<string>("");
   const [debouncedSearch, setDebouncedSearch] = useState<string>("");
@@ -265,32 +269,36 @@ export default function UsuariosPage() {
                       </td>
                       <td className="py-2 align-middle">{u.is_admin ? "Administrador" : "Usuario"}</td>
                       <td className="py-2 align-middle">
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="sm" onClick={() => openEdit(u)} className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600">Editar</Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="outline" size="sm" className="text-gray-500 hover:text-red-600 hover:bg-red-50 dark:text-slate-400 dark:hover:text-red-500 dark:bg-slate-700 dark:border-slate-600 dark:hover:bg-red-900/20">Eliminar</Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>¿Eliminar usuario?</AlertDialogTitle>
-                              </AlertDialogHeader>
-                              <p className="text-sm text-muted-foreground">Esta acción no se puede deshacer.</p>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={async () => {
-                                  try {
-                                    await userService.deleteUser(u.id);
-                                    setUsers(prev => prev.filter(x => x.id !== u.id));
-                                    toast.success("Usuario eliminado");
-                                  } catch (err) {
-                                    toast.error("No se pudo eliminar el usuario");
-                                  }
-                                }}>Eliminar</AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" aria-label="Acciones">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEdit(u)}>
+                              📝 Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={async () => {
+                                try {
+                                  await authService.requestPasswordReset(u.email);
+                                  toast.success(`Correo de recuperación enviado a ${u.email}`);
+                                } catch (err) {
+                                  toast.error("No se pudo enviar el correo de recuperación");
+                                }
+                              }}
+                            >
+                              📧 Enviar Reset Password
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-red-600 focus:text-red-600"
+                              onClick={() => setDeleteUser(u)}
+                            >
+                              🗑️ Eliminar
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </td>
                     </tr>
                   ))}
@@ -408,6 +416,30 @@ export default function UsuariosPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteUser} onOpenChange={(open)=> !open && setDeleteUser(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar usuario?</AlertDialogTitle>
+          </AlertDialogHeader>
+          <p className="text-sm text-muted-foreground">Esta acción no se puede deshacer.</p>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={async () => {
+              if (!deleteUser) return;
+              try {
+                await userService.deleteUser(deleteUser.id);
+                setUsers(prev => prev.filter(x => x.id !== deleteUser.id));
+                toast.success("Usuario eliminado");
+              } catch (err) {
+                toast.error("No se pudo eliminar el usuario");
+              } finally {
+                setDeleteUser(null);
+              }
+            }}>Eliminar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

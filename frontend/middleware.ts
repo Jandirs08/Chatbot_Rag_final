@@ -8,16 +8,27 @@ const PUBLIC_PATHS = [
   '/404',
   '/500',
   '/not-found',
+  '/auth/login',
+  '/auth/forgot-password',
+  '/auth/reset-password',
 ];
 
+function normalizePath(pathname: string): string {
+  if (!pathname) return '/';
+  // strip trailing slashes and lowercase for safe compare
+  const p = pathname.replace(/\/+$/, '').toLowerCase();
+  return p || '/';
+}
+
 function isPublicPath(pathname: string): boolean {
+  const path = normalizePath(pathname);
   // Exact matches
-  if (PUBLIC_PATHS.includes(pathname)) return true;
+  if (PUBLIC_PATHS.includes(path)) return true;
   // Permitir todas las rutas de autenticación
-  if (pathname.startsWith('/auth')) return true;
+  if (path.startsWith('/auth')) return true;
   // Permitir archivos y recursos estáticos
-  if (pathname.startsWith('/_next')) return true;
-  if (pathname.startsWith('/public')) return true;
+  if (path.startsWith('/_next')) return true;
+  if (path.startsWith('/public')) return true;
   return false;
 }
 

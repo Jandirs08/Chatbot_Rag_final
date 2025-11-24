@@ -21,6 +21,8 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         "/api/v1/health",
         "/api/v1/auth/login",
         "/api/v1/auth/refresh",
+        "/api/v1/auth/forgot-password",
+        "/api/v1/auth/reset-password",
         "/api/v1/chat",           # POST chat (SSE / mensajes)
         "/api/v1/whatsapp/webhook",
         "/docs",
