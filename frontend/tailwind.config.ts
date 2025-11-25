@@ -64,6 +64,15 @@ const config: Config = {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")], // <--- Añade este plugin si usas animaciones de tailwindcss-animate
+  plugins: [
+    require("tailwindcss-animate"),
+    (() => {
+      try {
+        return require("@tailwindcss/typography");
+      } catch (_e) {
+        return () => {};
+      }
+    })()
+  ],
 };
 export default config;

@@ -1,4 +1,5 @@
 import React from "react";
+import MarkdownRenderer from "./ui/markdown-renderer";
 
 export type Message = {
   id: string;
@@ -49,9 +50,7 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble(props: {
               </div>
             )}
           </div>
-          <p className="whitespace-pre-wrap leading-relaxed text-sm sm:text-base">
-            {content}
-          </p>
+          <MarkdownRenderer content={content} />
         </div>
       )}
     </div>

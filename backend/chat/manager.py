@@ -13,6 +13,7 @@ from common.constants import USER_ROLE, ASSISTANT_ROLE
 from common.objects import Message as BotMessage
 from api.schemas import DebugInfo, RetrievedDocument
 from core.bot import Bot
+from models.model_types import ModelTypes, MODEL_TO_CLASS
 
 logger = get_logger(__name__)
 
@@ -160,16 +161,52 @@ class ChatManager:
 
     async def _verify_response(self, query, context, response) -> dict:
         try:
-            llm = getattr(self.bot.chain_manager, "_model", None)
-            if llm is None:
+            current_llm = getattr(self.bot.chain_manager, "_model", None)
+            if current_llm is None:
                 return {"is_grounded": False, "reason": "Modelo no disponible"}
+
+            try:
+                mt = ModelTypes[getattr(settings, "model_type", "OPENAI").upper()]
+            except Exception:
+                mt = ModelTypes.OPENAI
+
+            verifier_kwargs: Dict[str, Any] = {"temperature": 0.0}
+            if mt == ModelTypes.OPENAI:
+                verifier_kwargs.update({
+                    "model_name": getattr(settings, "base_model_name", "gpt-3.5-turbo"),
+                    "max_tokens": getattr(settings, "max_tokens", 2000),
+                })
+            elif mt == ModelTypes.VERTEX:
+                verifier_kwargs.update({
+                    "model_name": getattr(settings, "base_model_name", "chat-bison"),
+                    "max_output_tokens": getattr(settings, "max_tokens", 2000),
+                    "top_p": 0.8,
+                    "top_k": 40,
+                })
+            else:
+                verifier_kwargs.update({
+                    "max_tokens": getattr(settings, "max_tokens", 2000),
+                })
+
+            try:
+                model_cls = MODEL_TO_CLASS[mt.value]
+                llm = model_cls(**verifier_kwargs)
+            except Exception:
+                llm = current_llm
+
             prompt = (
-                "Evalúa si la RESPUESTA se basa ÚNICAMENTE en el CONTEXTO. "
-                "Responde JSON: { 'is_grounded': bool, 'reason': str }\n\n"
+                "Eres un Auditor de Hechos (Fact-Checker) estricto. Tu única misión es validar si la RESPUESTA del asistente se basa EXCLUSIVAMENTE en el CONTEXTO provisto.\n\n"
+                "REGLAS DE AUDITORÍA:\n"
+                "1. Datos Duros: Si la respuesta contiene números, precios, fechas, nombres propios o códigos que NO aparecen textualmente en el contexto: ES ALUCINACIÓN (False).\n"
+                "2. Invención de Información: Si la respuesta afirma características, políticas o instrucciones que no existen en el contexto: ES ALUCINACIÓN (False).\n"
+                "3. Conocimiento Externo: Si la respuesta usa información general (que GPT sabe por entrenamiento) pero que no está en el documento (ej: 'El cielo es azul'): ES ALUCINACIÓN (False). Solo vale lo que está en el PDF.\n"
+                "4. Excepción Social: Ignora saludos ('Hola'), despedidas o frases de cortesía ('Estoy para ayudarte'). Eso NO es alucinación.\n\n"
+                "Analiza paso a paso y responde SOLO en formato JSON: { 'is_grounded': bool, 'reason': 'Explica brevemente qué dato específico no se encontró en el contexto' }\n\n"
                 f"CONSULTA:\n{str(query)}\n\n"
                 f"CONTEXTO:\n{str(context)}\n\n"
                 f"RESPUESTA:\n{str(response)}\n"
             )
+
             res = await llm.ainvoke(prompt)
             txt = getattr(res, "content", None)
             if not isinstance(txt, str):
@@ -182,9 +219,17 @@ class ChatManager:
                 return {"is_grounded": isg, "reason": rsn}
             except Exception:
                 cleaned = txt.strip().strip("`")
-                low = cleaned.lower()
-                grounded = ("true" in low) and ("false" not in low)
-                return {"is_grounded": grounded, "reason": cleaned[:400]}
+                try:
+                    fixed = cleaned.replace("'", '"')
+                    fixed = fixed.replace("True", "true").replace("False", "false")
+                    obj = json.loads(fixed)
+                    isg = bool(obj.get("is_grounded"))
+                    rsn = str(obj.get("reason") or "")
+                    return {"is_grounded": isg, "reason": rsn}
+                except Exception:
+                    low = cleaned.lower()
+                    grounded = ("true" in low) and ("false" not in low)
+                    return {"is_grounded": grounded, "reason": cleaned[:400]}
         except Exception:
             return {"is_grounded": False, "reason": "Error verificando respuesta"}
 

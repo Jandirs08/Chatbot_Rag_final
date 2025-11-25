@@ -115,6 +115,10 @@ class RAGRetriever:
             self._gating_threshold = 0.45
 
         logger.info("RAGRetriever inicializado con optimizaciones y gating robusto.")
+        try:
+            logger.info(f"Umbral de gating (RAG_GATING_SIMILARITY_THRESHOLD)={self._gating_threshold}")
+        except Exception:
+            pass
 
 
     def _get_content_type_score(self, chunk_type: str) -> float:
