@@ -5,11 +5,14 @@ import { ChatWindow } from "@/app/components/ChatWindow";
 import { DebugInspector } from "@/app/components/DebugInspector";
 import type { Message as HookMessage } from "@/app/hooks/useChatStream";
 import { apiBaseUrl } from "@/app/utils/constants";
+import { Switch } from "@/app/components/ui/switch";
+import { Badge } from "@/app/components/ui/badge";
 
 export default function PlaygroundPage() {
   const [conversationId, setConversationId] = React.useState<string | null>(null);
   const [initialMessages, setInitialMessages] = React.useState<HookMessage[] | null>(null);
   const [debugData, setDebugData] = React.useState<any | null>(null);
+  const [enableVerification, setEnableVerification] = React.useState<boolean>(false);
 
   React.useEffect(() => {
     try {
@@ -61,19 +64,27 @@ export default function PlaygroundPage() {
   }, [conversationId]);
 
   return (
-    <div className="h-screen w-screen grid grid-cols-[2fr_3fr]">
-      <div className="border-r border-slate-200 dark:border-slate-800">
+    <div className="flex flex-col lg:flex-row h-[calc(100vh-4rem)] w-full overflow-hidden">
+      <div className="h-[60%] lg:h-full lg:basis-2/5 flex flex-col overflow-hidden border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-slate-800">
+        <div className="flex items-center justify-between bg-card border rounded-lg p-3 mb-4 shadow-sm">
+          <div className="text-sm font-semibold">🛡️ Modo Auditoría IA</div>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-[10px]">Detecta alucinaciones</Badge>
+            <Switch checked={enableVerification} onCheckedChange={(v)=> setEnableVerification(Boolean(v))} />
+          </div>
+        </div>
         {conversationId && (
           <ChatWindow
             titleText="Playground"
             conversationId={conversationId}
             initialMessages={initialMessages || undefined}
             forceDebug
+            enableVerification={enableVerification}
             onDebugData={(d) => setDebugData(d)}
           />
         )}
       </div>
-      <div>
+      <div className="h-[40%] lg:h-full lg:basis-3/5 min-h-0 flex flex-col overflow-hidden">
         <DebugInspector data={debugData} />
       </div>
     </div>

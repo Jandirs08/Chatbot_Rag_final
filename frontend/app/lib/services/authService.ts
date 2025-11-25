@@ -50,6 +50,22 @@ class TokenManager {
     if (this.token && this.expiryTime && Date.now() < this.expiryTime) {
       return this.token;
     }
+    try {
+      const all = typeof document !== 'undefined' ? document.cookie : '';
+      if (all) {
+        const parts = all.split(';').map((p) => p.trim());
+        const kv = (name: string) => {
+          const found = parts.find((p) => p.startsWith(name + '='));
+          return found ? decodeURIComponent(found.split('=')[1]) : '';
+        };
+        const cookieToken = kv('auth_token') || kv('access_token') || kv('session_id');
+        if (cookieToken) {
+          this.token = cookieToken;
+          this.expiryTime = null;
+          return cookieToken;
+        }
+      }
+    } catch {}
     return null;
   }
 

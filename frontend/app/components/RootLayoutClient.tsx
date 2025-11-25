@@ -39,13 +39,13 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
 
       <div className="flex-1 h-full flex flex-col overflow-hidden">
         {shouldShowSidebar && (
-          <div className="ml-2 mt-5">
+          <div className="shrink-0 h-14 flex items-center px-3 border-b border-slate-200 dark:border-slate-800">
             <SidebarTrigger />
           </div>
         )}
 
         <main
-          className={`flex-1 h-full overflow-y-auto ${
+          className={`flex-1 h-full overflow-hidden ${
             shouldShowSidebar ? "p-4" : "p-0"
           } text-gray-900 dark:text-white`}
         >

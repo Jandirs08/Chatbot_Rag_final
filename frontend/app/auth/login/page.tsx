@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import { LoginForm } from "../../components/auth/LoginForm";
 import { Bot } from "lucide-react";
+import Image from "next/image";
 
 export const metadata: Metadata = {
   title: "Iniciar Sesión",
@@ -28,10 +29,13 @@ export default function LoginPage() {
       </div>
 
       <div className="hidden lg:flex lg:w-1/2 relative">
-        <img
+        <Image
           src="https://images.unsplash.com/photo-1639322537228-f710d846310a?q=80&w=2632&auto=format&fit=crop"
           alt="Background"
-          className="absolute inset-0 h-full w-full object-cover"
+          fill
+          priority
+          className="object-cover"
+          sizes="(min-width: 1024px) 50vw, 100vw"
         />
         <div className="absolute inset-0 bg-slate-900/80" />
         <div className="relative z-10 flex items-center justify-center w-full p-12">

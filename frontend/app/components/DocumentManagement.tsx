@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -23,6 +23,7 @@ import { ragService } from "@/app/lib/services/ragService";
 import { Progress } from "@/app/components/ui/progress";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/app/components/ui/dialog";
+import PdfViewerModal from "@/app/components/modals/PdfViewerModal";
 import { Toaster } from "@/app/components/ui/toaster";
 
 interface PDFDocument {
@@ -56,7 +57,7 @@ export function DocumentManagement() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  const loadDocuments = async () => {
+  const loadDocuments = useCallback(async () => {
     try {
       setIsLoadingList(true);
       const response = await PDFService.listPDFs();
@@ -70,11 +71,11 @@ export function DocumentManagement() {
     } finally {
       setIsLoadingList(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     loadDocuments();
-  }, []);
+  }, [loadDocuments]);
 
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -170,7 +171,7 @@ export function DocumentManagement() {
       setPreviewFilename(null);
       setPreviewError(null);
     }
-  }, [isPreviewOpen]);
+  }, [isPreviewOpen, previewUrl]);
 
   const handleDownload = async (filename: string) => {
     try {
@@ -438,36 +439,7 @@ export function DocumentManagement() {
         </CardContent>
       </Card>
       {/* Modal de Preview */}
-      <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-        <DialogContent className="w-[95vw] max-w-5xl h-[85vh] p-0">
-          <DialogHeader className="px-6 pt-6">
-            <DialogTitle className="text-lg">Preview: {previewFilename}</DialogTitle>
-            <DialogDescription>
-              Previsualización del documento PDF seleccionado para revisión.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="px-6 pb-6 h-[calc(85vh-4rem)]">
-            {previewLoading ? (
-              <div className="flex items-center justify-center h-full">
-                <Skeleton className="w-48 h-6" />
-              </div>
-            ) : previewError ? (
-              <div className="flex items-center justify-center h-full text-destructive">
-                {previewError}
-              </div>
-            ) : previewUrl ? (
-              <iframe
-                src={previewUrl}
-                className="w-full h-full border rounded-md"
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <Skeleton className="w-48 h-6" />
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <PdfViewerModal isOpen={isPreviewOpen} onClose={setIsPreviewOpen} pdfUrl={previewUrl} initialPage={null} />
 
       {/* Modal Limpiar RAG */}
       <Dialog open={isClearOpen} onOpenChange={setIsClearOpen}>

@@ -320,6 +320,7 @@ class RAGRetriever:
                     "chunk_type": meta.get("chunk_type"),
                     "word_count": int(meta.get("word_count", 0)),
                     "preview": preview,
+                    "page_number": (int(meta.get("page_number")) if isinstance(meta.get("page_number"), (int, float)) else None),
                 })
 
             return {

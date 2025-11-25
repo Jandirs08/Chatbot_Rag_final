@@ -16,6 +16,7 @@ export function ChatWindow(props: {
   conversationId: string;
   initialMessages?: import("../hooks/useChatStream").Message[];
   forceDebug?: boolean;
+  enableVerification?: boolean;
   onDebugData?: (data: any) => void;
 }) {
   const messageContainerRef = useRef<HTMLDivElement | null>(null);
@@ -28,6 +29,7 @@ export function ChatWindow(props: {
     conversationId,
     initialMessages,
     forceDebug = false,
+    enableVerification = false,
     onDebugData,
   } = props;
   const [botName, setBotName] = React.useState<string | undefined>(undefined);
@@ -98,11 +100,11 @@ export function ChatWindow(props: {
     if (inputRef.current && !isLoading) {
       inputRef.current.focus();
     }
-    await sendMessage(messageValue, { debug: forceDebug });
+    await sendMessage(messageValue, { debug: forceDebug, body: { enable_verification: enableVerification } });
   };
 
   const sendInitialQuestion = async (question: string) => {
-    await sendMessage(question, { debug: forceDebug });
+    await sendMessage(question, { debug: forceDebug, body: { enable_verification: enableVerification } });
   };
 
   // Limpieza de conversación eliminada: la sesión se pierde al refrescar pantalla

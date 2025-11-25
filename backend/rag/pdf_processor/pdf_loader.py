@@ -125,12 +125,30 @@ class PDFContentLoader:
         """Asigna metadatos sin descartar contenido bueno."""
         final_chunks = []
 
-        for chunk in chunks:
+        for idx, chunk in enumerate(chunks):
             content = chunk.page_content.strip()
             if not content:
                 continue  # solo descarta si realmente está vacío
 
             quality_score = self._calculate_chunk_quality(content)
+            page_idx = None
+            try:
+                raw_page = chunk.metadata.get("page")
+                if isinstance(raw_page, (int, float)):
+                    page_idx = int(raw_page)
+                elif isinstance(raw_page, str) and raw_page.isdigit():
+                    page_idx = int(raw_page)
+            except Exception:
+                page_idx = None
+
+            try:
+                preview_text = content[:50]
+                human_page = (page_idx + 1) if page_idx is not None else None
+                logger.info(f"[PDF-DEBUG] Chunk {idx} | Page RawIdx: {page_idx} -> Human: {human_page} | Text: \"{preview_text}\"")
+                if human_page is None:
+                    logger.warning(f"[ALERTA] Chunk sin número de página detectado en {pdf_path.name}")
+            except Exception:
+                pass
 
             chunk.metadata.update({
                 "source": pdf_path.name,
@@ -140,6 +158,7 @@ class PDFContentLoader:
                 "quality_score": quality_score,
                 "word_count": len(content.split()),
                 "char_count": len(content),
+                "page_number": ((page_idx + 1) if page_idx is not None else None),
             })
 
             final_chunks.append(chunk)

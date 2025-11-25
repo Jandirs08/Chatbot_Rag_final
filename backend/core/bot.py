@@ -1,4 +1,5 @@
 from typing import Optional, Dict, Any, AsyncGenerator
+import time
 from operator import itemgetter
 
 from langchain_core.runnables import RunnableLambda, RunnableMap, Runnable
@@ -75,6 +76,7 @@ class Bot:
         # Compone pipeline LCEL completo
         self._last_retrieved_docs = []
         self._last_context = ""
+        self._last_rag_time = None
         self._build_pipeline()
 
     def reload_chain(self, new_settings: Optional[Settings] = None):
@@ -134,6 +136,7 @@ class Bot:
         async def get_context_async(x):
             """Inyecta contexto RAG SOLO si está habilitado."""
             try:
+                t_start = time.perf_counter()
                 query = x.get("input", "")
                 if not isinstance(query, str):
                     query = str(query)
@@ -155,15 +158,21 @@ class Bot:
                     k=self.settings.retrieval_k
                 )
                 if not docs:
+                    self._last_rag_time = time.perf_counter() - t_start
                     return ""
 
                 self._last_retrieved_docs = docs
                 ctx = self.rag_retriever.format_context_from_documents(docs)
                 self._last_context = ctx or ""
+                self._last_rag_time = time.perf_counter() - t_start
                 return self._last_context
 
             except Exception as e:
                 self.logger.warning(f"Context RAG failed: {e}")
+                try:
+                    self._last_rag_time = time.perf_counter() - t_start
+                except Exception:
+                    self._last_rag_time = None
                 return ""
 
         # LCEL pipeline

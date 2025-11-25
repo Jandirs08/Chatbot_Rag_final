@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     cors_origins_admin: Union[str, List[str]] = Field(default=[], env="CORS_ORIGINS_ADMIN")
     # Origen del cliente (Frontend en Vercel)
     client_origin_url: Optional[str] = Field(default=None, env="CLIENT_ORIGIN_URL")
+    frontend_url: Optional[str] = Field(default=None, env="FRONTEND_URL")
     cors_max_age: int = Field(default=3600, env="CORS_MAX_AGE")
     
     

@@ -22,6 +22,7 @@ import sys
 import getpass
 from datetime import datetime, timezone
 from typing import Optional
+from pathlib import Path
 
 try:
     # Intentar usar el hash del backend para máxima compatibilidad
@@ -40,6 +41,17 @@ try:
 except Exception:
     print("[ERROR] Falta 'pymongo'. Instala con: pip install pymongo")
     raise
+
+try:
+    from dotenv import load_dotenv
+    try:
+        _env_path = Path(__file__).resolve().parents[2] / "backend" / ".env"
+        if _env_path.exists():
+            load_dotenv(_env_path)
+    except Exception:
+        pass
+except Exception:
+    pass
 
 
 def hash_password(password: str) -> str:
@@ -122,11 +134,21 @@ def prompt_email() -> str:
 
 def prompt_password() -> str:
     while True:
-        pwd = getpass.getpass("Contraseña del admin: ")
+        try:
+            pwd = getpass.getpass("Contraseña del admin (no se mostrará): ")
+        except Exception as e:
+            print(f"[WARN] Entrada oculta no soportada en esta terminal: {e}")
+            pwd = input("Contraseña del admin (se mostrará): ")
+
         if not password_policy_ok(pwd):
             print("La contraseña no cumple la política: mínimo 8, una mayúscula y un caracter especial.")
             continue
-        confirm = getpass.getpass("Confirmar contraseña: ")
+
+        try:
+            confirm = getpass.getpass("Confirmar contraseña (no se mostrará): ")
+        except Exception:
+            confirm = input("Confirmar contraseña (se mostrará): ")
+
         if pwd != confirm:
             print("Las contraseñas no coinciden. Intenta nuevamente.")
             continue
@@ -150,11 +172,23 @@ def main():
 
     # Prompts interactivos
     email = prompt_email()
+    print(f"[INFO] Email ingresado: {email}")
     full_name = input("Nombre completo (opcional): ").strip() or None
+    print(f"[INFO] Nombre ingresado: {full_name or '(no especificado)'}")
     password = prompt_password()
+    print("[INFO] Contraseña capturada correctamente.")
 
-    # Conectar a MongoDB
-    client = MongoClient(mongo_uri)
+    try:
+        print("[INFO] Conectando a MongoDB...")
+        client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
+        try:
+            client.admin.command('ping')
+            print("[INFO] Conexión a MongoDB verificada.")
+        except Exception as e:
+            print(f"[WARN] Ping a MongoDB falló: {e}")
+    except Exception as e:
+        print(f"[ERROR] No se pudo conectar a MongoDB: {e}")
+        sys.exit(1)
     db_name = resolve_db(client, mongo_uri, mongo_db_env)
     db = client[db_name]
     users = db["users"]

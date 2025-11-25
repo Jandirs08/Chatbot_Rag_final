@@ -50,6 +50,7 @@ async def chat_stream_log(request: Request):
         conversation_id = chat_input.conversation_id or str(uuid.uuid4())
         source = getattr(chat_input, "source", None) or "embed-default"
         debug_mode = bool(getattr(chat_input, "debug_mode", False))
+        enable_verification = bool(getattr(chat_input, "enable_verification", False))
         
         if not input_text:
             raise HTTPException(status_code=400, detail="El mensaje no puede estar vacío")
@@ -59,7 +60,7 @@ async def chat_stream_log(request: Request):
         async def generate():
             try:
                 logger.info(f"[SSE] Iniciando streaming para conv={conversation_id}")
-                stream_gen = chat_manager.generate_streaming_response(input_text, conversation_id, source, debug_mode)
+                stream_gen = chat_manager.generate_streaming_response(input_text, conversation_id, source, debug_mode, enable_verification)
                 async for chunk in stream_gen:
                     try:
                         payload = json.dumps({"stream": chunk})

@@ -45,6 +45,7 @@ class RetrieveDebugItem(BaseModel):
     chunk_type: str | None = None
     word_count: int | None = None
     preview: str
+    page_number: int | None = None
 
 
 class RetrieveDebugResponse(BaseModel):

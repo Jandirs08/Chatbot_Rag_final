@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -52,7 +52,7 @@ export function WidgetPreview() {
     });
   };
 
-  const updateIframeCode = () => {
+  const updateIframeCode = useCallback(() => {
     const baseUrl = getBaseUrl();
     const hostUrl = typeof window !== 'undefined'
       ? `${window.location.protocol}//${window.location.host}`
@@ -69,12 +69,12 @@ export function WidgetPreview() {
 ></script>`;
     
     setIframeCode(code);
-  };
+  }, [bubbleEndColor, bubbleStartColor, height, position, width]);
 
   // Actualizar código automáticamente cuando cambien los parámetros
   useEffect(() => {
     updateIframeCode();
-  }, [width, height, position, theme, bubbleStartColor, bubbleEndColor]);
+  }, [updateIframeCode]);
 
   const handleWidthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setWidth(e.target.value);

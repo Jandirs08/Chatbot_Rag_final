@@ -367,7 +367,11 @@ async def forgot_password(
             token = create_reset_token({"sub": str(user.id)})
             base = getattr(settings, "password_reset_url_base", None)
             if not base:
-                origin = getattr(settings, "client_origin_url", None) or "http://localhost:3000"
+                origin = (
+                    getattr(settings, "client_origin_url", None)
+                    or getattr(settings, "frontend_url", None)
+                    or "http://localhost:3000"
+                )
                 base = f"{origin.rstrip('/')}/auth/reset-password"
             link = f"{base}?token={token}"
             svc = EmailService()
