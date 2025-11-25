@@ -98,6 +98,19 @@ class ChatManager:
                     hist = await self.bot.memory.get_history(conversation_id)
                     formatted_hist = self.bot._format_history(hist)
                     ctx = getattr(self.bot, "_last_context", "") or ""
+                    try:
+                        pv = getattr(self.bot.chain_manager, "prompt_vars", {}) or {}
+                        nombre = pv.get("nombre")
+                        personality = pv.get("bot_personality")
+                        hydrated = str(prompt_str).format(
+                            nombre=str(nombre or ""),
+                            bot_personality=str(personality or ""),
+                            context=str(ctx or ""),
+                            history=str(formatted_hist or ""),
+                            input=str(input_text or ""),
+                        )
+                    except Exception as _e:
+                        hydrated = str(prompt_str)
                     def _estimate_tokens(text: str) -> int:
                         try:
                             import tiktoken
@@ -120,7 +133,7 @@ class ChatManager:
                         llm_time = None
                     self._last_debug_info = DebugInfo(
                         retrieved_documents=items,
-                        system_prompt_used=str(prompt_str),
+                        system_prompt_used=str(hydrated),
                         model_params=dict(model_params),
                         rag_time=rag_time,
                         llm_time=llm_time,
@@ -257,6 +270,19 @@ class ChatManager:
                     hist = await self.bot.memory.get_history(conversation_id)
                     formatted_hist = self.bot._format_history(hist)
                     ctx = getattr(self.bot, "_last_context", "") or ""
+                    try:
+                        pv = getattr(self.bot.chain_manager, "prompt_vars", {}) or {}
+                        nombre = pv.get("nombre")
+                        personality = pv.get("bot_personality")
+                        hydrated = str(prompt_str).format(
+                            nombre=str(nombre or ""),
+                            bot_personality=str(personality or ""),
+                            context=str(ctx or ""),
+                            history=str(formatted_hist or ""),
+                            input=str(input_text or ""),
+                        )
+                    except Exception as _e:
+                        hydrated = str(prompt_str)
                     def _estimate_tokens(text: str) -> int:
                         try:
                             import tiktoken
@@ -282,7 +308,7 @@ class ChatManager:
                         verification = None
                     self._last_debug_info = DebugInfo(
                         retrieved_documents=items,
-                        system_prompt_used=str(prompt_str),
+                        system_prompt_used=str(hydrated),
                         model_params=dict(model_params),
                         rag_time=rag_time,
                         llm_time=llm_time,

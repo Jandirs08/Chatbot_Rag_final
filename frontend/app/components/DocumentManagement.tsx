@@ -356,6 +356,7 @@ export function DocumentManagement() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -436,6 +437,7 @@ export function DocumentManagement() {
               )}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
       {/* Modal de Preview */}
