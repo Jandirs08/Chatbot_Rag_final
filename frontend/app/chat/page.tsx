@@ -4,6 +4,7 @@ import React from "react";
 import { ChatWindow } from "../components/ChatWindow";
 import { apiBaseUrl } from "../utils/constants";
 import type { Message as HookMessage } from "../hooks/useChatStream";
+import { logger } from "../lib/logger";
 
 export default function ChatPage() {
   const [conversationId, setConversationId] = React.useState<string | null>(
@@ -20,6 +21,7 @@ export default function ChatPage() {
         typeof window !== "undefined" ? window.localStorage.getItem(key) : null;
       if (existing && existing.trim()) {
         setConversationId(existing);
+        logger.log("conversation_id recovered", { conversation_id: existing });
         return;
       }
       const newId = crypto?.randomUUID
@@ -29,12 +31,14 @@ export default function ChatPage() {
         window.localStorage.setItem(key, newId);
       }
       setConversationId(newId);
+      logger.log("conversation_id generated", { conversation_id: newId });
     } catch (_e) {
       // Fallback silencioso si localStorage no está disponible
       const newId = crypto?.randomUUID
         ? crypto.randomUUID()
         : `${Date.now()}-${Math.random()}`;
       setConversationId(newId);
+      logger.log("conversation_id fallback", { conversation_id: newId });
     }
   }, []);
 
@@ -51,8 +55,10 @@ export default function ChatPage() {
             credentials: "include",
           },
         );
+        logger.log("history fetch status", { status: resp.status, conversation_id: conversationId });
         if (!resp.ok) {
           setInitialMessages([]);
+          logger.warn("history fetch failed", { status: resp.status, conversation_id: conversationId });
           return;
         }
         const data = await resp.json();
@@ -64,9 +70,11 @@ export default function ChatPage() {
               createdAt: m?.timestamp ? new Date(m.timestamp) : undefined,
             }))
           : [];
+        logger.log("history length", { length: normalized.length, conversation_id: conversationId });
         setInitialMessages(normalized);
       } catch (_e) {
         setInitialMessages([]);
+        logger.error("history fetch error", { conversation_id: conversationId });
       }
     };
     loadHistory();

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { logger } from "@/app/lib/logger";
 import { apiBaseUrl } from "../utils/constants";
 
@@ -27,6 +27,20 @@ export function useChatStream(
   const [messages, setMessages] = useState<Message[]>(initialMessages ?? []);
   const [isLoading, setIsLoading] = useState(false);
   const [debugData, setDebugData] = useState<any | undefined>(undefined);
+
+  useEffect(() => {
+    logger.log("useChatStream initialMessages received", {
+      initialLen: Array.isArray(initialMessages) ? initialMessages.length : 0,
+      stateLen: messages.length,
+      conversation_id: conversationId,
+    });
+  }, [initialMessages]);
+
+  useEffect(() => {
+    if (Array.isArray(initialMessages) && initialMessages.length > 0) {
+      setMessages((prev) => (prev.length === 0 ? initialMessages : prev));
+    }
+  }, [initialMessages]);
 
   const sendMessage = useCallback(
     async (messageText: string, opts?: { debug?: boolean; body?: Record<string, any> }) => {
