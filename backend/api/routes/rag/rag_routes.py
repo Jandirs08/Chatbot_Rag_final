@@ -75,8 +75,17 @@ async def clear_rag(request: Request):
             if hasattr(rag_retriever, "invalidate_rag_cache"):
                 rag_retriever.invalidate_rag_cache()
                 logger.info("Caché RAG invalidado por prefijo")
+            if hasattr(rag_retriever, "reset_centroid"):
+                rag_retriever.reset_centroid()
+                logger.info("Centroide del retriever reiniciado tras limpieza")
         except Exception as e:
             logger.warning(f"No se pudo invalidar caché RAG: {e}")
+        try:
+            from cache.manager import cache
+            cache.invalidate_prefix("resp:")
+            cache.invalidate_prefix("vs:")
+        except Exception:
+            pass
         # Consultar estado después de limpiar
         pdfs_after_clear = await pdf_processor.list_pdfs()
         vector_store_info_after_clear = pdf_processor.get_vector_store_info()

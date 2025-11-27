@@ -104,6 +104,8 @@ async def list_pdfs(request: Request):
 async def delete_pdf(request: Request, filename: str):
     pdf_file_manager = request.app.state.pdf_file_manager
     rag_ingestor = request.app.state.rag_ingestor
+    rag_retriever = request.app.state.rag_retriever
+    from cache.manager import cache
 
     try:
         await pdf_file_manager.delete_pdf(filename)
@@ -111,6 +113,26 @@ async def delete_pdf(request: Request, filename: str):
 
         await rag_ingestor.vector_store.delete_documents(filter={"source": filename})
         logger.info(f"Embeddings asociados borrados para: {filename}")
+
+        try:
+            if rag_retriever and hasattr(rag_retriever, "invalidate_rag_cache"):
+                rag_retriever.invalidate_rag_cache()
+                logger.info("Caché RAG invalidado tras eliminar PDF")
+        except Exception:
+            pass
+
+        try:
+            if rag_retriever and hasattr(rag_retriever, "reset_centroid"):
+                rag_retriever.reset_centroid()
+                logger.info("Centroide del retriever reiniciado tras eliminar PDF")
+        except Exception:
+            pass
+
+        try:
+            cache.invalidate_prefix("resp:")
+            cache.invalidate_prefix("vs:")
+        except Exception:
+            pass
 
         return PDFDeleteResponse(
             message=f"PDF '{filename}' y embeddings asociados eliminados exitosamente."

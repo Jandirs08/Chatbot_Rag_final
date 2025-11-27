@@ -38,7 +38,8 @@ class ChatManager:
             cache_key = f"resp:{conversation_id}:{hashlib.sha256((input_text or '').strip().encode('utf-8')).hexdigest()}"
             cached_response = None
             try:
-                cached_response = cache.get(cache_key)
+                if bool(getattr(settings, "enable_cache", True)):
+                    cached_response = cache.get(cache_key)
             except Exception:
                 cached_response = None
 
@@ -71,7 +72,8 @@ class ChatManager:
 
                 # Guardar en cache
                 try:
-                    cache.set(cache_key, response_content, cache.ttl)
+                    if bool(getattr(settings, "enable_cache", True)):
+                        cache.set(cache_key, response_content, cache.ttl)
                 except Exception:
                     pass
 
@@ -242,7 +244,8 @@ class ChatManager:
             cache_key = f"resp:{conversation_id}:{hashlib.sha256((input_text or '').strip().encode('utf-8')).hexdigest()}"
             cached_response = None
             try:
-                cached_response = cache.get(cache_key)
+                if bool(getattr(settings, "enable_cache", True)):
+                    cached_response = cache.get(cache_key)
             except Exception:
                 cached_response = None
 
@@ -274,7 +277,8 @@ class ChatManager:
                     await self.db.add_message(conversation_id, ASSISTANT_ROLE, final_text, source)
                     await self.bot.add_to_memory(human=input_text, ai=final_text, conversation_id=conversation_id)
                 try:
-                    cache.set(cache_key, final_text, cache.ttl)
+                    if bool(getattr(settings, "enable_cache", True)):
+                        cache.set(cache_key, final_text, cache.ttl)
                 except Exception:
                     pass
                 return
@@ -292,7 +296,8 @@ class ChatManager:
                 await self.bot.add_to_memory(human=input_text, ai=final_text, conversation_id=conversation_id)
 
             try:
-                cache.set(cache_key, final_text, cache.ttl)
+                if bool(getattr(settings, "enable_cache", True)):
+                    cache.set(cache_key, final_text, cache.ttl)
             except Exception:
                 pass
             try:
