@@ -179,11 +179,10 @@ class VectorStore:
                     if len(vec) != dim:
                         continue
 
-                    # Payload final
+                    # Payload final (sin embedding redundante)
                     payload = {
                         **doc.metadata,
-                        "text": doc.page_content,
-                        "embedding": vec
+                        "text": doc.page_content
                     }
 
                     points.append(PointStruct(id=ids[idx], vector=vec, payload=payload))
@@ -272,7 +271,7 @@ class VectorStore:
             if use_mmr:
                 docs = await self._mmr_search(query_embedding, k, fetch_k, lambda_mult, filter)
             else:
-                docs = await self._similarity_search(query_embedding, k, filter)
+                docs = await self._similarity_search(query_embedding, k, filter, with_vectors=False)
 
             for d, score in docs:
                 d.metadata["score"] = score
@@ -290,7 +289,7 @@ class VectorStore:
 
     async def _mmr_search(self, query_embedding, k, fetch_k, lambda_mult, filter):
         try:
-            candidates = await self._similarity_search(query_embedding, fetch_k, filter)
+            candidates = await self._similarity_search(query_embedding, fetch_k, filter, with_vectors=True)
             if not candidates:
                 return []
 
@@ -302,7 +301,7 @@ class VectorStore:
                 docs.append(doc)
                 scores.append(score)
 
-                emb = doc.metadata.get("embedding")
+                emb = doc.metadata.get("vector")
                 if isinstance(emb, list):
                     emb = np.array(emb)
 
@@ -363,6 +362,7 @@ class VectorStore:
         query_embedding: np.ndarray,
         k: int,
         filter: Optional[Dict] = None,
+        with_vectors: bool = False,
     ) -> List[Tuple[Document, float]]:
 
         try:
@@ -383,7 +383,7 @@ class VectorStore:
                 limit=max(1, k),
                 query_filter=qfilter,
                 with_payload=True,
-                with_vectors=False,
+                with_vectors=with_vectors,
             )
 
             if hasattr(results, "points"):
@@ -400,14 +400,6 @@ class VectorStore:
                 rid = getattr(r, "id", None)
                 rvec = getattr(r, "vector", None)
                 score = float(getattr(r, "score", 0.0) or 0.0)
-
-                emb = payload.get("embedding")
-                if isinstance(emb, list):
-                    try:
-                        emb = np.array(emb)
-                    except Exception:
-                        pass
-                payload["embedding"] = emb
 
                 payload["id"] = rid
                 if rvec is not None:

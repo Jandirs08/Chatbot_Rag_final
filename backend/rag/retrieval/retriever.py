@@ -361,19 +361,19 @@ class RAGRetriever:
             missing_indices = []
 
             for idx, doc in enumerate(docs):
-                if doc.metadata.get("embedding") is None:
+                if doc.metadata.get("vector") is None:
                     texts_to_embed.append(doc.page_content)
                     missing_indices.append(idx)
 
             if texts_to_embed:
                 batch_embeddings = self.embedding_manager.embed_documents(texts_to_embed)
                 for pos, emb in enumerate(batch_embeddings):
-                    docs[missing_indices[pos]].metadata["embedding"] = emb
+                    docs[missing_indices[pos]].metadata["vector"] = emb
 
             scored_docs = []
 
             for doc in docs:
-                doc_embedding = doc.metadata.get("embedding")
+                doc_embedding = doc.metadata.get("vector")
                 semantic_score = 0.0
 
                 if doc_embedding is not None:
@@ -419,7 +419,7 @@ class RAGRetriever:
             missing_indices = []
 
             for idx, doc in enumerate(docs):
-                emb = doc.metadata.get("embedding")
+                emb = doc.metadata.get("vector")
                 if emb is None:
                     texts_to_embed.append(doc.page_content)
                     missing_indices.append(idx)
@@ -431,7 +431,7 @@ class RAGRetriever:
                 batch_embeddings = self.embedding_manager.embed_documents(texts_to_embed)
                 for pos, emb in enumerate(batch_embeddings):
                     d_idx = missing_indices[pos]
-                    docs[d_idx].metadata["embedding"] = emb
+                    docs[d_idx].metadata["vector"] = emb
                     doc_embeddings[d_idx] = emb
 
             selected_indices = []
@@ -547,21 +547,7 @@ class RAGRetriever:
                         break
 
                     for p in points:
-                        payload = getattr(p, "payload", {}) or {}
-                        emb = None
-
-                        # Order of preference
-                        if "embedding" in payload:
-                            emb = self._clean_vector(payload["embedding"])
-
-                        if emb is None and "vector" in payload:
-                            emb = self._clean_vector(payload["vector"])
-
-                        if emb is None and "text_vector" in payload:
-                            emb = self._clean_vector(payload["text_vector"])
-
-                        if emb is None:
-                            emb = self._clean_vector(getattr(p, "vector", None))
+                        emb = self._clean_vector(getattr(p, "vector", None))
 
                         if emb is None:
                             vs = getattr(p, "vectors", None)
