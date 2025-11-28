@@ -39,7 +39,7 @@ Este documento analiza la fase de ingesta del RAG en el backend, trazando el flu
   - Usa `RAG_CHUNK_SIZE` → `settings.chunk_size`.
   - Usa `RAG_CHUNK_OVERLAP` → `settings.chunk_overlap`.
   - Usa `MIN_CHUNK_LENGTH` → `settings.min_chunk_length`.
-  - Construye `RecursiveCharacterTextSplitter` con `separators` seguros y `length_function=len` (líneas ~32–48).
+  - Construye `RecursiveCharacterTextSplitter` con `separators = ["\n\n", "\n", " ", ""]` y `length_function=len` (líneas ~32–48), manteniendo el resto de configuración igual.
 - Librería: `langchain_community.document_loaders.PyPDFLoader` (línea ~12).
 - Método: `load_and_split_pdf(pdf_path: Path) -> List[Document]` (líneas ~52–91).
   - Carga páginas: `PyPDFLoader(str(pdf_path)).load()` (líneas ~59–64).
@@ -63,6 +63,7 @@ Este documento analiza la fase de ingesta del RAG en el backend, trazando el flu
   - `quality_score`: score heurístico (líneas ~141, ~168–183).
   - `word_count`, `char_count`: conteos básicos (líneas ~148–149).
   - `page_number`: índice humano (1-based) si disponible (líneas ~132–140, ~150).
+ - Filtrado mínimo para evitar basura: se descartan chunks vacíos y aquellos con `len(content) < MIN_CHUNK_LENGTH`.
 
 ## Embeddings
 
@@ -97,6 +98,7 @@ Este documento analiza la fase de ingesta del RAG en el backend, trazando el flu
   - Upsert: `self.client.upsert(collection_name="rag_collection", points=points, wait=True)` (líneas ~194–202).
   - Nota: el embedding ya no se almacena en el `payload` para ahorrar espacio; se pasa como `vector` en `PointStruct` y solo se recupera cuando es necesario usando `with_vectors=True` (por ejemplo, en MMR).
 - Índices de payload asegurados (para filtros de metadata): `source`, `pdf_hash`, `content_hash` (líneas ~99–130).
+  Además, se asegura índice para `content_hash_global` para deduplicación basada en contenido.
 
 ### Detección de duplicados por `pdf_hash`
 - Ubicación: `rag/ingestion/ingestor.py`.
@@ -106,9 +108,9 @@ Este documento analiza la fase de ingesta del RAG en el backend, trazando el flu
   - `_is_already_processed_pdf_hash(pdf_hash)` construye `QFilter(must=[FieldCondition(key="pdf_hash", match=MatchValue(value=pdf_hash))])` y ejecuta `client.count("rag_collection", count_filter=f)` (líneas ~47–57).
 - Uso en ingesta principal:
   - En `ingest_single_pdf`:
-    - Si duplicado y no `force_update`, retorna `{"status": "skipped"}` (líneas ~72–80).
-    - Anexa `pdf_hash` a cada chunk antes de subir (líneas ~86–90).
-    - En `force_update=True`, primero borra vectores del mismo `pdf_hash` con `vector_store.delete_by_pdf_hash(pdf_hash)` (líneas ~80–86).
+    - Si duplicado y no `force_update`, retorna `{"status": "skipped"}`.
+    - Se anexa `pdf_hash` y `content_hash_global` a cada chunk antes de subir.
+    - En `force_update=True`, se borra por ambos hashes: `delete_by_content_hash_global` y `delete_by_pdf_hash`.
 
 ### Transformaciones de datos: PDF → Texto → Chunk → Vector
 - PDF: leído con `PyPDFLoader` a `List[Document]` por página.
@@ -120,6 +122,16 @@ Este documento analiza la fase de ingesta del RAG en el backend, trazando el flu
 
 ## Resumen de puntos críticos para debugging
 - Verifique `MAX_FILE_SIZE_MB` en `settings` cuando el upload falla por tamaño.
-- Inspeccione `content_hash` y `pdf_hash` en `payload` para confirmar duplicados y agrupación.
+- Inspeccione `content_hash`, `content_hash_global` y `pdf_hash` en `payload` para confirmar duplicados y agrupación.
 - Asegure que `DEFAULT_EMBEDDING_DIMENSION` coincide con la configuración en Qdrant (`VectorParams(size=dim, distance=Distance.COSINE)` en inicialización, líneas ~61–95).
 - Si faltan `page_number`, revise logs `[ALERTA] Chunk sin número de página...` (líneas ~132–140) para diagnosticar loader.
+### Detección de duplicados por `content_hash_global`
+- Ubicación: `rag/ingestion/ingestor.py`.
+- Cálculo de hash de contenido concatenado:
+  - `_get_content_hash_global(documents)` concatena el texto de todas las páginas y aplica normalización mínima: `lower`, `strip` y colapso de espacios; retorna `md5` determinista.
+- Chequeo en Qdrant:
+  - `_is_already_processed_content_hash_global(content_hash_global)` construye `QFilter(must=[FieldCondition(key="content_hash_global", match=MatchValue(value=...))])` y ejecuta `client.count("rag_collection", count_filter=f)`.
+- Uso en ingesta principal:
+  - En `ingest_single_pdf`, la deduplicación se realiza primero por `content_hash_global` y luego por `pdf_hash` para compatibilidad.
+  - En `force_update=True`, se limpian vectores previos tanto por `content_hash_global` como por `pdf_hash`.
+  - Se añade `content_hash_global` a `c.metadata` de cada chunk antes de subir.

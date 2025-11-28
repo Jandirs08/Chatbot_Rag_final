@@ -148,10 +148,10 @@ class Bot:
                     return ""
 
                 # Gating
-                if hasattr(self.rag_retriever, "should_use_rag"):
-                    if not self.rag_retriever.should_use_rag(query):
-                        self.logger.debug("RAG gating: similitud baja → no usar RAG")
-                        return ""
+                reason, use = self.rag_retriever.gating(query)
+                self.logger.debug(f"RAG gating: reason={reason}")
+                if not use:
+                    return ""
 
                 docs = await self.rag_retriever.retrieve_documents(
                     query=query,

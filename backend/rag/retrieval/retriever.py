@@ -105,6 +105,9 @@ class RAGRetriever:
 
         # Centroide cacheado
         self._centroid_embedding: Optional[np.ndarray] = None
+        self._last_corpus_size: Optional[int] = None
+        self._last_corpus_size_check_time: float = 0.0
+        self._corpus_size_cache_ttl: int = 10
 
         # Umbral de gating
         try:
@@ -588,37 +591,105 @@ class RAGRetriever:
 
 
     def should_use_rag(self, query: str) -> bool:
-        """Decide activación RAG de manera segura."""
+        """Compatibilidad: delega al nuevo sistema de gating (Ruta B)."""
+        try:
+            return self.gating(query)[1]
+        except Exception as e:
+            logger.warning(f"Error should_use_rag (delegado): {e}")
+            return False
 
+    def gating(self, query: str) -> Tuple[str, bool]:
+        """Sistema de gating Ruta B.
+        Devuelve (reason, use_rag) implementando capas: heurística, intención mínima,
+        centroide con invalidación por tamaño de corpus, similitud con threshold dinámico
+        y activación en corpus pequeño.
+        """
         try:
             q = (query or "").strip()
-            if len(q) < 1:
-                return False
+            if len(q) < 4:
+                logger.info(f"Gating: similitud=—, threshold={self._gating_threshold:.4f}, reason=too_short")
+                return ("too_short", False)
 
-            if not self.embedding_manager:
-                return False
+            # Heurística de small-talk
+            small_talk = {
+                "hola", "buenos días", "buenas tardes", "buenas noches",
+                "como estás", "qué tal", "gracias", "adios", "hasta luego",
+                "ayuda", "quien eres", "como te llamas", "ok", "vale"
+            }
+            if q.lower() in small_talk:
+                logger.info(f"Gating: similitud=—, threshold={self._gating_threshold:.4f}, reason=small_talk")
+                return ("small_talk", False)
 
-            if not self._ensure_centroid():
-                return False
+            # Detección mínima de intención semántica
+            interrogatives = ("qué", "como", "cómo", "donde", "dónde", "cuando", "cuándo", "por qué", "para qué", "puedo", "quiero", "necesito")
+            has_interrogative = any(w in q.lower() for w in interrogatives) or ("?" in q)
+            tokens = [t for t in q.lower().split() if t]
+            if not has_interrogative and len(tokens) <= 3:
+                logger.info(f"Gating: similitud=—, threshold={self._gating_threshold:.4f}, reason=low_intent")
+                return ("low_intent", False)
 
+            # Invalidación automática del centroide si cambia tamaño del corpus (con cache de count)
+            corpus_size = None
+            try:
+                now = time.time()
+            except Exception:
+                now = 0.0
+
+            try:
+                # Si el último check es reciente, usar cache
+                if (now - self._last_corpus_size_check_time) < float(self._corpus_size_cache_ttl):
+                    corpus_size = self._last_corpus_size
+                else:
+                    try:
+                        c = self.vector_store.client.count(collection_name="rag_collection")
+                        new_size = int(getattr(c, "count", 0))
+                    except Exception:
+                        new_size = None
+
+                    # Invalidar centroide solo si cambia el tamaño del corpus
+                    if new_size is not None and self._last_corpus_size is not None and new_size != self._last_corpus_size:
+                        self._centroid_embedding = None
+
+                    # Actualizar cache y timestamp
+                    self._last_corpus_size = new_size if new_size is not None else self._last_corpus_size
+                    self._last_corpus_size_check_time = now
+                    corpus_size = self._last_corpus_size
+            except Exception:
+                pass
+
+            # Activación con corpus pequeño
+            if isinstance(corpus_size, int) and corpus_size < 20:
+                use_small = bool(has_interrogative or len(tokens) >= 4)
+                logger.info(f"Gating: similitud=—, threshold={self._gating_threshold:.4f}, reason=small_corpus")
+                return ("small_corpus", use_small)
+
+            # Asegurar centroide
+            if not self.embedding_manager or not self._ensure_centroid():
+                logger.info(f"Gating: similitud=—, threshold={self._gating_threshold:.4f}, reason=no_centroid")
+                return ("no_centroid", False)
+
+            # Similaridad query-centroide
             q_emb = self.embedding_manager.embed_query(q)
             q_vec = self._clean_vector(q_emb)
             c_vec = self._centroid_embedding
-
             if q_vec is None or c_vec is None:
-                return False
+                logger.info(f"Gating: similitud=—, threshold={self._gating_threshold:.4f}, reason=invalid_vectors")
+                return ("invalid_vectors", False)
 
             try:
                 sim = float(cosine_similarity(q_vec.reshape(1, -1), c_vec.reshape(1, -1))[0][0])
             except Exception:
                 sim = float(np.dot(q_vec, c_vec))
 
-            logger.debug(f"Gating → similitud={sim:.4f}, umbral={self._gating_threshold}")
-            return sim >= self._gating_threshold
+            use = bool(sim >= self._gating_threshold)
+            reason = "semantic_match" if use else "low_similarity"
+            logger.info(f"Gating: similitud={sim:.4f}, threshold={self._gating_threshold:.4f}, reason={reason}")
+            return (reason, use)
 
         except Exception as e:
-            logger.warning(f"Error should_use_rag: {e}")
-            return False
+            logger.info(f"Gating: similitud=—, threshold={self._gating_threshold:.4f}, reason=error")
+            logger.warning(f"Error gating: {e}")
+            return ("error", False)
 
 
     # ============================================================
