@@ -1,7 +1,7 @@
 """API routes for PDF management."""
 import logging
 import datetime
-from fastapi import APIRouter, HTTPException, UploadFile, File, Request
+from fastapi import APIRouter, HTTPException, UploadFile, File, Request, BackgroundTasks
 from pathlib import Path
 from starlette.responses import FileResponse
 
@@ -19,6 +19,7 @@ router = APIRouter(tags=["pdfs"])
 @router.post("/upload", response_model=PDFUploadResponse)
 async def upload_pdf(
     request: Request,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...)
 ):
     """
@@ -62,6 +63,14 @@ async def upload_pdf(
         # Éxito → devolver lista actualizada
         pdfs = await pdf_file_manager.list_pdfs()
 
+        # Programar recálculo del centroide en segundo plano
+        try:
+            retriever = getattr(request.app.state, "rag_retriever", None)
+            if retriever:
+                background_tasks.add_task(retriever.trigger_centroid_update)
+        except Exception:
+            pass
+
         return PDFUploadResponse(
             message="PDF subido e ingerido exitosamente.",
             file_path=str(file_path),
@@ -101,7 +110,7 @@ async def list_pdfs(request: Request):
 
 
 @router.delete("/{filename}", response_model=PDFDeleteResponse)
-async def delete_pdf(request: Request, filename: str):
+async def delete_pdf(request: Request, background_tasks: BackgroundTasks, filename: str):
     pdf_file_manager = request.app.state.pdf_file_manager
     rag_ingestor = request.app.state.rag_ingestor
     rag_retriever = request.app.state.rag_retriever
@@ -125,6 +134,11 @@ async def delete_pdf(request: Request, filename: str):
             if rag_retriever and hasattr(rag_retriever, "reset_centroid"):
                 rag_retriever.reset_centroid()
                 logger.info("Centroide del retriever reiniciado tras eliminar PDF")
+                # Programar recálculo en segundo plano
+                try:
+                    background_tasks.add_task(rag_retriever.trigger_centroid_update)
+                except Exception:
+                    pass
         except Exception:
             pass
 

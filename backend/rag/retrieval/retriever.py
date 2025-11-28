@@ -229,12 +229,16 @@ class RAGRetriever:
             initial_k = min(k * settings.retrieval_k_multiplier, 20)
 
             try:
+                # Determinar si necesitamos vectores: se requieren para reranking semántico o MMR posterior
+                need_vectors = bool(use_semantic_ranking or not use_semantic_ranking)
+
                 relevant_docs = await asyncio.wait_for(
                     self.vector_store.retrieve(
                         query,
                         k=initial_k,
                         filter=filter_criteria,
-                        use_mmr=False
+                        use_mmr=False,
+                        with_vectors=need_vectors,
                     ),
                     timeout=5.0
                 )
@@ -360,18 +364,11 @@ class RAGRetriever:
         try:
             query_embedding = self.embedding_manager.embed_query(query)
 
-            texts_to_embed = []
-            missing_indices = []
-
+            # No re-embeddings: si faltan vectores, no los regeneramos aquí
+            # Usaremos score semántico 0 para documentos sin vector y registraremos una advertencia
             for idx, doc in enumerate(docs):
                 if doc.metadata.get("vector") is None:
-                    texts_to_embed.append(doc.page_content)
-                    missing_indices.append(idx)
-
-            if texts_to_embed:
-                batch_embeddings = self.embedding_manager.embed_documents(texts_to_embed)
-                for pos, emb in enumerate(batch_embeddings):
-                    docs[missing_indices[pos]].metadata["vector"] = emb
+                    logger.warning("Documento sin vector durante semantic_reranking; se continúa sin re-embedding.")
 
             scored_docs = []
 
@@ -417,28 +414,26 @@ class RAGRetriever:
         try:
             query_embedding = self.embedding_manager.embed_query(query)
 
-            doc_embeddings = []
-            texts_to_embed = []
-            missing_indices = []
+            # Construir la lista de índices candidatos que sí tienen vector
+            candidate_indices = []
+            doc_embeddings = {}
 
             for idx, doc in enumerate(docs):
                 emb = doc.metadata.get("vector")
                 if emb is None:
-                    texts_to_embed.append(doc.page_content)
-                    missing_indices.append(idx)
-                    doc_embeddings.append(None)
-                else:
-                    doc_embeddings.append(emb)
+                    logger.warning("Documento sin vector durante MMR; se omite para diversidad.")
+                    continue
+                if isinstance(emb, list):
+                    emb = np.array(emb)
+                doc_embeddings[idx] = emb
+                candidate_indices.append(idx)
 
-            if texts_to_embed:
-                batch_embeddings = self.embedding_manager.embed_documents(texts_to_embed)
-                for pos, emb in enumerate(batch_embeddings):
-                    d_idx = missing_indices[pos]
-                    docs[d_idx].metadata["vector"] = emb
-                    doc_embeddings[d_idx] = emb
+            if not candidate_indices:
+                # Sin vectores disponibles: fallback a top-k original
+                return docs[:k]
 
             selected_indices = []
-            remaining = list(range(len(docs)))
+            remaining = candidate_indices.copy()
 
             for _ in range(min(k, len(docs))):
                 mmr_scores = []
@@ -508,35 +503,34 @@ class RAGRetriever:
     #   PREMIUM GATING (Patch 3)
     # ============================================================
 
-    def _ensure_centroid(self) -> bool:
+    async def _recalculate_centroid_logic(self) -> bool:
         """
-        Calcula un centroide ROBUSTO:
-        - Limpia embeddings corruptos
-        - Normaliza vectores
-        - Evita vectores mal formados
+        Calcula el centroide usando Streaming Mean en memoria constante.
+        Recorre Qdrant por lotes sin acumular todos los vectores.
+        Al finalizar, normaliza y guarda en self._centroid_embedding.
         """
 
         try:
-            if isinstance(self._centroid_embedding, np.ndarray) and self._centroid_embedding.size > 0:
-                return True
-
             client = getattr(self.vector_store, "client", None)
             if client is None:
-                logger.warning("VectorStore no disponible para centroide.")
+                logger.warning("VectorStore no disponible para recálculo de centroide.")
                 return False
 
-            embeddings = []
             limit = 1000
             next_offset = None
+            sum_vector: Optional[np.ndarray] = None
+            count: int = 0
 
             while True:
                 try:
-                    res = client.scroll(
+                    # Ejecutar scroll en hilo para no bloquear el loop
+                    res = await asyncio.to_thread(
+                        client.scroll,
                         collection_name="rag_collection",
                         limit=limit,
                         offset=next_offset,
                         with_payload=True,
-                        with_vectors=True
+                        with_vectors=True,
                     )
 
                     points = getattr(res, "points", None)
@@ -551,42 +545,64 @@ class RAGRetriever:
 
                     for p in points:
                         emb = self._clean_vector(getattr(p, "vector", None))
-
                         if emb is None:
                             vs = getattr(p, "vectors", None)
                             if isinstance(vs, dict) and vs:
                                 try:
                                     emb = self._clean_vector(next(iter(vs.values())))
                                 except Exception:
-                                    pass
+                                    emb = None
 
-                        if emb is not None:
-                            embeddings.append(emb)
+                        if emb is None:
+                            continue
+
+                        if sum_vector is None:
+                            try:
+                                sum_vector = np.zeros_like(emb, dtype=np.float32)
+                            except Exception:
+                                continue
+
+                        try:
+                            sum_vector += emb.astype(np.float32)
+                            count += 1
+                        except Exception:
+                            # Ignorar vectores corruptos
+                            pass
 
                     if not next_offset:
                         break
 
                 except Exception as e:
-                    logger.warning(f"Error scroll centroide: {e}")
+                    logger.warning(f"Error scroll streaming centroide: {e}")
                     break
 
-            if not embeddings:
-                logger.info("No embeddings disponibles para centroide.")
+            if sum_vector is None or count == 0:
+                logger.info("No embeddings válidos disponibles para centroide (streaming).")
                 return False
 
-            mat = np.vstack(embeddings)
-            centroid = mat.mean(axis=0)
-
-            norm = np.linalg.norm(centroid)
-            if norm == 0:
+            try:
+                centroid = sum_vector / float(count)
+                norm = np.linalg.norm(centroid)
+                if norm == 0:
+                    logger.info("Norma cero al normalizar centroide.")
+                    return False
+                self._centroid_embedding = (centroid / norm).astype(np.float32)
+            except Exception as e:
+                logger.warning(f"Error normalizando centroide: {e}")
                 return False
 
-            self._centroid_embedding = centroid / norm
-            logger.info("Centroide calculado exitosamente.")
+            # Opcional: cachear centroide (lista) para acelerar reinicios
+            try:
+                if bool(getattr(settings, "enable_cache", True)):
+                    cache.set("rag:centroid", self._centroid_embedding.tolist())
+            except Exception:
+                pass
+
+            logger.info("Centroide recalculado exitosamente con Streaming Mean.")
             return True
 
         except Exception as e:
-            logger.warning(f"Error _ensure_centroid: {e}")
+            logger.warning(f"Error _recalculate_centroid_logic: {e}")
             return False
 
 
@@ -663,15 +679,19 @@ class RAGRetriever:
                 logger.info(f"Gating: similitud=—, threshold={self._gating_threshold:.4f}, reason=small_corpus")
                 return ("small_corpus", use_small)
 
-            # Asegurar centroide
-            if not self.embedding_manager or not self._ensure_centroid():
-                logger.info(f"Gating: similitud=—, threshold={self._gating_threshold:.4f}, reason=no_centroid")
-                return ("no_centroid", False)
+            # Fail Open: no bloquear si el centroide no está disponible
+            if not self.embedding_manager:
+                logger.warning("Centroide no disponible, omitiendo gating (Fail Open).")
+                return ("no_centroid_fallback", True)
+
+            c_vec = self._centroid_embedding
+            if not isinstance(c_vec, np.ndarray) or c_vec.size == 0:
+                logger.warning("Centroide no disponible, omitiendo gating (Fail Open).")
+                return ("no_centroid_fallback", True)
 
             # Similaridad query-centroide
             q_emb = self.embedding_manager.embed_query(q)
             q_vec = self._clean_vector(q_emb)
-            c_vec = self._centroid_embedding
             if q_vec is None or c_vec is None:
                 logger.info(f"Gating: similitud=—, threshold={self._gating_threshold:.4f}, reason=invalid_vectors")
                 return ("invalid_vectors", False)
@@ -755,8 +775,14 @@ class RAGRetriever:
         try:
             if bool(getattr(settings, "enable_cache", True)):
                 cache.invalidate_prefix("rag:")
+            # Opcional: resetear centroide para forzar recálculo posterior sin bloquear
+            self.reset_centroid()
         except Exception:
             pass
 
     def reset_centroid(self) -> None:
         self._centroid_embedding = None
+
+    async def trigger_centroid_update(self) -> bool:
+        """Dispara el recálculo del centroide de forma asíncrona."""
+        return await self._recalculate_centroid_logic()

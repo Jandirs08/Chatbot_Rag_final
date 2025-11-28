@@ -255,7 +255,8 @@ class VectorStore:
         use_mmr: bool = True,
         fetch_k: Optional[int] = None,
         lambda_mult: float = 0.5,
-        score_threshold: float = 0.0
+        score_threshold: float = 0.0,
+        with_vectors: bool = False,
     ) -> List[Document]:
 
         try:
@@ -271,9 +272,9 @@ class VectorStore:
             fetch_k = min(fetch_k or k * 3, total_docs)
 
             if use_mmr:
-                docs = await self._mmr_search(query_embedding, k, fetch_k, lambda_mult, filter)
+                docs = await self._mmr_search(query_embedding, k, fetch_k, lambda_mult, filter, with_vectors)
             else:
-                docs = await self._similarity_search(query_embedding, k, filter, with_vectors=False)
+                docs = await self._similarity_search(query_embedding, k, filter, with_vectors=with_vectors)
 
             for d, score in docs:
                 d.metadata["score"] = score
@@ -289,9 +290,10 @@ class VectorStore:
     #   MMR
     # =====================================================================
 
-    async def _mmr_search(self, query_embedding, k, fetch_k, lambda_mult, filter):
+    async def _mmr_search(self, query_embedding, k, fetch_k, lambda_mult, filter, with_vectors: bool = True):
         try:
-            candidates = await self._similarity_search(query_embedding, fetch_k, filter, with_vectors=True)
+            # Traer candidatos con o sin vectores según lo solicitado
+            candidates = await self._similarity_search(query_embedding, fetch_k, filter, with_vectors=with_vectors)
             if not candidates:
                 return []
 
@@ -308,12 +310,15 @@ class VectorStore:
                     emb = np.array(emb)
 
                 if not isinstance(emb, np.ndarray):
+                    # Si no tenemos vectores pero se solicitó MMR, no se puede calcular diversidad
+                    # En este caso, degradamos a búsqueda por similitud pura sin vectores
                     continue
 
                 emb_list.append(emb)
 
             if not emb_list:
-                return []
+                # Fallback: devolver top-k por similitud, sin MMR
+                return await self._similarity_search(query_embedding, k, filter, with_vectors=False)
 
             doc_embeds = np.vstack(emb_list)
 
