@@ -134,7 +134,8 @@ class Bot:
 
 
         async def get_context_async(x):
-            """Inyecta contexto RAG SOLO si está habilitado."""
+            """Inyecta contexto RAG y evita contexto vacío con un mensaje explícito."""
+            fallback_ctx = "No hay información adicional recuperada para esta consulta."
             try:
                 t_start = time.perf_counter()
                 query = x.get("input", "")
@@ -142,16 +143,16 @@ class Bot:
                     query = str(query)
 
                 if not (self.settings.enable_rag_lcel and self.rag_retriever):
-                    return ""
+                    return fallback_ctx
 
                 if not query.strip():
-                    return ""
+                    return fallback_ctx
 
                 # Gating
                 reason, use = self.rag_retriever.gating(query)
                 self.logger.debug(f"RAG gating: reason={reason}")
                 if not use:
-                    return ""
+                    return fallback_ctx
 
                 docs = await self.rag_retriever.retrieve_documents(
                     query=query,
@@ -159,11 +160,12 @@ class Bot:
                 )
                 if not docs:
                     self._last_rag_time = time.perf_counter() - t_start
-                    return ""
+                    return fallback_ctx
 
                 self._last_retrieved_docs = docs
                 ctx = self.rag_retriever.format_context_from_documents(docs)
-                self._last_context = ctx or ""
+                # Evitar etiqueta <context> vacía
+                self._last_context = ctx if (isinstance(ctx, str) and ctx.strip()) else fallback_ctx
                 self._last_rag_time = time.perf_counter() - t_start
                 return self._last_context
 
@@ -173,7 +175,7 @@ class Bot:
                     self._last_rag_time = time.perf_counter() - t_start
                 except Exception:
                     self._last_rag_time = None
-                return ""
+                return fallback_ctx
 
         # LCEL pipeline
         loader = RunnableMap({
@@ -302,11 +304,13 @@ class Bot:
     def _format_history(self, hist_list):
         out = []
         for msg in hist_list:
-            if msg["role"] == "system":
-                # Incluir el mensaje del sistema tal cual (perfil de usuario)
-                out.append(msg["content"])
-            elif msg["role"] == "human":
-                out.append(f"Usuario: {msg['content']}")
-            elif msg["role"] == "ai":
-                out.append(f"Asistente: {msg['content']}")
+            role = msg.get("role", "unknown")
+            content = msg.get("content", "").strip()
+            if role == "human":
+                out.append(f"User: {content}")
+            elif role == "ai":
+                out.append(f"Assistant: {content}")
+            # Omitimos 'system' aquí porque ya está en el prompt base
+        if not out:
+            return "No hay mensajes previos."
         return "\n".join(out)
