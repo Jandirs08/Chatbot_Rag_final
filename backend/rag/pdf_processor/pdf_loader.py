@@ -32,16 +32,16 @@ class PDFContentLoader:
         self.min_chunk_length = min_chunk_length if min_chunk_length is not None else settings.min_chunk_length
 
         # Splitter estable sin destruir estructura
+        # Cambio de separators para optimización determinista (manteniendo config actual)
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.chunk_size,
             chunk_overlap=self.chunk_overlap,
             length_function=len,
             separators=[
-                "\n\n",      # Párrafos
-                "\n",        # Líneas
-                ". ",        # Oraciones
-                "? ",
-                "! ",
+                "\n\n",  # párrafos
+                "\n",    # líneas
+                " ",     # espacios
+                "",      # fallback
             ]
         )
 
@@ -129,6 +129,9 @@ class PDFContentLoader:
             content = chunk.page_content.strip()
             if not content:
                 continue  # solo descarta si realmente está vacío
+            # Filtro mínimo para evitar basura: respeta configuración existente
+            if len(content) < self.min_chunk_length:
+                continue
 
             quality_score = self._calculate_chunk_quality(content)
             page_idx = None

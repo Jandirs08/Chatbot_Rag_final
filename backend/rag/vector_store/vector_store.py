@@ -110,6 +110,8 @@ class VectorStore:
                 "source": "keyword",
                 "pdf_hash": "keyword",
                 "content_hash": "keyword",
+                # Nuevo índice para deduplicación por contenido global
+                "content_hash_global": "keyword",
             }
 
             for field, idx_type in required_indexes.items():
@@ -461,6 +463,21 @@ class VectorStore:
             await self._invalidate_cache()
         except Exception as e:
             logger.error(f"Error eliminando por pdf_hash: {e}", exc_info=True)
+            raise
+
+    async def delete_by_content_hash_global(self, content_hash_global: str) -> None:
+        try:
+            must = [FieldCondition(key="content_hash_global", match=MatchValue(value=content_hash_global))]
+            qfilter = QFilter(must=must)
+            selector = FilterSelector(filter=qfilter)
+            await asyncio.to_thread(
+                self.client.delete,
+                collection_name="rag_collection",
+                points_selector=selector
+            )
+            await self._invalidate_cache()
+        except Exception as e:
+            logger.error(f"Error eliminando por content_hash_global: {e}", exc_info=True)
             raise
 
 

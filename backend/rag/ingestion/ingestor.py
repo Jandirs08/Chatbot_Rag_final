@@ -6,6 +6,7 @@ from typing import Dict, List, Set
 
 from langchain_core.documents import Document
 from qdrant_client.http.models import Filter as QFilter, FieldCondition, MatchValue
+from langchain_community.document_loaders import PyPDFLoader
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,34 @@ class RAGIngestor:
             return ""
         return md5.hexdigest()
 
+    # ----------------------
+    # HASH GLOBAL DE CONTENIDO
+    # ----------------------
+    def _get_content_hash_global(self, documents: List[Document]) -> str:
+        """Genera hash MD5 del contenido concatenado (normalizado mínimamente).
+        Normalización mínima: lower, strip, colapsar espacios.
+        """
+        try:
+            texts = [doc.page_content or "" for doc in documents]
+            concat = "\n".join(texts)
+            normalized = " ".join(concat.lower().strip().split())
+            return hashlib.md5(normalized.encode()).hexdigest()
+        except Exception as e:
+            logger.error(f"Error generando content_hash_global: {e}", exc_info=True)
+            return ""
+
+    async def _is_already_processed_content_hash_global(self, content_hash_global: str) -> bool:
+        try:
+            client = self.vector_store.client
+            f = QFilter(
+                must=[FieldCondition(key="content_hash_global", match=MatchValue(value=content_hash_global))]
+            )
+            count = client.count("rag_collection", count_filter=f)
+            return int(getattr(count, "count", 0)) > 0
+        except Exception as e:
+            logger.error(f"Error verificando duplicado por content_hash_global: {e}")
+            return False
+
     async def _is_already_processed_pdf_hash(self, pdf_hash: str) -> bool:
         try:
             client = self.vector_store.client
@@ -67,18 +96,39 @@ class RAGIngestor:
             if not pdf_path.exists():
                 return {"filename": filename, "status": "error", "error": "Archivo no encontrado"}
 
+            # Cargar documentos para hash global de contenido (procesado mínimo)
+            try:
+                loader = PyPDFLoader(str(pdf_path))
+                documents = loader.load()
+            except Exception as e:
+                logger.error(f"Error leyendo PDF para content_hash_global {pdf_path.name}: {e}", exc_info=True)
+                documents = []
+
+            if not documents:
+                return {"filename": filename, "status": "error", "error": "PDF sin contenido útil"}
+
+            content_hash_global = self._get_content_hash_global(documents)
+            if not content_hash_global:
+                return {"filename": filename, "status": "error", "error": "No se pudo generar content_hash_global"}
+
+            # Deduplicación primero por content_hash_global
+            if not force_update and await self._is_already_processed_content_hash_global(content_hash_global):
+                logger.info(f"⏭️ {filename} omitido — contenido equivalente ya existe en Qdrant")
+                return {"filename": filename, "status": "skipped"}
+
+            # Compatibilidad: deduplicación por pdf_hash (bytes)
             pdf_hash = await self._get_pdf_file_hash(pdf_path)
             if not pdf_hash:
                 return {"filename": filename, "status": "error", "error": "No se pudo generar hash"}
-
-            # DUPLICADO
             if not force_update and await self._is_already_processed_pdf_hash(pdf_hash):
-                logger.info(f"⏭️ {filename} omitido — ya existe en Qdrant")
+                logger.info(f"⏭️ {filename} omitido — ya existe en Qdrant (pdf_hash)")
                 return {"filename": filename, "status": "skipped"}
 
             # FORCE UPDATE: limpiar vectores previos SOLO de este PDF
             if force_update:
                 try:
+                    # Limpieza segura: por ambos hashes para evitar duplicados persistentes
+                    await self.vector_store.delete_by_content_hash_global(content_hash_global)
                     await self.vector_store.delete_by_pdf_hash(pdf_hash)
                 except Exception as e:
                     return {"filename": filename, "status": "error", "error": f"No se pudo limpiar previo: {e}"}
@@ -90,6 +140,8 @@ class RAGIngestor:
 
             for c in chunks:
                 c.metadata["pdf_hash"] = pdf_hash
+                # Añadir content_hash_global a cada chunk para indexación y compatibilidad
+                c.metadata["content_hash_global"] = content_hash_global
 
             texts = [c.page_content for c in chunks]
             embeddings = self.embedding_manager.embed_documents(texts)
