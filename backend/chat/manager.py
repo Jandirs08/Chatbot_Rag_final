@@ -17,6 +17,20 @@ from models.model_types import ModelTypes, MODEL_TO_CLASS
 
 logger = get_logger(__name__)
 
+# Lazy loading para tiktoken: evitar costos cuando no se usa debug
+_TIKTOKEN_ENCODING = None
+
+def _get_token_count(text: str) -> int:
+    """Cuenta tokens usando tiktoken con lazy loading; fallback a len(text)//4."""
+    global _TIKTOKEN_ENCODING
+    try:
+        if _TIKTOKEN_ENCODING is None:
+            import tiktoken  # lazy import solo cuando se necesite
+            _TIKTOKEN_ENCODING = tiktoken.get_encoding("cl100k_base")
+        return int(len(_TIKTOKEN_ENCODING.encode(text or "")))
+    except Exception:
+        return int(max(0, (len(text or "") // 4)))
+
 class ChatManager:
     """Manager principal para la interacción con el Bot y almacenamiento en base de datos."""
 
@@ -46,6 +60,8 @@ class ChatManager:
             if cached_response is not None:
                 logger.debug("Cache HIT respuesta LLM para conversación")
                 response_content = cached_response
+                t_llm_start = None
+                t_llm_end = None
             else:
                 logger.debug("Cache MISS respuesta LLM — generando con Bot")
                 bot_input = {"input": input_text, "conversation_id": conversation_id}
@@ -80,75 +96,16 @@ class ChatManager:
             if not debug_mode:
                 await self.db.add_message(conversation_id, USER_ROLE, input_text, source)
                 await self.db.add_message(conversation_id, ASSISTANT_ROLE, response_content, source)
-
-            if debug_mode:
-                try:
-                    docs = getattr(self.bot, "_last_retrieved_docs", []) or []
-                    items: List[RetrievedDocument] = []
-                    for d in docs:
-                        meta = getattr(d, "metadata", {}) or {}
-                        items.append(
-                            RetrievedDocument(
-                                text=getattr(d, "page_content", "") or "",
-                                source=meta.get("source"),
-                                score=(meta.get("score") if isinstance(meta.get("score"), (int, float)) else None),
-                                file_path=meta.get("file_path"),
-                                page_number=(int(meta.get("page_number")) if isinstance(meta.get("page_number"), (int, float)) else None),
-                            )
-                        )
-                    prompt_str = getattr(self.bot.chain_manager, "prompt_template_str", "") or ""
-                    model_params = getattr(self.bot.chain_manager, "model_kwargs", {}) or {}
-                    hist = await self.bot.memory.get_history(conversation_id)
-                    formatted_hist = self.bot._format_history(hist)
-                    ctx = getattr(self.bot, "_last_context", "") or ""
-                    try:
-                        pv = getattr(self.bot.chain_manager, "prompt_vars", {}) or {}
-                        nombre = pv.get("nombre")
-                        personality = pv.get("bot_personality")
-                        hydrated = str(prompt_str).format(
-                            nombre=str(nombre or ""),
-                            bot_personality=str(personality or ""),
-                            context=str(ctx or ""),
-                            history=str(formatted_hist or ""),
-                            input=str(input_text or ""),
-                        )
-                    except Exception as _e:
-                        hydrated = str(prompt_str)
-                    def _estimate_tokens(text: str) -> int:
-                        try:
-                            import tiktoken
-                            enc = tiktoken.get_encoding("cl100k_base")
-                            return int(len(enc.encode(text or "")))
-                        except Exception:
-                            return int(max(0, (len(text or "") // 4)))
-                    input_tokens = (
-                        _estimate_tokens(str(prompt_str))
-                        + _estimate_tokens(str(formatted_hist))
-                        + _estimate_tokens(str(ctx))
-                        + _estimate_tokens(str(input_text))
-                    )
-                    output_tokens = _estimate_tokens(str(response_content))
-                    rag_time = getattr(self.bot, "_last_rag_time", None)
-                    llm_time = None
-                    try:
-                        llm_time = float(t_llm_end - t_llm_start)
-                    except Exception:
-                        llm_time = None
-                    self._last_debug_info = DebugInfo(
-                        retrieved_documents=items,
-                        system_prompt_used=str(hydrated),
-                        model_params=dict(model_params),
-                        rag_time=rag_time,
-                        llm_time=llm_time,
-                        input_tokens=input_tokens,
-                        output_tokens=output_tokens,
-                    )
-                except Exception:
-                    self._last_debug_info = DebugInfo(
-                        retrieved_documents=[],
-                        system_prompt_used="",
-                        model_params={},
-                    )
+                self._last_debug_info = None
+            else:
+                self._last_debug_info = await self._build_debug_info(
+                    conversation_id=conversation_id,
+                    input_text=input_text,
+                    final_text=response_content,
+                    t_start=t_llm_start,
+                    t_end=t_llm_end,
+                    verification=None,
+                )
             logger.info(f"Respuesta generada{' y guardada' if not debug_mode else ''} para conversación {conversation_id}")
             return response_content
 
@@ -180,7 +137,7 @@ class ChatManager:
                 })
             elif mt == ModelTypes.VERTEX:
                 verifier_kwargs.update({
-                    "model_name": getattr(settings, "base_model_name", "chat-bison"),
+                    "model_name": getattr(settings, "base_model_name", "gpt-3.5-turbo"),
                     "max_output_tokens": getattr(settings, "max_tokens", 2000),
                     "top_p": 0.8,
                     "top_k": 40,
@@ -235,6 +192,78 @@ class ChatManager:
         except Exception:
             return {"is_grounded": False, "reason": "Error verificando respuesta"}
 
+    async def _build_debug_info(self, conversation_id, input_text, final_text, t_start, t_end, verification=None) -> DebugInfo:
+        """Construye DebugInfo consolidando recuperación de docs, prompt, tokens y latencias.
+        Maneja errores internamente y retorna un DebugInfo mínimo si algo falla.
+        """
+        try:
+            docs = getattr(self.bot, "_last_retrieved_docs", []) or []
+            items: List[RetrievedDocument] = []
+            for d in docs:
+                meta = getattr(d, "metadata", {}) or {}
+                items.append(
+                    RetrievedDocument(
+                        text=getattr(d, "page_content", "") or "",
+                        source=meta.get("source"),
+                        score=(meta.get("score") if isinstance(meta.get("score"), (int, float)) else None),
+                        file_path=meta.get("file_path"),
+                        page_number=(int(meta.get("page_number")) if isinstance(meta.get("page_number"), (int, float)) else None),
+                    )
+                )
+
+            prompt_str = getattr(self.bot.chain_manager, "prompt_template_str", "") or ""
+            model_params = getattr(self.bot.chain_manager, "model_kwargs", {}) or {}
+            hist = await self.bot.memory.get_history(conversation_id)
+            formatted_hist = self.bot._format_history(hist)
+            ctx = getattr(self.bot, "_last_context", "") or ""
+
+            try:
+                pv = getattr(self.bot.chain_manager, "prompt_vars", {}) or {}
+                nombre = pv.get("nombre")
+                personality = pv.get("bot_personality")
+                hydrated = str(prompt_str).format(
+                    nombre=str(nombre or ""),
+                    bot_personality=str(personality or ""),
+                    context=str(ctx or ""),
+                    history=str(formatted_hist or ""),
+                    input=str(input_text or ""),
+                )
+            except Exception:
+                hydrated = str(prompt_str)
+
+            input_tokens = (
+                _get_token_count(str(prompt_str))
+                + _get_token_count(str(formatted_hist))
+                + _get_token_count(str(ctx))
+                + _get_token_count(str(input_text))
+            )
+            output_tokens = _get_token_count(str(final_text))
+            rag_time = getattr(self.bot, "_last_rag_time", None)
+
+            llm_time = None
+            try:
+                if (t_start is not None) and (t_end is not None):
+                    llm_time = float(t_end - t_start)
+            except Exception:
+                llm_time = None
+
+            return DebugInfo(
+                retrieved_documents=items,
+                system_prompt_used=str(hydrated),
+                model_params=dict(model_params),
+                rag_time=rag_time,
+                llm_time=llm_time,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                verification=verification,
+            )
+        except Exception:
+            return DebugInfo(
+                retrieved_documents=[],
+                system_prompt_used="",
+                model_params={},
+            )
+
     async def generate_streaming_response(self, input_text: str, conversation_id: str, source: str | None = None, debug_mode: bool = False, enable_verification: bool = False):
         try:
             logger.info(f"[ChatManager] Streaming start conv={conversation_id}")
@@ -255,6 +284,17 @@ class ChatManager:
                 if not debug_mode:
                     await self.db.add_message(conversation_id, ASSISTANT_ROLE, final_text, source)
                     await self.bot.add_to_memory(human=input_text, ai=final_text, conversation_id=conversation_id)
+                    self._last_debug_info = None
+                else:
+                    # Construye debug info incluso en cache hit para mantener métricas en UI
+                    self._last_debug_info = await self._build_debug_info(
+                        conversation_id=conversation_id,
+                        input_text=input_text,
+                        final_text=final_text,
+                        t_start=None,
+                        t_end=None,
+                        verification=None,
+                    )
                 return
 
             bot_input = {"input": input_text, "conversation_id": conversation_id}
@@ -300,80 +340,25 @@ class ChatManager:
                     cache.set(cache_key, final_text, cache.ttl)
             except Exception:
                 pass
-            try:
-                if debug_mode:
-                    docs = getattr(self.bot, "_last_retrieved_docs", []) or []
-                    items: List[RetrievedDocument] = []
-                    for d in docs:
-                        meta = getattr(d, "metadata", {}) or {}
-                        items.append(
-                            RetrievedDocument(
-                                text=getattr(d, "page_content", "") or "",
-                                source=meta.get("source"),
-                                score=(meta.get("score") if isinstance(meta.get("score"), (int, float)) else None),
-                                file_path=meta.get("file_path"),
-                                page_number=(int(meta.get("page_number")) if isinstance(meta.get("page_number"), (int, float)) else None),
-                            )
-                        )
-                    prompt_str = getattr(self.bot.chain_manager, "prompt_template_str", "") or ""
-                    model_params = getattr(self.bot.chain_manager, "model_kwargs", {}) or {}
-                    hist = await self.bot.memory.get_history(conversation_id)
-                    formatted_hist = self.bot._format_history(hist)
-                    ctx = getattr(self.bot, "_last_context", "") or ""
-                    try:
-                        pv = getattr(self.bot.chain_manager, "prompt_vars", {}) or {}
-                        nombre = pv.get("nombre")
-                        personality = pv.get("bot_personality")
-                        hydrated = str(prompt_str).format(
-                            nombre=str(nombre or ""),
-                            bot_personality=str(personality or ""),
-                            context=str(ctx or ""),
-                            history=str(formatted_hist or ""),
-                            input=str(input_text or ""),
-                        )
-                    except Exception as _e:
-                        hydrated = str(prompt_str)
-                    def _estimate_tokens(text: str) -> int:
-                        try:
-                            import tiktoken
-                            enc = tiktoken.get_encoding("cl100k_base")
-                            return int(len(enc.encode(text or "")))
-                        except Exception:
-                            return int(max(0, (len(text or "") // 4)))
-                    input_tokens = (
-                        _estimate_tokens(str(prompt_str))
-                        + _estimate_tokens(str(formatted_hist))
-                        + _estimate_tokens(str(ctx))
-                        + _estimate_tokens(str(input_text))
-                    )
-                    output_tokens = _estimate_tokens(str(final_text))
-                    rag_time = getattr(self.bot, "_last_rag_time", None)
-                    t_llm_end = time.perf_counter()
-                    llm_time = float(t_llm_end - t_llm_start)
+            if debug_mode:
+                t_llm_end = time.perf_counter()
+                verification = None
+                try:
+                    if enable_verification:
+                        ctx = getattr(self.bot, "_last_context", "") or ""
+                        verification = await self._verify_response(input_text, ctx, final_text)
+                except Exception:
                     verification = None
-                    try:
-                        if enable_verification:
-                            verification = await self._verify_response(input_text, ctx, final_text)
-                    except Exception:
-                        verification = None
-                    self._last_debug_info = DebugInfo(
-                        retrieved_documents=items,
-                        system_prompt_used=str(hydrated),
-                        model_params=dict(model_params),
-                        rag_time=rag_time,
-                        llm_time=llm_time,
-                        input_tokens=input_tokens,
-                        output_tokens=output_tokens,
-                        verification=verification,
-                    )
-                else:
-                    self._last_debug_info = None
-            except Exception:
-                self._last_debug_info = DebugInfo(
-                    retrieved_documents=[],
-                    system_prompt_used="",
-                    model_params={},
+                self._last_debug_info = await self._build_debug_info(
+                    conversation_id=conversation_id,
+                    input_text=input_text,
+                    final_text=final_text,
+                    t_start=t_llm_start,
+                    t_end=t_llm_end,
+                    verification=verification,
                 )
+            else:
+                self._last_debug_info = None
             logger.info(f"[ChatManager] Streaming end conv={conversation_id} total_len={len(final_text)}")
         except Exception as e:
             logger.error(f"Error generando respuesta streaming en ChatManager: {e}", exc_info=True)
