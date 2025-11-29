@@ -76,11 +76,23 @@ export default function PlaygroundPage() {
         {conversationId && (
           <ChatWindow
             titleText="Playground"
+            key={conversationId}
             conversationId={conversationId}
             initialMessages={initialMessages || undefined}
             forceDebug
             enableVerification={enableVerification}
             onDebugData={(d) => setDebugData(d)}
+            onNewChat={() => {
+              const key = "playground_conversation_id";
+              const newId = crypto?.randomUUID
+                ? crypto.randomUUID()
+                : `${Date.now()}-${Math.random()}`;
+              if (typeof window !== "undefined") {
+                window.localStorage.setItem(key, newId);
+              }
+              setConversationId(newId);
+              setInitialMessages([]);
+            }}
           />
         )}
       </div>

@@ -85,8 +85,20 @@ export default function ChatPage() {
       {conversationId && (
         <ChatWindow
           titleText="Chatbot"
+          key={conversationId}
           conversationId={conversationId}
           initialMessages={initialMessages || undefined}
+          onNewChat={() => {
+            const key = "conversation_id";
+            const newId = crypto?.randomUUID
+              ? crypto.randomUUID()
+              : `${Date.now()}-${Math.random()}`;
+            if (typeof window !== "undefined") {
+              window.localStorage.setItem(key, newId);
+            }
+            setConversationId(newId);
+            setInitialMessages([]);
+          }}
         />
       )}
     </div>

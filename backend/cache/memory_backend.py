@@ -1,49 +1,25 @@
 import time
-from typing import Any, Dict, Optional
+import collections
+from typing import Any, Optional
 
 
 class InMemoryCache:
-    """Caché en memoria con TTL y control de tamaño máximo.
-
-    - Usa un dict interno: {key: {value, expires_at, created_at}}
-    - TTL por entrada: ahora + ttl
-    - Evicción FIFO simple cuando excede max_size
-    - Métodos: get, set, delete, invalidate_prefix
-    """
+    """Caché en memoria con TTL y control de tamaño máximo."""
 
     def __init__(self, max_size: int = 1000):
-        self._store: Dict[str, Dict[str, Any]] = {}
+        self._store = collections.OrderedDict()
         self.max_size = int(max_size) if max_size is not None else 1000
-
-    def _cleanup_expired(self) -> None:
-        now = time.time()
-        try:
-            expired_keys = [k for k, v in self._store.items() if v.get("expires_at", 0) <= now]
-            for k in expired_keys:
-                try:
-                    del self._store[k]
-                except Exception:
-                    pass
-        except Exception:
-            # No bloquear por errores en limpieza
-            pass
 
     def _evict_if_needed(self) -> None:
         try:
             if len(self._store) > self.max_size:
-                # Eliminar la entrada más antigua según created_at
-                oldest_key = min(self._store.keys(), key=lambda kk: self._store[kk].get("created_at", 0))
-                try:
-                    del self._store[oldest_key]
-                except Exception:
-                    pass
+                self._store.popitem(last=False)
         except Exception:
             pass
 
     def get(self, key: str) -> Optional[Any]:
         if key is None:
             return None
-        self._cleanup_expired()
         entry = self._store.get(str(key))
         if not entry:
             return None
@@ -62,12 +38,17 @@ class InMemoryCache:
         now = time.time()
         ttl_seconds = int(ttl) if ttl is not None else 0
         expires_at = now + ttl_seconds if ttl_seconds > 0 else float("inf")
-        self._cleanup_expired()
-        self._store[str(key)] = {
-            "value": value,
-            "expires_at": expires_at,
-            "created_at": now,
-        }
+        k = str(key)
+        existing = self._store.get(k)
+        if existing is not None:
+            existing["value"] = value
+            existing["expires_at"] = expires_at
+            self._store.move_to_end(k)
+        else:
+            self._store[k] = {
+                "value": value,
+                "expires_at": expires_at,
+            }
         self._evict_if_needed()
 
     def delete(self, key: str) -> None:

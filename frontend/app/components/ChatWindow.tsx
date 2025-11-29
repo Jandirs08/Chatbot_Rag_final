@@ -18,6 +18,7 @@ export function ChatWindow(props: {
   forceDebug?: boolean;
   enableVerification?: boolean;
   onDebugData?: (data: any) => void;
+  onNewChat?: () => void;
 }) {
   const messageContainerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -31,15 +32,14 @@ export function ChatWindow(props: {
     forceDebug = false,
     enableVerification = false,
     onDebugData,
+    onNewChat,
   } = props;
   const [botName, setBotName] = React.useState<string | undefined>(undefined);
   const [isBotActive, setIsBotActive] = React.useState(true);
 
   // Usar el hook personalizado para manejar el chat
-  const { messages, isLoading, debugData, sendMessage, clearMessages } = useChatStream(
-    conversationId,
-    initialMessages,
-  );
+  const { messages, isLoading, debugData, sendMessage, clearMessages } =
+    useChatStream(conversationId, initialMessages);
 
   // Función para hacer scroll al último mensaje
   const scrollToBottom = () => {
@@ -100,11 +100,17 @@ export function ChatWindow(props: {
     if (inputRef.current && !isLoading) {
       inputRef.current.focus();
     }
-    await sendMessage(messageValue, { debug: forceDebug, body: { enable_verification: enableVerification } });
+    await sendMessage(messageValue, {
+      debug: forceDebug,
+      body: { enable_verification: enableVerification },
+    });
   };
 
   const sendInitialQuestion = async (question: string) => {
-    await sendMessage(question, { debug: forceDebug, body: { enable_verification: enableVerification } });
+    await sendMessage(question, {
+      debug: forceDebug,
+      body: { enable_verification: enableVerification },
+    });
   };
 
   // Limpieza de conversación eliminada: la sesión se pierde al refrescar pantalla
@@ -137,7 +143,12 @@ export function ChatWindow(props: {
               <button
                 aria-label="Limpiar chat"
                 title="Limpiar chat"
-                onClick={() => clearMessages()}
+                onClick={() => {
+                  clearMessages();
+                  if (typeof onNewChat === "function") {
+                    onNewChat();
+                  }
+                }}
                 className="ml-3 p-2 rounded-lg bg-white/20 hover:bg-white/30 text-white transition-colors"
               >
                 <Trash className="w-4 h-4" />
