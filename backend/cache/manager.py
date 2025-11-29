@@ -8,14 +8,7 @@ _logger = get_logger(__name__)
 
 
 class CacheManager:
-    """Gestor unificado de caché con fallback automático.
-
-    - Si REDIS_URL está definido y Redis responde: usa RedisCache
-    - Si no: usa InMemoryCache
-    - TTL global configurable via settings.cache_ttl
-    - max_size configurable via settings.max_cache_size (para caché en memoria)
-    - API pública: get, set, delete, invalidate_prefix
-    """
+    """Gestor unificado de caché basado exclusivamente en Redis."""
 
     def __init__(self):
         # Configuración global
@@ -31,48 +24,34 @@ class CacheManager:
         self.backend = self._init_backend()
 
     def _init_backend(self):
-        # Intentar Redis primero
         try:
             redis_url = getattr(settings, "redis_url", None)
-            if redis_url:
-                try:
-                    import redis  # type: ignore
-                    url = (
-                        redis_url.get_secret_value()
-                        if hasattr(redis_url, "get_secret_value")
-                        else str(redis_url)
-                    )
-                    client = redis.from_url(url, decode_responses=False)
-                    # Verificar conectividad rápida
-                    client.ping()
-                    _logger.info("CacheManager: Redis PING OK")
-                    from .redis_backend import RedisCache
-                    _logger.info("CacheManager: Redis conectado correctamente (usando RedisCache).")
-                    return RedisCache(client=client)
-                except Exception as e:
-                    _logger.warning("CacheManager: Redis no disponible, usando InMemoryCache.")
-        except Exception:
-            # Cualquier error en acceso a settings
-            pass
-
-        # Fallback a caché en memoria
-        try:
-            from .memory_backend import InMemoryCache
-            _logger.info("CacheManager: Redis no disponible, usando InMemoryCache.")
-            return InMemoryCache(max_size=self.max_size)
+            if not redis_url:
+                raise RuntimeError("REDIS_URL no configurado")
+            
+            import redis  # type: ignore
+            
+            url = (
+                redis_url.get_secret_value()
+                if hasattr(redis_url, "get_secret_value")
+                else str(redis_url)
+            )
+            
+            client = redis.from_url(url, decode_responses=False)
+            
+            # Verificar conexión
+            client.ping()
+            _logger.info("CacheManager: Redis PING OK")  # <--- LOG RECUPERADO
+            
+            from .redis_backend import RedisCache
+            _logger.info("CacheManager: Redis conectado correctamente (usando RedisCache).") # <--- LOG RECUPERADO
+            
+            return RedisCache(client=client)
+            
         except Exception as e:
-            # Último recurso: construir una implementación mínima
-            _logger.error(f"CacheManager: error iniciando InMemoryCache: {e}")
-            class _MinimalCache:
-                def get(self, key: str):
-                    return None
-                def set(self, key: str, value: Any, ttl: int):
-                    return None
-                def delete(self, key: str):
-                    return None
-                def invalidate_prefix(self, prefix: str):
-                    return None
-            return _MinimalCache()
+            # Loguear el error crítico antes de morir
+            _logger.critical(f"FALLO CRÍTICO DE REDIS: {e}")
+            raise RuntimeError("Conexión a Redis fallida - Backend detenido") from e
 
     # API pública unificada
     def get(self, key: str) -> Optional[Any]:

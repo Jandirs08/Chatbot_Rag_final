@@ -13,6 +13,10 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copia el resto del código
 COPY . .
 
+# Copiar script de entrada y dar permisos
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
+
 # 🔧 Crear carpetas necesarias y dar permisos de escritura
 RUN mkdir -p /app/storage/vector_store /app/storage/documents/pdfs && \
     chmod -R 777 /app/storage
@@ -20,5 +24,4 @@ RUN mkdir -p /app/storage/vector_store /app/storage/documents/pdfs && \
 # Exponer puerto
 EXPOSE 8000
 
-# Comando de ejecución
-CMD ["sh", "-c", "python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+ENTRYPOINT ["./entrypoint.sh"]
