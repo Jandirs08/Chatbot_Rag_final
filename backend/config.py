@@ -54,6 +54,12 @@ class Settings(BaseSettings):
     log_level: str = Field(default="DEBUG", env="LOG_LEVEL")
     
     
+    # Rate Limiting
+    enable_rate_limiting: bool = Field(default=True, env="ENABLE_RATE_LIMITING")
+    rate_limit_strategy: str = Field(default="fixed-window", env="RATE_LIMIT_STRATEGY")
+    global_rate_limit: str = Field(default="100/minute", env="GLOBAL_RATE_LIMIT")
+    chat_rate_limit: str = Field(default="10/minute", env="CHAT_RATE_LIMIT")
+    
     # Configuraciones del Modelo
     model_type: str = Field(default="OPENAI", env="MODEL_TYPE")
     openai_api_key: SecretStr = Field(..., env="OPENAI_API_KEY")

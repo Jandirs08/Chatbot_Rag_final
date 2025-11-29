@@ -11,10 +11,13 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from starlette.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 # ---- Internos ----
 from utils.logging_utils import get_logger, suppress_cl100k_warnings
 from config import settings
+from utils.rate_limiter import limiter, retry_after_for_path
 from chat.manager import ChatManager
 from rag.retrieval.retriever import RAGRetriever
 from storage.documents import PDFManager
@@ -377,6 +380,8 @@ def create_app() -> FastAPI:
     )
     main_logger.info(enterprise_banner())
 
+    app.state.limiter = limiter
+
     @app.middleware("http")
     async def log_requests(request: Request, call_next):
         start_time = time.time()
@@ -418,6 +423,9 @@ def create_app() -> FastAPI:
     # Evitar duplicar logs de CORS; el detalle ya se muestra en get_cors_origins_list
     main_logger.debug(f"CORS configurado para orígenes: {allow_origins_list}")
 
+    if settings.enable_rate_limiting:
+        app.add_middleware(SlowAPIMiddleware)
+
     # ---- Middleware ----
     # Agregar middleware de autenticación (se inicializará con MongoDB client en lifespan)
     app.add_middleware(AuthenticationMiddleware)
@@ -434,6 +442,15 @@ def create_app() -> FastAPI:
     async def http_exception_handler(request: Request, exc: HTTPException):
         main_logger.error(f"HTTPException: {exc.detail}")
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+    @app.exception_handler(RateLimitExceeded)
+    async def ratelimit_exception_handler(request: Request, exc: RateLimitExceeded):
+        try:
+            main_logger.warning(f"⛔ RATE LIMIT EXCEEDED: IP {request.client.host} en {request.url.path}")
+        except Exception:
+            pass
+        retry_after = retry_after_for_path(request.url.path)
+        return JSONResponse(status_code=429, content={"detail": "Demasiadas peticiones. Calma, cowboy.", "retry_after": retry_after})
 
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):

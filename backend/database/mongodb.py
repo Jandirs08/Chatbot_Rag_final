@@ -45,7 +45,12 @@ class MongodbClient:
         self.mongo_uri = mongo_uri
         self.database_name = database_name
         try:
-            self.client = AsyncIOMotorClient(mongo_uri)
+            self.client = AsyncIOMotorClient(
+                mongo_uri,
+                maxPoolSize=getattr(app_settings, "mongo_max_pool_size", 100),
+                serverSelectionTimeoutMS=getattr(app_settings, "mongo_timeout_ms", 5000),
+                uuidRepresentation="standard",
+            )
             self.db = self.client[database_name]
             self.messages = self.db.messages
             logger.info(f"MongoDB connection to db '{database_name}' established successfully.")
