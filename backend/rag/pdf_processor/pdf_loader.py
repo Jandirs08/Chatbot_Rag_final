@@ -7,9 +7,9 @@ from pathlib import Path
 import logging
 import sys
 
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.text_splitter import TokenTextSplitter
 from langchain_core.documents import Document
-from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import PyMuPDFLoader
 
 logger = logging.getLogger(__name__)
 
@@ -31,21 +31,13 @@ class PDFContentLoader:
         self.chunk_overlap = chunk_overlap if chunk_overlap is not None else settings.chunk_overlap
         self.min_chunk_length = min_chunk_length if min_chunk_length is not None else settings.min_chunk_length
 
-        # Splitter estable sin destruir estructura
-        # Cambio de separators para optimización determinista (manteniendo config actual)
-        self.text_splitter = RecursiveCharacterTextSplitter(
+        self.text_splitter = TokenTextSplitter(
+            encoding_name="cl100k_base",
             chunk_size=self.chunk_size,
             chunk_overlap=self.chunk_overlap,
-            length_function=len,
-            separators=[
-                "\n\n",  # párrafos
-                "\n",    # líneas
-                " ",     # espacios
-                "",      # fallback
-            ]
         )
 
-        logger.info(
+        logger.debug(
             f"[PDFContentLoader INIT] chunk_size={self.chunk_size} | overlap={self.chunk_overlap} | min_chunk_length={self.min_chunk_length}"
         )
 
@@ -58,7 +50,7 @@ class PDFContentLoader:
         logger.info(f"Procesando PDF: {pdf_path.name}")
 
         try:
-            pdf_loader = PyPDFLoader(str(pdf_path))
+            pdf_loader = PyMuPDFLoader(str(pdf_path))
             documents = pdf_loader.load()
             logger.info(f"PDF cargado: {len(documents)} páginas")
         except Exception as e:
@@ -84,7 +76,7 @@ class PDFContentLoader:
             for idx in range(preview_count):
                 c = final_chunks[idx]
                 t = c.page_content.strip()
-                logger.info(f"chunk[{idx}] size={len(t)} words={len(t.split())} preview={t[:120]}")
+                logger.debug(f"chunk[{idx}] size={len(t)} words={len(t.split())} preview={t[:120]}")
         except Exception:
             pass
 
@@ -147,7 +139,7 @@ class PDFContentLoader:
             try:
                 preview_text = content[:50]
                 human_page = (page_idx + 1) if page_idx is not None else None
-                logger.info(f"[PDF-DEBUG] Chunk {idx} | Page RawIdx: {page_idx} -> Human: {human_page} | Text: \"{preview_text}\"")
+                logger.debug(f"[PDF-DEBUG] Chunk {idx} | Page RawIdx: {page_idx} -> Human: {human_page} | Text: \"{preview_text}\"")
                 if human_page is None:
                     logger.warning(f"[ALERTA] Chunk sin número de página detectado en {pdf_path.name}")
             except Exception:

@@ -87,8 +87,8 @@ class Settings(BaseSettings):
     max_memory_entries: int = Field(default=1000, env="MAX_MEMORY_ENTRIES")
     
     # Configuraciones de RAG - Procesamiento de PDFs
-    chunk_size: int = Field(default=1000, validation_alias="RAG_CHUNK_SIZE")
-    chunk_overlap: int = Field(default=150, validation_alias="RAG_CHUNK_OVERLAP")
+    chunk_size: int = Field(default=500, validation_alias="RAG_CHUNK_SIZE")
+    chunk_overlap: int = Field(default=50, validation_alias="RAG_CHUNK_OVERLAP")
     min_chunk_length: int = Field(default=100, validation_alias="MIN_CHUNK_LENGTH")
     max_file_size_mb: int = Field(default=10, validation_alias="MAX_FILE_SIZE_MB")
     

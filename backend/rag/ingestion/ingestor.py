@@ -6,7 +6,7 @@ from typing import Dict, List, Set
 
 from langchain_core.documents import Document
 from qdrant_client.http.models import Filter as QFilter, FieldCondition, MatchValue
-from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import PyMuPDFLoader
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +98,7 @@ class RAGIngestor:
 
             # Cargar documentos para hash global de contenido (procesado mínimo)
             try:
-                loader = PyPDFLoader(str(pdf_path))
+                loader = PyMuPDFLoader(str(pdf_path))
                 documents = loader.load()
             except Exception as e:
                 logger.error(f"Error leyendo PDF para content_hash_global {pdf_path.name}: {e}", exc_info=True)
