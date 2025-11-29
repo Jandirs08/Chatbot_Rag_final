@@ -62,7 +62,7 @@ class BaseChatbotMemory(AbstractChatbotMemory):
         text = content.strip().lower()
         profile: Dict[str, str] = {}
 
-        m = re.search(r"(?:me llamo|mi nombre es|soy)\s+([a-záéíóúñ\s]{2,50})", text)
+        m = re.search(r"(?:me llamo|mi nombre es|soy)\s+([a-záéíóúñ\s]{2,50}?)(?=\s+(?:y|tengo|mi\s+edad|me\s+gusta|objetivo|quiero|\d)|[,.]|$)", text)
         if m:
             name = m.group(1).strip()
             profile["nombre"] = " ".join(w.capitalize() for w in name.split())[:50]
@@ -85,6 +85,14 @@ class BaseChatbotMemory(AbstractChatbotMemory):
         )
         if m:
             profile["metas"] = m.group(1).strip()[:120]
+
+        m = re.search(
+            r"(?:trabajo\s+en|laboro\s+en|trabajo\s+para|trabajo\s+con|estoy\s+en)\s+([a-záéíóúñ\s\-]{2,80})",
+            text
+        )
+        if m:
+            org = m.group(1).strip()
+            profile["trabajo"] = " ".join(w.capitalize() for w in org.split())[:80]
 
         return profile
 
@@ -109,7 +117,7 @@ class BaseChatbotMemory(AbstractChatbotMemory):
         messages.extend(list(reversed(fetched)))
         if profile_doc:
             lines = ["Perfil del usuario:"]
-            for key in ("nombre", "edad", "gustos", "metas"):
+            for key in ("nombre", "edad", "gustos", "metas", "trabajo"):
                 val = profile_doc.get(key)
                 if val:
                     lines.append(f"- {key}: {val}")

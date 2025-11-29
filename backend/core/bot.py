@@ -306,9 +306,9 @@ class Bot:
         for msg in hist_list:
             role = msg.get("role", "unknown")
             content = msg.get("content", "").strip()
-            if role == "human":
+            if role in ("human", "user"):
                 out.append(f"User: {content}")
-            elif role == "ai":
+            elif role in ("ai", "assistant"):
                 out.append(f"Assistant: {content}")
             elif role == "system":
                 out.append(f"System Info: {content}")
