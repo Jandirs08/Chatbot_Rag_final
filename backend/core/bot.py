@@ -310,7 +310,8 @@ class Bot:
                 out.append(f"User: {content}")
             elif role == "ai":
                 out.append(f"Assistant: {content}")
-            # Omitimos 'system' aquí porque ya está en el prompt base
+            elif role == "system":
+                out.append(f"System Info: {content}")
         if not out:
             return "No hay mensajes previos."
         return "\n".join(out)

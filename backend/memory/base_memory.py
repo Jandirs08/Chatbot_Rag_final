@@ -1,9 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any, List
-from datetime import datetime, timezone
 import logging
 import re
-import asyncio
+from database.mongodb import get_mongodb_client
 
 
 class AbstractChatbotMemory(ABC):
@@ -36,12 +35,7 @@ class AbstractChatbotMemory(ABC):
 
 
 class BaseChatbotMemory(AbstractChatbotMemory):
-    """
-    Memoria mínima en RAM:
-    - Últimos K mensajes
-    - Perfil simple del usuario
-    - Lock por sesión (alta concurrencia)
-    """
+    """Memoria basada en MongoDB con perfil de usuario."""
 
     def __init__(
         self,
@@ -58,21 +52,8 @@ class BaseChatbotMemory(AbstractChatbotMemory):
             k=k,
             **kwargs
         )
-
-        self._profiles: Dict[str, Dict[str, str]] = {}
-        self._message_history: Dict[str, List[Dict[str, Any]]] = {}
-
-        # Lock POR sesión, no global
-        self._locks: Dict[str, asyncio.Lock] = {}
-
-    # ----------------------------
-    # LOCK POR SESIÓN
-    # ----------------------------
-    def _get_lock(self, session_id: str) -> asyncio.Lock:
-        """Devuelve un lock específico por sesión (crea si no existe)."""
-        if session_id not in self._locks:
-            self._locks[session_id] = asyncio.Lock()
-        return self._locks[session_id]
+        self.db_client = get_mongodb_client()
+        self.profiles_col = self.db_client.db["chat_profiles"]
 
     # ----------------------------
     # PERFIL
@@ -107,60 +88,38 @@ class BaseChatbotMemory(AbstractChatbotMemory):
 
         return profile
 
-    # ----------------------------
-    # AÑADIR MENSAJE
-    # ----------------------------
     async def add_message(self, session_id: str, role: str, content: str) -> None:
-        async with self._get_lock(session_id):
-            if session_id not in self._message_history:
-                self._message_history[session_id] = []
+        if role == "human":
+            extracted = self._extract_profile(content)
+            if extracted:
+                await self.profiles_col.update_one(
+                    {"session_id": session_id},
+                    {"$set": extracted, "$setOnInsert": {"session_id": session_id}},
+                    upsert=True,
+                )
 
-            self._message_history[session_id].append({
-                "role": role,
-                "content": content,
-                "session_id": session_id,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            })
-
-            if len(self._message_history[session_id]) > self.k_history:
-                self._message_history[session_id] = self._message_history[session_id][-self.k_history:]
-
-            if role == "human":
-                extracted = self._extract_profile(content)
-                if extracted:
-                    current = self._profiles.get(session_id, {})
-                    current.update(extracted)
-                    self._profiles[session_id] = {
-                        k: v for k, v in current.items()
-                        if k in {"nombre", "edad", "gustos", "metas"}
-                    }
-
-    # ----------------------------
-    # OBTENER HISTORIAL
-    # ----------------------------
     async def get_history(self, session_id: str) -> List[Dict[str, Any]]:
-        async with self._get_lock(session_id):
-            history = list(self._message_history.get(session_id, []))
+        messages: List[Dict[str, Any]] = []
+        profile_doc = await self.profiles_col.find_one({"session_id": session_id})
+        cursor = self.db_client.messages.find(
+            {"conversation_id": session_id},
+            {"role": 1, "content": 1, "_id": 0},
+        ).sort("timestamp", -1).limit(self.window_size)
+        fetched = await cursor.to_list(length=self.window_size)
+        messages.extend(list(reversed(fetched)))
+        if profile_doc:
+            lines = ["Perfil del usuario:"]
+            for key in ("nombre", "edad", "gustos", "metas"):
+                val = profile_doc.get(key)
+                if val:
+                    lines.append(f"- {key}: {val}")
+            messages.insert(0, {
+                "role": "system",
+                "content": "\n".join(lines),
+                "session_id": session_id,
+            })
+        return messages
 
-            profile = self._profiles.get(session_id, {})
-            if profile:
-                lines = ["Perfil del usuario:"]
-                for key in ("nombre", "edad", "gustos", "metas"):
-                    if key in profile:
-                        lines.append(f"- {key}: {profile[key]}")
-
-                history.insert(0, {
-                    "role": "system",
-                    "content": "\n".join(lines),
-                    "session_id": session_id
-                })
-
-            return history
-
-    # ----------------------------
-    # LIMPIAR HISTORIAL
-    # ----------------------------
     async def clear_history(self, session_id: str) -> None:
-        async with self._get_lock(session_id):
-            self._message_history.pop(session_id, None)
-            self._profiles.pop(session_id, None)
+        await self.db_client.messages.delete_many({"conversation_id": session_id})
+        await self.profiles_col.delete_one({"session_id": session_id})
