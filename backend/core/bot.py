@@ -77,6 +77,7 @@ class Bot:
         self._last_retrieved_docs = []
         self._last_context = ""
         self._last_rag_time = None
+        self._last_gating_reason = None
         self._build_pipeline()
 
     def reload_chain(self, new_settings: Optional[Settings] = None):
@@ -150,6 +151,7 @@ class Bot:
 
                 # Gating
                 reason, use = self.rag_retriever.gating(query)
+                self._last_gating_reason = reason
                 self.logger.debug(f"RAG gating: reason={reason}")
                 if not use:
                     return fallback_ctx
