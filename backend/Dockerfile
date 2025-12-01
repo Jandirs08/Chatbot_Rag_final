@@ -13,9 +13,9 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copia el resto del código
 COPY . .
 
-# Copiar script de entrada y dar permisos
-COPY entrypoint.sh .
-RUN chmod +x entrypoint.sh
+# Copiar script de entrada al PATH y normalizar finales de línea
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN sed -i 's/\r$//' /usr/local/bin/entrypoint.sh && chmod +x /usr/local/bin/entrypoint.sh
 
 # 🔧 Crear carpetas necesarias y dar permisos de escritura
 RUN mkdir -p /app/storage/vector_store /app/storage/documents/pdfs && \
@@ -24,4 +24,4 @@ RUN mkdir -p /app/storage/vector_store /app/storage/documents/pdfs && \
 # Exponer puerto
 EXPOSE 8000
 
-ENTRYPOINT ["./entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

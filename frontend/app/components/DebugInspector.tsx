@@ -3,15 +3,14 @@
 import React, { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/app/components/ui/card";
 import { Badge } from "@/app/components/ui/badge";
-import { Separator } from "@/app/components/ui/separator";
 import { ScrollArea } from "@/app/components/ui/scroll-area";
 import { Progress } from "@/app/components/ui/progress";
-import { Clock, Zap, MessageSquare, Eye, Info, ShieldCheck, AlertTriangle, ChevronDown } from "lucide-react";
-import PdfViewerModal from "@/app/components/modals/PdfViewerModal";
-// Accordion removido: usamos flexbox controlado por estado
+import { Switch } from "@/app/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/app/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import * as Collapsible from "@radix-ui/react-collapsible";
+import { Clock, Zap, MessageSquare, Eye, Info, ShieldCheck, AlertTriangle, ChevronDown, Database, Gauge } from "lucide-react";
+import PdfViewerModal from "@/app/components/modals/PdfViewerModal";
 
 type RetrievedDoc = {
   text?: string;
@@ -33,6 +32,8 @@ type DebugData = {
   input_tokens?: number | null;
   output_tokens?: number | null;
   verification?: { is_grounded: boolean; reason?: string } | null;
+  gating_reason?: string | null;
+  is_cached?: boolean;
 };
 
 export function DebugInspector({ data }: { data?: DebugData | null }) {
@@ -41,6 +42,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
   const [pdfPage, setPdfPage] = useState<number | null>(null);
   const [isPromptOpen, setIsPromptOpen] = useState(false);
   const [isSourcesOpen, setIsSourcesOpen] = useState(true);
+  const [showRaw, setShowRaw] = useState(false);
   const docs: RetrievedDoc[] = Array.isArray(data?.retrieved_documents)
     ? (data?.retrieved_documents as RetrievedDoc[])
     : Array.isArray(data?.retrieved)
@@ -60,21 +62,54 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
   const ragColor = ragTime === null ? "text-muted-foreground" : ragTime < 1 ? "text-emerald-500" : ragTime > 3 ? "text-red-500" : "text-amber-500";
   const totalTime = typeof ragTime === "number" && typeof llmTime === "number" ? ragTime + llmTime : null;
   // costo eliminado
+  const gatingMap: Record<string, string> = {
+    semantic_match: "Búsqueda Semántica",
+    keyword_match: "Búsqueda por Palabras Clave",
+    low_intent: "Charla",
+    chatty: "Charla",
+    qa: "Pregunta y Respuesta",
+    no_corpus: "Sin Corpus",
+  };
+  const gatingText = data?.gating_reason ? (gatingMap[data.gating_reason] || data.gating_reason) : "-";
+  const cacheText = data?.is_cached ? "⚡ HIT" : "🐢 MISS";
 
-  if (!data || (!docs || docs.length === 0) && !sysPrompt) {
+  if (!data) {
     return (
-      <div className="h-full w-full flex items-center justify-center text-sm text-slate-500 dark:text-slate-400">
-        Escribe en el chat para ver el razonamiento de la IA
+      <div className="h-full w-full flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-white shadow-sm border mb-3">
+            <Gauge className="w-5 h-5 text-slate-500" />
+          </div>
+          <div className="text-sm text-slate-600">Esperando respuesta...</div>
+          <div className="text-xs text-muted-foreground mt-1">Envía un mensaje para inspeccionar el flujo RAG</div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="h-full w-full flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800">
-      <div className="shrink-0 p-4 border-b border-slate-200 dark:border-slate-800">
+    <div className="h-full w-full flex flex-col overflow-hidden bg-transparent">
+      <div className="shrink-0 p-4 border-b border-slate-200 bg-white">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-slate-100 border">
+              <Clock className="w-3.5 h-3.5 text-slate-600" />
+            </span>
+            <h2 className="text-sm font-semibold">Inspector RAG</h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Ver JSON Crudo</span>
+            <Switch checked={showRaw} onCheckedChange={(v) => setShowRaw(Boolean(v))} />
+          </div>
+        </div>
         <TooltipProvider delayDuration={0}>
+          {showRaw && (
+            <div className="rounded-md border bg-white p-4">
+              <pre className="text-xs font-mono text-slate-700 whitespace-pre overflow-x-auto">{JSON.stringify(data, null, 2)}</pre>
+            </div>
+          )}
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-3" style={{ display: showRaw ? 'none' as any : undefined }}>
             <div className="bg-card border border-border rounded-md p-3">
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-slate-700" />
@@ -133,7 +168,23 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
             </div>
           </div>
         </TooltipProvider>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-3 mb-2" style={{ display: showRaw ? 'none' as any : undefined }}>
+            <div className="bg-card border border-border rounded-md p-3">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-emerald-600" />
+                <div className="text-xs text-muted-foreground">Cerebro</div>
+              </div>
+              <div className="text-lg font-mono font-bold text-foreground">{gatingText}</div>
+            </div>
+            <div className="bg-card border border-border rounded-md p-3">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-orange-600" />
+                <div className="text-xs text-muted-foreground">Velocidad</div>
+              </div>
+              <div className="text-lg font-mono font-bold text-foreground">{cacheText}</div>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-2" style={{ display: showRaw ? 'none' as any : undefined }}>
             <div className="bg-card border border-border rounded-md p-3">
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-4 h-4 text-indigo-500" />
@@ -221,7 +272,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
           
         
 
-        <div className="flex flex-wrap gap-2 mb-4">
+        <div className="flex flex-wrap gap-2 mb-4" style={{ display: showRaw ? 'none' as any : undefined }}>
           <div className="bg-secondary/50 text-secondary-foreground hover:bg-secondary/70 border border-border/50 rounded-full px-2.5 py-0.5 text-[10px] font-mono font-medium">
             Modelo: {modelName}
           </div>
@@ -238,6 +289,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
         </div>
       </div>
 
+      {!showRaw && (
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         <Collapsible.Root open={isPromptOpen} onOpenChange={setIsPromptOpen} className="flex-none border-b bg-card">
           <Collapsible.Trigger asChild>
@@ -271,11 +323,11 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
               const score = typeof d.score === "number" ? d.score : undefined;
               const pct = score !== undefined ? Math.max(0, Math.min(1, score)) * 100 : undefined;
               const barClass = score !== undefined
-                ? score >= 0.8
+                ? score > 0.7
                   ? "[&>div]:bg-emerald-500"
-                  : score < 0.7
+                  : score > 0.4
                   ? "[&>div]:bg-amber-500"
-                  : "[&>div]:bg-orange-500"
+                  : "[&>div]:bg-red-500"
                 : "";
               const contentText = String(d.text ?? d.preview ?? "").trim();
               const src = d.source ?? d.file_path ?? null;
@@ -287,7 +339,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                       <CardTitle className="text-sm">Fragmento #{idx + 1}</CardTitle>
                       <div className="flex items-center gap-2">
                         {src && (
-                          <Badge variant="outline" className="font-mono text-[10px] max-w-[50%] truncate">{src}</Badge>
+                          <Badge variant="outline" className="font-mono text-[10px] max-w-[50%] truncate">{String(src).split("/").pop()}</Badge>
                         )}
                         {pageNum && pageNum > 0 && (
                           <span className="ml-2 inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium">Pág. {pageNum}</span>
@@ -341,8 +393,8 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
           </Collapsible.Content>
         </Collapsible.Root>
       </div>
+      )}
       <PdfViewerModal isOpen={pdfOpen} onClose={setPdfOpen} pdfUrl={pdfUrl} initialPage={pdfPage ?? null} />
     </div>
   );
 }
-

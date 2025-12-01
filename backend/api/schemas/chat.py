@@ -50,5 +50,7 @@ class DebugInfo(BaseModel):
     input_tokens: int | None = None
     output_tokens: int | None = None
     verification: Optional[VerificationResult] = None
+    gating_reason: Optional[str] = None
+    is_cached: bool = False
 
 # Nota: ClearHistoryResponse eliminado por no tener dependencias activas

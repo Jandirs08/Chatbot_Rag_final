@@ -62,6 +62,16 @@ class ChatManager:
                 response_content = cached_response
                 t_llm_start = None
                 t_llm_end = None
+                if debug_mode:
+                    self._last_debug_info = await self._build_debug_info(
+                        conversation_id=conversation_id,
+                        input_text=input_text,
+                        final_text=response_content,
+                        t_start=t_llm_start,
+                        t_end=t_llm_end,
+                        verification=None,
+                        is_cached=True,
+                    )
             else:
                 logger.debug("Cache MISS respuesta LLM — generando con Bot")
                 bot_input = {"input": input_text, "conversation_id": conversation_id}
@@ -105,6 +115,7 @@ class ChatManager:
                     t_start=t_llm_start,
                     t_end=t_llm_end,
                     verification=None,
+                    is_cached=False,
                 )
             logger.info(f"Respuesta generada{' y guardada' if not debug_mode else ''} para conversación {conversation_id}")
             return response_content
@@ -192,7 +203,7 @@ class ChatManager:
         except Exception:
             return {"is_grounded": False, "reason": "Error verificando respuesta"}
 
-    async def _build_debug_info(self, conversation_id, input_text, final_text, t_start, t_end, verification=None) -> DebugInfo:
+    async def _build_debug_info(self, conversation_id, input_text, final_text, t_start, t_end, verification=None, is_cached: bool = False) -> DebugInfo:
         """Construye DebugInfo consolidando recuperación de docs, prompt, tokens y latencias.
         Maneja errores internamente y retorna un DebugInfo mínimo si algo falla.
         """
@@ -247,6 +258,7 @@ class ChatManager:
             except Exception:
                 llm_time = None
 
+            gating_reason = getattr(self.bot, "_last_gating_reason", None)
             return DebugInfo(
                 retrieved_documents=items,
                 system_prompt_used=str(hydrated),
@@ -256,12 +268,17 @@ class ChatManager:
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 verification=verification,
+                gating_reason=gating_reason,
+                is_cached=bool(is_cached),
             )
         except Exception:
+            gating_reason = getattr(self.bot, "_last_gating_reason", None)
             return DebugInfo(
                 retrieved_documents=[],
                 system_prompt_used="",
                 model_params={},
+                gating_reason=gating_reason,
+                is_cached=bool(is_cached),
             )
 
     async def generate_streaming_response(self, input_text: str, conversation_id: str, source: str | None = None, debug_mode: bool = False, enable_verification: bool = False):
@@ -294,6 +311,7 @@ class ChatManager:
                         t_start=None,
                         t_end=None,
                         verification=None,
+                        is_cached=True,
                     )
                 return
 
@@ -356,6 +374,7 @@ class ChatManager:
                     t_start=t_llm_start,
                     t_end=t_llm_end,
                     verification=verification,
+                    is_cached=False,
                 )
             else:
                 self._last_debug_info = None
