@@ -16,7 +16,10 @@ export interface UseChatStreamReturn {
   messages: Message[];
   isLoading: boolean;
   debugData?: any;
-  sendMessage: (message: string, opts?: { debug?: boolean; body?: Record<string, any> }) => Promise<void>;
+  sendMessage: (
+    message: string,
+    opts?: { debug?: boolean; body?: Record<string, any> },
+  ) => Promise<void>;
   clearMessages: () => void;
 }
 
@@ -34,7 +37,7 @@ export function useChatStream(
       stateLen: messages.length,
       conversation_id: conversationId,
     });
-  }, [initialMessages]);
+  }, [initialMessages, messages.length, conversationId]);
 
   useEffect(() => {
     if (Array.isArray(initialMessages) && initialMessages.length > 0) {
@@ -43,7 +46,10 @@ export function useChatStream(
   }, [initialMessages]);
 
   const sendMessage = useCallback(
-    async (messageText: string, opts?: { debug?: boolean; body?: Record<string, any> }) => {
+    async (
+      messageText: string,
+      opts?: { debug?: boolean; body?: Record<string, any> },
+    ) => {
       if (isLoading || !messageText.trim()) {
         return;
       }
