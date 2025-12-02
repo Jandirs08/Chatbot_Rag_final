@@ -136,6 +136,11 @@ class Bot:
 
         async def get_context_async(x):
             """Inyecta contexto RAG y evita contexto vacío con un mensaje explícito."""
+            # Reiniciar estado de debug para esta nueva ejecución
+            self._last_retrieved_docs = []
+            self._last_rag_time = None
+            self._last_gating_reason = None
+            self._last_context = ""
             fallback_ctx = "No hay información adicional recuperada para esta consulta."
             try:
                 t_start = time.perf_counter()

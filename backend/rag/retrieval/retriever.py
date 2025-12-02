@@ -199,14 +199,15 @@ class RAGRetriever:
         start_time = time.perf_counter()
         query = query.strip() if query else ""
 
-        trivial_queries = [
+        clean_query = query.strip().lower()
+        small_talk = {
             "hola", "buenos días", "buenas tardes", "buenas noches",
             "como estás", "qué tal", "gracias", "adios", "hasta luego",
-            "ayuda", "quien eres", "como te llamas"
-        ]
+            "ayuda", "quien eres", "como te llamas", "ok", "vale"
+        }
 
-        if query.lower() in trivial_queries or len(query) < 5:
-            logger.info(f"Consulta trivial: '{query}', omitiendo RAG.")
+        if clean_query in small_talk or len(clean_query) < 3:
+            logger.info(f"Consulta trivial detectada ('{query}'): Salto de RAG")
             return []
 
         # ====== Cache =======
