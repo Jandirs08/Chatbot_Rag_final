@@ -27,7 +27,6 @@ import {
   Ban,
 } from "lucide-react";
 import PdfViewerModal from "@/app/components/modals/PdfViewerModal";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/app/components/ui/tabs";
 import { ChevronRight, ChevronDown, Copy } from "lucide-react";
 
 type RetrievedDoc = {
@@ -196,7 +195,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
   const gatingText = data?.gating_reason
     ? gatingMap[data.gating_reason] || data.gating_reason
     : "-";
-  const cacheText = data?.is_cached ? "⚡ HIT" : "🐢 MISS";
+  const cacheText = data?.is_cached ? "Cache: SÍ" : "Cache: NO";
   const gatingToneMap: Record<string, "green" | "indigo" | "amber" | "rose"> = {
     semantic_match: "green",
     keyword_match: "green",
@@ -432,7 +431,24 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
               <TooltipContent className="max-w-xs text-xs">
                 {data?.verification?.reason || "Veredicto del pipeline"}
               </TooltipContent>
-            </Tooltip>
+          </Tooltip>
+          <div
+            className={cn(
+              "inline-flex items-center gap-2 rounded-full px-3 py-1 border text-xs",
+              decisionTone === "green"
+                ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                : decisionTone === "indigo"
+                ? "bg-indigo-50 border-indigo-200 text-indigo-700"
+                : decisionTone === "amber"
+                ? "bg-amber-50 border-amber-200 text-amber-700"
+                : decisionTone === "rose"
+                ? "bg-rose-50 border-rose-200 text-rose-700"
+                : "bg-slate-50 border-slate-200 text-slate-700"
+            )}
+          >
+            <Shield className="w-3.5 h-3.5" />
+            <span className="font-semibold">{gatingExplain[gr]?.title || gatingText}</span>
+          </div>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="rounded-md" onClick={() => setShowPrompt(true)}>
@@ -589,14 +605,16 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                         <div className="w-full">
                           <div className="flex mb-2 text-xs text-slate-800">
                             <div style={{ width: `${Math.max(0, Math.min(100, rPct))}%` }} className="relative">
-                              <div className="flex justify-center">
+                            <div className="flex justify-center">
+                              {typeof ragTime === "number" && ragTime >= 0.01 && (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <span className="px-2 py-[2px] rounded bg-amber-200 text-slate-900">RAG {fmtSVal(ragTime)}s</span>
                                   </TooltipTrigger>
                                   <TooltipContent className="text-xs">Tiempo de búsqueda en el corpus</TooltipContent>
                                 </Tooltip>
-                              </div>
+                              )}
+                            </div>
                             </div>
                             <div style={{ width: `${Math.max(0, Math.min(100, lPct))}%` }} className="relative">
                               <div className="flex justify-center">
@@ -623,9 +641,9 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                   })()
                 )}
                 <div>
-                  <div className="grid grid-cols-3 gap-4 rounded-xl border border-slate-200 bg-white shadow-sm p-4">
-                    <div className="flex flex-col gap-2">
-                      <div className="text-xs font-semibold text-slate-700">Meta</div>
+                    <div className="grid grid-cols-3 gap-4 rounded-xl border border-slate-200 bg-white shadow-sm p-4">
+                      <div className="flex flex-col gap-2">
+                      <div className="text-xs font-semibold text-slate-700">Motor</div>
                       <div className="flex flex-wrap items-center gap-3">
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -640,35 +658,17 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                           <TooltipTrigger asChild>
                             <div className="inline-flex items-center gap-2">
                               <Ticket className="w-4 h-4 text-slate-700" />
-                              <Badge className="px-2 py-[3px] text-[11px] text-slate-800">{cacheText}</Badge>
+                              <Badge className={cn(
+                                "px-2 py-[3px] text-[11px]",
+                                data?.is_cached
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : "bg-slate-100 text-slate-700 border border-slate-200"
+                              )}>{cacheText}</Badge>
                             </div>
                           </TooltipTrigger>
                           <TooltipContent className="text-xs">Indica si se respondió desde caché</TooltipContent>
                         </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="inline-flex items-center gap-2">
-                              {(() => {
-                                const isRagOn = docs.length > 0 || (ragTime ?? 0) > 0;
-                                const label = isRagOn ? "RAG: ON" : "RAG: OFF";
-                                const cls = isRagOn
-                                  ? "bg-blue-100 text-blue-700 border border-blue-200"
-                                  : "bg-slate-100 text-slate-600 border border-slate-200";
-                                return (
-                                  <span className="inline-flex items-center gap-2">
-                                    {isRagOn ? (
-                                      <Database className="w-4 h-4 text-blue-700" />
-                                    ) : (
-                                      <Ban className="w-4 h-4 text-slate-600" />
-                                    )}
-                                    <Badge className={cn("px-2 py-[3px] text-[11px]", cls)}>{label}</Badge>
-                                  </span>
-                                );
-                              })()}
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent className="text-xs">{gatingExplain[gr]?.title || gatingText || "Clasificación de intención"}</TooltipContent>
-                        </Tooltip>
+                        
                       </div>
                     </div>
                     <div className="flex flex-col gap-2">
@@ -707,16 +707,43 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                       </div>
                     </div>
                     <div className="flex flex-col gap-2">
-                      <div className="text-xs font-semibold text-slate-700">Contexto</div>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className="inline-flex items-center gap-2">
-                            <Database className="w-4 h-4 text-slate-700" />
-                            <Badge variant="outline" className="px-2 py-[3px] text-[11px] text-slate-800">{gr === "small_corpus" ? "Pequeño" : gr === "no_corpus" ? "No disponible" : "Normal"}</Badge>
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent className="text-xs">El corpus actual contiene pocos documentos. Esto afecta la recuperación.</TooltipContent>
-                      </Tooltip>
+                      <div className="text-xs font-semibold text-slate-700">Diagnóstico</div>
+                      <div className="flex flex-wrap items-center gap-3">
+                        {(() => {
+                          const isRagOn = docs.length > 0 || (ragTime ?? 0) > 0;
+                          const label = isRagOn ? "RAG: ON" : "RAG: OFF";
+                          const cls = isRagOn
+                            ? "bg-blue-100 text-blue-700 border border-blue-200"
+                            : "bg-slate-100 text-slate-600 border border-slate-200";
+                          return (
+                            <span className="inline-flex items-center gap-2">
+                              {isRagOn ? (
+                                <Database className="w-4 h-4 text-blue-700" />
+                              ) : (
+                                <Ban className="w-4 h-4 text-slate-600" />
+                              )}
+                              <Badge className={cn("px-2 py-[3px] text-[11px]", cls)}>{label}</Badge>
+                            </span>
+                          );
+                        })()}
+                        <div
+                          className={cn(
+                            "inline-flex items-center gap-2 rounded-md px-2 py-[3px] border text-[11px]",
+                            decisionTone === "green"
+                              ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                              : decisionTone === "indigo"
+                              ? "bg-indigo-50 border-indigo-200 text-indigo-700"
+                              : decisionTone === "amber"
+                              ? "bg-amber-50 border-amber-200 text-amber-700"
+                              : decisionTone === "rose"
+                              ? "bg-rose-50 border-rose-200 text-rose-700"
+                              : "bg-slate-50 border-slate-200 text-slate-700"
+                          )}
+                        >
+                          <Shield className="w-3.5 h-3.5" />
+                          <span className="font-semibold">{gatingExplain[gr]?.title || gatingText}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -780,20 +807,20 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                             : score > 0.4
                               ? "Medium semantic match"
                               : "Low semantic match";
-                      const confidenceClass =
+                      const confidenceClass = "bg-slate-100 text-slate-700 border border-slate-200";
+                      const scoreToneClass =
                         score === undefined
                           ? "bg-slate-100 text-slate-700 border border-slate-200"
                           : score > 0.7
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                             : score > 0.4
-                              ? "bg-amber-50 text-amber-700 border border-amber-200"
-                              : "bg-rose-50 text-rose-700 border border-rose-200";
+                              ? "bg-amber-50 text-amber-700 border-amber-200"
+                              : "bg-rose-50 text-rose-700 border-rose-200";
                       return (
                         <div
                           key={idx}
                           className={cn(
-                            "rounded-lg shadow-sm border border-slate-200 border-l-4 overflow-hidden transition ease-out duration-300 hover:shadow-md hover:-translate-y-[1px]",
-                            score !== undefined && score <= 0.4 ? "bg-rose-50" : "bg-slate-50",
+                            "rounded-lg shadow-sm border border-slate-200 border-l-4 overflow-hidden transition ease-out duration-300 hover:shadow-md hover:-translate-y-[1px] bg-white",
                           )}
                           style={{ borderLeftColor: scoreColorHex }}
                         >
@@ -811,7 +838,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                                 </Badge>
                               )}
                               {typeof score === "number" && (
-                                <Badge className="text-[10px] bg-slate-100 text-slate-700">
+                                <Badge className={cn("text-[10px]", scoreToneClass)}>
                                   Score {Math.round(score * 100) / 100}
                                 </Badge>
                               )}
