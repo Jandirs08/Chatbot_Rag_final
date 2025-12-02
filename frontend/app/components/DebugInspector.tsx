@@ -26,6 +26,8 @@ import {
   Database,
 } from "lucide-react";
 import PdfViewerModal from "@/app/components/modals/PdfViewerModal";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/app/components/ui/tabs";
+import { ChevronRight, ChevronDown, Copy } from "lucide-react";
 
 type RetrievedDoc = {
   text?: string;
@@ -58,6 +60,80 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
   const [showPrompt, setShowPrompt] = useState(false);
   const [showJson, setShowJson] = useState(false);
   const [expandedDocs, setExpandedDocs] = useState<Record<number, boolean>>({});
+  const [activeTab, setActiveTab] = useState<string>("veredicto");
+  const [promptRawMode, setPromptRawMode] = useState(false);
+  const [promptFold, setPromptFold] = useState<Record<string, boolean>>({
+    context: false,
+    history: false,
+    instructions: true,
+  });
+  const [jsonCollapsed, setJsonCollapsed] = useState<Record<string, boolean>>({});
+  const SEGMENTS = ["context", "history", "instructions"] as const;
+  const ORDERED_SEGMENTS = ["instructions", "context", "history"] as const;
+  const sysPrompt = (data?.system_prompt_used ?? data?.system_prompt ?? "") as string;
+
+  const promptText = sysPrompt;
+  const segRegex = (name: string) => new RegExp(`<${name}>[\s\S]*?<\/${name}>`);
+  const extractInner = (name: string) => {
+    const regex = new RegExp(`<${name}>[\\s\\S]*?<\/${name}>`, "i");
+    const match = String(promptText || "").match(regex);
+    if (!match) return "";
+    return match[0].replace(new RegExp(`</?${name}>`, "gi"), "").trim();
+  };
+  const promptSegmentsCount = SEGMENTS.reduce((acc, s) => (segRegex(s).test(String(promptText)) ? acc + 1 : acc), 0);
+  const promptCharCount = String(promptText || "").length;
+  const formatGeneral = (s: string) => {
+    let t = String(s || "");
+    t = t.replace(/\s{2,}/g, " ");
+    t = t.replace(/([\.;:])\s+/g, "$1\n\n");
+    t = t.replace(/\n{3,}/g, "\n\n");
+    t = t.replace(/(^|\n)\s+/g, "$1");
+    t = t.replace(/^\s*•\s+/gm, "    - ");
+    t = t.replace(/^\s*-\s+/gm, "    - ");
+    t = t.replace(/^\s*(\d+)\.\s*\n\s*/gm, "$1. ");
+    return t;
+  };
+  const splitInstructions = (s: string) => {
+    const t = formatGeneral(s);
+    const parts = t.split(/(?=\n?\s*\d+\.)/g).filter((x) => x.trim().length > 0);
+    return parts;
+  };
+  const emphasize = (s: string) => {
+    const re = /(PRIORIDAD MÁXIMA|MANEJO DE VACÍOS|FORMATO)/g;
+    const chunks = String(s).split(re);
+    return (
+      <>
+        {chunks.map((c, i) =>
+          re.test(c) ? (
+            <span key={i} className="font-semibold">
+              {c}
+            </span>
+          ) : (
+            <span key={i}>{c}</span>
+          ),
+        )}
+      </>
+    );
+  };
+
+  const jsonStats = (v: any): { keys: number; arrays: number; objects: number } => {
+    if (v === null || typeof v !== "object") return { keys: 0, arrays: 0, objects: 0 };
+    if (Array.isArray(v)) {
+      const inner = v.map(jsonStats).reduce((a, b) => ({ keys: a.keys + b.keys, arrays: a.arrays + b.arrays, objects: a.objects + b.objects }), { keys: 0, arrays: 0, objects: 0 });
+      return { keys: inner.keys, arrays: inner.arrays + 1, objects: inner.objects };
+    }
+    const entries = Object.entries(v);
+    const inner = entries.map(([, val]) => jsonStats(val)).reduce((a, b) => ({ keys: a.keys + b.keys, arrays: a.arrays + b.arrays, objects: a.objects + b.objects }), { keys: 0, arrays: 0, objects: 0 });
+    return { keys: inner.keys + entries.length, arrays: inner.arrays, objects: inner.objects + 1 };
+  };
+  const rootStats = jsonStats(data);
+  const isCollapsed = (path: string, value: any) => {
+    if (path === "root") return false;
+    if (Array.isArray(value) && (path.endsWith("retrieved") || path.endsWith("retrieved_documents"))) return true;
+    if (path.includes("verification")) return false;
+    return Boolean(jsonCollapsed[path]);
+  };
+  const toggleCollapsed = (path: string) => setJsonCollapsed((s) => ({ ...(s || {}), [path]: !s?.[path] }));
   const docs: RetrievedDoc[] = Array.isArray(data?.retrieved_documents)
     ? (data?.retrieved_documents as RetrievedDoc[])
     : Array.isArray(data?.retrieved)
@@ -70,9 +146,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
     typeof modelParams.temperature === "number"
       ? modelParams.temperature
       : undefined;
-  const sysPrompt = (data?.system_prompt_used ??
-    data?.system_prompt ??
-    "") as string;
+  
   const ragTime = typeof data?.rag_time === "number" ? data!.rag_time! : null;
   const llmTime = typeof data?.llm_time === "number" ? data!.llm_time! : null;
   const inTok =
@@ -328,9 +402,6 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
             <div className="text-sm font-semibold text-slate-800">
               Monitor RAG
             </div>
-            <Badge variant="outline" className="font-mono text-[10px]">
-              {modelName}
-            </Badge>
           </div>
           <div className="flex gap-2">
             <Button
@@ -351,7 +422,104 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
         </div>
       </div>
       <div className="flex-1 overflow-y-auto p-3 space-y-8">
-        <TooltipProvider delayDuration={0}>
+        <div className="space-y-6">
+          <section>
+            <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-6">
+              <div className="text-sm font-semibold text-slate-800 mb-3">Resumen del Flujo RAG</div>
+              <div className="space-y-4">
+                {Boolean(data?.is_cached) ? (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-100 px-4 py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Zap className="w-5 h-5 text-emerald-700" />
+                      <div className="text-sm font-medium text-emerald-800">Respuesta Instantánea (Caché)</div>
+                    </div>
+                    <div className="text-xs text-emerald-800">{fmtSVal(totalTime)}s</div>
+                  </div>
+                ) : (
+                  (() => {
+                    const tot = (totalTime ?? 0) > 0 ? totalTime! : (ragTime ?? 0) + (llmTime ?? 0) || 0;
+                    const r = ragTime ?? 0;
+                    const l = llmTime ?? 0;
+                    const overhead = Math.max(0, tot - (r + l));
+                    const rPct = tot > 0 ? (r / tot) * 100 : 0;
+                    const lPct = tot > 0 ? (l / tot) * 100 : 0;
+                    const oPct = tot > 0 ? (overhead / tot) * 100 : 0;
+                    return (
+                      <div className="relative">
+                        <div className="w-full h-8 rounded-full bg-slate-100 overflow-hidden flex">
+                          <div
+                            className="h-full bg-amber-300 transition-all"
+                            style={{ width: `${Math.max(0, Math.min(100, rPct))}%` }}
+                          />
+                          <div
+                            className="h-full bg-blue-400 transition-all"
+                            style={{ width: `${Math.max(0, Math.min(100, lPct))}%` }}
+                          />
+                          {oPct > 0 && (
+                            <div
+                              className="h-full bg-slate-300 transition-all"
+                              style={{ width: `${Math.max(0, Math.min(100, oPct))}%` }}
+                            />
+                          )}
+                        </div>
+                        <div className="absolute inset-0 flex items-center justify-between px-3 text-xs text-slate-800">
+                          <div>RAG {fmtSVal(ragTime)}s</div>
+                          <div>LLM {fmtSVal(llmTime)}s</div>
+                        </div>
+                      </div>
+                    );
+                  })()
+                )}
+                <div>
+                  <div className="text-xs font-semibold text-slate-700 mb-2">Estado</div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="inline-flex items-center gap-2 rounded-lg border bg-slate-50 px-4 py-3">
+                      <Info className="w-4 h-4 text-slate-600" />
+                      <span className="text-xs text-slate-600">Modelo</span>
+                      <Badge variant="outline" className="font-mono text-[10px]">{modelName}</Badge>
+                    </div>
+                    <div className="inline-flex items-center gap-2 rounded-lg border bg-slate-50 px-4 py-3">
+                      <Ticket className="w-4 h-4 text-slate-600" />
+                      <span className="text-xs text-slate-600">Cache</span>
+                      <Badge className="text-[10px]">{cacheText}</Badge>
+                    </div>
+                    <div className="inline-flex items-center gap-2 rounded-lg border bg-slate-50 px-4 py-3">
+                      <Shield className="w-4 h-4 text-slate-600" />
+                      <span className="text-xs text-slate-600">Gating</span>
+                      <Badge className="text-[10px]">{gatingExplain[gr]?.title || gatingText || "-"}</Badge>
+                    </div>
+                    <div className="inline-flex items-center gap-2 rounded-lg border bg-slate-50 px-4 py-3">
+                      <Database className="w-4 h-4 text-slate-600" />
+                      <span className="text-xs text-slate-600">Corpus</span>
+                      <Badge variant="outline" className="text-[10px]">{gr === "small_corpus" ? "Pequeño" : gr === "no_corpus" ? "No disponible" : "Normal"}</Badge>
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <div className="text-xs font-semibold text-slate-700 mb-2">Tokens</div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="inline-flex items-center gap-2 rounded-lg border bg-slate-50 px-4 py-3 text-sm text-slate-800">
+                      <Ticket className="w-4 h-4 text-slate-600" />
+                      <span>Input:</span>
+                      <span className="font-mono">{fmtTokVal(inTok)}</span>
+                    </div>
+                    <div className="inline-flex items-center gap-2 rounded-lg border bg-slate-50 px-4 py-3 text-sm text-slate-800">
+                      <Ticket className="w-4 h-4 text-slate-600" />
+                      <span>Output:</span>
+                      <span className="font-mono">{fmtTokVal(outTok)}</span>
+                    </div>
+                    <div className="inline-flex items-center gap-2 rounded-lg border bg-slate-50 px-4 py-3 text-sm text-slate-800">
+                      <Ticket className="w-4 h-4 text-slate-600" />
+                      <span>Total:</span>
+                      <span className="font-mono">{fmtTokVal(totalTokens)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+          <TooltipProvider delayDuration={0}>
           <section>
             <div className="flex items-center gap-3">
               {(() => {
@@ -456,6 +624,9 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                 );
               })()}
             </div>
+          </section>
+
+          <section className="pl-6">
             {(() => {
               const tot =
                 (totalTime ?? 0) > 0
@@ -513,15 +684,14 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                     )}
                   </div>
                   <div className="text-xs text-slate-500">
-                    Búsqueda: {fmtSVal(ragTime)}s · Generación:{" "}
-                    {fmtSVal(llmTime)}s
+                    Búsqueda: {fmtSVal(ragTime)}s · Generación: {fmtSVal(llmTime)}s
                   </div>
                 </div>
               );
             })()}
           </section>
-
-          <section className="mt-6">
+        
+          <section className="mt-6 pl-6">
             <div className="text-sm font-semibold text-slate-900 mb-1">
               Análisis
             </div>
@@ -540,8 +710,8 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
               </div>
             </div>
           </section>
-
-          <section className="mt-6">
+        
+          <section className="mt-6 pl-6">
             <div className="text-sm font-semibold text-slate-900 mb-1">
               Fuentes
             </div>
@@ -601,12 +771,9 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                       return (
                         <div
                           key={idx}
-                          className="border rounded-lg bg-white shadow-sm overflow-hidden transition ease-out duration-300 hover:shadow-md hover:-translate-y-[1px]"
+                          className="rounded-lg bg-slate-50 shadow-sm border border-slate-200 border-l-4 overflow-hidden transition ease-out duration-300 hover:shadow-md hover:-translate-y-[1px]"
+                          style={{ borderLeftColor: scoreColorHex }}
                         >
-                          <div
-                            className="h-1 w-full"
-                            style={{ backgroundColor: scoreColorHex }}
-                          />
                           <div className="flex items-center justify-between px-3 py-2">
                             <div className="text-sm font-medium text-slate-900">
                               {fileName || `Fragmento #${idx + 1}`}
@@ -730,69 +897,90 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
           </section>
 
           <section className="mt-6">
-            <div className="text-sm font-semibold text-slate-900 mb-1 flex items-center gap-2">
-              {data?.verification?.is_grounded === true ? (
-                <ShieldCheck className="w-5 h-5 text-emerald-600" />
-              ) : data?.verification?.is_grounded === false ? (
-                <AlertTriangle className="w-5 h-5 text-amber-600" />
-              ) : (
-                <Shield className="w-5 h-5 text-slate-600" />
-              )}
-              Veredicto
-            </div>
-            <div className="w-12 h-[2px] bg-slate-200 mb-2" />
-            <div
-              className={cn(
-                "rounded-xl p-4 shadow-sm border",
-                data?.verification?.is_grounded === true &&
-                  "bg-emerald-50 border-emerald-200",
-                data?.verification?.is_grounded === false &&
-                  "bg-amber-50 border-amber-200",
-                data?.verification?.is_grounded !== true &&
-                  data?.verification?.is_grounded !== false &&
-                  "bg-slate-50 border-slate-200",
-              )}
-            >
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className={cn("flex items-center gap-2")}>
-                    {data?.verification?.is_grounded === true ? (
-                      <ShieldCheck className="w-6 h-6 text-emerald-600" />
-                    ) : data?.verification?.is_grounded === false ? (
-                      <AlertTriangle className="w-6 h-6 text-amber-600" />
-                    ) : (
-                      <Shield className="w-6 h-6 text-slate-600" />
+            <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)}>
+              <TabsList>
+                <TabsTrigger value="veredicto">Veredicto</TabsTrigger>
+              </TabsList>
+              <TabsContent value="veredicto">
+                <div className="p-4">
+                  <div className="flex flex-wrap items-center gap-2 mb-2">
+                    {data?.verification?.is_grounded === false && (
+                      <Badge className="text-[10px] bg-rose-50 text-rose-700 border border-rose-200">Posible alucinación detectada</Badge>
                     )}
-                    <div
-                      className={cn(
-                        "text-base font-semibold",
-                        data?.verification?.is_grounded === true
-                          ? "text-emerald-700"
-                          : data?.verification?.is_grounded === false
-                            ? "text-amber-700"
-                            : "text-slate-700",
-                      )}
-                    >
-                      {data?.verification?.is_grounded === true
-                        ? "Respuesta Verificada"
-                        : data?.verification?.is_grounded === false
-                          ? "Posible Alucinación"
-                          : "Sin verificación"}
-                    </div>
+                    {docs.length === 0 && (
+                      <Badge className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200">Respuesta sin contexto (Búsqueda saltada)</Badge>
+                    )}
+                    {typeof ragTime === "number" && ragTime > 3 && (
+                      <Badge className="text-[10px] bg-slate-900 text-white">RAG lento: optimizable</Badge>
+                    )}
                   </div>
-                </TooltipTrigger>
-                <TooltipContent className="text-xs">
-                  Veredicto del pipeline: validación del grounding
-                </TooltipContent>
-              </Tooltip>
-              {data?.verification?.reason && (
-                <div className="text-xs text-slate-600 mt-1">
-                  {data.verification.reason}
+                  <div className="text-sm font-semibold text-slate-900 mb-1 flex items-center gap-2">
+                    {data?.verification?.is_grounded === true ? (
+                      <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                    ) : data?.verification?.is_grounded === false ? (
+                      <AlertTriangle className="w-5 h-5 text-amber-600" />
+                    ) : (
+                      <Shield className="w-5 h-5 text-slate-600" />
+                    )}
+                    Veredicto
+                  </div>
+                  <div className="w-12 h-[2px] bg-slate-200 mb-2" />
+                  <div
+                    className={cn(
+                      "rounded-xl p-4 shadow-sm border",
+                      data?.verification?.is_grounded === true &&
+                        "bg-emerald-50 border-emerald-200",
+                      data?.verification?.is_grounded === false &&
+                        "bg-amber-50 border-amber-200",
+                      data?.verification?.is_grounded !== true &&
+                        data?.verification?.is_grounded !== false &&
+                        "bg-slate-50 border-slate-200",
+                    )}
+                  >
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className={cn("flex items-center gap-2")}> 
+                          {data?.verification?.is_grounded === true ? (
+                            <ShieldCheck className="w-6 h-6 text-emerald-600" />
+                          ) : data?.verification?.is_grounded === false ? (
+                            <AlertTriangle className="w-6 h-6 text-amber-600" />
+                          ) : (
+                            <Shield className="w-6 h-6 text-slate-600" />
+                          )}
+                          <div
+                            className={cn(
+                              "text-base font-semibold",
+                              data?.verification?.is_grounded === true
+                                ? "text-emerald-700"
+                                : data?.verification?.is_grounded === false
+                                  ? "text-amber-700"
+                                  : "text-slate-700",
+                            )}
+                          >
+                            {data?.verification?.is_grounded === true
+                              ? "Respuesta Verificada"
+                              : data?.verification?.is_grounded === false
+                                ? "Posible Alucinación"
+                                : "Sin verificación"}
+                          </div>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent className="text-xs">
+                        Veredicto del pipeline: validación del grounding
+                      </TooltipContent>
+                    </Tooltip>
+                    {data?.verification?.reason && (
+                      <div className="text-xs text-slate-600 mt-1">
+                        {data.verification.reason}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
-            </div>
+              </TabsContent>
+            </Tabs>
           </section>
         </TooltipProvider>
+        </div>
       </div>
 
       <PdfViewerModal
@@ -808,7 +996,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
             className="absolute inset-0 bg-black/20"
             onClick={() => setShowPrompt(false)}
           />
-          <div className="absolute inset-y-0 right-0 w-[min(85vw,560px)] bg-white border-l shadow-xl transform transition-transform duration-300 translate-x-0">
+          <div className="absolute inset-y-0 right-0 w-[min(85vw,680px)] h-full bg-white border-l shadow-xl transform transition-transform duration-300 translate-x-0 flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 border-b">
               <div className="flex items-center gap-2">
                 <span className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-slate-100 border">
@@ -825,12 +1013,79 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-4">
-              <div className="rounded-md border bg-slate-950 text-slate-100 p-4 max-h-screen overflow-auto">
-                <div className="text-[13px] font-mono whitespace-pre-wrap break-words leading-7">
-                  {renderPromptWithHighlights(sysPrompt)}
-                </div>
+            <div className="px-4 py-2 border-b flex items-center justify-between text-xs text-slate-500">
+              <div className="flex items-center gap-3">
+                <span>{promptCharCount} caracteres</span>
+                <span>{promptSegmentsCount} segmentos</span>
               </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" className="h-8" onClick={() => navigator.clipboard?.writeText(String(promptText || ""))}>
+                  <Copy className="w-4 h-4 mr-2" />
+                  Copiar
+                </Button>
+                <Button variant="outline" className="h-8" onClick={() => setPromptRawMode((v) => !v)}>
+                  {promptRawMode ? "Ver highlight" : "Limpiar highlight"}
+                </Button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              {promptRawMode ? (
+                <div className="rounded-md border bg-[#0F1115] text-slate-100 p-4 max-h-screen overflow-auto">
+                  <div className="text-[13px] font-mono whitespace-pre-line break-words leading-7">
+                    {String(promptText || "")}
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-md border bg-[#0F1115] text-slate-100 p-4 max-h-[calc(100vh-65px)] overflow-y-auto space-y-2">
+                  {ORDERED_SEGMENTS.map((name) => {
+                    const inner = extractInner(name);
+                    const open = Boolean(promptFold[name]);
+                    const title = name === "context" ? "CONTEXTO" : name === "history" ? "HISTORIAL" : "INSTRUCCIONES";
+                    return (
+                      <div key={name} className="rounded-md bg-[#0F1115] border border-white/10">
+                        <button
+                          className="w-full flex items-center justify-between px-4 py-3 text-sm hover:bg-slate-800/30 transition-colors font-mono text-[14px] text-slate-100"
+                          onClick={() => setPromptFold((s) => ({ ...(s || {}), [name]: !s?.[name] }))}
+                        >
+                          <div className="flex items-center gap-2">
+                            {open ? (
+                              <ChevronDown className="w-4 h-4 transition-transform duration-200" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4 transition-transform duration-200" />
+                            )}
+                            <span>{title}</span>
+                          </div>
+                          <span className="text-xs text-slate-200">{inner.length} chars</span>
+                        </button>
+                        <div className={cn("px-4 pb-4 transition-opacity duration-150", open ? "opacity-100" : "opacity-0 hidden") }>
+                          <div className="text-slate-100 font-mono text-[14px]">
+                            <div className="text-slate-300 mb-2">────────────────────────────────────────────────</div>
+                            {name === "instructions" ? (
+                              <div className={cn("px-4 py-3 inline-block rounded leading-7 break-words", "bg-emerald-500/15") }>
+                                {splitInstructions(inner).map((item, idx) => {
+                                  const m = item.match(/^\s*(\d+)\.\s*(.*)$/s);
+                                  const number = m ? m[1] : String(idx + 1);
+                                  const rest = m ? m[2] : item;
+                                  return (
+                                    <div key={idx} className="mb-3 whitespace-pre-wrap break-words">
+                                      <div className="mb-1"><span className="inline-block w-full break-words">[{number}] {emphasize(rest)}</span></div>
+                                      </div>
+                                    );
+                                })}
+                              </div>
+                            ) : (
+                              <pre className={cn("px-4 py-3 inline-block rounded leading-7 whitespace-pre-wrap break-words", name === "context" ? "bg-indigo-500/15" : "bg-violet-500/15") }>
+                                {formatGeneral(inner)}
+                              </pre>
+                            )}
+                          </div>
+                        </div>
+                        <div className="px-4"><div className="h-px bg-white/10" /></div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -857,10 +1112,80 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                 <X className="w-5 h-5" />
               </button>
             </div>
+            <div className="px-4 py-2 border-b flex items-center justify-between text-xs text-slate-500">
+              <div className="flex items-center gap-3">
+                <span>{rootStats.keys} claves</span>
+                <span>{rootStats.arrays} arrays</span>
+                <span>{rootStats.objects} objetos</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" className="h-8" onClick={() => navigator.clipboard?.writeText(JSON.stringify(data, null, 2))}>
+                  <Copy className="w-4 h-4 mr-2" />
+                  Copiar
+                </Button>
+              </div>
+            </div>
             <div className="p-4">
               <div className="rounded-md border bg-zinc-950 text-zinc-100 p-4 max-h-screen overflow-auto">
-                <div className="text-[13px] font-mono whitespace-pre-wrap break-words leading-7">
-                  {renderJsonWithHighlights(data)}
+                <div className="text-[13px] font-mono leading-7">
+                  {(function renderNode(value: any, path: string, depth: number): React.ReactNode {
+                    if (value === null) return <span className="text-slate-400">null</span>;
+                    if (typeof value === "string") return <span className="text-green-300 break-words">&quot;{value}&quot;</span>;
+                    if (typeof value === "number") return <span className="text-amber-300">{String(value)}</span>;
+                    if (typeof value === "boolean") return <span className="text-violet-300">{String(value)}</span>;
+                    const pad = `pl-${Math.min(depth * 4, 24)}`;
+                    if (Array.isArray(value)) {
+                      const collapsed = isCollapsed(path, value);
+                      return (
+                        <div className={cn(pad)}>
+                          <button className="flex items-center gap-2 cursor-pointer text-zinc-100 hover:text-white transition-colors" onClick={() => toggleCollapsed(path)}>
+                            {collapsed ? (
+                              <ChevronRight className="w-4 h-4 transition-transform duration-200" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4 transition-transform duration-200" />
+                            )}
+                            <span className="text-slate-300">[</span>
+                            <span className="text-slate-400">{value.length} items</span>
+                            <span className="text-slate-300">]</span>
+                          </button>
+                          <div className={cn("transition-opacity duration-150", collapsed ? "opacity-0 hidden" : "opacity-100") }>
+                            {value.map((v, i) => (
+                              <div key={`${path}|${i}`} className="leading-7">
+                                {renderNode(v, `${path}|${i}`, depth + 1)}
+                                {i < value.length - 1 && <span className="text-slate-400">,</span>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    }
+                    const entries = Object.entries(value);
+                    const collapsed = isCollapsed(path, value);
+                    return (
+                      <div className={cn(pad)}>
+                        <button className="flex items-center gap-2 cursor-pointer text-zinc-100 hover:text-white transition-colors" onClick={() => toggleCollapsed(path)}>
+                          {collapsed ? (
+                            <ChevronRight className="w-4 h-4 transition-transform duration-200" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4 transition-transform duration-200" />
+                          )}
+                          <span className="text-slate-300">{`{`}</span>
+                          <span className="text-slate-400">{entries.length} keys</span>
+                          <span className="text-slate-300">{`}`}</span>
+                        </button>
+                        <div className={cn("transition-opacity duration-150", collapsed ? "opacity-0 hidden" : "opacity-100") }>
+                          {entries.map(([k, v], i) => (
+                            <div key={`${path}|${k}`} className="leading-7">
+                              <span className="text-sky-300 font-semibold break-words">&quot;{k}&quot;</span>
+                              <span className="text-slate-400">: </span>
+                              {renderNode(v, `${path}|${k}`, depth + 1)}
+                              {i < entries.length - 1 && <span className="text-slate-400">,</span>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })(data, "root", 0)}
                 </div>
               </div>
             </div>
