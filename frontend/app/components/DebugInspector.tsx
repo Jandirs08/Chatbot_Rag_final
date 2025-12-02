@@ -24,6 +24,7 @@ import {
   X,
   BrainCircuit,
   Database,
+  Ban,
 } from "lucide-react";
 import PdfViewerModal from "@/app/components/modals/PdfViewerModal";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/app/components/ui/tabs";
@@ -399,23 +400,45 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
       <div className="flex-none border-b bg-white p-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="text-sm font-semibold text-slate-800">
-              Monitor RAG
-            </div>
+            <div className="text-sm font-semibold text-slate-800">Monitor RAG</div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-full px-3 py-1 border text-xs",
+                    data?.verification?.is_grounded === false
+                      ? "bg-amber-50 border-amber-200 text-amber-700"
+                      : data?.verification?.is_grounded === true
+                      ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                      : "bg-slate-50 border-slate-200 text-slate-700",
+                  )}
+                >
+                  {data?.verification?.is_grounded === false ? (
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                  ) : data?.verification?.is_grounded === true ? (
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                  ) : (
+                    <Shield className="w-3.5 h-3.5" />
+                  )}
+                  <span className="font-semibold">
+                    {data?.verification?.is_grounded === false
+                      ? "Posible Alucinación"
+                      : data?.verification?.is_grounded === true
+                      ? "Verificado"
+                      : "Sin verificación"}
+                  </span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs text-xs">
+                {data?.verification?.reason || "Veredicto del pipeline"}
+              </TooltipContent>
+            </Tooltip>
           </div>
-          <div className="flex gap-2">
-            <Button
-              className="h-9"
-              variant="outline"
-              onClick={() => setShowPrompt(true)}
-            >
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="rounded-md" onClick={() => setShowPrompt(true)}>
               Prompt
             </Button>
-            <Button
-              className="h-9"
-              variant="outline"
-              onClick={() => setShowJson(true)}
-            >
+            <Button variant="outline" size="sm" className="rounded-md" onClick={() => setShowJson(true)}>
               JSON
             </Button>
           </div>
@@ -441,275 +464,272 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                     const r = ragTime ?? 0;
                     const l = llmTime ?? 0;
                     const overhead = Math.max(0, tot - (r + l));
-                    const rPct = tot > 0 ? (r / tot) * 100 : 0;
-                    const lPct = tot > 0 ? (l / tot) * 100 : 0;
-                    const oPct = tot > 0 ? (overhead / tot) * 100 : 0;
+                    const minSeg = 15;
+                    let rPct = tot > 0 ? (r / tot) * 100 : 0;
+                    let lPct = tot > 0 ? (l / tot) * 100 : 0;
+                    let oPct = tot > 0 ? (overhead / tot) * 100 : 0;
+                    if (tot > 0) {
+                      if (r > 0) rPct = Math.max(minSeg, rPct);
+                      if (l > 0) lPct = Math.max(minSeg, lPct);
+                      const extra = rPct + lPct + oPct - 100;
+                      if (extra > 0) {
+                        oPct = Math.max(0, oPct - extra);
+                      } else if (extra < 0) {
+                        oPct = oPct + Math.abs(extra);
+                      }
+                    }
                     return (
-                      <div className="relative">
-                        <div className="w-full h-8 rounded-full bg-slate-100 overflow-hidden flex">
-                          <div
-                            className="h-full bg-amber-300 transition-all"
-                            style={{ width: `${Math.max(0, Math.min(100, rPct))}%` }}
-                          />
-                          <div
-                            className="h-full bg-blue-400 transition-all"
-                            style={{ width: `${Math.max(0, Math.min(100, lPct))}%` }}
-                          />
-                          {oPct > 0 && (
-                            <div
-                              className="h-full bg-slate-300 transition-all"
-                              style={{ width: `${Math.max(0, Math.min(100, oPct))}%` }}
-                            />
-                          )}
+                      <div className="relative space-y-5">
+                        <div className="flex items-center justify-center gap-3">
+                          {(() => {
+                            const intentCompleted = Boolean(gr || gatingText);
+                            const searchCompleted = ragTime !== null;
+                            const retrievalCompleted = docs.length > 0;
+                            const responseCompleted = llmTime !== null;
+                            const verdictCompleted = Boolean(data?.verification);
+                            const activeStage = verdictCompleted
+                              ? "veredicto"
+                              : responseCompleted
+                                ? "respuesta"
+                                : retrievalCompleted
+                                  ? "razonamiento"
+                                  : searchCompleted
+                                    ? "recuperacion"
+                                    : intentCompleted
+                                      ? "busqueda"
+                                      : "intencion";
+                            const node = (
+                              completed: boolean,
+                              active: boolean,
+                              icon: React.ReactNode,
+                              label: string,
+                            ) => (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div
+                                    className={cn(
+                                      "relative flex items-center justify-center w-5 h-5 rounded-full",
+                                      completed
+                                        ? "bg-emerald-500"
+                                        : active
+                                          ? "bg-blue-500"
+                                          : "bg-slate-300",
+                                      active && "ring-2 ring-blue-300 animate-pulse",
+                                    )}
+                                  >
+                                    <div className="text-white">{icon}</div>
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent className="text-xs">{label}</TooltipContent>
+                              </Tooltip>
+                            );
+                            const line = (active: boolean) => (
+                              <div
+                                className={cn(
+                                  "h-[2px] w-12",
+                                  active ? "bg-blue-400" : "bg-slate-300",
+                                  "transition-all duration-500",
+                                )}
+                              />
+                            );
+                            return (
+                              <div className="flex items-center justify-center">
+                                {node(
+                                  intentCompleted,
+                                  activeStage === "intencion",
+                                  <BrainCircuit className="w-3 h-3" />,
+                                  "Intención",
+                                )}
+                                {line(activeStage === "busqueda")}
+                                {node(
+                                  searchCompleted,
+                                  activeStage === "busqueda",
+                                  <Database className="w-3 h-3" />,
+                                  "Búsqueda RAG",
+                                )}
+                                {line(activeStage === "recuperacion")}
+                                {node(
+                                  retrievalCompleted,
+                                  activeStage === "recuperacion",
+                                  <Database className="w-3 h-3" />,
+                                  "Recuperación",
+                                )}
+                                {line(activeStage === "razonamiento")}
+                                {node(
+                                  responseCompleted,
+                                  activeStage === "razonamiento",
+                                  <Zap className="w-3 h-3" />,
+                                  "Razonamiento",
+                                )}
+                                {line(activeStage === "respuesta")}
+                                {node(
+                                  responseCompleted,
+                                  activeStage === "respuesta",
+                                  <MessageSquare className="w-3 h-3" />,
+                                  "Respuesta",
+                                )}
+                                {line(activeStage === "veredicto")}
+                                {node(
+                                  verdictCompleted,
+                                  activeStage === "veredicto",
+                                  data?.verification?.is_grounded ? (
+                                    <ShieldCheck className="w-3 h-3" />
+                                  ) : (
+                                    <Shield className="w-3 h-3" />
+                                  ),
+                                  "Veredicto",
+                                )}
+                          </div>
+                            );
+                          })()}
                         </div>
-                        <div className="absolute inset-0 flex items-center justify-between px-3 text-xs text-slate-800">
-                          <div>RAG {fmtSVal(ragTime)}s</div>
-                          <div>LLM {fmtSVal(llmTime)}s</div>
+                        <div className="absolute top-0 right-0">
+                          <span className="inline-flex items-center px-2 py-1 rounded-md bg-slate-900 text-white text-xs">Total: {fmtSVal(tot)}s</span>
+                        </div>
+                        <div className="w-full">
+                          <div className="flex mb-2 text-xs text-slate-800">
+                            <div style={{ width: `${Math.max(0, Math.min(100, rPct))}%` }} className="relative">
+                              <div className="flex justify-center">
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="px-2 py-[2px] rounded bg-amber-200 text-slate-900">RAG {fmtSVal(ragTime)}s</span>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="text-xs">Tiempo de búsqueda en el corpus</TooltipContent>
+                                </Tooltip>
+                              </div>
+                            </div>
+                            <div style={{ width: `${Math.max(0, Math.min(100, lPct))}%` }} className="relative">
+                              <div className="flex justify-center">
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="px-2 py-[2px] rounded bg-blue-200 text-slate-900">LLM {fmtSVal(llmTime)}s</span>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="text-xs">Tiempo de generación del modelo</TooltipContent>
+                                </Tooltip>
+                              </div>
+                            </div>
+                            {oPct > 0 && <div style={{ width: `${Math.max(0, Math.min(100, oPct))}%` }} />}
+                          </div>
+                          <div className="h-8 rounded-full bg-slate-100 overflow-hidden flex">
+                            <div className="h-full bg-amber-300 transition-all" style={{ width: `${Math.max(0, Math.min(100, rPct))}%` }} />
+                            <div className="h-full bg-blue-400 transition-all" style={{ width: `${Math.max(0, Math.min(100, lPct))}%` }} />
+                            {oPct > 0 && (
+                              <div className="h-full bg-slate-300 transition-all" style={{ width: `${Math.max(0, Math.min(100, oPct))}%` }} />
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
                   })()
                 )}
                 <div>
-                  <div className="text-xs font-semibold text-slate-700 mb-2">Estado</div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="inline-flex items-center gap-2 rounded-lg border bg-slate-50 px-4 py-3">
-                      <Info className="w-4 h-4 text-slate-600" />
-                      <span className="text-xs text-slate-600">Modelo</span>
-                      <Badge variant="outline" className="font-mono text-[10px]">{modelName}</Badge>
-                    </div>
-                    <div className="inline-flex items-center gap-2 rounded-lg border bg-slate-50 px-4 py-3">
-                      <Ticket className="w-4 h-4 text-slate-600" />
-                      <span className="text-xs text-slate-600">Cache</span>
-                      <Badge className="text-[10px]">{cacheText}</Badge>
-                    </div>
-                    <div className="inline-flex items-center gap-2 rounded-lg border bg-slate-50 px-4 py-3">
-                      <Shield className="w-4 h-4 text-slate-600" />
-                      <span className="text-xs text-slate-600">Gating</span>
-                      <Badge className="text-[10px]">{gatingExplain[gr]?.title || gatingText || "-"}</Badge>
-                    </div>
-                    <div className="inline-flex items-center gap-2 rounded-lg border bg-slate-50 px-4 py-3">
-                      <Database className="w-4 h-4 text-slate-600" />
-                      <span className="text-xs text-slate-600">Corpus</span>
-                      <Badge variant="outline" className="text-[10px]">{gr === "small_corpus" ? "Pequeño" : gr === "no_corpus" ? "No disponible" : "Normal"}</Badge>
-                    </div>
-                  </div>
-                </div>
-                
-                <div>
-                  <div className="text-xs font-semibold text-slate-700 mb-2">Tokens</div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="inline-flex items-center gap-2 rounded-lg border bg-slate-50 px-4 py-3 text-sm text-slate-800">
-                      <Ticket className="w-4 h-4 text-slate-600" />
-                      <span>Input:</span>
-                      <span className="font-mono">{fmtTokVal(inTok)}</span>
-                    </div>
-                    <div className="inline-flex items-center gap-2 rounded-lg border bg-slate-50 px-4 py-3 text-sm text-slate-800">
-                      <Ticket className="w-4 h-4 text-slate-600" />
-                      <span>Output:</span>
-                      <span className="font-mono">{fmtTokVal(outTok)}</span>
-                    </div>
-                    <div className="inline-flex items-center gap-2 rounded-lg border bg-slate-50 px-4 py-3 text-sm text-slate-800">
-                      <Ticket className="w-4 h-4 text-slate-600" />
-                      <span>Total:</span>
-                      <span className="font-mono">{fmtTokVal(totalTokens)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-          <TooltipProvider delayDuration={0}>
-          <section>
-            <div className="flex items-center gap-3">
-              {(() => {
-                const intentCompleted = Boolean(gr || gatingText);
-                const searchCompleted = ragTime !== null;
-                const retrievalCompleted = docs.length > 0;
-                const responseCompleted = llmTime !== null;
-                const verdictCompleted = Boolean(data?.verification);
-                const activeStage = verdictCompleted
-                  ? "veredicto"
-                  : responseCompleted
-                    ? "respuesta"
-                    : retrievalCompleted
-                      ? "razonamiento"
-                      : searchCompleted
-                        ? "recuperacion"
-                        : intentCompleted
-                          ? "busqueda"
-                          : "intencion";
-                const node = (
-                  completed: boolean,
-                  active: boolean,
-                  icon: React.ReactNode,
-                  label: string,
-                ) => (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div
-                        className={cn(
-                          "relative flex items-center justify-center w-5 h-5 rounded-full",
-                          completed
-                            ? "bg-emerald-500"
-                            : active
-                              ? "bg-blue-500"
-                              : "bg-slate-300",
-                          active && "ring-2 ring-blue-300 animate-pulse",
-                        )}
-                      >
-                        <div className="text-white">{icon}</div>
+                  <div className="grid grid-cols-3 gap-4 rounded-xl border border-slate-200 bg-white shadow-sm p-4">
+                    <div className="flex flex-col gap-2">
+                      <div className="text-xs font-semibold text-slate-700">Meta</div>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="inline-flex items-center gap-2">
+                              <Info className="w-4 h-4 text-slate-700" />
+                              <Badge variant="outline" className="px-2 py-[3px] text-[11px] font-mono text-slate-800">{modelName}</Badge>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent className="text-xs">Modelo LLM utilizado</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="inline-flex items-center gap-2">
+                              <Ticket className="w-4 h-4 text-slate-700" />
+                              <Badge className="px-2 py-[3px] text-[11px] text-slate-800">{cacheText}</Badge>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent className="text-xs">Indica si se respondió desde caché</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="inline-flex items-center gap-2">
+                              {(() => {
+                                const isRagOn = docs.length > 0 || (ragTime ?? 0) > 0;
+                                const label = isRagOn ? "RAG: ON" : "RAG: OFF";
+                                const cls = isRagOn
+                                  ? "bg-blue-100 text-blue-700 border border-blue-200"
+                                  : "bg-slate-100 text-slate-600 border border-slate-200";
+                                return (
+                                  <span className="inline-flex items-center gap-2">
+                                    {isRagOn ? (
+                                      <Database className="w-4 h-4 text-blue-700" />
+                                    ) : (
+                                      <Ban className="w-4 h-4 text-slate-600" />
+                                    )}
+                                    <Badge className={cn("px-2 py-[3px] text-[11px]", cls)}>{label}</Badge>
+                                  </span>
+                                );
+                              })()}
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent className="text-xs">{gatingExplain[gr]?.title || gatingText || "Clasificación de intención"}</TooltipContent>
+                        </Tooltip>
                       </div>
-                    </TooltipTrigger>
-                    <TooltipContent className="text-xs">{label}</TooltipContent>
-                  </Tooltip>
-                );
-                const line = (active: boolean) => (
-                  <div
-                    className={cn(
-                      "h-[2px] w-10",
-                      active ? "bg-blue-400" : "bg-slate-300",
-                      "transition-all duration-500",
-                    )}
-                  />
-                );
-                return (
-                  <div className="flex items-center">
-                    {node(
-                      intentCompleted,
-                      activeStage === "intencion",
-                      <BrainCircuit className="w-3 h-3" />,
-                      "Intención: clasificación y análisis del input",
-                    )}
-                    {line(activeStage === "busqueda")}
-                    {node(
-                      searchCompleted,
-                      activeStage === "busqueda",
-                      <Database className="w-3 h-3" />,
-                      "Búsqueda: tiempo en el corpus (RAG)",
-                    )}
-                    {line(activeStage === "recuperacion")}
-                    {node(
-                      retrievalCompleted,
-                      activeStage === "recuperacion",
-                      <Database className="w-3 h-3" />,
-                      "Recuperación: selección de fragmentos relevantes",
-                    )}
-                    {line(activeStage === "razonamiento")}
-                    {node(
-                      responseCompleted,
-                      activeStage === "razonamiento",
-                      <Zap className="w-3 h-3" />,
-                      "Razonamiento: construcción de respuesta con contexto",
-                    )}
-                    {line(activeStage === "respuesta")}
-                    {node(
-                      responseCompleted,
-                      activeStage === "respuesta",
-                      <MessageSquare className="w-3 h-3" />,
-                      "Respuesta: generación de tokens por el modelo",
-                    )}
-                    {line(activeStage === "veredicto")}
-                    {node(
-                      verdictCompleted,
-                      activeStage === "veredicto",
-                      data?.verification?.is_grounded ? (
-                        <ShieldCheck className="w-3 h-3" />
-                      ) : (
-                        <Shield className="w-3 h-3" />
-                      ),
-                      "Veredicto: verificación de grounding",
-                    )}
-                  </div>
-                );
-              })()}
-            </div>
-          </section>
-
-          <section className="pl-6">
-            {(() => {
-              const tot =
-                (totalTime ?? 0) > 0
-                  ? totalTime!
-                  : (ragTime ?? 0) + (llmTime ?? 0) || 0;
-              const r = ragTime ?? 0;
-              const l = llmTime ?? 0;
-              const overhead = Math.max(0, tot - (r + l));
-              const rPct = tot > 0 ? (r / tot) * 100 : 0;
-              const lPct = tot > 0 ? (l / tot) * 100 : 0;
-              const oPct = tot > 0 ? (overhead / tot) * 100 : 0;
-              return (
-                <div className="mt-2 space-y-1">
-                  <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden flex">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div
-                          className="h-full bg-amber-300 transition-all"
-                          style={{
-                            width: `${Math.max(0, Math.min(100, rPct))}%`,
-                          }}
-                        />
-                      </TooltipTrigger>
-                      <TooltipContent className="text-xs">
-                        Búsqueda: tiempo de RAG
-                      </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div
-                          className="h-full bg-blue-400 transition-all"
-                          style={{
-                            width: `${Math.max(0, Math.min(100, lPct))}%`,
-                          }}
-                        />
-                      </TooltipTrigger>
-                      <TooltipContent className="text-xs">
-                        Generación: tiempo del modelo
-                      </TooltipContent>
-                    </Tooltip>
-                    {oPct > 0 && (
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <div className="text-xs font-semibold text-slate-700">Consumo</div>
+                      <div className="space-y-2">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-slate-700">Input</span>
+                              <span className="font-mono text-slate-900">{fmtTokVal(inTok)}</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent className="text-xs">Cantidad de tokens procesados</TooltipContent>
+                        </Tooltip>
+                        <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                          <div
+                            className="h-full bg-emerald-400 transition-all"
+                            style={{ width: `${Math.max(0, Math.min(100, ((inTok ?? 0) / Math.max(1, ((inTok ?? 0) + (outTok ?? 0)))) * 100))}%` }}
+                          />
+                        </div>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-slate-700">Output</span>
+                              <span className="font-mono text-slate-900">{fmtTokVal(outTok)}</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent className="text-xs">Cantidad de tokens procesados</TooltipContent>
+                        </Tooltip>
+                        <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                          <div
+                            className="h-full bg-blue-400 transition-all"
+                            style={{ width: `${Math.max(0, Math.min(100, ((outTok ?? 0) / Math.max(1, ((inTok ?? 0) + (outTok ?? 0)))) * 100))}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <div className="text-xs font-semibold text-slate-700">Contexto</div>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <div
-                            className="h-full bg-slate-300 transition-all"
-                            style={{
-                              width: `${Math.max(0, Math.min(100, oPct))}%`,
-                            }}
-                          />
+                          <div className="inline-flex items-center gap-2">
+                            <Database className="w-4 h-4 text-slate-700" />
+                            <Badge variant="outline" className="px-2 py-[3px] text-[11px] text-slate-800">{gr === "small_corpus" ? "Pequeño" : gr === "no_corpus" ? "No disponible" : "Normal"}</Badge>
+                          </div>
                         </TooltipTrigger>
-                        <TooltipContent className="text-xs">
-                          Overhead: latencia del sistema
-                        </TooltipContent>
+                        <TooltipContent className="text-xs">El corpus actual contiene pocos documentos. Esto afecta la recuperación.</TooltipContent>
                       </Tooltip>
-                    )}
-                  </div>
-                  <div className="text-xs text-slate-500">
-                    Búsqueda: {fmtSVal(ragTime)}s · Generación: {fmtSVal(llmTime)}s
+                    </div>
                   </div>
                 </div>
-              );
-            })()}
-          </section>
-        
-          <section className="mt-6 pl-6">
-            <div className="text-sm font-semibold text-slate-900 mb-1">
-              Análisis
-            </div>
-            <div className="text-xs text-slate-500">
-              Pipeline de intención y contexto
-            </div>
-            <div className="rounded-xl border border-slate-200 p-4 bg-white shadow-sm space-y-4 text-[13px] leading-relaxed mt-2">
-              <div className="rounded-lg border bg-slate-50 p-4 space-y-1">
-                <div className="text-sm font-semibold text-slate-900">
-                  {gatingExplain[gr]?.title || gatingText || "Desconocido"}
-                </div>
-                <div className="text-xs text-slate-500">
-                  {gatingExplain[gr]?.subtitle || gatingText || "Desconocido"}
-                </div>
-                <Badge className="mt-1 text-xs">Estado</Badge>
               </div>
             </div>
           </section>
+          
+          <TooltipProvider delayDuration={0}>
+          
+
+          
+        
+          
         
           <section className="mt-6 pl-6">
             <div className="text-sm font-semibold text-slate-900 mb-1">
@@ -771,7 +791,10 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                       return (
                         <div
                           key={idx}
-                          className="rounded-lg bg-slate-50 shadow-sm border border-slate-200 border-l-4 overflow-hidden transition ease-out duration-300 hover:shadow-md hover:-translate-y-[1px]"
+                          className={cn(
+                            "rounded-lg shadow-sm border border-slate-200 border-l-4 overflow-hidden transition ease-out duration-300 hover:shadow-md hover:-translate-y-[1px]",
+                            score !== undefined && score <= 0.4 ? "bg-rose-50" : "bg-slate-50",
+                          )}
                           style={{ borderLeftColor: scoreColorHex }}
                         >
                           <div className="flex items-center justify-between px-3 py-2">
@@ -841,9 +864,8 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                                 </TooltipProvider>
                               )}
                               <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7"
+                                variant="outline"
+                                size="sm"
                                 onClick={() =>
                                   setExpandedDocs((s) => ({
                                     ...(s || {}),
@@ -851,7 +873,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                                   }))
                                 }
                               >
-                                <Eye className="w-4 h-4" />
+                                {expandedDocs?.[idx] ? "Ver menos" : "Ver más"}
                               </Button>
                             </div>
                           </div>
@@ -879,7 +901,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                                 </TooltipContent>
                               </Tooltip>
                             )}
-                            <div className="bg-slate-50 text-slate-700 rounded-md px-3 py-2 text-xs font-mono leading-relaxed">
+                            <div className="bg-slate-50 text-slate-500 rounded-md px-3 py-2 text-xs font-mono leading-relaxed">
                               {expandedDocs?.[idx]
                                 ? contentText
                                 : contentText.length > 220
@@ -896,89 +918,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
             </div>
           </section>
 
-          <section className="mt-6">
-            <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)}>
-              <TabsList>
-                <TabsTrigger value="veredicto">Veredicto</TabsTrigger>
-              </TabsList>
-              <TabsContent value="veredicto">
-                <div className="p-4">
-                  <div className="flex flex-wrap items-center gap-2 mb-2">
-                    {data?.verification?.is_grounded === false && (
-                      <Badge className="text-[10px] bg-rose-50 text-rose-700 border border-rose-200">Posible alucinación detectada</Badge>
-                    )}
-                    {docs.length === 0 && (
-                      <Badge className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200">Respuesta sin contexto (Búsqueda saltada)</Badge>
-                    )}
-                    {typeof ragTime === "number" && ragTime > 3 && (
-                      <Badge className="text-[10px] bg-slate-900 text-white">RAG lento: optimizable</Badge>
-                    )}
-                  </div>
-                  <div className="text-sm font-semibold text-slate-900 mb-1 flex items-center gap-2">
-                    {data?.verification?.is_grounded === true ? (
-                      <ShieldCheck className="w-5 h-5 text-emerald-600" />
-                    ) : data?.verification?.is_grounded === false ? (
-                      <AlertTriangle className="w-5 h-5 text-amber-600" />
-                    ) : (
-                      <Shield className="w-5 h-5 text-slate-600" />
-                    )}
-                    Veredicto
-                  </div>
-                  <div className="w-12 h-[2px] bg-slate-200 mb-2" />
-                  <div
-                    className={cn(
-                      "rounded-xl p-4 shadow-sm border",
-                      data?.verification?.is_grounded === true &&
-                        "bg-emerald-50 border-emerald-200",
-                      data?.verification?.is_grounded === false &&
-                        "bg-amber-50 border-amber-200",
-                      data?.verification?.is_grounded !== true &&
-                        data?.verification?.is_grounded !== false &&
-                        "bg-slate-50 border-slate-200",
-                    )}
-                  >
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className={cn("flex items-center gap-2")}> 
-                          {data?.verification?.is_grounded === true ? (
-                            <ShieldCheck className="w-6 h-6 text-emerald-600" />
-                          ) : data?.verification?.is_grounded === false ? (
-                            <AlertTriangle className="w-6 h-6 text-amber-600" />
-                          ) : (
-                            <Shield className="w-6 h-6 text-slate-600" />
-                          )}
-                          <div
-                            className={cn(
-                              "text-base font-semibold",
-                              data?.verification?.is_grounded === true
-                                ? "text-emerald-700"
-                                : data?.verification?.is_grounded === false
-                                  ? "text-amber-700"
-                                  : "text-slate-700",
-                            )}
-                          >
-                            {data?.verification?.is_grounded === true
-                              ? "Respuesta Verificada"
-                              : data?.verification?.is_grounded === false
-                                ? "Posible Alucinación"
-                                : "Sin verificación"}
-                          </div>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent className="text-xs">
-                        Veredicto del pipeline: validación del grounding
-                      </TooltipContent>
-                    </Tooltip>
-                    {data?.verification?.reason && (
-                      <div className="text-xs text-slate-600 mt-1">
-                        {data.verification.reason}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </section>
+          
         </TooltipProvider>
         </div>
       </div>
@@ -1031,7 +971,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
             <div className="flex-1 overflow-y-auto p-4">
               {promptRawMode ? (
                 <div className="rounded-md border bg-[#0F1115] text-slate-100 p-4 max-h-screen overflow-auto">
-                  <div className="text-[13px] font-mono whitespace-pre-line break-words leading-7">
+                  <div className="text-[13px] font-mono whitespace-pre-line break-words leading-7" style={{ overflowWrap: "anywhere" }}>
                     {String(promptText || "")}
                   </div>
                 </div>
@@ -1058,7 +998,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                           <span className="text-xs text-slate-200">{inner.length} chars</span>
                         </button>
                         <div className={cn("px-4 pb-4 transition-opacity duration-150", open ? "opacity-100" : "opacity-0 hidden") }>
-                          <div className="text-slate-100 font-mono text-[14px]">
+                  <div className="text-slate-100 font-mono text-[14px]" style={{ overflowWrap: "anywhere" }}>
                             <div className="text-slate-300 mb-2">────────────────────────────────────────────────</div>
                             {name === "instructions" ? (
                               <div className={cn("px-4 py-3 inline-block rounded leading-7 break-words", "bg-emerald-500/15") }>
@@ -1127,7 +1067,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
             </div>
             <div className="p-4">
               <div className="rounded-md border bg-zinc-950 text-zinc-100 p-4 max-h-screen overflow-auto">
-                <div className="text-[13px] font-mono leading-7">
+                <div className="text-[13px] font-mono leading-7" style={{ overflowWrap: "anywhere" }}>
                   {(function renderNode(value: any, path: string, depth: number): React.ReactNode {
                     if (value === null) return <span className="text-slate-400">null</span>;
                     if (typeof value === "string") return <span className="text-green-300 break-words">&quot;{value}&quot;</span>;
