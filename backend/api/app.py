@@ -443,14 +443,15 @@ def create_app() -> FastAPI:
         main_logger.error(f"HTTPException: {exc.detail}")
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
-    @app.exception_handler(RateLimitExceeded)
-    async def ratelimit_exception_handler(request: Request, exc: RateLimitExceeded):
-        try:
-            main_logger.warning(f"⛔ RATE LIMIT EXCEEDED: IP {request.client.host} en {request.url.path}")
-        except Exception:
-            pass
-        retry_after = retry_after_for_path(request.url.path)
-        return JSONResponse(status_code=429, content={"detail": "Demasiadas peticiones. Calma, cowboy.", "retry_after": retry_after})
+    if settings.enable_rate_limiting:
+        @app.exception_handler(RateLimitExceeded)
+        async def ratelimit_exception_handler(request: Request, exc: RateLimitExceeded):
+            try:
+                main_logger.warning(f"⛔ RATE LIMIT EXCEEDED: IP {request.client.host} en {request.url.path}")
+            except Exception:
+                pass
+            retry_after = retry_after_for_path(request.url.path)
+            return JSONResponse(status_code=429, content={"detail": "Demasiadas peticiones. Calma, cowboy.", "retry_after": retry_after})
 
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):

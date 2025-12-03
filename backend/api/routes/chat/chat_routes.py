@@ -14,7 +14,7 @@ import csv
 from api.schemas import (
     ChatRequest
 )
-from utils.rate_limiter import limiter
+from utils.rate_limiter import conditional_limit
 from config import settings
 
 
@@ -25,7 +25,7 @@ router = APIRouter()
 # No requieren autenticación para permitir acceso libre al chat
 
 @router.post("/")
-@limiter.limit(settings.chat_rate_limit)
+@conditional_limit(settings.chat_rate_limit)
 async def chat_stream_log(request: Request):
     """Endpoint para chat con streaming y logging."""
     chat_manager = request.app.state.chat_manager

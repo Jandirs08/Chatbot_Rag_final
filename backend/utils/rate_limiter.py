@@ -17,6 +17,14 @@ limiter = Limiter(
 )
 
 
+def conditional_limit(value: str):
+    if not bool(getattr(settings, "enable_rate_limiting", True)):
+        def decorator(func):
+            return func
+        return decorator
+    return limiter.limit(value)
+
+
 def retry_after_for_path(path: str):
     try:
         v = settings.chat_rate_limit if path.startswith("/api/v1/chat") else settings.global_rate_limit
