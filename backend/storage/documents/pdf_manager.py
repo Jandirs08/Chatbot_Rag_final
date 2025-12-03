@@ -1,5 +1,4 @@
 """Utilidades para la gestión de archivos PDF en el sistema de almacenamiento."""
-import os
 import aiofiles
 import asyncio
 from pathlib import Path

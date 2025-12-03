@@ -1,7 +1,6 @@
 """Módulo para gestión optimizada del almacenamiento vectorial."""
 import logging
 from typing import List, Optional, Dict, Any, Tuple
-from pathlib import Path
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 import asyncio
@@ -9,7 +8,6 @@ import uuid
 
 from cache.manager import cache
 
-from fastapi import HTTPException
 from langchain_core.documents import Document
 
 from qdrant_client import QdrantClient
@@ -174,7 +172,7 @@ class VectorStore:
                     # Validación de embedding
                     try:
                         vec = [float(x) for x in vec]
-                    except:
+                    except Exception:
                         continue
 
                     dim = int(getattr(settings, "default_embedding_dimension", 1536))

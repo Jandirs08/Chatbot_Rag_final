@@ -1,6 +1,5 @@
 """Chat manager for handling conversations with LLMs."""
 from typing import Any, Dict, List
-import logging
 from utils.logging_utils import get_logger
 import time
 from cache.manager import cache

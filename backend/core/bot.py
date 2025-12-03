@@ -9,7 +9,6 @@ from memory import (
     BaseChatbotMemory
 )
 from memory.memory_types import MEM_TO_CLASS, MemoryTypes
-from memory.base_memory import BaseChatbotMemory
 from models import ModelTypes
 from common.objects import Message
 from utils import CacheTypes, ChatbotCache

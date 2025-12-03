@@ -2,10 +2,9 @@
 
 import re
 import hashlib
-from typing import List, Optional, Dict
+from typing import List, Optional
 from pathlib import Path
 import logging
-import sys
 
 from langchain.text_splitter import TokenTextSplitter
 from langchain_core.documents import Document

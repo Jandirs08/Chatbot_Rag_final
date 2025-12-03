@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from pydantic import BaseModel, Field
 
-from config import Settings, settings as app_settings
+from config import settings as app_settings
 from core import prompt as prompt_module
 from .mongodb import get_mongodb_client, MongodbClient
 

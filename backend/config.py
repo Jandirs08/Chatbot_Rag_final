@@ -1,6 +1,6 @@
 """Configuration management for the chatbot application."""
 import os
-from typing import Any, Dict, Optional, List, Union
+from typing import Optional, List, Union
 from pydantic import Field, validator, SecretStr, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path

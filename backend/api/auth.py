@@ -1,9 +1,7 @@
 """Authentication API endpoints."""
 import logging
-from datetime import timedelta
-from typing import Dict, Any
+from typing import Dict
 from fastapi import APIRouter, Depends, HTTPException, status, Response
-from fastapi.security import HTTPAuthorizationCredentials
 
 from models.auth import (
     LoginRequest,

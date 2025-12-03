@@ -1,5 +1,4 @@
-import os
-from typing import Optional, List
+from typing import List
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 
@@ -232,7 +231,7 @@ def build_full_startup_summary(app: FastAPI) -> str:
     deep.append(f"✓ MongoDB: {'conectado' if mongodb_client else 'no disponible'}")
     deep.append(f"✓ PDFs Dir: {pdf_dir}")
     deep.append(f"✓ CORS Orígenes: {cors_origins}")
-    deep.append(f"✓ Auth Middleware: configurado")
+    deep.append("✓ Auth Middleware: configurado")
     deep.append(f"✓ Rutas API registradas: {routes_count}")
     deep.append(f"✓ Caché: {'habilitada' if cache_enabled else 'deshabilitada'}")
     deep.append(f"✓ Métricas: {'habilitadas' if metrics_enabled else 'deshabilitadas'}")

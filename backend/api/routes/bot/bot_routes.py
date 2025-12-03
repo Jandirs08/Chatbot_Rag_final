@@ -1,5 +1,4 @@
 """API routes for bot state management."""
-import logging
 from utils.logging_utils import get_logger
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
