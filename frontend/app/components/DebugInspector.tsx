@@ -27,7 +27,7 @@ import {
   Ban,
 } from "lucide-react";
 import PdfViewerModal from "@/app/components/modals/PdfViewerModal";
-import { ChevronRight, ChevronDown, Copy } from "lucide-react";
+import { ChevronRight, ChevronDown, Copy, Terminal, Braces } from "lucide-react";
 
 type RetrievedDoc = {
   text?: string;
@@ -195,7 +195,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
   const gatingText = data?.gating_reason
     ? gatingMap[data.gating_reason] || data.gating_reason
     : "-";
-  const cacheText = data?.is_cached ? "Cache: SÍ" : "Cache: NO";
+  const cacheText = data?.is_cached ? "Cache: ON" : "Cache: OFF";
   const gatingToneMap: Record<string, "green" | "indigo" | "amber" | "rose"> = {
     semantic_match: "green",
     keyword_match: "green",
@@ -431,30 +431,25 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
               <TooltipContent className="max-w-xs text-xs">
                 {data?.verification?.reason || "Veredicto del pipeline"}
               </TooltipContent>
-          </Tooltip>
-          <div
-            className={cn(
-              "inline-flex items-center gap-2 rounded-full px-3 py-1 border text-xs",
-              decisionTone === "green"
-                ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                : decisionTone === "indigo"
-                ? "bg-indigo-50 border-indigo-200 text-indigo-700"
-                : decisionTone === "amber"
-                ? "bg-amber-50 border-amber-200 text-amber-700"
-                : decisionTone === "rose"
-                ? "bg-rose-50 border-rose-200 text-rose-700"
-                : "bg-slate-50 border-slate-200 text-slate-700"
-            )}
-          >
-            <Shield className="w-3.5 h-3.5" />
-            <span className="font-semibold">{gatingExplain[gr]?.title || gatingText}</span>
-          </div>
+            </Tooltip>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="rounded-md" onClick={() => setShowPrompt(true)}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-2 text-xs font-medium text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50/50 transition-all"
+              onClick={() => setShowPrompt(true)}
+            >
+              <Terminal className="w-3.5 h-3.5" />
               Prompt
             </Button>
-            <Button variant="outline" size="sm" className="rounded-md" onClick={() => setShowJson(true)}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-2 text-xs font-medium text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50/50 transition-all"
+              onClick={() => setShowJson(true)}
+            >
+              <Braces className="w-3.5 h-3.5" />
               JSON
             </Button>
           </div>
@@ -672,7 +667,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                       </div>
                     </div>
                     <div className="flex flex-col gap-2">
-                      <div className="text-xs font-semibold text-slate-700">Consumo</div>
+                      <div className="text-xs font-semibold text-slate-700">Consumo Tokens</div>
                       <div className="space-y-2">
                         <Tooltip>
                           <TooltipTrigger asChild>

@@ -623,11 +623,7 @@ class RAGRetriever:
         """
         try:
             q = (query or "").strip()
-            if len(q) < 4:
-                logger.info(f"Gating: similitud=—, threshold={self._gating_threshold:.4f}, reason=too_short")
-                return ("too_short", False)
-
-            # Heurística de small-talk
+            # Heurística de small-talk (evaluar primero para cubrir términos cortos como "ok")
             small_talk = {
                 "hola", "buenos días", "buenas tardes", "buenas noches",
                 "como estás", "qué tal", "gracias", "adios", "hasta luego",
@@ -636,6 +632,10 @@ class RAGRetriever:
             if q.lower() in small_talk:
                 logger.info(f"Gating: similitud=—, threshold={self._gating_threshold:.4f}, reason=small_talk")
                 return ("small_talk", False)
+
+            if len(q) < 4:
+                logger.info(f"Gating: similitud=—, threshold={self._gating_threshold:.4f}, reason=too_short")
+                return ("too_short", False)
 
             # Detección mínima de intención semántica
             interrogatives = ("qué", "como", "cómo", "donde", "dónde", "cuando", "cuándo", "por qué", "para qué", "puedo", "quiero", "necesito")
