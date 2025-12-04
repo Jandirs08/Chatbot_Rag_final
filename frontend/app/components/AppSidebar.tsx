@@ -9,6 +9,7 @@ import {
   Users,
   MessageCircle,
   MessageSquareText,
+  MessageSquare,
   LogOut,
   Sun,
   Moon,
@@ -159,6 +160,7 @@ export function AppSidebar() {
               {(isAdmin
                 ? [
                     ...mainMenuItems,
+                    { title: "Buzón", url: "/admin/inbox", icon: MessageSquare },
                     { title: "Usuarios", url: "/usuarios", icon: Users },
                   ]
                 : mainMenuItems

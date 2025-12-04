@@ -3,7 +3,7 @@ from utils.logging_utils import get_logger
 import uuid
 import json
 import asyncio
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import StreamingResponse, JSONResponse, Response
 from io import BytesIO
 from datetime import datetime
@@ -16,6 +16,7 @@ from api.schemas import (
 )
 from utils.rate_limiter import conditional_limit
 from config import settings
+from auth.dependencies import require_admin
 
 
 logger = get_logger(__name__)
@@ -404,3 +405,27 @@ async def get_stats_history(request: Request, days: int = 7):
     except Exception as e:
         logger.error(f"Error en stats history: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error al obtener estadísticas históricas: {str(e)}")
+
+
+@router.get("/conversations")
+async def list_recent_conversations(request: Request, limit: int = 50, skip: int = 0, current_user=Depends(require_admin)):
+    try:
+        chat_manager = request.app.state.chat_manager
+        db = chat_manager.db
+        items = await db.list_recent_conversations(limit=limit, skip=skip)
+        result = []
+        for r in items:
+            txt = str(r.get("last_message") or "").strip()
+            m = 160
+            preview = txt if len(txt) <= m else (txt[:m] + "…")
+            ts = r.get("updated_at")
+            result.append({
+                "conversation_id": r.get("conversation_id"),
+                "last_message_preview": preview,
+                "total_messages": int(r.get("total_messages") or 0),
+                "updated_at": ts.isoformat() if hasattr(ts, "isoformat") else ts,
+            })
+        return JSONResponse(content=result)
+    except Exception as e:
+        logger.error(f"Error al listar conversaciones: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error al listar conversaciones")

@@ -113,6 +113,38 @@ class MongodbClient:
             # No relanzamos para no bloquear el arranque; se puede reintentar luego
 
     
+    async def list_recent_conversations(self, limit: int = 50, skip: int = 0) -> list:
+        try:
+            pipeline = [
+                {"$sort": {"conversation_id": 1, "timestamp": -1}},
+                {
+                    "$group": {
+                        "_id": "$conversation_id",
+                        "last_message": {"$first": "$content"},
+                        "updated_at": {"$first": "$timestamp"},
+                        "total_messages": {"$sum": 1},
+                    }
+                },
+                {
+                    "$project": {
+                        "_id": 0,
+                        "conversation_id": "$_id",
+                        "last_message": {"$ifNull": ["$last_message", ""]},
+                        "updated_at": 1,
+                        "total_messages": 1,
+                    }
+                },
+                {"$sort": {"updated_at": -1}},
+                {"$skip": int(max(0, skip))},
+                {"$limit": int(max(1, limit))},
+            ]
+            cursor = self.messages.aggregate(pipeline)
+            results = await cursor.to_list(length=int(max(1, limit)))
+            return results
+        except Exception as e:
+            logger.error(f"Error listando conversaciones recientes: {str(e)}", exc_info=True)
+            return []
+
     async def close(self) -> None:
         """Close the MongoDB connection."""
         try:
