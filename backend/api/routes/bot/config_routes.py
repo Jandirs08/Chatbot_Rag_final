@@ -45,6 +45,9 @@ async def update_bot_config(request: Request, payload: UpdateBotConfigRequest) -
             twilio_account_sid=payload.twilio_account_sid,
             twilio_auth_token=payload.twilio_auth_token,
             twilio_whatsapp_from=payload.twilio_whatsapp_from,
+            theme_color=payload.theme_color,
+            starters=payload.starters,
+            input_placeholder=payload.input_placeholder,
         )
         # Aplicar en runtime: actualizar settings y recargar chain del bot
         if hasattr(request.app.state, "settings") and request.app.state.settings:
@@ -62,6 +65,13 @@ async def update_bot_config(request: Request, payload: UpdateBotConfigRequest) -
                 request.app.state.settings.twilio_account_sid = updated.twilio_account_sid
                 request.app.state.settings.twilio_auth_token = updated.twilio_auth_token
                 request.app.state.settings.twilio_whatsapp_from = updated.twilio_whatsapp_from
+            except Exception:
+                pass
+            try:
+                request.app.state.settings.theme_color = updated.theme_color
+                request.app.state.settings.starters = updated.starters
+                request.app.state.settings.welcome_message = updated.welcome_message
+                request.app.state.settings.input_placeholder = updated.input_placeholder
             except Exception:
                 pass
 

@@ -429,3 +429,19 @@ async def list_recent_conversations(request: Request, limit: int = 50, skip: int
     except Exception as e:
         logger.error(f"Error al listar conversaciones: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error al listar conversaciones")
+
+@router.delete("/history")
+async def clear_history(request: Request, current_user=Depends(require_admin)):
+    """Borra todo el historial de conversaciones (colección 'messages'). Requiere admin."""
+    try:
+        chat_manager = request.app.state.chat_manager
+        db = chat_manager.db
+        deleted_count = await db.clear_all_messages()
+        return JSONResponse(content={
+            "status": "success",
+            "deleted_count": int(deleted_count),
+            "message": "Historial eliminado correctamente"
+        })
+    except Exception as e:
+        logger.error(f"Error al eliminar historial: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error interno del servidor al eliminar historial")

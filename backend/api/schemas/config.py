@@ -14,6 +14,9 @@ class BotConfigDTO(BaseModel):
     twilio_account_sid: str | None = Field(default=None)
     twilio_auth_token: str | None = Field(default=None)
     twilio_whatsapp_from: str | None = Field(default=None)
+    theme_color: str = Field(default="#F97316", description="Primary theme color (hex)")
+    starters: list[str] = Field(default_factory=list, description="Suggested starter questions")
+    input_placeholder: str = Field(default="Escribe aquí...", description="Default input placeholder text")
 
 
 class UpdateBotConfigRequest(BaseModel):
@@ -25,6 +28,9 @@ class UpdateBotConfigRequest(BaseModel):
     twilio_account_sid: Optional[str] = Field(default=None)
     twilio_auth_token: Optional[str] = Field(default=None)
     twilio_whatsapp_from: Optional[str] = Field(default=None)
+    theme_color: Optional[str] = Field(default=None, description="Primary theme color (hex)")
+    starters: Optional[list[str]] = Field(default=None, description="Suggested starter questions (max 6)")
+    input_placeholder: Optional[str] = Field(default=None, description="Default input placeholder text")
 
     @field_validator("temperature")
     @classmethod
@@ -44,3 +50,22 @@ class UpdateBotConfigRequest(BaseModel):
         if len(v) > 3000:
             raise ValueError("ui_prompt_extra must be at most 3000 characters")
         return v
+
+    @field_validator("theme_color")
+    @classmethod
+    def validate_theme_color(cls, v: Optional[str]):
+        if v is None:
+            return v
+        v = v.strip()
+        if not v.startswith("#") or len(v) not in (4, 7):
+            raise ValueError("theme_color must be a hex like #F97316")
+        return v
+
+    @field_validator("starters")
+    @classmethod
+    def validate_starters(cls, v: Optional[list[str]]):
+        if v is None:
+            return v
+        # Enforce max 6 and sanitize strings
+        cleaned = [str(s).strip() for s in v if str(s).strip()]
+        return cleaned[:6]

@@ -10,6 +10,9 @@ export interface BotConfigDTO {
   twilio_account_sid?: string | null;
   twilio_auth_token?: string | null;
   twilio_whatsapp_from?: string | null;
+  theme_color?: string;
+  starters?: string[];
+  input_placeholder?: string;
 }
 
 export interface UpdateBotConfigRequest {
@@ -20,6 +23,9 @@ export interface UpdateBotConfigRequest {
   twilio_account_sid?: string;
   twilio_auth_token?: string;
   twilio_whatsapp_from?: string;
+  theme_color?: string;
+  starters?: string[];
+  input_placeholder?: string;
 }
 
 export const getBotConfig = async (): Promise<BotConfigDTO> => {

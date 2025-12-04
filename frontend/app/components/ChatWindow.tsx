@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useRef, useEffect } from "react";
+import useSWR from "swr";
 import { EmptyState } from "../components/EmptyState";
 import { ChatMessageBubble } from "../components/ChatMessageBubble";
 import { AutoResizeTextarea } from "./AutoResizeTextarea";
@@ -36,6 +37,8 @@ export function ChatWindow(props: {
   } = props;
   const [botName, setBotName] = React.useState<string | undefined>(undefined);
   const [isBotActive, setIsBotActive] = React.useState(true);
+  const [themeColor, setThemeColor] = React.useState<string>("#F97316");
+  const [inputPh, setInputPh] = React.useState<string>("Escribe tu mensaje...");
 
   // Usar el hook personalizado para manejar el chat
   const { messages, isLoading, debugData, sendMessage, clearMessages } =
@@ -64,19 +67,20 @@ export function ChatWindow(props: {
     }
   }, [isLoading]);
 
+  const { data: cfg } = useSWR("chat-bot-config", getBotConfig);
+  useEffect(() => {
+    if (cfg) {
+      setBotName(cfg.bot_name || undefined);
+      setThemeColor(cfg.theme_color || "#F97316");
+      setInputPh(cfg.input_placeholder || "Escribe tu mensaje...");
+    }
+  }, [cfg]);
   useEffect(() => {
     (async () => {
-      try {
-        const cfg = await getBotConfig();
-        setBotName(cfg.bot_name || undefined);
-      } catch (_e) {
-        setBotName(undefined);
-      }
       try {
         const state = await botService.getState();
         setIsBotActive(state.is_active);
       } catch (_e) {
-        // mantener true por defecto si falla
       }
     })();
   }, []);
@@ -116,9 +120,9 @@ export function ChatWindow(props: {
   // Limpieza de conversación eliminada: la sesión se pierde al refrescar pantalla
 
   return (
-    <div className="flex flex-col h-full bg-gradient-to-br from-gray-50 via-white to-orange-50">
+    <div className="flex flex-col h-full bg-gradient-to-br from-gray-50 via-white to-gray-50">
       {/* Header personalizado */}
-      <div className="bg-gradient-to-r from-[#da5b3e] to-[#c54a33] shadow-lg shadow-[#da5b3e]/20">
+      <div className="shadow-lg" style={{ backgroundColor: themeColor }}>
         <div className="px-6 py-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
@@ -158,7 +162,7 @@ export function ChatWindow(props: {
         </div>
 
         {/* Decoración inferior */}
-        <div className="h-1 bg-gradient-to-r from-transparent via-white/30 to-transparent"></div>
+        <div className="h-1 bg-white/30"></div>
       </div>
 
       <div
@@ -227,8 +231,8 @@ export function ChatWindow(props: {
                 handleSendMessage();
               }
             }}
-            placeholder={placeholder ?? "Escribe tu mensaje..."}
-            className="flex-1 border-gray-200 focus:border-[#da5b3e] focus:ring-[#da5b3e]/20 rounded-xl"
+            placeholder={placeholder ?? inputPh}
+            className="flex-1 border-gray-200 rounded-xl"
             disabled={isLoading}
             autoFocus
           />
@@ -236,7 +240,8 @@ export function ChatWindow(props: {
             onClick={() => handleSendMessage()}
             disabled={isLoading || input.trim() === ""}
             size="icon"
-            className="shrink-0 w-10 h-10 rounded-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 text-white shadow-md transition-all duration-200 hover:scale-105 active:scale-95"
+            className="shrink-0 w-10 h-10 rounded-full text-white shadow-md transition-all duration-200 hover:scale-105 active:scale-95"
+            style={{ backgroundColor: themeColor }}
           >
             <ArrowUp className="h-5 w-5 text-white" />
           </Button>

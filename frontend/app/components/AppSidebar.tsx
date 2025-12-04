@@ -62,11 +62,7 @@ import { logger } from "@/app/lib/logger";
     url: "/Documents",
     icon: FileText,
   },
-  {
-    title: "Ajustes",
-    url: "/dashboard/settings",
-    icon: Settings,
-  },
+  // removed standalone Ajustes page; settings live under Admin now
   {
     title: "Playground",
     url: "/dashboard/playground",
@@ -159,10 +155,11 @@ export function AppSidebar() {
             <SidebarMenu>
               {(isAdmin
                 ? [
-                    ...mainMenuItems,
-                    { title: "Buzón", url: "/admin/inbox", icon: MessageSquare },
-                    { title: "Usuarios", url: "/usuarios", icon: Users },
-                  ]
+                  ...mainMenuItems,
+                  { title: "Buzón", url: "/admin/inbox", icon: MessageSquare },
+                  { title: "Usuarios", url: "/usuarios", icon: Users },
+                  { title: "Configuración", url: "/admin/settings", icon: Settings },
+                ]
                 : mainMenuItems
               ).map((item) => (
                 <SidebarMenuItem key={item.title}>

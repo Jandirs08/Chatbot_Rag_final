@@ -17,6 +17,7 @@ import { toast } from "sonner";
 export interface BotConfigurationProps {
   botName?: string;
   onBotNameChange?: (value: string) => void;
+  showBotName?: boolean;
   fieldsReadOnly?: boolean;
   onToggleEditFields?: () => void;
   prompt: string;
@@ -39,6 +40,7 @@ export interface BotConfigurationProps {
 export function BotConfiguration({
   botName,
   onBotNameChange,
+  showBotName = true,
   fieldsReadOnly,
   onToggleEditFields,
   prompt,
@@ -98,18 +100,20 @@ export function BotConfiguration({
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <div className="grid grid-cols-1 gap-4">
-                    <Label htmlFor="bot-name">Nombre del Bot (opcional)</Label>
-                    <Input
-                      id="bot-name"
-                      value={botName || ""}
-                      onChange={(e) =>
-                        onBotNameChange && onBotNameChange(e.target.value)
-                      }
-                      placeholder="Ej: Asesor Académico"
-                      disabled={!!fieldsReadOnly}
-                    />
-                  </div>
+                  {showBotName && (
+                    <div className="grid grid-cols-1 gap-4">
+                      <Label htmlFor="bot-name">Nombre del Bot (opcional)</Label>
+                      <Input
+                        id="bot-name"
+                        value={botName || ""}
+                        onChange={(e) =>
+                          onBotNameChange && onBotNameChange(e.target.value)
+                        }
+                        placeholder="Ej: Asesor Académico"
+                        disabled={!!fieldsReadOnly}
+                      />
+                    </div>
+                  )}
                   <div>
                     <div className="flex items-center justify-between">
                       <Label htmlFor="ui-extra">Instrucciones adicionales</Label>

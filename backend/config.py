@@ -1,7 +1,8 @@
 """Configuration management for the chatbot application."""
 import os
 from typing import Optional, List, Union
-from pydantic import Field, validator, SecretStr, ValidationError
+from pydantic import Field, field_validator, SecretStr, ValidationError
+from pydantic import ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 from dotenv import load_dotenv
@@ -71,6 +72,9 @@ class Settings(BaseSettings):
     # Dynamic UI-driven config (complemento seguro)
     bot_name: Optional[str] = Field(default=None, env="BOT_NAME")
     ui_prompt_extra: Optional[str] = Field(default=None)
+    theme_color: str = Field(default="#F97316", env="THEME_COLOR")
+    starters: list[str] = Field(default_factory=list)
+    input_placeholder: Optional[str] = Field(default="Escribe aquí...", env="INPUT_PLACEHOLDER")
     main_prompt_name: str = Field(default="BASE_PROMPT_TEMPLATE", env="MAIN_PROMPT_NAME")
     ai_prefix: str = Field(default="assistant", env="AI_PREFIX")
     human_prefix: str = Field(default="user", env="HUMAN_PREFIX")
@@ -158,24 +162,27 @@ class Settings(BaseSettings):
     
     # Nota: Config ya no aplica en Pydantic v2; usamos model_config arriba.
 
-    @validator("environment")
-    def validate_environment(cls, v):
+    @field_validator("environment")
+    @classmethod
+    def validate_environment(cls, v: str):
         allowed = ["development", "testing", "staging", "production"]
         if v not in allowed:
             raise ValueError(f"Environment must be one of {allowed}")
         return v
         
-    @validator("log_level")
-    def validate_log_level(cls, v):
+    @field_validator("log_level")
+    @classmethod
+    def validate_log_level(cls, v: str):
         allowed = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         v = v.upper()
         if v not in allowed:
             raise ValueError(f"Log level must be one of {allowed}")
         return v
         
-    @validator("cors_origins", "cors_origins_widget", "cors_origins_admin")
-    def validate_cors_origins(cls, v, values):
-        env = values.get("environment")
+    @field_validator("cors_origins", "cors_origins_widget", "cors_origins_admin", mode="after")
+    @classmethod
+    def validate_cors_origins(cls, v, info: ValidationInfo):
+        env = (info.data or {}).get("environment")
         # Normalizar: si viene como string vacío, convertir a lista vacía
         if isinstance(v, str):
             v_str = v.strip()
@@ -192,7 +199,8 @@ class Settings(BaseSettings):
             raise ValueError("Wildcard CORS origin (*) not allowed in production")
         return v
 
-    @validator("mongo_uri", pre=True)
+    @field_validator("mongo_uri", mode="before")
+    @classmethod
     def validate_mongo_uri(cls, v):
         # Preferir MONGO_URI, con fallback a MONGODB_URI
         if v is None:
@@ -205,20 +213,23 @@ class Settings(BaseSettings):
             return None
         return v
         
-    @validator("temperature")
-    def validate_temperature(cls, v):
+    @field_validator("temperature")
+    @classmethod
+    def validate_temperature(cls, v: float):
         if not 0 <= v <= 1:
             raise ValueError("Temperature must be between 0 and 1")
         return v
         
-    @validator("similarity_threshold", "deduplication_threshold")
-    def validate_threshold(cls, v):
+    @field_validator("similarity_threshold", "deduplication_threshold")
+    @classmethod
+    def validate_threshold(cls, v: float):
         if not 0 <= v <= 1:
             raise ValueError("Threshold values must be between 0 and 1")
         return v
         
-    @validator("max_file_size_mb")
-    def validate_max_file_size(cls, v):
+    @field_validator("max_file_size_mb")
+    @classmethod
+    def validate_max_file_size(cls, v: int):
         if v <= 0 or v > 100:
             raise ValueError("Max file size must be between 1 and 100 MB")
         return v

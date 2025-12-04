@@ -20,6 +20,9 @@ class BotConfig(BaseModel):
     twilio_account_sid: Optional[str] = Field(default=None)
     twilio_auth_token: Optional[str] = Field(default=None)
     twilio_whatsapp_from: Optional[str] = Field(default=None)
+    theme_color: str = Field(default="#F97316")
+    starters: list[str] = Field(default_factory=list)
+    input_placeholder: str = Field(default="Escribe aquí...")
 
 
 class ConfigRepository:
@@ -49,6 +52,9 @@ class ConfigRepository:
                 twilio_account_sid=getattr(app_settings, "twilio_account_sid", None),
                 twilio_auth_token=getattr(app_settings, "twilio_auth_token", None),
                 twilio_whatsapp_from=getattr(app_settings, "twilio_whatsapp_from", None),
+                theme_color=getattr(app_settings, "theme_color", "#F97316"),
+                starters=getattr(app_settings, "starters", []) or [],
+                input_placeholder=getattr(app_settings, "input_placeholder", "Escribe aquí...") or "Escribe aquí...",
             )
             await self._collection.update_one(
                 {"_id": "default"},
@@ -61,7 +67,7 @@ class ConfigRepository:
         return BotConfig(**{k: v for k, v in doc.items() if k != "_id"})
 
 
-    async def update_config(self, system_prompt: Optional[str] = None, temperature: Optional[float] = None, bot_name: Optional[str] = None, ui_prompt_extra: Optional[str] = None, twilio_account_sid: Optional[str] = None, twilio_auth_token: Optional[str] = None, twilio_whatsapp_from: Optional[str] = None) -> BotConfig:
+    async def update_config(self, system_prompt: Optional[str] = None, temperature: Optional[float] = None, bot_name: Optional[str] = None, ui_prompt_extra: Optional[str] = None, twilio_account_sid: Optional[str] = None, twilio_auth_token: Optional[str] = None, twilio_whatsapp_from: Optional[str] = None, theme_color: Optional[str] = None, starters: Optional[list[str]] = None, input_placeholder: Optional[str] = None) -> BotConfig:
         """Update bot configuration fields and return the new config."""
         update_data = {"updated_at": datetime.now(timezone.utc)}
         if system_prompt is not None:
@@ -80,8 +86,17 @@ class ConfigRepository:
         if twilio_auth_token is not None:
             update_data["twilio_auth_token"] = twilio_auth_token
         if twilio_whatsapp_from is not None:
-            cleaned_from = str(twilio_whatsapp_from).strip().strip("`\"'")
+            cleaned_from = str(twilio_whatsapp_from).strip().strip("'\"`")
             update_data["twilio_whatsapp_from"] = cleaned_from
+        if theme_color is not None:
+            c = str(theme_color).strip()
+            update_data["theme_color"] = c
+        if starters is not None:
+            # sanitize and cap length 6
+            cleaned = [str(s).strip() for s in starters if str(s).strip()]
+            update_data["starters"] = cleaned[:6]
+        if input_placeholder is not None:
+            update_data["input_placeholder"] = str(input_placeholder)
 
         await self._collection.update_one(
             {"_id": "default"},

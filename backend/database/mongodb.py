@@ -145,6 +145,21 @@ class MongodbClient:
             logger.error(f"Error listando conversaciones recientes: {str(e)}", exc_info=True)
             return []
 
+    async def clear_all_messages(self) -> int:
+        """Elimina todos los documentos de la colección 'messages'.
+
+        Returns:
+            int: Número de documentos eliminados.
+        """
+        try:
+            result = await self.messages.delete_many({})
+            deleted = int(getattr(result, "deleted_count", 0))
+            logger.warning(f"LIMPIEZA TOTAL DE HISTORIAL: eliminados {deleted} documentos de 'messages'.")
+            return deleted
+        except Exception as e:
+            logger.error(f"Error al limpiar la colección 'messages': {str(e)}", exc_info=True)
+            raise
+
     async def close(self) -> None:
         """Close the MongoDB connection."""
         try:

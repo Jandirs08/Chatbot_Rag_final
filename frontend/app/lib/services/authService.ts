@@ -1,6 +1,6 @@
 import { API_URL } from "@/app/lib/config";
 
-// Interfaces para los tipos de datos de autenticación
+// Interfaces
 export interface LoginCredentials {
   email: string;
   password: string;
@@ -36,293 +36,210 @@ export interface AuthError {
   detail: string;
 }
 
-// Clase para manejar el almacenamiento de tokens
+// --- Token Manager Mejorado (Maneja Access y Refresh) ---
 class TokenManager {
-  private static token: string | null = null;
+  private static accessToken: string | null = null;
+  private static refreshToken: string | null = null; // Nuevo campo
   private static expiryTime: number | null = null;
 
-  static setToken(token: string, expiresIn: number): void {
-    this.token = token;
+  static setTokens(accessToken: string, refreshToken: string, expiresIn: number): void {
+    this.accessToken = accessToken;
+    this.refreshToken = refreshToken;
     this.expiryTime = Date.now() + expiresIn * 1000;
+    
+    // Persistencia básica en cookies (solo access_token para middleware simple)
+    try {
+      if (typeof document !== 'undefined') {
+        const maxAge = Math.max(0, Math.floor(expiresIn));
+        const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+        document.cookie = `auth_token=${accessToken}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
+        // Guardar refresh token en localStorage para sobrevivir recargas (menos seguro que HttpOnly, pero funcional para MVP)
+        localStorage.setItem('refresh_token', refreshToken);
+      }
+    } catch {}
   }
 
-  static getToken(): string | null {
-    if (this.token && this.expiryTime && Date.now() < this.expiryTime) {
-      return this.token;
-    }
+  static getAccessToken(): string | null {
+    // 1. Memoria
+    if (this.accessToken) return this.accessToken;
+    
+    // 2. Cookie (Recuperación tras F5)
     try {
-      const all = typeof document !== 'undefined' ? document.cookie : '';
-      if (all) {
-        const parts = all.split(';').map((p) => p.trim());
-        const kv = (name: string) => {
-          const found = parts.find((p) => p.startsWith(name + '='));
-          return found ? decodeURIComponent(found.split('=')[1]) : '';
-        };
-        const cookieToken = kv('auth_token') || kv('access_token') || kv('session_id');
-        if (cookieToken) {
-          this.token = cookieToken;
-          this.expiryTime = null;
-          return cookieToken;
+      if (typeof document !== 'undefined') {
+        const match = document.cookie.match(new RegExp('(^| )auth_token=([^;]+)'));
+        if (match) {
+            this.accessToken = match[2];
+            return this.accessToken;
         }
       }
     } catch {}
     return null;
   }
 
-  static clearToken(): void {
-    this.token = null;
+  static getRefreshToken(): string | null {
+    if (this.refreshToken) return this.refreshToken;
+    try {
+      if (typeof window !== 'undefined') {
+        const stored = localStorage.getItem('refresh_token');
+        if (stored) {
+            this.refreshToken = stored;
+            return stored;
+        }
+      }
+    } catch {}
+    return null;
+  }
+
+  // Alias para compatibilidad
+  static getToken() { return this.getAccessToken(); }
+
+  static clearTokens(): void {
+    this.accessToken = null;
+    this.refreshToken = null;
     this.expiryTime = null;
+    try {
+      if (typeof document !== 'undefined') {
+        document.cookie = 'auth_token=; Path=/; Max-Age=0; SameSite=Lax';
+        localStorage.removeItem('refresh_token');
+      }
+    } catch {}
   }
 
   static isTokenValid(): boolean {
-    return this.getToken() !== null;
+    // Si tenemos access token, asumimos válido (el backend dirá 401 si no)
+    return !!this.getAccessToken();
   }
 }
 
-// Servicio de autenticación
+// --- Servicio de Autenticación ---
 export const authService = {
-  // Login de usuario
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
     try {
-      console.log("Intentando login para usuario:", credentials.email);
-      
       const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: credentials.email,
-          password: credentials.password
-        }),
-        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(credentials),
       });
 
       if (!response.ok) {
-        const errorData: AuthError = await response.json().catch(() => ({
-          detail: `Error ${response.status}: ${response.statusText}`
-        }));
-        console.error("Error en login:", errorData);
-        throw new Error(errorData.detail || 'Error de autenticación');
+        const errorData = await response.json().catch(() => ({ detail: 'Error de autenticación' }));
+        throw new Error(errorData.detail || 'Error al iniciar sesión');
       }
 
       const authData: AuthResponse = await response.json();
-      console.log("Login exitoso");
       
-      TokenManager.setToken(authData.access_token, authData.expires_in);
-      try {
-        const maxAge = Math.max(0, Math.floor(authData.expires_in));
-        const secure = typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : '';
-        document.cookie = `auth_token=${authData.access_token}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
-      } catch (_e) {}
+      // CRÍTICO: Guardamos AMBOS tokens
+      TokenManager.setTokens(authData.access_token, authData.refresh_token, authData.expires_in);
       
       return authData;
     } catch (error) {
-      console.error("Error en authService.login:", error);
+      console.error("Login error:", error);
       throw error;
     }
   },
 
-  async requestPasswordReset(email: string): Promise<void> {
-    try {
-      const response = await fetch(`${API_URL}/auth/forgot-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-        credentials: 'include',
-      });
-      try {
-        await response.json().catch(() => ({}));
-      } catch (_e) {}
-    } catch (error) {
-      console.error('Error en authService.requestPasswordReset:', error);
-      throw error;
-    }
-  },
-
-  async resetPassword(token: string, newPassword: string): Promise<void> {
-    try {
-      const response = await fetch(`${API_URL}/auth/reset-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, new_password: newPassword }),
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        let detail = `Error ${response.status}: ${response.statusText}`;
-        try {
-          const err = await response.json();
-          detail = err?.detail || detail;
-        } catch (_e) {}
-        const e = new Error(detail) as Error & { status?: number };
-        e.status = response.status;
-        throw e;
-      }
-    } catch (error) {
-      console.error('Error en authService.resetPassword:', error);
-      throw error;
-    }
-  },
-
-  // Registro de usuario (si está habilitado)
-  async register(userData: RegisterData): Promise<User> {
-    try {
-      console.log("Intentando registro para usuario:", userData.username);
-      
-      const response = await fetch(`${API_URL}/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(userData),
-      });
-
-      if (!response.ok) {
-        const errorData: AuthError = await response.json().catch(() => ({
-          detail: `Error ${response.status}: ${response.statusText}`
-        }));
-        console.error("Error en registro:", errorData);
-        throw new Error(errorData.detail || 'Error en el registro');
-      }
-
-      const user: User = await response.json();
-      console.log("Registro exitoso para usuario:", user.username);
-      
-      return user;
-    } catch (error) {
-      console.error("Error en authService.register:", error);
-      throw error;
-    }
-  },
-
-  // Obtener perfil del usuario actual
-  async getCurrentUser(): Promise<User> {
-    try {
-      const token = TokenManager.getToken();
-      const baseHeaders: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      if (token) {
-        baseHeaders['Authorization'] = `Bearer ${token}`;
-      }
-
-      const response = await fetch(`${API_URL}/auth/me`, {
-        method: 'GET',
-        headers: baseHeaders,
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          // Token inválido o expirado
-          TokenManager.clearToken();
-          throw new Error('Sesión expirada');
-        }
-        
-        const errorData: AuthError = await response.json().catch(() => ({
-          detail: `Error ${response.status}: ${response.statusText}`
-        }));
-        throw new Error(errorData.detail || 'Error al obtener perfil');
-      }
-
-      const user: User = await response.json();
-      return user;
-    } catch (error) {
-      console.error("Error en authService.getCurrentUser:", error);
-      throw error;
-    }
-  },
-
-  // Logout
   async logout(): Promise<void> {
     try {
-      try {
-        const token = TokenManager.getToken();
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-
-        await fetch(`${API_URL}/auth/logout`, {
-          method: 'POST',
-          headers,
-          credentials: 'include',
-        });
-      } catch (error) {
-        console.warn("Error al hacer logout en servidor:", error);
-      }
-
-      // Limpiar token local
-      TokenManager.clearToken();
-      try {
-        document.cookie = 'auth_token=; Path=/; Max-Age=0; SameSite=Lax';
-      } catch (_e) {}
-      console.log("Logout completado");
-    } catch (error) {
-      console.error("Error en authService.logout:", error);
-      // Asegurar que se limpie el token local
-      TokenManager.clearToken();
+        // Intento best-effort de avisar al backend
+        const token = TokenManager.getAccessToken();
+        if (token) {
+            await fetch(`${API_URL}/auth/logout`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+            });
+        }
+    } catch (e) {
+        // Ignorar error de red al salir
+    } finally {
+        TokenManager.clearTokens();
     }
   },
 
-  // Verificar si el usuario está autenticado
-  isAuthenticated(): boolean {
-    return TokenManager.isTokenValid();
+  async getCurrentUser(): Promise<User> {
+    // Usamos authenticatedFetch para aprovechar la lógica de retry automática
+    const response = await authenticatedFetch(`${API_URL}/auth/me`, {
+        method: 'GET'
+    });
+
+    if (!response.ok) {
+        throw new Error("No se pudo obtener el usuario");
+    }
+    return response.json();
   },
 
-  // Obtener token para requests autenticados
-  getAuthToken(): string | null {
-    return TokenManager.getToken();
-  },
-
-  // Refresh token (si está implementado en el backend)
+  // CORREGIDO: Envía el refresh_token en el body
   async refreshToken(): Promise<AuthResponse> {
-    try {
-      const token = TokenManager.getToken();
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
+    const refreshToken = TokenManager.getRefreshToken();
+    
+    if (!refreshToken) {
+        TokenManager.clearTokens();
+        throw new Error("No hay refresh token disponible");
+    }
 
+    try {
       const response = await fetch(`${API_URL}/auth/refresh`, {
         method: 'POST',
-        headers,
-        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken }), // <--- FIX IMPORTANTE
       });
 
       if (!response.ok) {
-        TokenManager.clearToken();
-        throw new Error('Error al renovar token');
+        throw new Error('Token inválido');
       }
 
       const authData: AuthResponse = await response.json();
-      TokenManager.setToken(authData.access_token, authData.expires_in);
-      try {
-        const maxAge = Math.max(0, Math.floor(authData.expires_in));
-        const secure = typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : '';
-        document.cookie = `auth_token=${authData.access_token}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
-      } catch (_e) {}
-
+      // Actualizamos tokens
+      TokenManager.setTokens(authData.access_token, authData.refresh_token, authData.expires_in);
       return authData;
     } catch (error) {
-      console.error("Error en authService.refreshToken:", error);
+      TokenManager.clearTokens();
       throw error;
     }
   },
+  
+  isAuthenticated: () => TokenManager.isTokenValid(),
+  getAuthToken: () => TokenManager.getAccessToken()
 };
 
-// Función helper para hacer requests autenticados
+// --- Helper Fetch Autenticado (Interceptor) ---
 export const authenticatedFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
-  const token = TokenManager.getToken();
-  const headers = new Headers(options.headers as HeadersInit);
-  headers.set('Content-Type', 'application/json');
+  let token = TokenManager.getAccessToken();
+  
+  const getHeaders = (t: string | null) => {
+      const h = new Headers(options.headers);
+      h.set('Content-Type', 'application/json');
+      if (t) h.set('Authorization', `Bearer ${t}`);
+      return h;
+  };
 
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
+  // 1. Intento inicial
+  let response = await fetch(url, {
+      ...options,
+      headers: getHeaders(token)
+  });
+
+  // 2. Si falla por token vencido (401), intentamos refrescar UNA vez
+  if (response.status === 401) {
+      try {
+          await authService.refreshToken();
+          token = TokenManager.getAccessToken(); // Token nuevo
+          
+          // Reintentar petición original
+          response = await fetch(url, {
+              ...options,
+              headers: getHeaders(token)
+          });
+      } catch (refreshError) {
+          // Si falla el refresh, estamos deslogueados oficialmente
+          TokenManager.clearTokens();
+          // Opcional: Redirigir a login aquí o dejar que el componente maneje el error
+      }
   }
 
-  return fetch(url, {
-    ...options,
-    headers,
-    credentials: 'include',
-  });
+  return response;
 };
 
 export { TokenManager };
