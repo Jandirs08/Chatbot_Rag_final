@@ -71,7 +71,11 @@ export function ChatWindow(props: {
   useEffect(() => {
     if (cfg) {
       setBotName(cfg.bot_name || undefined);
-      setThemeColor(cfg.theme_color || "#F97316");
+      const col = cfg.theme_color || "#F97316";
+      setThemeColor(col);
+      try {
+        document.documentElement.style.setProperty("--brand-color", col);
+      } catch {}
       setInputPh(cfg.input_placeholder || "Escribe tu mensaje...");
     }
   }, [cfg]);
@@ -122,7 +126,7 @@ export function ChatWindow(props: {
   return (
     <div className="flex flex-col h-full bg-gradient-to-br from-gray-50 via-white to-gray-50">
       {/* Header personalizado */}
-      <div className="shadow-lg" style={{ backgroundColor: themeColor }}>
+      <div className="shadow-lg" style={{ backgroundColor: "var(--brand-color)" }}>
         <div className="px-6 py-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
@@ -241,7 +245,7 @@ export function ChatWindow(props: {
             disabled={isLoading || input.trim() === ""}
             size="icon"
             className="shrink-0 w-10 h-10 rounded-full text-white shadow-md transition-all duration-200 hover:scale-105 active:scale-95"
-            style={{ backgroundColor: themeColor }}
+            style={{ backgroundColor: "var(--brand-color)" }}
           >
             <ArrowUp className="h-5 w-5 text-white" />
           </Button>

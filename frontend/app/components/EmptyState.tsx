@@ -11,7 +11,11 @@ export function EmptyState(props: { onSubmit: (question: string) => any }) {
   useEffect(() => {
     if (cfg) {
       setBotName(cfg.bot_name || undefined);
-      setThemeColor(cfg.theme_color || "#F97316");
+      const col = cfg.theme_color || "#F97316";
+      setThemeColor(col);
+      try {
+        document.documentElement.style.setProperty("--brand-color", col);
+      } catch {}
     }
   }, [cfg]);
   const handleClick = (e: MouseEvent) => {
@@ -27,13 +31,13 @@ export function EmptyState(props: { onSubmit: (question: string) => any }) {
     <div className="flex flex-col items-center justify-center h-full p-8 text-center relative overflow-hidden">
       {/* Fondo decorativo */}
       <div className="absolute inset-0 bg-gradient-to-br from-orange-50 via-white to-red-50 opacity-60"></div>
-      <div className="absolute top-10 left-10 w-32 h-32 rounded-full blur-xl" style={{ background: `${themeColor}1A` }}></div>
-      <div className="absolute bottom-10 right-10 w-40 h-40 rounded-full blur-xl" style={{ background: `${themeColor}1A` }}></div>
+      <div className="absolute top-10 left-10 w-32 h-32 rounded-full blur-xl" style={{ background: "var(--brand-color)", opacity: 0.1 }}></div>
+      <div className="absolute bottom-10 right-10 w-40 h-40 rounded-full blur-xl" style={{ background: "var(--brand-color)", opacity: 0.1 }}></div>
       
       <div className="relative z-10 mb-12">
         {/* Logo/Icono principal */}
         <div className="mb-6 relative">
-          <div className="w-20 h-20 mx-auto rounded-2xl flex items-center justify-center shadow-lg transform rotate-3" style={{ backgroundColor: themeColor }}>
+          <div className="w-20 h-20 mx-auto rounded-2xl flex items-center justify-center shadow-lg transform rotate-3" style={{ backgroundColor: "var(--brand-color)" }}>
             <MessageCircle className="w-10 h-10 text-white" />
           </div>
           <div className="absolute -top-2 -right-2 w-6 h-6 bg-gradient-to-br from-yellow-400 to-orange-400 rounded-full flex items-center justify-center">
@@ -41,7 +45,7 @@ export function EmptyState(props: { onSubmit: (question: string) => any }) {
           </div>
         </div>
         
-        <h2 className="text-3xl font-bold mb-3" style={{ color: themeColor }}>
+        <h2 className="text-3xl font-bold mb-3" style={{ color: "var(--brand-color)" }}>
           {botName ?? "Becas Grupo Romero"}
         </h2>
 
@@ -55,7 +59,7 @@ export function EmptyState(props: { onSubmit: (question: string) => any }) {
             className="group relative p-6 text-left bg-white/80 backdrop-blur-sm border border-gray-200/50 rounded-xl hover:bg-white transition-all duration-300 shadow-sm hover:shadow-lg hover:-translate-y-1"
           >
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-lg flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300" style={{ backgroundColor: themeColor }}>
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300" style={{ backgroundColor: "var(--brand-color)" }}>
                 <Sparkles className="w-6 h-6 text-white" />
               </div>
               <div className="flex-1">
