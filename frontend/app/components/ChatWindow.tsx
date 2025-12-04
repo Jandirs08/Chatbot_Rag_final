@@ -11,6 +11,7 @@ import { useChatStream } from "../hooks/useChatStream";
 import { getPublicBotConfig } from "../lib/services/botConfigService";
 import { botService } from "../lib/services/botService";
 import { TokenManager } from "../lib/services/authService";
+import { API_URL } from "../lib/config";
 
 export function ChatWindow(props: {
   placeholder?: string;
@@ -40,6 +41,7 @@ export function ChatWindow(props: {
   const [isBotActive, setIsBotActive] = React.useState(true);
   const [themeColor, setThemeColor] = React.useState<string | undefined>(undefined);
   const [inputPh, setInputPh] = React.useState<string>("Escribe tu mensaje...");
+  const [logoUrl, setLogoUrl] = React.useState<string | undefined>(undefined);
 
   // Usar el hook personalizado para manejar el chat
   const { messages, isLoading, debugData, sendMessage, clearMessages } =
@@ -74,6 +76,7 @@ export function ChatWindow(props: {
       setBotName(cfg.bot_name || undefined);
       setThemeColor(cfg.theme_color);
       setInputPh(cfg.input_placeholder || "Escribe tu mensaje...");
+      setLogoUrl(`${API_URL}/assets/logo`);
     }
   }, [cfg]);
 
@@ -135,8 +138,17 @@ export function ChatWindow(props: {
       <div className="shadow-lg" style={{ backgroundColor: themeColor }}>
         <div className="px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-              <MessageCircle className="w-6 h-6 text-white" />
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center overflow-hidden">
+              {logoUrl ? (
+                <img
+                  src={logoUrl}
+                  alt="logo"
+                  className="w-full h-full object-cover"
+                  onError={() => setLogoUrl(undefined)}
+                />
+              ) : (
+                <MessageCircle className="w-6 h-6 text-white" />
+              )}
             </div>
             <div className="flex-1">
               <h1 className="text-xl font-bold text-white">

@@ -1,5 +1,6 @@
 "use client";
 import React, { useMemo, useState } from "react";
+import Image from "next/image";
 import useSWR from "swr";
 import { useRequireAdmin } from "@/app/hooks/useAuthGuard";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/app/components/ui/tabs";
@@ -16,7 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Progress } from "@/app/components/ui/progress";
 import { Alert, AlertDescription } from "@/app/components/ui/alert";
 import { API_URL } from "@/app/lib/config";
-import { authenticatedFetch } from "@/app/lib/services/authService";
+import { authenticatedFetch, TokenManager } from "@/app/lib/services/authService";
 import { BotConfiguration } from "@/app/components/BotConfiguration";
 import { botService } from "@/app/lib/services/botService";
 
@@ -40,7 +41,7 @@ export default function AdminSettingsPage() {
     const brand = data?.theme_color || "#F97316";
     const ph = data?.input_placeholder || "Escribe aquí...";
     const starters = Array.isArray(data?.starters) ? data!.starters!.slice(0, 6) : [];
-    const avatarUrl = "";
+    const avatarUrl = `${API_URL}/assets/logo`;
     return { name, brandColor: brand, placeholder: ph, starters, avatarUrl };
   }, [data]);
   React.useEffect(() => {
@@ -244,7 +245,7 @@ export default function AdminSettingsPage() {
         <div className="h-16 flex items-center justify-between px-4 text-white" style={{ backgroundColor: p.brandColor }}>
           <div className="flex items-center gap-3">
             {p.avatarUrl ? (
-              <img src={p.avatarUrl} alt="avatar" className="h-8 w-8 rounded-full object-cover" />
+              <Image src={p.avatarUrl} alt="avatar" width={32} height={32} className="rounded-full object-cover" />
             ) : (
               <div className="h-8 w-8 rounded-full bg-white/90 flex items-center justify-center text-gray-700 font-semibold">{p.name.charAt(0) || "A"}</div>
             )}
@@ -279,7 +280,7 @@ export default function AdminSettingsPage() {
         <div className="h-14 flex items-center justify-between px-4 text-white" style={{ backgroundColor: p.brandColor }}>
           <div className="flex items-center gap-3">
             {p.avatarUrl ? (
-              <img src={p.avatarUrl} alt="avatar" className="h-8 w-8 rounded-full object-cover" />
+              <Image src={p.avatarUrl} alt="avatar" width={32} height={32} className="rounded-full object-cover" />
             ) : (
               <div className="h-8 w-8 rounded-full bg-white/90 flex items-center justify-center text-gray-700 font-semibold">{p.name.charAt(0) || "A"}</div>
             )}
@@ -338,12 +339,79 @@ export default function AdminSettingsPage() {
                         </div>
                         <div className="grid grid-cols-[1fr_auto] items-end gap-3">
                           <div className="space-y-2">
-                            <Label htmlFor="avatar-url">URL del Logo/Avatar</Label>
-                            <Input id="avatar-url" value={config.avatarUrl} onChange={(e) => setConfig((c) => ({ ...c, avatarUrl: e.target.value }))} placeholder="https://…" />
+                            <Label htmlFor="avatar-file">Logo/Avatar</Label>
+                            <Input
+                              id="avatar-file"
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                try {
+                                  const xhr = new XMLHttpRequest();
+                                  const url = `${API_URL}/assets/logo`;
+                                  xhr.open("POST", url);
+                                  const token = TokenManager.getAccessToken();
+                                  if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+                                  xhr.onreadystatechange = () => {
+                                    if (xhr.readyState === XMLHttpRequest.DONE) {
+                                      if (xhr.status >= 200 && xhr.status < 300) {
+                                        const ts = Date.now();
+                                        setConfig((c) => ({ ...c, avatarUrl: `${API_URL}/assets/logo?ts=${ts}` }));
+                                        toast.success("Logo subido");
+                                      } else {
+                                        let detail = "Error al subir el logo";
+                                        try {
+                                          const json = JSON.parse(xhr.responseText);
+                                          detail = json?.detail || detail;
+                                        } catch {}
+                                        toast.error(detail);
+                                      }
+                                    }
+                                  };
+                                  xhr.onerror = () => {
+                                    toast.error("Error de red al subir el logo");
+                                  };
+                                  const formData = new FormData();
+                                  formData.append("file", file);
+                                  xhr.send(formData);
+                                } catch (err: any) {
+                                  toast.error(err?.message || "Error inesperado");
+                                }
+                              }}
+                            />
+                            {config.avatarUrl && (
+                              <div className="flex items-center gap-2 mt-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    try {
+                                      const token = TokenManager.getAccessToken();
+                                      const res = await fetch(`${API_URL}/assets/logo`, {
+                                        method: "DELETE",
+                                        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+                                      });
+                                      if (!res.ok) {
+                                        const body = await res.json().catch(() => ({}));
+                                        throw new Error(String(body?.detail || `Error ${res.status}`));
+                                      }
+                                      setConfig((c) => ({ ...c, avatarUrl: "" }));
+                                      toast.success("Logo eliminado");
+                                    } catch (err: any) {
+                                      toast.error(err?.message || "No se pudo eliminar el logo");
+                                    }
+                                  }}
+                                >
+                                  Eliminar logo
+                                </Button>
+                              </div>
+                            )}
                           </div>
                           <div className="h-11 w-11 rounded-full border overflow-hidden bg-gray-100 flex items-center justify-center">
                             {config.avatarUrl ? (
-                              <img src={config.avatarUrl} alt="avatar" className="h-full w-full object-cover" />
+                              <Image src={config.avatarUrl} alt="avatar" width={44} height={44} className="object-cover" />
                             ) : (
                               <span className="text-xs text-muted-foreground">N/A</span>
                             )}
@@ -378,7 +446,7 @@ export default function AdminSettingsPage() {
                         </div>
                         <div className="space-y-2">
                           {config.starters.map((s, idx) => (
-                            <div key={`${s}-${idx}`} className="flex items-center gap-2">
+                            <div key={idx} className="flex items-center gap-2">
                               <Input value={s} onChange={(e) => setConfig((c) => ({ ...c, starters: c.starters.map((t, i) => (i === idx ? e.target.value : t)) }))} />
                               <Button type="button" variant="outline" size="icon" onClick={() => setConfig((c) => ({ ...c, starters: c.starters.filter((_, i) => i !== idx) }))} className="h-10 w-10">
                                 <Trash className="w-4 h-4" />

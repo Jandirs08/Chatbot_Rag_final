@@ -1,6 +1,7 @@
 import { MouseEvent, useEffect, useState } from "react";
 import useSWR from "swr";
 import { getPublicBotConfig } from "../lib/services/botConfigService";
+import { API_URL } from "../lib/config";
 import { MessageCircle, Sparkles, BookOpen, Calendar } from "lucide-react";
 
 export function EmptyState(props: { onSubmit: (question: string) => any }) {
@@ -27,19 +28,21 @@ export function EmptyState(props: { onSubmit: (question: string) => any }) {
 
   return (
     <div className="flex flex-col items-center justify-center h-full p-8 text-center relative overflow-hidden">
-      {/* Fondo decorativo */}
-      <div className="absolute inset-0 bg-gradient-to-br from-orange-50 via-white to-red-50 opacity-60"></div>
-      <div className="absolute top-10 left-10 w-32 h-32 rounded-full blur-xl" style={{ background: `${themeColor}1A` }}></div>
-      <div className="absolute bottom-10 right-10 w-40 h-40 rounded-full blur-xl" style={{ background: `${themeColor}1A` }}></div>
+      <div className="absolute inset-0 bg-gradient-to-br from-gray-50 via-white to-gray-50 opacity-40"></div>
       
       <div className="relative z-10 mb-12">
-        {/* Logo/Icono principal */}
         <div className="mb-6 relative">
-          <div className="w-20 h-20 mx-auto rounded-2xl flex items-center justify-center shadow-lg transform rotate-3" style={{ backgroundColor: themeColor }}>
-            <MessageCircle className="w-10 h-10 text-white" />
-          </div>
-          <div className="absolute -top-2 -right-2 w-6 h-6 bg-gradient-to-br from-yellow-400 to-orange-400 rounded-full flex items-center justify-center">
-            <Sparkles className="w-3 h-3 text-white" />
+          <div className="w-24 h-24 mx-auto rounded-full ring-2 ring-white/80 shadow-md overflow-hidden flex items-center justify-center" style={{ backgroundColor: themeColor }}>
+            <img
+              src={`${API_URL}/assets/logo`}
+              alt="logo"
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+                const parent = e.currentTarget.parentElement;
+                if (parent) parent.innerHTML = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white' width='56' height='56'><path d='M21 15a4 4 0 10-8 0 4 4 0 008 0zm-8 6a6 6 0 016-6 6 6 0 00-6 6zM6 8a4 4 0 118 0 4 4 0 01-8 0zM2 20a6 6 0 1112 0H2z'/></svg>`;
+              }}
+            />
           </div>
         </div>
         
@@ -49,19 +52,19 @@ export function EmptyState(props: { onSubmit: (question: string) => any }) {
 
       </div>
       
-      <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl w-full">
+      <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl w-full">
         {starters.map((text, index) => (
           <button
             key={`${text}-${index}`}
             onClick={handleClick}
-            className="group relative p-6 text-left bg-white/80 backdrop-blur-sm border border-gray-200/50 rounded-xl hover:bg-white transition-all duration-300 shadow-sm hover:shadow-lg hover:-translate-y-1"
+            className="group relative p-5 text-left bg-white border border-gray-200/60 rounded-xl hover:bg-gray-50 transition-colors duration-200 shadow-sm"
           >
             <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300" style={{ backgroundColor: themeColor }}>
-                <Sparkles className="w-6 h-6 text-white" />
-              </div>
+                <div className="w-12 h-12 rounded-lg flex items-center justify-center shadow-sm" style={{ backgroundColor: themeColor }}>
+                  <Sparkles className="w-6 h-6 text-white" />
+                </div>
               <div className="flex-1">
-                <span className="text-gray-800 font-medium leading-relaxed" style={{ color: undefined }}>
+                <span className="text-gray-800 font-medium leading-relaxed">
                   {text}
                 </span>
               </div>

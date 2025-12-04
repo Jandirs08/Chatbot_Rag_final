@@ -396,10 +396,10 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden bg-transparent">
-      <div className="flex-none border-b bg-white p-3">
+      <div className="flex-none border-b bg-card p-3 dark:bg-slate-900 dark:border-slate-800">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="text-sm font-semibold text-slate-800">Monitor RAG</div>
+            <div className="text-sm font-semibold text-foreground">Monitor RAG</div>
             <Tooltip>
               <TooltipTrigger asChild>
                 <div
@@ -409,7 +409,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                       ? "bg-amber-50 border-amber-200 text-amber-700"
                       : data?.verification?.is_grounded === true
                       ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                      : "bg-slate-50 border-slate-200 text-slate-700",
+                      : "bg-slate-50 border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300",
                   )}
                 >
                   {data?.verification?.is_grounded === false ? (
@@ -437,7 +437,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
             <Button
               variant="outline"
               size="sm"
-              className="h-8 gap-2 text-xs font-medium text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50/50 transition-all"
+              className="h-8 gap-2 text-xs font-medium text-muted-foreground border-border hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50/50 transition-all dark:border-slate-700"
               onClick={() => setShowPrompt(true)}
             >
               <Terminal className="w-3.5 h-3.5" />
@@ -446,7 +446,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
             <Button
               variant="outline"
               size="sm"
-              className="h-8 gap-2 text-xs font-medium text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50/50 transition-all"
+              className="h-8 gap-2 text-xs font-medium text-muted-foreground border-border hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50/50 transition-all dark:border-slate-700"
               onClick={() => setShowJson(true)}
             >
               <Braces className="w-3.5 h-3.5" />
@@ -458,8 +458,8 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
       <div className="flex-1 overflow-y-auto p-3 space-y-8">
         <div className="space-y-6">
           <section>
-            <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-6">
-              <div className="text-sm font-semibold text-slate-800 mb-3">Resumen del Flujo RAG</div>
+            <div className="rounded-xl border border-border bg-card shadow-md ring-1 ring-white/5 p-6 dark:bg-slate-900 dark:border-slate-800">
+              <div className="text-sm font-semibold text-foreground mb-3">Resumen del Flujo RAG</div>
               <div className="space-y-4">
                 {Boolean(data?.is_cached) ? (
                   <div className="rounded-lg border border-emerald-200 bg-emerald-100 px-4 py-3 flex items-center justify-between">
@@ -595,7 +595,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                           })()}
                         </div>
                         <div className="absolute top-0 right-0">
-                          <span className="inline-flex items-center px-2 py-1 rounded-md bg-slate-900 text-white text-xs">Total: {fmtSVal(tot)}s</span>
+                          <span className="inline-flex items-center px-2 py-1 rounded-md bg-muted text-foreground text-xs dark:bg-slate-800 dark:text-slate-200">Total: {fmtSVal(tot)}s</span>
                         </div>
                         <div className="w-full">
                           <div className="flex mb-2 text-xs text-slate-800">
@@ -636,15 +636,15 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                   })()
                 )}
                 <div>
-                    <div className="grid grid-cols-3 gap-4 rounded-xl border border-slate-200 bg-white shadow-sm p-4">
+                    <div className="grid grid-cols-3 gap-4 rounded-xl border border-border bg-card shadow-md ring-1 ring-white/5 p-4 dark:bg-slate-900 dark:border-slate-800">
                       <div className="flex flex-col gap-2">
-                      <div className="text-xs font-semibold text-slate-700">Motor</div>
+                      <div className="text-xs font-semibold text-foreground">Motor</div>
                       <div className="flex flex-wrap items-center gap-3">
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <div className="inline-flex items-center gap-2">
-                              <Info className="w-4 h-4 text-slate-700" />
-                              <Badge variant="outline" className="px-2 py-[3px] text-[11px] font-mono text-slate-800">{modelName}</Badge>
+                              <Info className="w-4 h-4 text-muted-foreground" />
+                              <Badge variant="outline" className="px-2 py-[3px] text-[11px] font-mono text-slate-800 dark:text-slate-200 dark:bg-slate-800/60 dark:border-slate-700">{modelName}</Badge>
                             </div>
                           </TooltipTrigger>
                           <TooltipContent className="text-xs">Modelo LLM utilizado</TooltipContent>
@@ -652,12 +652,12 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <div className="inline-flex items-center gap-2">
-                              <Ticket className="w-4 h-4 text-slate-700" />
+                              <Ticket className="w-4 h-4 text-muted-foreground" />
                               <Badge className={cn(
                                 "px-2 py-[3px] text-[11px]",
                                 data?.is_cached
                                   ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                  : "bg-slate-100 text-slate-700 border border-slate-200"
+                                  : "bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800/70 dark:text-slate-300 dark:border-slate-700"
                               )}>{cacheText}</Badge>
                             </div>
                           </TooltipTrigger>
@@ -667,18 +667,18 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                       </div>
                     </div>
                     <div className="flex flex-col gap-2">
-                      <div className="text-xs font-semibold text-slate-700">Consumo Tokens</div>
+                      <div className="text-xs font-semibold text-foreground">Consumo Tokens</div>
                       <div className="space-y-2">
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <div className="flex items-center justify-between text-xs">
-                              <span className="text-slate-700">Input</span>
+                              <span className="text-muted-foreground">Input</span>
                               <span className="font-mono text-slate-900">{fmtTokVal(inTok)}</span>
                             </div>
                           </TooltipTrigger>
                           <TooltipContent className="text-xs">Cantidad de tokens procesados</TooltipContent>
                         </Tooltip>
-                        <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                        <div className="h-2 rounded-full bg-slate-100 overflow-hidden dark:bg-slate-800/70">
                           <div
                             className="h-full bg-emerald-400 transition-all"
                             style={{ width: `${Math.max(0, Math.min(100, ((inTok ?? 0) / Math.max(1, ((inTok ?? 0) + (outTok ?? 0)))) * 100))}%` }}
@@ -687,13 +687,13 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <div className="flex items-center justify-between text-xs">
-                              <span className="text-slate-700">Output</span>
+                              <span className="text-muted-foreground">Output</span>
                               <span className="font-mono text-slate-900">{fmtTokVal(outTok)}</span>
                             </div>
                           </TooltipTrigger>
                           <TooltipContent className="text-xs">Cantidad de tokens procesados</TooltipContent>
                         </Tooltip>
-                        <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                        <div className="h-2 rounded-full bg-slate-100 overflow-hidden dark:bg-slate-800/70">
                           <div
                             className="h-full bg-blue-400 transition-all"
                             style={{ width: `${Math.max(0, Math.min(100, ((outTok ?? 0) / Math.max(1, ((inTok ?? 0) + (outTok ?? 0)))) * 100))}%` }}
@@ -702,14 +702,14 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                       </div>
                     </div>
                     <div className="flex flex-col gap-2">
-                      <div className="text-xs font-semibold text-slate-700">Diagnóstico</div>
+                      <div className="text-xs font-semibold text-foreground">Diagnóstico</div>
                       <div className="flex flex-wrap items-center gap-3">
                         {(() => {
                           const isRagOn = docs.length > 0 || (ragTime ?? 0) > 0;
                           const label = isRagOn ? "RAG: ON" : "RAG: OFF";
                           const cls = isRagOn
-                            ? "bg-blue-100 text-blue-700 border border-blue-200"
-                            : "bg-slate-100 text-slate-600 border border-slate-200";
+                            ? "bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800"
+                            : "bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700";
                           return (
                             <span className="inline-flex items-center gap-2">
                               {isRagOn ? (
@@ -732,7 +732,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                               ? "bg-amber-50 border-amber-200 text-amber-700"
                               : decisionTone === "rose"
                               ? "bg-rose-50 border-rose-200 text-rose-700"
-                              : "bg-slate-50 border-slate-200 text-slate-700"
+                              : "bg-slate-50 border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300"
                           )}
                         >
                           <Shield className="w-3.5 h-3.5" />
@@ -754,15 +754,15 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
           
         
           <section className="mt-6 pl-6">
-            <div className="text-sm font-semibold text-slate-900 mb-1">
+            <div className="text-sm font-semibold text-foreground mb-1">
               Fuentes
             </div>
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-muted-foreground">
               Fragmentos recuperados y similitud
             </div>
-            <div className="rounded-xl border border-slate-200 p-4 bg-white shadow-sm space-y-4 text-[13px] leading-relaxed mt-2">
+            <div className="rounded-xl border border-border p-4 bg-card shadow-md ring-1 ring-white/5 space-y-4 text-[13px] leading-relaxed mt-2 dark:bg-slate-900 dark:border-slate-800">
               {docs.length === 0 ? (
-                <div className="inline-flex items-center px-3 py-2 rounded-md text-sm bg-slate-100 text-slate-700 border border-slate-200">
+                <div className="inline-flex items-center px-3 py-2 rounded-md text-sm bg-muted text-muted-foreground border border-border dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700">
                   Salto de Búsqueda
                 </div>
               ) : (
@@ -802,7 +802,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                             : score > 0.4
                               ? "Medium semantic match"
                               : "Low semantic match";
-                      const confidenceClass = "bg-slate-100 text-slate-700 border border-slate-200";
+                      const confidenceClass = "bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700";
                       const scoreToneClass =
                         score === undefined
                           ? "bg-slate-100 text-slate-700 border border-slate-200"
@@ -815,12 +815,12 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                         <div
                           key={idx}
                           className={cn(
-                            "rounded-lg shadow-sm border border-slate-200 border-l-4 overflow-hidden transition ease-out duration-300 hover:shadow-md hover:-translate-y-[1px] bg-white",
+                            "rounded-lg shadow-md ring-1 ring-white/5 border border-border border-l-4 overflow-hidden transition ease-out duration-300 hover:shadow-lg bg-card dark:bg-slate-900 dark:border-slate-800",
                           )}
                           style={{ borderLeftColor: scoreColorHex }}
                         >
                           <div className="flex items-center justify-between px-3 py-2">
-                            <div className="text-sm font-medium text-slate-900">
+                            <div className="text-sm font-medium text-foreground">
                               {fileName || `Fragmento #${idx + 1}`}
                             </div>
                             <div className="flex items-center gap-2">
@@ -958,24 +958,24 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
             className="absolute inset-0 bg-black/20"
             onClick={() => setShowPrompt(false)}
           />
-          <div className="absolute inset-y-0 right-0 w-[min(85vw,680px)] h-full bg-white border-l shadow-xl transform transition-transform duration-300 translate-x-0 flex flex-col">
-            <div className="flex items-center justify-between px-4 py-3 border-b">
+          <div className="absolute inset-y-0 right-0 w-[min(85vw,680px)] h-full bg-card border-l border-border shadow-xl transform transition-transform duration-300 translate-x-0 flex flex-col dark:bg-slate-900 dark:border-slate-800">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border dark:border-slate-800">
               <div className="flex items-center gap-2">
-                <span className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-slate-100 border">
-                  <MessageSquare className="w-4 h-4 text-slate-600" />
+                <span className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-muted border border-border dark:bg-slate-800 dark:border-slate-700">
+                  <MessageSquare className="w-4 h-4 text-muted-foreground" />
                 </span>
-                <span className="text-sm font-semibold">
+                <span className="text-sm font-semibold text-foreground">
                   Prompt del Sistema
                 </span>
               </div>
               <button
-                className="inline-flex h-10 w-10 items-center justify-center rounded-md border hover:bg-muted focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border hover:bg-muted focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-700"
                 onClick={() => setShowPrompt(false)}
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="px-4 py-2 border-b flex items-center justify-between text-xs text-slate-500">
+            <div className="px-4 py-2 border-b border-border flex items-center justify-between text-xs text-muted-foreground dark:border-slate-800">
               <div className="flex items-center gap-3">
                 <span>{promptCharCount} caracteres</span>
                 <span>{promptSegmentsCount} segmentos</span>
@@ -1059,22 +1059,22 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
             className="absolute inset-0 bg-black/20"
             onClick={() => setShowJson(false)}
           />
-          <div className="absolute inset-y-0 right-0 w-[min(85vw,560px)] bg-white border-l shadow-xl transform transition-transform duration-300 translate-x-0">
-            <div className="flex items-center justify-between px-4 py-3 border-b">
+          <div className="absolute inset-y-0 right-0 w-[min(85vw,560px)] bg-card border-l border-border shadow-xl transform transition-transform duration-300 translate-x-0 dark:bg-slate-900 dark:border-slate-800">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border dark:border-slate-800">
               <div className="flex items-center gap-2">
-                <span className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-slate-100 border">
-                  <Info className="w-4 h-4 text-slate-600" />
+                <span className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-muted border border-border dark:bg-slate-800 dark:border-slate-700">
+                  <Info className="w-4 h-4 text-muted-foreground" />
                 </span>
-                <span className="text-sm font-semibold">JSON Crudo</span>
+                <span className="text-sm font-semibold text-foreground">JSON Crudo</span>
               </div>
               <button
-                className="inline-flex h-10 w-10 items-center justify-center rounded-md border hover:bg-muted focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border hover:bg-muted focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-700"
                 onClick={() => setShowJson(false)}
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="px-4 py-2 border-b flex items-center justify-between text-xs text-slate-500">
+            <div className="px-4 py-2 border-b border-border flex items-center justify-between text-xs text-muted-foreground dark:border-slate-800">
               <div className="flex items-center gap-3">
                 <span>{rootStats.keys} claves</span>
                 <span>{rootStats.arrays} arrays</span>

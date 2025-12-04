@@ -96,7 +96,7 @@ export default function PlaygroundPage() {
           />
         )}
       </div>
-      <div className="lg:h-full lg:basis-3/5 min-h-0 flex flex-col p-6">
+      <div className="lg:h-full lg:basis-3/5 min-h-0 flex flex-col p-6 bg-background border-l border-border dark:bg-slate-900 dark:border-slate-800">
         <DebugInspector data={debugData} />
       </div>
     </div>

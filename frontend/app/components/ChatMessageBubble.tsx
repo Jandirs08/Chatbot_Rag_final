@@ -26,7 +26,7 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble(props: {
       className={`${
         isUser
           ? "bg-orange-500 text-white"
-          : "bg-gray-100 text-slate-800"
+          : "bg-gray-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 dark:border dark:border-slate-700"
       } rounded-2xl p-3 sm:p-4 shadow-sm max-w-[85%] break-words`}
     >
       {isUser ? (
@@ -37,7 +37,7 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble(props: {
         </div>
       ) : (
         <div className="flex flex-col items-start w-full">
-          <div className="flex items-center gap-2 mb-1 text-xs font-semibold text-slate-700">
+          <div className="flex items-center gap-2 mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300">
             <span>{props.aiEmoji || "🤖"}</span>
             <span>{props.botName || "Asistente"}</span>
             {!props.messageCompleted && (

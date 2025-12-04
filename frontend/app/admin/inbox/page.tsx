@@ -314,8 +314,7 @@ export default function AdminInboxPage() {
         </div>
       </div>
 
-      {/* --- COLUMNA DERECHA: CHAT --- */}
-      <div className="flex-1 flex flex-col bg-slate-50/50">
+      <div className="flex-1 flex flex-col bg-background dark:bg-slate-900">
         {!chatIdFromUrl ? (
           <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
             <div className="w-16 h-16 rounded-2xl bg-white shadow-sm flex items-center justify-center mb-4">
@@ -326,7 +325,7 @@ export default function AdminInboxPage() {
         ) : (
           <>
             {/* Chat Header */}
-            <div className="flex items-center justify-between px-6 py-3 bg-white border-b border-slate-200 shadow-sm sticky top-0 z-20">
+            <div className="flex items-center justify-between px-6 py-3 bg-card border-b border-border shadow-md ring-1 ring-white/5 sticky top-0 z-20 dark:bg-slate-900 dark:border-slate-800">
               <div className="flex items-center gap-3">
                 <div 
                   className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border"
@@ -335,13 +334,13 @@ export default function AdminInboxPage() {
                   VT
                 </div>
                 <div>
-                  <div className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                  <div className="text-sm font-bold text-foreground flex items-center gap-2">
                     {humanizeId(chatIdFromUrl)}
-                    <span className="px-1.5 py-0.5 rounded bg-slate-100 text-[10px] font-mono text-slate-500 font-normal">
+                    <span className="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono text-muted-foreground font-normal border border-border dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700">
                       {chatIdFromUrl.slice(0, 8)}...
                     </span>
                   </div>
-                  <div className="text-[10px] text-slate-500 flex items-center gap-1">
+                  <div className="text-[10px] text-muted-foreground flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     Sincronización activa
                   </div>
@@ -358,7 +357,7 @@ export default function AdminInboxPage() {
             </div>
 
             {/* Chat Body */}
-            <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6" ref={scrollRef}>
+            <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 bg-background/50 dark:bg-slate-900/60" ref={scrollRef}>
               {loadingHistory && messages.length === 0 ? (
                 // Skeletons Chat
                 <div className="space-y-6 opacity-50">
@@ -367,7 +366,7 @@ export default function AdminInboxPage() {
                    <div className="flex justify-end"><Skeleton className="h-8 w-1/2 rounded-xl rounded-tr-none" /></div>
                 </div>
               ) : messages.length === 0 ? (
-                <div className="text-center py-10 text-sm text-slate-400 italic">
+                <div className="text-center py-10 text-sm text-muted-foreground italic">
                   Esta conversación no tiene mensajes visibles.
                 </div>
               ) : (
@@ -392,7 +391,8 @@ export default function AdminInboxPage() {
                           botName="Asistente IA"
                         />
                         {m.timestamp && (
-                          <div className={cn("text-[10px] text-slate-400 mt-1 px-1", isUser ? "text-right" : "text-left")}>
+                          <div className={cn("text-[10px] text-muted-foreground mt-1 px-1", isUser ? "text-right" : "text-left")}
+                            >
                             {new Date(m.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                           </div>
                         )}
@@ -405,9 +405,8 @@ export default function AdminInboxPage() {
               <div className="h-4" />
             </div>
 
-            {/* Chat Footer (Read Only) */}
-            <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 text-center">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-200/50 text-slate-500 text-xs font-medium">
+            <div className="px-6 py-3 bg-muted border-t border-border text-center dark:bg-slate-900 dark:border-slate-800">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted text-muted-foreground text-xs font-medium">
                 🔒 Modo Supervisión (Solo Lectura)
               </div>
             </div>
