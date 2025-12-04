@@ -199,6 +199,42 @@ export const authService = {
       throw error;
     }
   },
+
+  async requestPasswordReset(email: string): Promise<void> {
+    try {
+      const response = await fetch(`${API_URL}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      if (!response.ok) {
+        const e = await response.json().catch(() => ({} as any));
+        const err: any = new Error(e?.detail || `Error ${response.status}`);
+        err.status = response.status;
+        throw err;
+      }
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    try {
+      const response = await fetch(`${API_URL}/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, new_password: newPassword }),
+      });
+      if (!response.ok) {
+        const e = await response.json().catch(() => ({} as any));
+        const err: any = new Error(e?.detail || `Error ${response.status}`);
+        err.status = response.status;
+        throw err;
+      }
+    } catch (error) {
+      throw error;
+    }
+  },
   
   isAuthenticated: () => TokenManager.isTokenValid(),
   getAuthToken: () => TokenManager.getAccessToken()
