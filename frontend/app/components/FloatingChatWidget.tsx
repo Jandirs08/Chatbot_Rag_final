@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from "react";
-import { ChatWindow } from "./ChatWindow";
+import { ChatWindow } from "@/features/chat/components/ChatWindow";
 import { Button } from "./ui/button";
 import { MessageCircle, X } from "lucide-react";
 

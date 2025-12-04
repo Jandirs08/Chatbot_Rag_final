@@ -1,6 +1,6 @@
 import ResizeTextarea from "react-textarea-autosize";
 import React from "react";
-import { cn } from "../lib/utils";
+import { cn } from "@/lib/utils";
 import type { TextareaAutosizeProps } from "react-textarea-autosize";
 
 interface AutoResizeTextareaProps extends TextareaAutosizeProps {}

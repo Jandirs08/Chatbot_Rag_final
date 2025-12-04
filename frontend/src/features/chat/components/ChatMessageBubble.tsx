@@ -1,6 +1,7 @@
 import React from "react";
 import type { Message } from "@/types/chat";
-import MarkdownRenderer from "./ui/markdown-renderer";
+export type { Message };
+import MarkdownRenderer from "@/app/components/ui/markdown-renderer";
 
 export const ChatMessageBubble = React.memo(function ChatMessageBubble(props: {
   message: Message;
@@ -16,7 +17,7 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble(props: {
     <div
       className={`${
         isUser
-          ? "bg-orange-500 text-white"
+          ? "bg-brand text-brand-foreground"
           : "bg-gray-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 dark:border dark:border-slate-700"
       } rounded-2xl p-3 sm:p-4 shadow-sm max-w-[85%] break-words`}
     >

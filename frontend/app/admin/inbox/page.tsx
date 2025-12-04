@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useRequireAdmin } from "@/app/hooks/useAuthGuard";
 import { API_URL } from "@/app/lib/config";
 import { authenticatedFetch } from "@/app/lib/services/authService";
-import { ChatMessageBubble, Message as BubbleMessage } from "@/app/components/ChatMessageBubble";
+import { ChatMessageBubble, Message as BubbleMessage } from "@/features/chat/components/ChatMessageBubble";
 import { Button } from "@/app/components/ui/button";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import { RefreshCw, MessageSquare, Copy, UserCircle2, ListFilter } from "lucide-react";

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { ChatWindow } from "../components/ChatWindow";
+import { ChatWindow } from "@/features/chat/components/ChatWindow";
 import { API_URL } from "../lib/config";
 import type { Message as HookMessage } from "@/types/chat";
 import { logger } from "../lib/logger";
