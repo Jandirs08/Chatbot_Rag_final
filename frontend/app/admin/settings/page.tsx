@@ -1,6 +1,5 @@
 "use client";
 import React, { useMemo, useState } from "react";
-import Image from "next/image";
 import useSWR from "swr";
 import { useRequireAdmin } from "@/app/hooks/useAuthGuard";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/app/components/ui/tabs";
@@ -245,7 +244,7 @@ export default function AdminSettingsPage() {
         <div className="h-16 flex items-center justify-between px-4 text-white" style={{ backgroundColor: p.brandColor }}>
           <div className="flex items-center gap-3">
             {p.avatarUrl ? (
-              <Image src={p.avatarUrl} alt="avatar" width={32} height={32} className="rounded-full object-cover" />
+              <img src={p.avatarUrl} alt="avatar" className="h-8 w-8 rounded-full object-cover" />
             ) : (
               <div className="h-8 w-8 rounded-full bg-white/90 flex items-center justify-center text-gray-700 font-semibold">{p.name.charAt(0) || "A"}</div>
             )}
@@ -280,7 +279,7 @@ export default function AdminSettingsPage() {
         <div className="h-14 flex items-center justify-between px-4 text-white" style={{ backgroundColor: p.brandColor }}>
           <div className="flex items-center gap-3">
             {p.avatarUrl ? (
-              <Image src={p.avatarUrl} alt="avatar" width={32} height={32} className="rounded-full object-cover" />
+              <img src={p.avatarUrl} alt="avatar" className="h-8 w-8 rounded-full object-cover" />
             ) : (
               <div className="h-8 w-8 rounded-full bg-white/90 flex items-center justify-center text-gray-700 font-semibold">{p.name.charAt(0) || "A"}</div>
             )}
@@ -411,7 +410,7 @@ export default function AdminSettingsPage() {
                           </div>
                           <div className="h-11 w-11 rounded-full border overflow-hidden bg-gray-100 flex items-center justify-center">
                             {config.avatarUrl ? (
-                              <Image src={config.avatarUrl} alt="avatar" width={44} height={44} className="object-cover" />
+                              <img src={config.avatarUrl} alt="avatar" className="h-full w-full object-cover" />
                             ) : (
                               <span className="text-xs text-muted-foreground">N/A</span>
                             )}

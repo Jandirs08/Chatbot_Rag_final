@@ -1,4 +1,4 @@
-import { apiBaseUrl } from "./constants";
+import { API_URL } from "@/app/lib/config";
 
 type SendFeedbackProps = {
   key: string;
@@ -25,7 +25,7 @@ export const sendFeedback = async ({
   isExplicit = true,
 }: SendFeedbackProps) => {
   const feedback_id = feedbackId ?? (crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
-  const response = await fetch(apiBaseUrl + "/feedback", {
+  const response = await fetch(API_URL + "/feedback", {
     method: feedbackId ? "PATCH" : "POST",
     headers: {
       "Content-Type": "application/json",

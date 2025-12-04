@@ -2,8 +2,8 @@
 
 import React from "react";
 import { ChatWindow } from "../components/ChatWindow";
-import { apiBaseUrl } from "../utils/constants";
-import type { Message as HookMessage } from "../hooks/useChatStream";
+import { API_URL } from "../lib/config";
+import type { Message as HookMessage } from "@/types/chat";
 import { logger } from "../lib/logger";
 
 export default function ChatPage() {
@@ -48,7 +48,7 @@ export default function ChatPage() {
       if (!conversationId) return;
       try {
         const resp = await fetch(
-          `${apiBaseUrl}/chat/history/${conversationId}`,
+          `${API_URL}/chat/history/${conversationId}`,
           {
             method: "GET",
             headers: { Accept: "application/json" },

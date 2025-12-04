@@ -1,16 +1,8 @@
 import { useState, useCallback, useEffect } from "react";
 import { logger } from "@/app/lib/logger";
-import { apiBaseUrl } from "../utils/constants";
+import { API_URL } from "../lib/config";
+import type { Message } from "@/types/chat";
 
-export interface Message {
-  id: string;
-  content: string;
-  role: "user" | "assistant" | "system" | "function";
-  createdAt?: Date;
-  runId?: string;
-  name?: string;
-  function_call?: { name: string };
-}
 
 export interface UseChatStreamReturn {
   messages: Message[];
@@ -74,7 +66,7 @@ export function useChatStream(
         );
 
         setDebugData(undefined);
-        await fetchEventSource(apiBaseUrl + "/chat/", {
+        await fetchEventSource(API_URL + "/chat/", {
           method: "POST",
           headers: {
             // Asegurar UTF-8 explícito y evitar enviar encabezados de respuesta (como ACAO)

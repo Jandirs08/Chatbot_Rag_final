@@ -1,14 +1,4 @@
 /** @type {import('next').NextConfig} */
-const isDev = process.env.NODE_ENV !== "production";
-let apiOrigin = "http://localhost:8000";
-try {
-  const u = new URL(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1");
-  apiOrigin = u.origin;
-} catch {}
-const apiUrl = new URL(apiOrigin);
-const apiProtocol = apiUrl.protocol.replace(":", "");
-const apiHostname = apiUrl.hostname;
-
 const nextConfig = {
   experimental: {
     optimizeCss: true,
@@ -21,8 +11,10 @@ const nextConfig = {
     formats: ["image/webp", "image/avif"],
     minimumCacheTTL: 60 * 60 * 24 * 30,
     remotePatterns: [
-      { protocol: "https", hostname: "images.unsplash.com" },
-      { protocol: apiProtocol, hostname: apiHostname, pathname: "/api/v1/assets/**" },
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
+      },
     ],
   },
 
@@ -70,7 +62,14 @@ const nextConfig = {
   },
 
   async headers() {
-    
+    const isDev = process.env.NODE_ENV !== "production";
+    let apiOrigin = "http://localhost:8000";
+    try {
+      const u = new URL(
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1",
+      );
+      apiOrigin = u.origin;
+    } catch {}
 
     const chatCsp = `default-src 'self'; script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}; style-src 'unsafe-inline' 'self'; connect-src 'self' ${apiOrigin}; img-src 'self' data: ${apiOrigin}; frame-ancestors *`;
     const dashCsp = `default-src 'self'; script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}; style-src 'unsafe-inline' 'self'; connect-src 'self' ${apiOrigin}; img-src 'self' data: ${apiOrigin}; frame-src 'self' blob:; frame-ancestors 'self'`;

@@ -3,8 +3,8 @@
 import React from "react";
 import { ChatWindow } from "@/app/components/ChatWindow";
 import { DebugInspector } from "@/app/components/DebugInspector";
-import type { Message as HookMessage } from "@/app/hooks/useChatStream";
-import { apiBaseUrl } from "@/app/utils/constants";
+import type { Message as HookMessage } from "@/types/chat";
+import { API_URL } from "@/app/lib/config";
 import { Switch } from "@/app/components/ui/switch";
 import { Badge } from "@/app/components/ui/badge";
 
@@ -37,7 +37,7 @@ export default function PlaygroundPage() {
     const loadHistory = async () => {
       if (!conversationId) return;
       try {
-        const resp = await fetch(`${apiBaseUrl}/chat/history/${conversationId}`, {
+        const resp = await fetch(`${API_URL}/chat/history/${conversationId}`, {
           method: "GET",
           headers: { Accept: "application/json" },
           credentials: "include",

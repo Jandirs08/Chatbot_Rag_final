@@ -1,15 +1,6 @@
 import React from "react";
+import type { Message } from "@/types/chat";
 import MarkdownRenderer from "./ui/markdown-renderer";
-
-export type Message = {
-  id: string;
-  createdAt?: Date;
-  content: string;
-  role: "system" | "user" | "assistant" | "function";
-  runId?: string;
-  name?: string;
-  function_call?: { name: string };
-};
 
 export const ChatMessageBubble = React.memo(function ChatMessageBubble(props: {
   message: Message;

@@ -17,7 +17,7 @@ export function ChatWindow(props: {
   placeholder?: string;
   titleText?: string;
   conversationId: string;
-  initialMessages?: import("../hooks/useChatStream").Message[];
+  initialMessages?: import("@/types/chat").Message[];
   forceDebug?: boolean;
   enableVerification?: boolean;
   onDebugData?: (data: any) => void;
