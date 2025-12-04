@@ -9,7 +9,7 @@
   --popover-foreground: 222.2 84% 4.9%;
 
   /* Becas Grupo Romero Brand Colors */
-  --primary: 14 74% 54%; /* #da5b3e */
+  --primary: 0 0% 60%;
   --primary-foreground: 0 0% 98%;
 
   --secondary: 43 100% 71%; /* #ffd26b */
@@ -47,7 +47,7 @@
   --card-foreground: 0 0% 100%; /* white */
   --popover: 217.2 32.6% 17.5%; /* slate-800 */
   --popover-foreground: 0 0% 100%; /* white */
-  --primary: 14 74% 54%;
+  --primary: 0 0% 60%;
   --primary-foreground: 222.2 47.4% 11.2%;
   --secondary: 43 100% 71%;
   --secondary-foreground: 222.2 47.4% 11.2%;

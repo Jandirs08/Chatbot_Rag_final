@@ -38,6 +38,18 @@ export const getBotConfig = async (): Promise<BotConfigDTO> => {
   return res.json();
 };
 
+export const getPublicBotConfig = async (): Promise<Pick<BotConfigDTO, "bot_name" | "theme_color" | "starters" | "input_placeholder">> => {
+  const res = await fetch(`${API_URL}/bot/config/public`, {
+    method: "GET",
+    headers: { "Accept": "application/json" },
+    credentials: "include",
+  });
+  if (!res.ok) {
+    throw new Error(`Error obteniendo configuración pública: ${res.status}`);
+  }
+  return res.json();
+};
+
 export const updateBotConfig = async (
   payload: UpdateBotConfigRequest
 ): Promise<BotConfigDTO> => {

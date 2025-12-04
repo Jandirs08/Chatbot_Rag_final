@@ -8,8 +8,9 @@ import { AutoResizeTextarea } from "./AutoResizeTextarea";
 import { Button } from "./ui/button";
 import { ArrowUp, MessageCircle, Sparkles, Trash } from "lucide-react";
 import { useChatStream } from "../hooks/useChatStream";
-import { getBotConfig } from "../lib/services/botConfigService";
+import { getPublicBotConfig } from "../lib/services/botConfigService";
 import { botService } from "../lib/services/botService";
+import { TokenManager } from "../lib/services/authService";
 
 export function ChatWindow(props: {
   placeholder?: string;
@@ -37,7 +38,7 @@ export function ChatWindow(props: {
   } = props;
   const [botName, setBotName] = React.useState<string | undefined>(undefined);
   const [isBotActive, setIsBotActive] = React.useState(true);
-  const [themeColor, setThemeColor] = React.useState<string>("#F97316");
+  const [themeColor, setThemeColor] = React.useState<string | undefined>(undefined);
   const [inputPh, setInputPh] = React.useState<string>("Escribe tu mensaje...");
 
   // Usar el hook personalizado para manejar el chat
@@ -67,25 +68,28 @@ export function ChatWindow(props: {
     }
   }, [isLoading]);
 
-  const { data: cfg } = useSWR("chat-bot-config", getBotConfig);
+  const { data: cfg } = useSWR("chat-bot-config", getPublicBotConfig);
   useEffect(() => {
     if (cfg) {
       setBotName(cfg.bot_name || undefined);
-      const col = cfg.theme_color || "#F97316";
-      setThemeColor(col);
-      try {
-        document.documentElement.style.setProperty("--brand-color", col);
-      } catch {}
+      setThemeColor(cfg.theme_color);
       setInputPh(cfg.input_placeholder || "Escribe tu mensaje...");
+    }
+  }, [cfg]);
+
+  useEffect(() => {
+    if (cfg?.theme_color) {
+      document.documentElement.style.setProperty("--primary", cfg.theme_color);
     }
   }, [cfg]);
   useEffect(() => {
     (async () => {
       try {
-        const state = await botService.getState();
-        setIsBotActive(state.is_active);
-      } catch (_e) {
-      }
+        if (TokenManager.isTokenValid()) {
+          const state = await botService.getState();
+          setIsBotActive(state.is_active);
+        }
+      } catch (_e) {}
     })();
   }, []);
 
@@ -123,10 +127,12 @@ export function ChatWindow(props: {
 
   // Limpieza de conversación eliminada: la sesión se pierde al refrescar pantalla
 
+  if (!cfg) return null;
+
   return (
     <div className="flex flex-col h-full bg-gradient-to-br from-gray-50 via-white to-gray-50">
       {/* Header personalizado */}
-      <div className="shadow-lg" style={{ backgroundColor: "var(--brand-color)" }}>
+      <div className="shadow-lg" style={{ backgroundColor: themeColor }}>
         <div className="px-6 py-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
@@ -245,7 +251,7 @@ export function ChatWindow(props: {
             disabled={isLoading || input.trim() === ""}
             size="icon"
             className="shrink-0 w-10 h-10 rounded-full text-white shadow-md transition-all duration-200 hover:scale-105 active:scale-95"
-            style={{ backgroundColor: "var(--brand-color)" }}
+            style={{ backgroundColor: themeColor }}
           >
             <ArrowUp className="h-5 w-5 text-white" />
           </Button>

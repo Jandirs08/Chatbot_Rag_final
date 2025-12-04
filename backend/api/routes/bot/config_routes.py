@@ -121,3 +121,21 @@ async def reset_bot_config(request: Request) -> BotConfigDTO:
     except Exception as e:
         logger.error(f"Error resetting bot config: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error interno del servidor al restablecer la configuración")
+
+
+@router.get("/config/public", status_code=status.HTTP_200_OK)
+async def get_bot_public_config(request: Request):
+    """Public endpoint exposing only safe UI config fields for the chat widget/page."""
+    try:
+        repo = _get_config_repo(request)
+        config = await repo.get_config()
+        payload = {
+            "bot_name": config.bot_name,
+            "theme_color": config.theme_color,
+            "starters": config.starters,
+            "input_placeholder": config.input_placeholder,
+        }
+        return payload
+    except Exception as e:
+        logger.error(f"Error getting public bot config: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error interno del servidor al obtener configuración pública")
