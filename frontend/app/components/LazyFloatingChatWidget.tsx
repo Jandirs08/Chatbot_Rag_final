@@ -5,7 +5,7 @@ import { MessageCircle, X } from "lucide-react";
 import { Button } from "./ui/button";
 
 // Lazy loading del ChatWindow para reducir el bundle inicial
-const ChatWindow = React.lazy(() => import("./ChatWindow").then(module => ({ default: module.ChatWindow })));
+const ChatWindow = React.lazy(() => import("@/features/chat/components/ChatWindow").then(module => ({ default: module.ChatWindow })));
 
 export const LazyFloatingChatWidget = () => {
   const [isOpen, setIsOpen] = useState(false);
