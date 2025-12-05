@@ -9,7 +9,7 @@ import { Label } from "@/app/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Alert, AlertDescription } from "@/app/components/ui/alert";
 import { Loader2, Eye, EyeOff, CheckCircle } from "lucide-react";
-import { authService, RegisterData } from "@/app/lib/services/authService";
+import { register, type RegisterData } from "@/lib/services/registerService";
 
 interface RegisterFormProps {
   onSuccess?: () => void;
@@ -106,7 +106,7 @@ export function RegisterForm({ onSuccess, redirectTo = "/auth/login" }: Register
         delete registerData.full_name;
       }
 
-      await authService.register(registerData);
+      await register(registerData);
       
       // Registro exitoso
       setSuccess("¡Cuenta creada exitosamente! Redirigiendo al login...");
