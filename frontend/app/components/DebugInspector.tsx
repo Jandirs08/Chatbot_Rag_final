@@ -1025,7 +1025,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                             {name === "instructions" ? (
                               <div className={cn("px-4 py-3 inline-block rounded leading-7 break-words", "bg-emerald-500/15") }>
                                 {splitInstructions(inner).map((item, idx) => {
-                                  const m = item.match(/^\s*(\d+)\.\s*(.*)$/s);
+                                  const m = item.match(/^\s*(\d+)\.\s*([\s\S]*)$/);
                                   const number = m ? m[1] : String(idx + 1);
                                   const rest = m ? m[2] : item;
                                   return (
