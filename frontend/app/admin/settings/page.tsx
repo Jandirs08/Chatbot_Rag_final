@@ -564,10 +564,13 @@ export default function AdminSettingsPage() {
                           </div>
                           <div className="h-11 w-11 rounded-full border overflow-hidden bg-gray-100 flex items-center justify-center">
                             {config.avatarUrl ? (
-                              <img
+                              <Image
                                 src={config.avatarUrl}
                                 alt="avatar"
+                                width={44}
+                                height={44}
                                 className="h-full w-full object-cover"
+                                unoptimized
                               />
                             ) : (
                               <span className="text-xs text-muted-foreground">

@@ -1,5 +1,6 @@
 import { MouseEvent, useEffect, useState } from "react";
 import useSWR from "swr";
+import Image from "next/image";
 import { getPublicBotConfig } from "@/app/lib/services/botConfigService";
 import { API_URL } from "@/app/lib/config";
 import { Sparkles } from "lucide-react";
@@ -11,7 +12,10 @@ export function EmptyState(props: { onSubmit: (question: string) => any }) {
   useEffect(() => {
     if (cfg?.theme_color) {
       try {
-        document.documentElement.style.setProperty("--brand-color", cfg.theme_color);
+        document.documentElement.style.setProperty(
+          "--brand-color",
+          cfg.theme_color,
+        );
       } catch {}
       setBotName(cfg.bot_name || undefined);
     }
@@ -24,7 +28,9 @@ export function EmptyState(props: { onSubmit: (question: string) => any }) {
     }
   };
 
-  const starters: string[] = Array.isArray(cfg?.starters) ? (cfg!.starters as string[]) : [];
+  const starters: string[] = Array.isArray(cfg?.starters)
+    ? (cfg!.starters as string[])
+    : [];
 
   if (!cfg) return null;
 
@@ -34,15 +40,19 @@ export function EmptyState(props: { onSubmit: (question: string) => any }) {
       <div className="relative z-10 mb-12">
         <div className="mb-6 relative">
           <div className="w-24 h-24 mx-auto rounded-full ring-2 ring-white/80 shadow-md overflow-hidden flex items-center justify-center bg-brand">
-            <img
+            <Image
               src={`${API_URL}/assets/logo`}
               alt="logo"
+              width={96}
+              height={96}
               className="w-full h-full object-cover"
               onError={(e) => {
                 e.currentTarget.style.display = "none";
                 const parent = e.currentTarget.parentElement;
-                if (parent) parent.innerHTML = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white' width='56' height='56'><path d='M21 15a4 4 0 10-8 0 4 4 0 008 0zm-8 6a6 6 0 016-6 6 6 0 00-6 6zM6 8a4 4 0 118 0 4 4 0 01-8 0zM2 20a6 6 0 1112 0H2z'/></svg>`;
+                if (parent)
+                  parent.innerHTML = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white' width='56' height='56'><path d='M21 15a4 4 0 10-8 0 4 4 0 008 0zm-8 6a6 6 0 016-6 6 6 0 00-6 6zM6 8a4 4 0 118 0 4 4 0 01-8 0zM2 20a6 6 0 1112 0H2z'/></svg>`;
               }}
+              unoptimized
             />
           </div>
         </div>

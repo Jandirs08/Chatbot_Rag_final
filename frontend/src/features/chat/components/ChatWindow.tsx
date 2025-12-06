@@ -2,6 +2,7 @@
 
 import React, { useRef, useEffect } from "react";
 import useSWR from "swr";
+import Image from "next/image";
 import { EmptyState } from "./EmptyState";
 import { ChatMessageBubble } from "./ChatMessageBubble";
 import { AutoResizeTextarea } from "@/shared/components/ui/AutoResizeTextarea";
@@ -73,7 +74,10 @@ export function ChatWindow(props: {
       setLogoUrl(`${API_URL}/assets/logo`);
       if (cfg.theme_color) {
         try {
-          document.documentElement.style.setProperty("--brand-color", cfg.theme_color);
+          document.documentElement.style.setProperty(
+            "--brand-color",
+            cfg.theme_color,
+          );
         } catch {}
       }
     }
@@ -128,11 +132,14 @@ export function ChatWindow(props: {
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center overflow-hidden">
               {logoUrl ? (
-                <img
+                <Image
                   src={logoUrl}
                   alt="logo"
+                  width={40}
+                  height={40}
                   className="w-full h-full object-cover"
                   onError={() => setLogoUrl(undefined)}
+                  unoptimized
                 />
               ) : (
                 <MessageCircle className="w-6 h-6 text-white" />
@@ -148,7 +155,9 @@ export function ChatWindow(props: {
                 className={`w-5 h-5 rounded-full ${isBotActive ? "bg-emerald-500 animate-pulse" : "bg-gray-400"}`}
               ></div>
               <div>
-                <div className={`text-sm font-semibold ${isBotActive ? "text-white" : "text-white"}`}>
+                <div
+                  className={`text-sm font-semibold ${isBotActive ? "text-white" : "text-white"}`}
+                >
                   {isBotActive ? "Estado: Activo" : "Estado: En Pausa"}
                 </div>
               </div>
@@ -171,14 +180,20 @@ export function ChatWindow(props: {
         <div className="h-1 bg-white/30"></div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col space-y-4" ref={messageContainerRef}>
+      <div
+        className="flex-1 overflow-y-auto p-4 flex flex-col space-y-4"
+        ref={messageContainerRef}
+      >
         {messages.length === 0 ? (
           <EmptyState onSubmit={handleSendMessage} />
         ) : (
           messages.map((message, i) => {
             const isUser = message.role === "user";
             return (
-              <div key={message.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+              <div
+                key={message.id}
+                className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+              >
                 <ChatMessageBubble
                   message={message}
                   aiEmoji="🤖"
@@ -192,14 +207,27 @@ export function ChatWindow(props: {
         )}
         {(() => {
           const last = messages[messages.length - 1];
-          const lastIsAssistantWithContent = !!last && last.role === "assistant" && (last as any).content && (last as any).content.length > 0;
+          const lastIsAssistantWithContent =
+            !!last &&
+            last.role === "assistant" &&
+            (last as any).content &&
+            (last as any).content.length > 0;
           const showTyping = isLoading && !lastIsAssistantWithContent;
           return showTyping ? (
             <div className="flex justify-start">
               <div className="bg-gray-100 dark:bg-slate-800 rounded-2xl rounded-tl-none p-4 inline-flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-gray-400 dark:bg-slate-500 animate-bounce" style={{ animationDelay: "0ms" }} />
-                <span className="h-2 w-2 rounded-full bg-gray-400 dark:bg-slate-500 animate-bounce" style={{ animationDelay: "150ms" }} />
-                <span className="h-2 w-2 rounded-full bg-gray-400 dark:bg-slate-500 animate-bounce" style={{ animationDelay: "300ms" }} />
+                <span
+                  className="h-2 w-2 rounded-full bg-gray-400 dark:bg-slate-500 animate-bounce"
+                  style={{ animationDelay: "0ms" }}
+                />
+                <span
+                  className="h-2 w-2 rounded-full bg-gray-400 dark:bg-slate-500 animate-bounce"
+                  style={{ animationDelay: "150ms" }}
+                />
+                <span
+                  className="h-2 w-2 rounded-full bg-gray-400 dark:bg-slate-500 animate-bounce"
+                  style={{ animationDelay: "300ms" }}
+                />
               </div>
             </div>
           ) : null;
