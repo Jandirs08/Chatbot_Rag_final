@@ -1,19 +1,32 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import useSWR, { mutate } from "swr";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useRequireAdmin } from "@/app/hooks/useAuthGuard";
 import { API_URL } from "@/app/lib/config";
 import { authenticatedFetch } from "@/app/lib/services/authService";
-import { ChatMessageBubble, Message as BubbleMessage } from "@/features/chat/components/ChatMessageBubble";
+import {
+  ChatMessageBubble,
+  Message as BubbleMessage,
+} from "@/features/chat/components/ChatMessageBubble";
 import { Button } from "@/app/components/ui/button";
 import { Skeleton } from "@/app/components/ui/skeleton";
-import { RefreshCw, MessageSquare, Copy, UserCircle2, ListFilter } from "lucide-react";
+import {
+  RefreshCw,
+  MessageSquare,
+  Copy,
+  UserCircle2,
+  ListFilter,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/app/components/ui/input";
 import { Badge } from "@/app/components/ui/badge";
-import { Popover, PopoverTrigger, PopoverContent } from "@/app/components/ui/popover";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/app/components/ui/popover";
 import { Switch } from "@/app/components/ui/switch";
 
 // --- Tipos ---
@@ -59,8 +72,11 @@ const fmtDate = (iso?: string) => {
     const d = new Date(iso);
     // Formato corto: "14:30" o "Ayer"
     const now = new Date();
-    const isToday = d.getDate() === now.getDate() && d.getMonth() === now.getMonth();
-    return isToday ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : d.toLocaleDateString();
+    const isToday =
+      d.getDate() === now.getDate() && d.getMonth() === now.getMonth();
+    return isToday
+      ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      : d.toLocaleDateString();
   } catch {
     return "";
   }
@@ -80,27 +96,28 @@ export default function AdminInboxPage() {
     hideTrivial: false,
   });
   const scrollRef = React.useRef<HTMLDivElement | null>(null);
-  
+
   // 1. SWR para la LISTA de conversaciones (Polling cada 10s)
-  const { 
-    data: conversations = [], 
-    isLoading: loadingList, 
-    mutate: refreshList 
+  const {
+    data: conversations = [],
+    isLoading: loadingList,
+    mutate: refreshList,
   } = useSWR<ConversationItem[]>(
     isAuthorized ? `${API_URL}/chat/conversations?limit=50` : null,
     fetcher,
-    { refreshInterval: 10000, revalidateOnFocus: true }
+    { refreshInterval: 10000, revalidateOnFocus: true },
   );
 
   // 2. SWR para el HISTORIAL del chat seleccionado (Polling más rápido: 5s)
   // Esto hace que los mensajes aparezcan solos sin refrescar
-  const { 
-    data: messages = [], 
-    isLoading: loadingHistory 
-  } = useSWR<HistoryItem[]>(
-    isAuthorized && chatIdFromUrl ? `${API_URL}/chat/history/${chatIdFromUrl}` : null,
+  const { data: messages = [], isLoading: loadingHistory } = useSWR<
+    HistoryItem[]
+  >(
+    isAuthorized && chatIdFromUrl
+      ? `${API_URL}/chat/history/${chatIdFromUrl}`
+      : null,
     fetcher,
-    { refreshInterval: 5000, revalidateOnFocus: false }
+    { refreshInterval: 5000, revalidateOnFocus: false },
   );
 
   // Filtrado client-side
@@ -126,7 +143,8 @@ export default function AdminInboxPage() {
       if (end && updated > end) return false;
       if (filterConfig.hideTrivial && !(c.total_messages > 2)) return false;
       if (text) {
-        const hay = `${c.conversation_id} ${c.last_message_preview}`.toLowerCase();
+        const hay =
+          `${c.conversation_id} ${c.last_message_preview}`.toLowerCase();
         if (!hay.includes(text)) return false;
       }
       return true;
@@ -153,30 +171,35 @@ export default function AdminInboxPage() {
 
   return (
     <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-white border-t border-slate-200">
-      
       {/* --- COLUMNA IZQUIERDA: LISTA --- */}
       <div className="w-80 md:w-96 flex-none border-r border-slate-200 flex flex-col bg-slate-50/30">
         <div className="px-4 py-3 border-b bg-white sticky top-0 z-10 space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-bold text-slate-800">Buzón</h2>
-              <Badge variant="outline" className="text-xs">{filteredConversations.length}</Badge>
+              <Badge variant="outline" className="text-xs">
+                {filteredConversations.length}
+              </Badge>
             </div>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8 text-slate-500 hover:text-blue-600" 
-              onClick={() => refreshList()} 
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-slate-500 hover:text-blue-600"
+              onClick={() => refreshList()}
               title="Actualizar lista"
             >
-              <RefreshCw className={cn("w-4 h-4", loadingList && "animate-spin")} />
+              <RefreshCw
+                className={cn("w-4 h-4", loadingList && "animate-spin")}
+              />
             </Button>
           </div>
           <div className="flex items-center gap-2">
             <Input
               placeholder="Buscar por texto o ID…"
               value={filterConfig.search}
-              onChange={(e) => setFilterConfig((f) => ({ ...f, search: e.target.value }))}
+              onChange={(e) =>
+                setFilterConfig((f) => ({ ...f, search: e.target.value }))
+              }
             />
             <Popover>
               <PopoverTrigger asChild>
@@ -186,26 +209,90 @@ export default function AdminInboxPage() {
               </PopoverTrigger>
               <PopoverContent align="end" className="w-80 shadow-lg">
                 <div className="space-y-3">
-                  <div className="text-xs font-semibold text-slate-700">Fechas</div>
+                  <div className="text-xs font-semibold text-slate-700">
+                    Fechas
+                  </div>
                   <div className="flex items-center gap-2">
                     <Button
-                      variant={!filterConfig.startDate && !filterConfig.endDate ? "default" : "outline"}
+                      variant={
+                        !filterConfig.startDate && !filterConfig.endDate
+                          ? "default"
+                          : "outline"
+                      }
                       size="sm"
-                      onClick={() => setFilterConfig((f) => ({ ...f, startDate: "", endDate: "" }))}
+                      onClick={() =>
+                        setFilterConfig((f) => ({
+                          ...f,
+                          startDate: "",
+                          endDate: "",
+                        }))
+                      }
                     >
                       Todo
                     </Button>
                     <Button
-                      variant={(() => { const t = new Date(); const y=t.getFullYear(), m=t.getMonth()+1, d=t.getDate(); const s = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`; return filterConfig.startDate===s && filterConfig.endDate===s ? "default" : "outline"; })()}
+                      variant={(() => {
+                        const t = new Date();
+                        const y = t.getFullYear(),
+                          m = t.getMonth() + 1,
+                          d = t.getDate();
+                        const s = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+                        return filterConfig.startDate === s &&
+                          filterConfig.endDate === s
+                          ? "default"
+                          : "outline";
+                      })()}
                       size="sm"
-                      onClick={() => { const t = new Date(); const y=t.getFullYear(), m=t.getMonth()+1, d=t.getDate(); const s = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`; setFilterConfig((f)=>({ ...f, startDate: s, endDate: s })); }}
+                      onClick={() => {
+                        const t = new Date();
+                        const y = t.getFullYear(),
+                          m = t.getMonth() + 1,
+                          d = t.getDate();
+                        const s = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+                        setFilterConfig((f) => ({
+                          ...f,
+                          startDate: s,
+                          endDate: s,
+                        }));
+                      }}
                     >
                       Hoy
                     </Button>
                     <Button
-                      variant={(() => { const t = new Date(); const end = new Date(t.getFullYear(), t.getMonth(), t.getDate()); const start = new Date(end); start.setDate(end.getDate()-7); const s = `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,'0')}-${String(start.getDate()).padStart(2,'0')}`; const e = `${end.getFullYear()}-${String(end.getMonth()+1).padStart(2,'0')}-${String(end.getDate()).padStart(2,'0')}`; return filterConfig.startDate===s && filterConfig.endDate===e ? "default" : "outline"; })()}
+                      variant={(() => {
+                        const t = new Date();
+                        const end = new Date(
+                          t.getFullYear(),
+                          t.getMonth(),
+                          t.getDate(),
+                        );
+                        const start = new Date(end);
+                        start.setDate(end.getDate() - 7);
+                        const s = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
+                        const e = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
+                        return filterConfig.startDate === s &&
+                          filterConfig.endDate === e
+                          ? "default"
+                          : "outline";
+                      })()}
                       size="sm"
-                      onClick={() => { const t = new Date(); const end = new Date(t.getFullYear(), t.getMonth(), t.getDate()); const start = new Date(end); start.setDate(end.getDate()-7); const s = `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,'0')}-${String(start.getDate()).padStart(2,'0')}`; const e = `${end.getFullYear()}-${String(end.getMonth()+1).padStart(2,'0')}-${String(end.getDate()).padStart(2,'0')}`; setFilterConfig((f)=>({ ...f, startDate: s, endDate: e })); }}
+                      onClick={() => {
+                        const t = new Date();
+                        const end = new Date(
+                          t.getFullYear(),
+                          t.getMonth(),
+                          t.getDate(),
+                        );
+                        const start = new Date(end);
+                        start.setDate(end.getDate() - 7);
+                        const s = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
+                        const e = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
+                        setFilterConfig((f) => ({
+                          ...f,
+                          startDate: s,
+                          endDate: e,
+                        }));
+                      }}
                     >
                       Última Semana
                     </Button>
@@ -215,7 +302,12 @@ export default function AdminInboxPage() {
                       <Input
                         type="date"
                         value={filterConfig.startDate}
-                        onChange={(e) => setFilterConfig((f) => ({ ...f, startDate: e.target.value }))}
+                        onChange={(e) =>
+                          setFilterConfig((f) => ({
+                            ...f,
+                            startDate: e.target.value,
+                          }))
+                        }
                         placeholder="Desde"
                       />
                     </div>
@@ -223,17 +315,26 @@ export default function AdminInboxPage() {
                       <Input
                         type="date"
                         value={filterConfig.endDate}
-                        onChange={(e) => setFilterConfig((f) => ({ ...f, endDate: e.target.value }))}
+                        onChange={(e) =>
+                          setFilterConfig((f) => ({
+                            ...f,
+                            endDate: e.target.value,
+                          }))
+                        }
                         placeholder="Hasta"
                       />
                     </div>
                   </div>
                   <div className="pt-2 space-y-2">
-                    <div className="text-xs font-semibold text-slate-700">Calidad</div>
+                    <div className="text-xs font-semibold text-slate-700">
+                      Calidad
+                    </div>
                     <label className="flex items-center gap-2 text-sm">
                       <Switch
                         checked={filterConfig.hideTrivial}
-                        onCheckedChange={(v) => setFilterConfig((f) => ({ ...f, hideTrivial: !!v }))}
+                        onCheckedChange={(v) =>
+                          setFilterConfig((f) => ({ ...f, hideTrivial: !!v }))
+                        }
                       />
                       <span>Ocultar conversaciones cortas/vacías</span>
                     </label>
@@ -242,7 +343,14 @@ export default function AdminInboxPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => setFilterConfig({ search: "", startDate: "", endDate: "", hideTrivial: false })}
+                      onClick={() =>
+                        setFilterConfig({
+                          search: "",
+                          startDate: "",
+                          endDate: "",
+                          hideTrivial: false,
+                        })
+                      }
                     >
                       Limpiar Filtros
                     </Button>
@@ -281,13 +389,13 @@ export default function AdminInboxPage() {
                   onClick={() => handleSelectChat(c.conversation_id)}
                   className={cn(
                     "group relative flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-all duration-200 border",
-                    isActive 
-                      ? "bg-white border-blue-200 shadow-sm ring-1 ring-blue-100 z-10" 
-                      : "bg-transparent border-transparent hover:bg-white hover:border-slate-200 hover:shadow-sm"
+                    isActive
+                      ? "bg-white border-blue-200 shadow-sm ring-1 ring-blue-100 z-10"
+                      : "bg-transparent border-transparent hover:bg-white hover:border-slate-200 hover:shadow-sm",
                   )}
                 >
                   {/* Avatar Humanizado */}
-                  <div 
+                  <div
                     className="flex-none w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold text-slate-700 shadow-sm border border-black/5"
                     style={{ backgroundColor: colorFromId(c.conversation_id) }}
                   >
@@ -296,7 +404,12 @@ export default function AdminInboxPage() {
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-0.5">
-                      <span className={cn("text-xs font-bold truncate", isActive ? "text-blue-700" : "text-slate-700")}>
+                      <span
+                        className={cn(
+                          "text-xs font-bold truncate",
+                          isActive ? "text-blue-700" : "text-slate-700",
+                        )}
+                      >
                         {humanizeId(c.conversation_id)}
                       </span>
                       <span className="text-[10px] text-slate-400 whitespace-nowrap ml-2">
@@ -304,7 +417,11 @@ export default function AdminInboxPage() {
                       </span>
                     </div>
                     <p className="text-sm text-slate-600 truncate group-hover:text-slate-900">
-                      {c.last_message_preview || <span className="italic text-slate-400">Sin mensajes</span>}
+                      {c.last_message_preview || (
+                        <span className="italic text-slate-400">
+                          Sin mensajes
+                        </span>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -320,14 +437,16 @@ export default function AdminInboxPage() {
             <div className="w-16 h-16 rounded-2xl bg-white shadow-sm flex items-center justify-center mb-4">
               <MessageSquare className="w-8 h-8 text-slate-300" />
             </div>
-            <p className="text-sm font-medium">Selecciona un chat para monitorear</p>
+            <p className="text-sm font-medium">
+              Selecciona un chat para monitorear
+            </p>
           </div>
         ) : (
           <>
             {/* Chat Header */}
             <div className="flex items-center justify-between px-6 py-3 bg-card border-b border-border shadow-md ring-1 ring-white/5 sticky top-0 z-20 dark:bg-slate-900 dark:border-slate-800">
               <div className="flex items-center gap-3">
-                <div 
+                <div
                   className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border"
                   style={{ backgroundColor: colorFromId(chatIdFromUrl) }}
                 >
@@ -357,13 +476,22 @@ export default function AdminInboxPage() {
             </div>
 
             {/* Chat Body */}
-            <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 bg-background/50 dark:bg-slate-900/60" ref={scrollRef}>
+            <div
+              className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 bg-background/50 dark:bg-slate-900/60"
+              ref={scrollRef}
+            >
               {loadingHistory && messages.length === 0 ? (
                 // Skeletons Chat
                 <div className="space-y-6 opacity-50">
-                   <div className="flex justify-end"><Skeleton className="h-10 w-2/3 rounded-xl rounded-tr-none" /></div>
-                   <div className="flex justify-start"><Skeleton className="h-16 w-3/4 rounded-xl rounded-tl-none" /></div>
-                   <div className="flex justify-end"><Skeleton className="h-8 w-1/2 rounded-xl rounded-tr-none" /></div>
+                  <div className="flex justify-end">
+                    <Skeleton className="h-10 w-2/3 rounded-xl rounded-tr-none" />
+                  </div>
+                  <div className="flex justify-start">
+                    <Skeleton className="h-16 w-3/4 rounded-xl rounded-tl-none" />
+                  </div>
+                  <div className="flex justify-end">
+                    <Skeleton className="h-8 w-1/2 rounded-xl rounded-tr-none" />
+                  </div>
                 </div>
               ) : messages.length === 0 ? (
                 <div className="text-center py-10 text-sm text-muted-foreground italic">
@@ -377,12 +505,23 @@ export default function AdminInboxPage() {
                     id: `${idx}`,
                     role: m.role,
                     content: m.content,
-                    createdAt: m.timestamp ? new Date(m.timestamp) : undefined
+                    createdAt: m.timestamp ? new Date(m.timestamp) : undefined,
                   };
 
                   return (
-                    <div key={idx} className={cn("flex", isUser ? "justify-end" : "justify-start")}>
-                      <div className={cn("max-w-[85%] md:max-w-[75%]", isUser ? "items-end" : "items-start")}>
+                    <div
+                      key={idx}
+                      className={cn(
+                        "flex",
+                        isUser ? "justify-end" : "justify-start",
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "max-w-[85%] md:max-w-[75%]",
+                          isUser ? "items-end" : "items-start",
+                        )}
+                      >
                         <ChatMessageBubble
                           message={bubbleData}
                           isMostRecent={false}
@@ -391,9 +530,16 @@ export default function AdminInboxPage() {
                           botName="Asistente IA"
                         />
                         {m.timestamp && (
-                          <div className={cn("text-[10px] text-muted-foreground mt-1 px-1", isUser ? "text-right" : "text-left")}
-                            >
-                            {new Date(m.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                          <div
+                            className={cn(
+                              "text-[10px] text-muted-foreground mt-1 px-1",
+                              isUser ? "text-right" : "text-left",
+                            )}
+                          >
+                            {new Date(m.timestamp).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
                           </div>
                         )}
                       </div>
