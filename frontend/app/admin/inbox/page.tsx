@@ -82,7 +82,7 @@ const fmtDate = (iso?: string) => {
   }
 };
 
-export default function AdminInboxPage() {
+function AdminInboxContent() {
   const { isAuthorized } = useRequireAdmin();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -560,5 +560,19 @@ export default function AdminInboxPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function AdminInboxPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-[calc(100vh-64px)] items-center justify-center">
+          Cargando buzón...
+        </div>
+      }
+    >
+      <AdminInboxContent />
+    </Suspense>
   );
 }
