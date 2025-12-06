@@ -54,6 +54,8 @@ class Settings(BaseSettings):
     # Configuraciones de Logging
     log_level: str = Field(default="DEBUG", env="LOG_LEVEL")
     
+    # Mock Mode para pruebas de carga
+    mock_mode: bool = Field(default=False, env="MOCK_MODE")
     
     # Rate Limiting
     enable_rate_limiting: bool = Field(default=True, env="ENABLE_RATE_LIMITING")

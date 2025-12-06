@@ -26,6 +26,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Terminal,
+  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -55,6 +56,7 @@ import {
 } from "@/app/lib/services/authService";
 import { BotConfiguration } from "@/app/components/BotConfiguration";
 import { botService } from "@/app/lib/services/botService";
+import { useUnsavedChanges } from "@/app/hooks/useUnsavedChanges";
 
 export default function AdminSettingsPage() {
   const { isAuthorized } = useRequireAdmin();
@@ -91,6 +93,18 @@ export default function AdminSettingsPage() {
   const [temperature, setTemperature] = useState<number>(0.7);
   const [uiExtra, setUiExtra] = useState<string>("");
   const [fieldsLocked, setFieldsLocked] = useState<boolean>(true);
+  const [appearanceLocked, setAppearanceLocked] = useState<boolean>(true);
+  const [focusIdx, setFocusIdx] = useState<number | null>(null);
+  const startersRefs = React.useRef<(HTMLInputElement | null)[]>([]);
+
+  React.useEffect(() => {
+    if (focusIdx !== null && startersRefs.current[focusIdx]) {
+      startersRefs.current[focusIdx]?.focus();
+      startersRefs.current[focusIdx]?.select();
+      setFocusIdx(null);
+    }
+  }, [focusIdx, config.starters]);
+
   const [baselineUiExtra, setBaselineUiExtra] = useState<string>("");
   const [baselineTemperature, setBaselineTemperature] = useState<number>(0.7);
   const [savingBrain, setSavingBrain] = useState<boolean>(false);
@@ -106,6 +120,45 @@ export default function AdminSettingsPage() {
     "mobile",
   );
   const timerRef = React.useRef<number | null>(null);
+
+  const brainIsDirty = useMemo(() => {
+    return uiExtra !== baselineUiExtra || temperature !== baselineTemperature;
+  }, [uiExtra, baselineUiExtra, temperature, baselineTemperature]);
+
+  const appearanceIsDirty = useMemo(() => {
+    return (
+      config.name !== baseline.name ||
+      config.brandColor !== baseline.brandColor ||
+      config.placeholder !== baseline.placeholder ||
+      JSON.stringify(config.starters) !== JSON.stringify(baseline.starters)
+    );
+  }, [config, baseline]);
+
+  const { checkUnsavedChanges } = useUnsavedChanges(
+    appearanceIsDirty || brainIsDirty,
+  );
+
+  const handleTabChange = (value: string) => {
+    const targetTab = value as "appearance" | "brain" | "system";
+
+    // Check for unsaved changes in Appearance tab
+    if (
+      activeTab === "appearance" &&
+      appearanceIsDirty &&
+      targetTab !== "appearance"
+    ) {
+      checkUnsavedChanges(() => setActiveTab(targetTab));
+      return;
+    }
+
+    // Check for unsaved changes in Brain tab
+    if (activeTab === "brain" && brainIsDirty && targetTab !== "brain") {
+      checkUnsavedChanges(() => setActiveTab(targetTab));
+      return;
+    }
+
+    setActiveTab(targetTab);
+  };
 
   React.useEffect(() => {
     if (typeof window !== "undefined") {
@@ -197,10 +250,6 @@ export default function AdminSettingsPage() {
     const extra = uiExtra ? `\n\nInstrucciones adicionales:\n${uiExtra}` : "";
     return `${base}${extra}`;
   }, [prompt, uiExtra]);
-
-  const brainIsDirty = useMemo(() => {
-    return uiExtra !== baselineUiExtra || temperature !== baselineTemperature;
-  }, [uiExtra, baselineUiExtra, temperature, baselineTemperature]);
 
   const handleBrainSave = async () => {
     try {
@@ -414,8 +463,8 @@ export default function AdminSettingsPage() {
   return (
     <div className="h-[calc(100vh-64px)] flex flex-col overflow-hidden">
       <Tabs
-        defaultValue={activeTab}
-        onValueChange={(v) => setActiveTab(v as any)}
+        value={activeTab}
+        onValueChange={handleTabChange}
         className="flex-1 min-h-0 flex flex-col"
       >
         <TabsList className="w-full">
@@ -426,10 +475,18 @@ export default function AdminSettingsPage() {
         <TabsContent value="appearance" className="flex-1 min-h-0">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full">
             <div className="lg:col-span-5 h-full overflow-y-auto">
-              <div className="px-6 pt-6">
+              <div className="flex items-center justify-between px-6 pt-6">
                 <h2 className="text-base font-semibold">
                   Apariencia y Comportamiento
                 </h2>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setAppearanceLocked(!appearanceLocked)}
+                  title="Editar"
+                >
+                  <Pencil className="w-4 h-4" />
+                </Button>
               </div>
               <Card className="mt-4">
                 <CardContent className="space-y-6">
@@ -446,6 +503,7 @@ export default function AdminSettingsPage() {
                           <Input
                             id="bot-name"
                             value={config.name}
+                            disabled={appearanceLocked}
                             onChange={(e) =>
                               setConfig((c) => ({ ...c, name: e.target.value }))
                             }
@@ -458,6 +516,7 @@ export default function AdminSettingsPage() {
                               id="avatar-file"
                               type="file"
                               accept="image/*"
+                              disabled={appearanceLocked}
                               onChange={(e) => {
                                 const file = e.target.files?.[0];
                                 if (!file) return;
@@ -518,6 +577,7 @@ export default function AdminSettingsPage() {
                                   type="button"
                                   variant="outline"
                                   size="sm"
+                                  disabled={appearanceLocked}
                                   onClick={async () => {
                                     try {
                                       const token =
@@ -586,6 +646,7 @@ export default function AdminSettingsPage() {
                               id="brand-color"
                               type="color"
                               value={config.brandColor}
+                              disabled={appearanceLocked}
                               onChange={(e) =>
                                 setConfig((c) => ({
                                   ...c,
@@ -599,13 +660,18 @@ export default function AdminSettingsPage() {
                                 <button
                                   key={col}
                                   aria-label={col}
+                                  disabled={appearanceLocked}
                                   onClick={() =>
                                     setConfig((c) => ({
                                       ...c,
                                       brandColor: col,
                                     }))
                                   }
-                                  className="h-8 w-8 rounded-full ring-2 ring-offset-2 ring-gray-200"
+                                  className={`h-8 w-8 rounded-full ring-2 ring-offset-2 ring-gray-200 ${
+                                    appearanceLocked
+                                      ? "opacity-50 cursor-not-allowed"
+                                      : ""
+                                  }`}
                                   style={{ backgroundColor: col }}
                                 />
                               ))}
@@ -620,6 +686,7 @@ export default function AdminSettingsPage() {
                           <Input
                             id="placeholder"
                             value={config.placeholder}
+                            disabled={appearanceLocked}
                             onChange={(e) =>
                               setConfig((c) => ({
                                 ...c,
@@ -633,21 +700,26 @@ export default function AdminSettingsPage() {
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium">
-                            Atajos Rápidos
+                            Atajos rápidos de mensajes
                           </span>
                           <Button
                             type="button"
                             size="sm"
-                            onClick={() =>
+                            onClick={() => {
                               setConfig((c) => ({
                                 ...c,
                                 starters:
                                   c.starters.length >= 6
                                     ? c.starters
                                     : [...c.starters, "Nuevo atajo"],
-                              }))
+                              }));
+                              if (config.starters.length < 6) {
+                                setFocusIdx(config.starters.length);
+                              }
+                            }}
+                            disabled={
+                              config.starters.length >= 6 || appearanceLocked
                             }
-                            disabled={config.starters.length >= 6}
                             className="gap-2"
                           >
                             <Plus className="w-4 h-4" /> Agregar
@@ -657,7 +729,9 @@ export default function AdminSettingsPage() {
                           {config.starters.map((s, idx) => (
                             <div key={idx} className="flex items-center gap-2">
                               <Input
+                                ref={(el) => (startersRefs.current[idx] = el)}
                                 value={s}
+                                disabled={appearanceLocked}
                                 onChange={(e) =>
                                   setConfig((c) => ({
                                     ...c,
@@ -666,11 +740,27 @@ export default function AdminSettingsPage() {
                                     ),
                                   }))
                                 }
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    if (config.starters.length < 6) {
+                                      setConfig((c) => ({
+                                        ...c,
+                                        starters: [
+                                          ...c.starters,
+                                          "Nuevo atajo",
+                                        ],
+                                      }));
+                                      setFocusIdx(config.starters.length);
+                                    }
+                                  }
+                                }}
                               />
                               <Button
                                 type="button"
                                 variant="outline"
                                 size="icon"
+                                disabled={appearanceLocked}
                                 onClick={() =>
                                   setConfig((c) => ({
                                     ...c,
@@ -693,7 +783,7 @@ export default function AdminSettingsPage() {
                           type="button"
                           className="w-full"
                           onClick={handleSave}
-                          disabled={saving}
+                          disabled={saving || !appearanceIsDirty}
                         >
                           {saving ? (
                             <span className="inline-flex items-center gap-2">
@@ -760,7 +850,7 @@ export default function AdminSettingsPage() {
             <BotConfiguration
               showBotName={false}
               fieldsReadOnly={fieldsLocked}
-              onToggleEditFields={() => setFieldsLocked(false)}
+              onToggleEditFields={() => setFieldsLocked(!fieldsLocked)}
               prompt={uiExtra}
               onPromptChange={(val) => setUiExtra(val)}
               temperature={temperature}

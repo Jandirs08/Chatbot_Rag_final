@@ -1,5 +1,6 @@
 from typing import List, Optional
 import numpy as np
+import time
 from utils.logging_utils import get_logger
 from config import settings
 from cache.manager import cache
@@ -53,6 +54,13 @@ class EmbeddingManager:
     # ----------------------------------------------------------------------
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """Genera embeddings para una lista de textos usando OpenAI."""
+
+        if getattr(settings, "mock_mode", False):
+            # Simula latencia y retorna embeddings vacíos
+            vector_dim = getattr(settings, "default_embedding_dimension", 1536)
+            time.sleep(0.01)
+            self.logger.info("MOCK EMBEDDING GENERATED (Costo $0)")
+            return [[0.0] * vector_dim for _ in texts]
 
         if not texts:
             self.logger.debug("No hay textos para generar embeddings")
@@ -158,6 +166,13 @@ class EmbeddingManager:
     # ----------------------------------------------------------------------
     def embed_query(self, query: str) -> List[float]:
         """Genera embedding para una consulta usando OpenAI."""
+        if getattr(settings, "mock_mode", False):
+            # Simula latencia y retorna embedding vacío
+            vector_dim = getattr(settings, "default_embedding_dimension", 1536)
+            time.sleep(0.01)
+            self.logger.info("MOCK EMBEDDING GENERATED (Costo $0)")
+            return [0.0] * vector_dim
+
         key = f"emb:query:{self.model_name}:{self._hash_text(query)}"
 
         try:

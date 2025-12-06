@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Settings, Save, RotateCcw, Clock } from "lucide-react";
+import { Settings, Save, RotateCcw, Clock, Pencil } from "lucide-react";
 import { toast } from "sonner";
 export interface BotConfigurationProps {
   botName?: string;
@@ -66,8 +66,12 @@ export function BotConfiguration({
       <div className="pb-6 border-b border-gray-200">
         <div className="flex items-center justify-between">
           <div className="space-y-2">
-            <h1 className="text-4xl font-bold text-foreground dark:text-white">Configuración del Bot</h1>
-            <p className="text-xl text-muted-foreground dark:text-slate-400">Ajusta el comportamiento y personalidad del chatbot</p>
+            <h1 className="text-4xl font-bold text-foreground dark:text-white">
+              Configuración del Bot
+            </h1>
+            <p className="text-xl text-muted-foreground dark:text-slate-400">
+              Ajusta el comportamiento y personalidad del chatbot
+            </p>
           </div>
           {rightAction}
         </div>
@@ -94,15 +98,22 @@ export function BotConfiguration({
                     Complementa la personalidad base del bot sin reemplazarla
                   </CardDescription>
                   <div className="flex justify-end">
-                    <Button variant="outline" size="sm" onClick={onToggleEditFields}>
-                      Editar
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={onToggleEditFields}
+                      title="Editar"
+                    >
+                      <Pencil className="w-4 h-4" />
                     </Button>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   {showBotName && (
                     <div className="grid grid-cols-1 gap-4">
-                      <Label htmlFor="bot-name">Nombre del Bot (opcional)</Label>
+                      <Label htmlFor="bot-name">
+                        Nombre del Bot (opcional)
+                      </Label>
                       <Input
                         id="bot-name"
                         value={botName || ""}
@@ -116,7 +127,9 @@ export function BotConfiguration({
                   )}
                   <div>
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="ui-extra">Instrucciones adicionales</Label>
+                      <Label htmlFor="ui-extra">
+                        Instrucciones adicionales
+                      </Label>
                     </div>
                     <Textarea
                       id="ui-extra"
@@ -130,8 +143,8 @@ export function BotConfiguration({
                       Caracteres: {prompt.length}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Consejo: usa frases breves y concretas; no incluyas variables
-                      ni herramientas.
+                      Consejo: usa frases breves y concretas; no incluyas
+                      variables ni herramientas.
                     </p>
                   </div>
                 </CardContent>
@@ -143,8 +156,8 @@ export function BotConfiguration({
                 <CardHeader>
                   <CardTitle>Temperatura del Modelo</CardTitle>
                   <CardDescription>
-                    Controla la creatividad vs precisión en las respuestas (0 = más
-                    preciso, 1 = más creativo)
+                    Controla la creatividad vs precisión en las respuestas (0 =
+                    más preciso, 1 = más creativo)
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -194,7 +207,9 @@ export function BotConfiguration({
               ) : (
                 <Card className="border-border/50">
                   <CardContent>
-                    <div className="text-sm text-muted-foreground">No hay vista previa disponible</div>
+                    <div className="text-sm text-muted-foreground">
+                      No hay vista previa disponible
+                    </div>
                   </CardContent>
                 </Card>
               )}

@@ -46,7 +46,7 @@ class ChatbotUser(HttpUser):
 
         # 2. Opción: Login real contra la API
         email = os.getenv("ADMIN_EMAIL", "jandir.088@hotmail.com")
-        password = os.getenv("ADMIN_PASSWORD", "PPjhst1234$$")
+        password = os.getenv("ADMIN_PASSWORD", "PPjhst1234$")
         
         with self.client.post(
             "/api/v1/auth/login", 

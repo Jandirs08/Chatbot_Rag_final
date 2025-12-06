@@ -1,5 +1,6 @@
 from typing import Optional, Dict, Any, AsyncGenerator
 import time
+import asyncio
 from operator import itemgetter
 
 from langchain_core.runnables import RunnableLambda, RunnableMap, Runnable
@@ -246,6 +247,11 @@ class Bot:
         return {"output": final_text}
 
     async def astream_chunked(self, x: Dict[str, Any], min_chunk_chars: int = 128) -> AsyncGenerator[str, None]:
+        if getattr(self.settings, "mock_mode", False):
+            await asyncio.sleep(1.5)
+            yield " [MOCK] Respuesta simulada para prueba de carga. Sistema operativo bajo estrés. "
+            return
+
         conversation_id = x.get("conversation_id", "default_session")
         inp = {
             "input": x["input"],
