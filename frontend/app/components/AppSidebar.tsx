@@ -35,8 +35,9 @@ import { Button } from "./ui/button";
 import { useRouter } from "next/navigation";
 import { getBotConfig } from "../lib/services/botConfigService";
 import { logger } from "@/app/lib/logger";
+import { toast } from "sonner";
 
-  const baseMenuItems = [
+const baseMenuItems = [
   {
     title: "Home",
     url: "/",
@@ -88,7 +89,9 @@ export function AppSidebar() {
 
   const handleLogout = async () => {
     try {
+      const toastId = toast.loading("Cerrando sesión...");
       await logout();
+      toast.dismiss(toastId);
       router.push("/auth/login");
     } catch (error) {
       logger.error("Error al cerrar sesión:", error);
@@ -155,11 +158,19 @@ export function AppSidebar() {
             <SidebarMenu>
               {(isAdmin
                 ? [
-                  ...mainMenuItems,
-                  { title: "Buzón", url: "/admin/inbox", icon: MessageSquare },
-                  { title: "Usuarios", url: "/usuarios", icon: Users },
-                  { title: "Configuración", url: "/admin/settings", icon: Settings },
-                ]
+                    ...mainMenuItems,
+                    {
+                      title: "Buzón",
+                      url: "/admin/inbox",
+                      icon: MessageSquare,
+                    },
+                    { title: "Usuarios", url: "/usuarios", icon: Users },
+                    {
+                      title: "Configuración",
+                      url: "/admin/settings",
+                      icon: Settings,
+                    },
+                  ]
                 : mainMenuItems
               ).map((item) => (
                 <SidebarMenuItem key={item.title}>

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useRequireAdmin } from "@/app/hooks/useAuthGuard";
 import { API_URL } from "@/app/lib/config";
 import { authenticatedFetch } from "@/app/lib/services/authService";
+import { getPublicBotConfig } from "@/app/lib/services/botConfigService";
 import {
   ChatMessageBubble,
   Message as BubbleMessage,
@@ -28,6 +29,15 @@ import {
   PopoverContent,
 } from "@/app/components/ui/popover";
 import { Switch } from "@/app/components/ui/switch";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationEllipsis,
+  PaginationPrevious,
+  PaginationNext,
+} from "@/app/components/ui/pagination";
 
 // --- Tipos ---
 type ConversationItem = {
@@ -35,6 +45,11 @@ type ConversationItem = {
   last_message_preview: string;
   total_messages: number;
   updated_at: string;
+};
+
+type ConversationResponse = {
+  items: ConversationItem[];
+  total: number;
 };
 
 type HistoryItem = {
@@ -95,18 +110,42 @@ function AdminInboxContent() {
     endDate: "",
     hideTrivial: false,
   });
+
+  // Paginación
+  const [page, setPage] = useState(1);
+  const LIMIT = 50;
+
   const scrollRef = React.useRef<HTMLDivElement | null>(null);
 
+  // Configuración del Bot (para colores)
+  const { data: botConfig } = useSWR("chat-bot-config", getPublicBotConfig);
+
+  useEffect(() => {
+    if (botConfig?.theme_color) {
+      document.documentElement.style.setProperty(
+        "--brand-color",
+        botConfig.theme_color,
+      );
+    }
+  }, [botConfig]);
+
   // 1. SWR para la LISTA de conversaciones (Polling cada 10s)
+  const skip = (page - 1) * LIMIT;
   const {
-    data: conversations = [],
+    data: conversationData,
     isLoading: loadingList,
     mutate: refreshList,
-  } = useSWR<ConversationItem[]>(
-    isAuthorized ? `${API_URL}/chat/conversations?limit=50` : null,
+  } = useSWR<ConversationResponse>(
+    isAuthorized
+      ? `${API_URL}/chat/conversations?limit=${LIMIT}&skip=${skip}`
+      : null,
     fetcher,
     { refreshInterval: 10000, revalidateOnFocus: true },
   );
+
+  const conversations = conversationData?.items || [];
+  const totalConversations = conversationData?.total || 0;
+  const totalPages = Math.max(1, Math.ceil(totalConversations / LIMIT));
 
   // 2. SWR para el HISTORIAL del chat seleccionado (Polling más rápido: 5s)
   // Esto hace que los mensajes aparezcan solos sin refrescar
@@ -170,7 +209,7 @@ function AdminInboxContent() {
   if (!isAuthorized) return null;
 
   return (
-    <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-white border-t border-slate-200">
+    <div className="flex h-full overflow-hidden bg-white border-t border-slate-200">
       {/* --- COLUMNA IZQUIERDA: LISTA --- */}
       <div className="w-80 md:w-96 flex-none border-r border-slate-200 flex flex-col bg-slate-50/30">
         <div className="px-4 py-3 border-b bg-white sticky top-0 z-10 space-y-2">
@@ -178,7 +217,7 @@ function AdminInboxContent() {
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-bold text-slate-800">Buzón</h2>
               <Badge variant="outline" className="text-xs">
-                {filteredConversations.length}
+                {totalConversations}
               </Badge>
             </div>
             <Button
@@ -428,6 +467,79 @@ function AdminInboxContent() {
               );
             })
           )}
+        </div>
+
+        {/* Paginación */}
+        <div className="p-2 border-t border-slate-200 bg-white">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className={
+                    page === 1
+                      ? "pointer-events-none opacity-50"
+                      : "cursor-pointer"
+                  }
+                />
+              </PaginationItem>
+
+              {(() => {
+                const range = [];
+                const delta = 1;
+                for (let i = 1; i <= totalPages; i++) {
+                  if (
+                    i === 1 ||
+                    i === totalPages ||
+                    (i >= page - delta && i <= page + delta)
+                  ) {
+                    range.push(i);
+                  }
+                }
+
+                const rangeWithDots = [];
+                let l;
+                for (let i of range) {
+                  if (l) {
+                    if (i - l === 2) {
+                      rangeWithDots.push(l + 1);
+                    } else if (i - l !== 1) {
+                      rangeWithDots.push("...");
+                    }
+                  }
+                  rangeWithDots.push(i);
+                  l = i;
+                }
+
+                return rangeWithDots.map((pageNum, idx) => (
+                  <PaginationItem key={idx}>
+                    {pageNum === "..." ? (
+                      <PaginationEllipsis />
+                    ) : (
+                      <PaginationLink
+                        isActive={page === pageNum}
+                        onClick={() => setPage(Number(pageNum))}
+                        className="cursor-pointer"
+                      >
+                        {pageNum}
+                      </PaginationLink>
+                    )}
+                  </PaginationItem>
+                ));
+              })()}
+
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  className={
+                    page === totalPages
+                      ? "pointer-events-none opacity-50"
+                      : "cursor-pointer"
+                  }
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
         </div>
       </div>
 

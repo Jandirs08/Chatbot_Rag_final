@@ -328,7 +328,7 @@ export default function AdminSettingsPage() {
   if (!isAuthorized) return null;
   if (isLoading || !data) {
     return (
-      <div className="h-[calc(100vh-64px)] flex items-center justify-center">
+      <div className="h-full flex items-center justify-center">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" /> Cargando configuración…
         </div>
@@ -461,7 +461,7 @@ export default function AdminSettingsPage() {
   );
 
   return (
-    <div className="h-[calc(100vh-64px)] flex flex-col overflow-hidden">
+    <div className="h-full flex flex-col overflow-hidden">
       <Tabs
         value={activeTab}
         onValueChange={handleTabChange}

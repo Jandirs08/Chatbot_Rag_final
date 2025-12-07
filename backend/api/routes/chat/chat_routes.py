@@ -197,11 +197,98 @@ def _normalize_messages_for_export(messages):
     return df
 
 
+def _process_export(messages, format: str, current_time: str) -> tuple[bytes, str, str]:
+    """Procesa la exportación en un hilo separado para no bloquear el event loop."""
+    import pandas as pd
+    import json as pyjson
+    
+    if format.lower() == 'xlsx':
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            if not messages:
+                df = pd.DataFrame(columns=['ID Conversación', 'Fecha y Hora', 'Rol', 'Mensaje'])
+                lima_now = datetime.now(ZoneInfo("America/Lima")).strftime('%Y-%m-%d %H:%M:%S')
+                df.loc[0] = ["-", lima_now, "info", "Sin conversaciones registradas"]
+                df.to_excel(writer, sheet_name='Conversaciones', index=False)
+            else:
+                df = _normalize_messages_for_export(messages)
+                df.to_excel(writer, sheet_name='Conversaciones', index=False)
+
+                workbook = writer.book
+                worksheet = writer.sheets['Conversaciones']
+
+                header_format = workbook.add_format({'bold': True, 'bg_color': '#D9E1F2', 'border': 1})
+                conversation_format = workbook.add_format({'bg_color': '#E2EFDA', 'border': 1})
+                cell_format = workbook.add_format({'border': 1, 'text_wrap': True})
+
+                for col_num, value in enumerate(df.columns.values):
+                    worksheet.write(0, col_num, value, header_format)
+
+                current_conversation = None
+                id_idx = df.columns.get_loc('ID Conversación') if 'ID Conversación' in df.columns else None
+                for row_num, row in enumerate(df.itertuples(index=False), start=1):
+                    conv = row[id_idx] if id_idx is not None else None
+                    if conv != current_conversation:
+                        current_conversation = conv
+                        if conv is not None and id_idx is not None:
+                            worksheet.write(row_num, id_idx, conv, conversation_format)
+                    for col_idx in range(len(df.columns)):
+                        if id_idx is not None and col_idx == id_idx and conv is not None:
+                            continue
+                        worksheet.write(row_num, col_idx, row[col_idx], cell_format)
+
+                if 'ID Conversación' in df.columns:
+                    worksheet.set_column(id_idx, id_idx, 36)
+                if 'Fecha y Hora' in df.columns:
+                    ts_idx = df.columns.get_loc('Fecha y Hora')
+                    worksheet.set_column(ts_idx, ts_idx, 20)
+                if 'Rol' in df.columns:
+                    r_idx = df.columns.get_loc('Rol')
+                    worksheet.set_column(r_idx, r_idx, 10)
+                if 'Mensaje' in df.columns:
+                    m_idx = df.columns.get_loc('Mensaje')
+                    worksheet.set_column(m_idx, m_idx, 100)
+
+                worksheet.autofilter(0, 0, len(df), len(df.columns) - 1)
+                worksheet.freeze_panes(1, 0)
+
+        output.seek(0)
+        filename = f'conversaciones_{current_time}.xlsx'
+        content = output.getvalue()
+        media_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        return content, media_type, filename
+
+    elif format.lower() == 'csv':
+        if not messages:
+            df = pd.DataFrame(columns=['ID Conversación', 'Fecha y Hora', 'Rol', 'Mensaje'])
+            lima_now = datetime.now(ZoneInfo("America/Lima")).strftime('%Y-%m-%d %H:%M:%S')
+            df.loc[0] = ["-", lima_now, "info", "Sin conversaciones registradas"]
+        else:
+            df = _normalize_messages_for_export(messages)
+        csv_str = df.to_csv(index=False, sep=';', quoting=csv.QUOTE_ALL)
+        csv_bytes = ('\ufeff' + csv_str).encode('utf-8')
+        filename = f'conversaciones_{current_time}.csv'
+        media_type = 'text/csv; charset=utf-8'
+        return csv_bytes, media_type, filename
+
+    elif format.lower() == 'json':
+        if not messages:
+            data = []
+        else:
+            df = _normalize_messages_for_export(messages)
+            data = [dict(row) for row in df.to_dict(orient='records')]
+        json_str = pyjson.dumps(data, ensure_ascii=False, indent=2)
+        filename = f'conversaciones_{current_time}.json'
+        media_type = 'application/json; charset=utf-8'
+        return json_str.encode('utf-8'), media_type, filename
+
+    else:
+        raise ValueError("Formato de exportación no soportado: use xlsx, csv o json")
+
+
 @router.get("/export-conversations")
 async def export_conversations(request: Request, format: str = 'xlsx', sep: str = 'comma', pretty: bool = False):
     """Exporta conversaciones en XLSX (por defecto), CSV o JSON."""
-    # Lazy-load de pandas para reducir tiempo/memoria de arranque
-    import pandas as pd
     try:
         chat_manager = request.app.state.chat_manager
         db = chat_manager.db
@@ -210,91 +297,20 @@ async def export_conversations(request: Request, format: str = 'xlsx', sep: str 
         messages = await cursor.to_list(length=None)
 
         current_time = datetime.now(ZoneInfo("America/Lima")).strftime('%Y%m%d_%H%M%S')
-        if format.lower() == 'xlsx':
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                if not messages:
-                    df = pd.DataFrame(columns=['ID Conversación', 'Fecha y Hora', 'Rol', 'Mensaje'])
-                    lima_now = datetime.now(ZoneInfo("America/Lima")).strftime('%Y-%m-%d %H:%M:%S')
-                    df.loc[0] = ["-", lima_now, "info", "Sin conversaciones registradas"]
-                    df.to_excel(writer, sheet_name='Conversaciones', index=False)
-                else:
-                    df = _normalize_messages_for_export(messages)
-                    df.to_excel(writer, sheet_name='Conversaciones', index=False)
+        
+        # Ejecutar procesamiento pesado en un hilo separado
+        try:
+            content, media_type, filename = await asyncio.to_thread(
+                _process_export, messages, format, current_time
+            )
+        except ValueError as ve:
+             raise HTTPException(status_code=400, detail=str(ve))
 
-                    workbook = writer.book
-                    worksheet = writer.sheets['Conversaciones']
+        headers = {'Content-Disposition': f'attachment; filename="{filename}"'}
+        return Response(content=content, media_type=media_type, headers=headers)
 
-                    header_format = workbook.add_format({'bold': True, 'bg_color': '#D9E1F2', 'border': 1})
-                    conversation_format = workbook.add_format({'bg_color': '#E2EFDA', 'border': 1})
-                    cell_format = workbook.add_format({'border': 1, 'text_wrap': True})
-
-                    for col_num, value in enumerate(df.columns.values):
-                        worksheet.write(0, col_num, value, header_format)
-
-                    current_conversation = None
-                    id_idx = df.columns.get_loc('ID Conversación') if 'ID Conversación' in df.columns else None
-                    for row_num, row in enumerate(df.itertuples(index=False), start=1):
-                        conv = row[id_idx] if id_idx is not None else None
-                        if conv != current_conversation:
-                            current_conversation = conv
-                            if conv is not None and id_idx is not None:
-                                worksheet.write(row_num, id_idx, conv, conversation_format)
-                        for col_idx in range(len(df.columns)):
-                            if id_idx is not None and col_idx == id_idx and conv is not None:
-                                continue
-                            worksheet.write(row_num, col_idx, row[col_idx], cell_format)
-
-                    if 'ID Conversación' in df.columns:
-                        worksheet.set_column(id_idx, id_idx, 36)
-                    if 'Fecha y Hora' in df.columns:
-                        ts_idx = df.columns.get_loc('Fecha y Hora')
-                        worksheet.set_column(ts_idx, ts_idx, 20)
-                    if 'Rol' in df.columns:
-                        r_idx = df.columns.get_loc('Rol')
-                        worksheet.set_column(r_idx, r_idx, 10)
-                    if 'Mensaje' in df.columns:
-                        m_idx = df.columns.get_loc('Mensaje')
-                        worksheet.set_column(m_idx, m_idx, 100)
-
-                    worksheet.autofilter(0, 0, len(df), len(df.columns) - 1)
-                    worksheet.freeze_panes(1, 0)
-
-            output.seek(0)
-            filename = f'conversaciones_{current_time}.xlsx'
-            content = output.getvalue()
-            headers = {'Content-Disposition': f'attachment; filename="{filename}"'}
-            return Response(content=content, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', headers=headers)
-
-        elif format.lower() == 'csv':
-            import pandas as pd
-            if not messages:
-                df = pd.DataFrame(columns=['ID Conversación', 'Fecha y Hora', 'Rol', 'Mensaje'])
-                lima_now = datetime.now(ZoneInfo("America/Lima")).strftime('%Y-%m-%d %H:%M:%S')
-                df.loc[0] = ["-", lima_now, "info", "Sin conversaciones registradas"]
-            else:
-                df = _normalize_messages_for_export(messages)
-            csv_str = df.to_csv(index=False, sep=';', quoting=csv.QUOTE_ALL)
-            csv_bytes = ('\ufeff' + csv_str).encode('utf-8')
-            filename = f'conversaciones_{current_time}.csv'
-            headers = {'Content-Disposition': f'attachment; filename="{filename}"'}
-            return Response(content=csv_bytes, media_type='text/csv; charset=utf-8', headers=headers)
-
-        elif format.lower() == 'json':
-            import json as pyjson
-            if not messages:
-                data = []
-            else:
-                df = _normalize_messages_for_export(messages)
-                data = [dict(row) for row in df.to_dict(orient='records')]
-            json_str = pyjson.dumps(data, ensure_ascii=False, indent=2)
-            filename = f'conversaciones_{current_time}.json'
-            headers = {'Content-Disposition': f'attachment; filename="{filename}"'}
-            return Response(content=json_str.encode('utf-8'), media_type='application/json; charset=utf-8', headers=headers)
-
-        else:
-            raise HTTPException(status_code=400, detail="Formato de exportación no soportado: use xlsx, csv o json")
-
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error al exportar conversaciones: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error al exportar conversaciones: {str(e)}")
@@ -412,20 +428,27 @@ async def list_recent_conversations(request: Request, limit: int = 50, skip: int
     try:
         chat_manager = request.app.state.chat_manager
         db = chat_manager.db
-        items = await db.list_recent_conversations(limit=limit, skip=skip)
-        result = []
-        for r in items:
+        data = await db.list_recent_conversations(limit=limit, skip=skip)
+        
+        items_db = data.get("items", [])
+        total = data.get("total", 0)
+        
+        items_processed = []
+        for r in items_db:
             txt = str(r.get("last_message") or "").strip()
             m = 160
             preview = txt if len(txt) <= m else (txt[:m] + "…")
             ts = r.get("updated_at")
-            result.append({
+            items_processed.append({
                 "conversation_id": r.get("conversation_id"),
                 "last_message_preview": preview,
                 "total_messages": int(r.get("total_messages") or 0),
                 "updated_at": ts.isoformat() if hasattr(ts, "isoformat") else ts,
             })
-        return JSONResponse(content=result)
+        return JSONResponse(content={
+            "items": items_processed,
+            "total": total
+        })
     except Exception as e:
         logger.error(f"Error al listar conversaciones: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error al listar conversaciones")

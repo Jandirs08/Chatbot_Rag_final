@@ -46,6 +46,7 @@ export default function Dashboard() {
   const [isBotActive, setIsBotActive] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
+
   const [stats, setStats] = useState({
     total_queries: 0,
     total_users: 0,
@@ -335,11 +336,14 @@ export default function Dashboard() {
                       <DropdownMenuLabel>Exportar</DropdownMenuLabel>
                       <DropdownMenuItem
                         onClick={async () => {
+                          const toastId = toast.loading("Generando Excel...");
                           try {
                             setIsExporting(true);
                             await exportService.exportConversations("xlsx");
+                            toast.dismiss(toastId);
                             toast.success("Exportado Excel");
                           } catch {
+                            toast.dismiss(toastId);
                             toast.error("Error exportando Excel");
                           } finally {
                             setIsExporting(false);
@@ -350,11 +354,14 @@ export default function Dashboard() {
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={async () => {
+                          const toastId = toast.loading("Generando CSV...");
                           try {
                             setIsExporting(true);
                             await exportService.exportConversations("csv");
+                            toast.dismiss(toastId);
                             toast.success("Exportado CSV");
                           } catch {
+                            toast.dismiss(toastId);
                             toast.error("Error exportando CSV");
                           } finally {
                             setIsExporting(false);
@@ -365,13 +372,16 @@ export default function Dashboard() {
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={async () => {
+                          const toastId = toast.loading("Generando JSON...");
                           try {
                             setIsExporting(true);
                             await exportService.exportConversations("json", {
                               pretty: true,
                             });
+                            toast.dismiss(toastId);
                             toast.success("Exportado JSON");
                           } catch {
+                            toast.dismiss(toastId);
                             toast.error("Error exportando JSON");
                           } finally {
                             setIsExporting(false);
@@ -389,11 +399,7 @@ export default function Dashboard() {
                   {content}
                 </a>
               ) : (
-                <div
-                  key={index}
-                  role="button"
-                  aria-label={action.title}
-                >
+                <div key={index} role="button" aria-label={action.title}>
                   {content}
                 </div>
               );

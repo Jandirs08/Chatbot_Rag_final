@@ -113,7 +113,7 @@ class MongodbClient:
             # No relanzamos para no bloquear el arranque; se puede reintentar luego
 
     
-    async def list_recent_conversations(self, limit: int = 50, skip: int = 0) -> list:
+    async def list_recent_conversations(self, limit: int = 50, skip: int = 0) -> dict:
         try:
             pipeline = [
                 {"$sort": {"conversation_id": 1, "timestamp": -1}},
@@ -126,24 +126,40 @@ class MongodbClient:
                     }
                 },
                 {
-                    "$project": {
-                        "_id": 0,
-                        "conversation_id": "$_id",
-                        "last_message": {"$ifNull": ["$last_message", ""]},
-                        "updated_at": 1,
-                        "total_messages": 1,
+                    "$facet": {
+                        "metadata": [{"$count": "total"}],
+                        "data": [
+                            {
+                                "$project": {
+                                    "_id": 0,
+                                    "conversation_id": "$_id",
+                                    "last_message": {"$ifNull": ["$last_message", ""]},
+                                    "updated_at": 1,
+                                    "total_messages": 1,
+                                }
+                            },
+                            {"$sort": {"updated_at": -1}},
+                            {"$skip": int(max(0, skip))},
+                            {"$limit": int(max(1, limit))},
+                        ]
                     }
-                },
-                {"$sort": {"updated_at": -1}},
-                {"$skip": int(max(0, skip))},
-                {"$limit": int(max(1, limit))},
+                }
             ]
             cursor = self.messages.aggregate(pipeline)
-            results = await cursor.to_list(length=int(max(1, limit)))
-            return results
+            result_list = await cursor.to_list(length=1)
+            
+            if not result_list:
+                return {"items": [], "total": 0}
+                
+            result = result_list[0]
+            items = result.get("data", [])
+            metadata = result.get("metadata", [])
+            total = metadata[0]["total"] if metadata else 0
+            
+            return {"items": items, "total": total}
         except Exception as e:
             logger.error(f"Error listando conversaciones recientes: {str(e)}", exc_info=True)
-            return []
+            return {"items": [], "total": 0}
 
     async def clear_all_messages(self) -> int:
         """Elimina todos los documentos de la colección 'messages'.

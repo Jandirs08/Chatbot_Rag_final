@@ -18,11 +18,19 @@ import {
   TableRow,
 } from "@/app/components/ui/table";
 import { useToast } from "@/app/hooks/use-toast";
+import { toast as sonnerToast } from "sonner";
+import { useUnsavedChanges } from "@/app/hooks/useUnsavedChanges";
 import { PDFService } from "@/app/lib/services/pdfService";
 import { ragService } from "@/app/lib/services/ragService";
 import { Progress } from "@/app/components/ui/progress";
 import { Skeleton } from "@/app/components/ui/skeleton";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/app/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/app/components/ui/dialog";
 import PdfViewerModal from "@/app/components/modals/PdfViewerModal";
 import { Toaster } from "@/app/components/ui/toaster";
 
@@ -38,6 +46,7 @@ export function DocumentManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoadingList, setIsLoadingList] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewFilename, setPreviewFilename] = useState<string | null>(null);
@@ -56,6 +65,8 @@ export function DocumentManagement() {
   const [clearError, setClearError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  useUnsavedChanges(isDownloading);
 
   const loadDocuments = useCallback(async () => {
     try {
@@ -96,13 +107,15 @@ export function DocumentManagement() {
       if (message.toLowerCase().includes("contenido duplicado")) {
         toast({
           title: "Documento duplicado",
-          description: "Este PDF está cargado, intenta agregando otro PDF diferente.",
+          description:
+            "Este PDF está cargado, intenta agregando otro PDF diferente.",
           variant: "destructive",
         });
       } else {
         toast({
           title: "Error",
-          description: error instanceof Error ? error.message : "No se pudo subir el PDF",
+          description:
+            error instanceof Error ? error.message : "No se pudo subir el PDF",
           variant: "destructive",
         });
       }
@@ -111,7 +124,7 @@ export function DocumentManagement() {
       await new Promise((r) => setTimeout(r, 300));
       setIsUploading(false);
       setUploadProgress(0);
-        // 👈 Esto permite volver a seleccionar el MISMO archivo
+      // 👈 Esto permite volver a seleccionar el MISMO archivo
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -137,9 +150,7 @@ export function DocumentManagement() {
       toast({
         title: "Error",
         description:
-          error instanceof Error
-            ? error.message
-            : "No se pudo eliminar el PDF",
+          error instanceof Error ? error.message : "No se pudo eliminar el PDF",
         variant: "destructive",
       });
     } finally {
@@ -157,7 +168,9 @@ export function DocumentManagement() {
       const url = await PDFService.getPDFBlobUrl(filename, "view");
       setPreviewUrl(url);
     } catch (error) {
-      setPreviewError(error instanceof Error ? error.message : "No se pudo cargar el preview");
+      setPreviewError(
+        error instanceof Error ? error.message : "No se pudo cargar el preview",
+      );
     } finally {
       setPreviewLoading(false);
     }
@@ -174,14 +187,24 @@ export function DocumentManagement() {
   }, [isPreviewOpen, previewUrl]);
 
   const handleDownload = async (filename: string) => {
+    const toastId = sonnerToast.loading(`Descargando ${filename}...`);
     try {
+      setIsDownloading(true);
       await PDFService.downloadPDFWithToken(filename);
+      sonnerToast.dismiss(toastId);
+      sonnerToast.success("Descarga iniciada");
     } catch (error) {
+      sonnerToast.dismiss(toastId);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "No se pudo descargar el PDF",
+        description:
+          error instanceof Error
+            ? error.message
+            : "No se pudo descargar el PDF",
         variant: "destructive",
       });
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -228,7 +251,8 @@ export function DocumentManagement() {
       await loadDocuments();
       toast({ title: "Limpieza RAG", description: result.message });
     } catch (error) {
-      const msg = error instanceof Error ? error.message : "Error al limpiar el RAG";
+      const msg =
+        error instanceof Error ? error.message : "Error al limpiar el RAG";
       setClearError(msg);
       toast({ title: "Error", description: msg, variant: "destructive" });
     } finally {
@@ -357,91 +381,96 @@ export function DocumentManagement() {
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className='py-4'>Nombre</TableHead>
-                <TableHead className='py-4'>Fecha</TableHead>
-                <TableHead className='py-4'>Tamaño</TableHead>
-                <TableHead className="text-right py-4">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoadingList && documents.length === 0 ? (
-                // Skeletons mientras carga por primera vez
-                Array.from({ length: 3 }).map((_, idx) => (
-                  <TableRow key={`skeleton-${idx}`}>
-                    <TableCell className='py-4'>
-                      <div className="flex items-center gap-2">
-                        <Skeleton className="h-4 w-4 rounded" />
-                        <Skeleton className="h-4 w-40" />
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-32" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-24" />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Skeleton className="h-8 w-20 ml-auto" />
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                filteredDocuments.map((doc) => (
-                  <TableRow key={doc.filename}>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-primary" />
-                        {doc.filename}
-                      </div>
-                    </TableCell>
-                    <TableCell>{formatDate(doc.last_modified)}</TableCell>
-                    <TableCell>{formatFileSize(doc.size)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex gap-2 justify-end">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handlePreview(doc.filename)}
-                          disabled={isLoadingList || isUploading}
-                          title="Preview"
-                          className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600"
-                        >
-                          <Search className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDownload(doc.filename)}
-                          disabled={isLoadingList || isUploading}
-                          title="Download"
-                          className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600"
-                        >
-                          <Download className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDelete(doc.filename)}
-                          className="text-gray-500 hover:text-red-600 hover:bg-red-50 dark:text-slate-400 dark:hover:text-red-500 dark:bg-slate-700 dark:border-slate-600 dark:hover:bg-red-900/20"
-                          disabled={isLoadingList || isUploading}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="py-4">Nombre</TableHead>
+                  <TableHead className="py-4">Fecha</TableHead>
+                  <TableHead className="py-4">Tamaño</TableHead>
+                  <TableHead className="text-right py-4">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoadingList && documents.length === 0
+                  ? // Skeletons mientras carga por primera vez
+                    Array.from({ length: 3 }).map((_, idx) => (
+                      <TableRow key={`skeleton-${idx}`}>
+                        <TableCell className="py-4">
+                          <div className="flex items-center gap-2">
+                            <Skeleton className="h-4 w-4 rounded" />
+                            <Skeleton className="h-4 w-40" />
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-32" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-24" />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Skeleton className="h-8 w-20 ml-auto" />
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  : filteredDocuments.map((doc) => (
+                      <TableRow key={doc.filename}>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            <FileText className="w-4 h-4 text-primary" />
+                            {doc.filename}
+                          </div>
+                        </TableCell>
+                        <TableCell>{formatDate(doc.last_modified)}</TableCell>
+                        <TableCell>{formatFileSize(doc.size)}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex gap-2 justify-end">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handlePreview(doc.filename)}
+                              disabled={isLoadingList || isUploading}
+                              title="Preview"
+                              className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600"
+                            >
+                              <Search className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDownload(doc.filename)}
+                              disabled={
+                                isLoadingList || isUploading || isDownloading
+                              }
+                              title="Download"
+                              className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600"
+                            >
+                              <Download className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDelete(doc.filename)}
+                              className="text-gray-500 hover:text-red-600 hover:bg-red-50 dark:text-slate-400 dark:hover:text-red-500 dark:bg-slate-700 dark:border-slate-600 dark:hover:bg-red-900/20"
+                              disabled={isLoadingList || isUploading}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>
       {/* Modal de Preview */}
-      <PdfViewerModal isOpen={isPreviewOpen} onClose={setIsPreviewOpen} pdfUrl={previewUrl} initialPage={null} />
+      <PdfViewerModal
+        isOpen={isPreviewOpen}
+        onClose={setIsPreviewOpen}
+        pdfUrl={previewUrl}
+        initialPage={null}
+      />
 
       {/* Modal Limpiar RAG */}
       <Dialog open={isClearOpen} onOpenChange={setIsClearOpen}>
@@ -462,12 +491,20 @@ export function DocumentManagement() {
                 <p className="font-medium">{clearResult.message}</p>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <div className="p-2 rounded border">
-                    <span className="text-muted-foreground text-xs">PDFs restantes</span>
-                    <div className="text-lg font-semibold">{clearResult.remaining_pdfs}</div>
+                    <span className="text-muted-foreground text-xs">
+                      PDFs restantes
+                    </span>
+                    <div className="text-lg font-semibold">
+                      {clearResult.remaining_pdfs}
+                    </div>
                   </div>
                   <div className="p-2 rounded border">
-                    <span className="text-muted-foreground text-xs">Vector store</span>
-                    <div className="text-lg font-semibold">{clearResult.count ?? clearResult.vector_store_size ?? 0}</div>
+                    <span className="text-muted-foreground text-xs">
+                      Vector store
+                    </span>
+                    <div className="text-lg font-semibold">
+                      {clearResult.count ?? clearResult.vector_store_size ?? 0}
+                    </div>
                   </div>
                 </div>
               </div>

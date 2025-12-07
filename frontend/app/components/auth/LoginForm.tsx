@@ -6,9 +6,17 @@ import { logger } from "@/app/lib/logger";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "../ui/card";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Loader2, Eye, EyeOff } from "lucide-react";
+import { toast } from "sonner";
 import { useAuth } from "../../hooks/useAuth";
 
 interface LoginFormProps {
@@ -24,7 +32,7 @@ interface LoginFormData {
 export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
   const router = useRouter();
   const { login, isLoading, error, clearError } = useAuth();
-  
+
   const [formData, setFormData] = useState<LoginFormData>({
     email: "",
     password: "",
@@ -33,7 +41,7 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
@@ -43,19 +51,24 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validaciones básicas
     if (!formData.email.trim()) {
       return;
     }
-    
+
     if (!formData.password) {
       return;
     }
 
+    const toastId = toast.loading("Iniciando sesión...");
+
     try {
       await login(formData.email, formData.password);
-      
+
+      toast.dismiss(toastId);
+      toast.success("¡Bienvenido!");
+
       // Login exitoso
       if (onSuccess) {
         onSuccess();
@@ -63,6 +76,7 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
         router.push(redirectTo);
       }
     } catch (err) {
+      toast.dismiss(toastId);
       // El error ya se maneja en el contexto
       logger.error("Error en login:", err);
     }
@@ -81,7 +95,7 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-          
+
           <div className="space-y-2">
             <Label htmlFor="email">Correo Electrónico</Label>
             <Input
@@ -97,7 +111,7 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
               className="h-12 rounded-lg"
             />
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="password">Contraseña</Label>
             <div className="relative">
@@ -134,14 +148,19 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
             {/* hint removed to relocate link above submit */}
           </div>
         </CardContent>
-        
+
         <CardFooter className="flex flex-col space-y-4">
           <div className="flex justify-end">
-            <a href="/auth/forgot-password" className="text-sm text-orange-600 hover:text-orange-700 font-medium">¿Olvidaste tu contraseña?</a>
+            <a
+              href="/auth/forgot-password"
+              className="text-sm text-orange-600 hover:text-orange-700 font-medium"
+            >
+              ¿Olvidaste tu contraseña?
+            </a>
           </div>
-          <Button 
-            type="submit" 
-            className="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold shadow-md" 
+          <Button
+            type="submit"
+            className="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold shadow-md"
             disabled={isLoading}
             aria-busy={isLoading}
           >
@@ -154,7 +173,7 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
               "Iniciar Sesión"
             )}
           </Button>
-          
+
           {/* Registro deshabilitado: la creación de usuarios se hace en /usuarios */}
         </CardFooter>
       </form>

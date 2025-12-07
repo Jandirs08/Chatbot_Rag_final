@@ -392,6 +392,7 @@ class RAGRetriever:
                     content_type_score * 0.05
                 ) * pdf_priority_factor
 
+                doc.metadata["score"] = final_score
                 scored_docs.append((doc, final_score))
 
             return [doc for doc, _ in sorted(scored_docs, key=lambda x: x[1], reverse=True)]

@@ -38,6 +38,9 @@
   --sidebar-accent-foreground: 240 5.9% 10%;
   --sidebar-border: 220 13% 91%;
   --sidebar-ring: 14 74% 54%;
+
+  /* Fallback para el color de marca del chat si no se carga dinámicamente */
+  --brand-color: #2563eb; 
 }
 
 .dark {

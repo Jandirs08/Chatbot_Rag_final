@@ -64,7 +64,7 @@ export default function PlaygroundPage() {
   }, [conversationId]);
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen h-auto lg:h-[calc(100vh-4rem)] w-full overflow-y-auto lg:overflow-hidden bg-slate-50">
+    <div className="flex flex-col lg:flex-row h-full w-full overflow-y-auto lg:overflow-hidden bg-slate-50">
       <div className="lg:h-full lg:basis-2/5 flex flex-col border-b lg:border-b-0 lg:border-r border-slate-200 bg-white">
         <div className="flex items-center justify-between bg-card border rounded-lg p-3 mb-4 shadow-sm">
           <div className="text-sm font-semibold">🛡️ Modo Auditoría IA</div>
