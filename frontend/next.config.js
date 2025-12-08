@@ -72,8 +72,16 @@ const nextConfig = {
     } catch {}
 
     // Configuración de hosts permitidos para incrustar el widget (iframe)
-    // Por defecto permite todos (*) si no se define ALLOWED_EMBED_HOSTS
-    const allowedEmbedHosts = process.env.ALLOWED_EMBED_HOSTS || "*";
+    // Se limpia el string para soportar formatos con comillas o comas
+    let allowedEmbedHosts = process.env.ALLOWED_EMBED_HOSTS || "*";
+    allowedEmbedHosts = allowedEmbedHosts
+      .replace(/["']/g, "")
+      .split(",")
+      .map((h) => h.trim())
+      .filter((h) => h)
+      .join(" ");
+
+    if (!allowedEmbedHosts) allowedEmbedHosts = "*";
 
     const chatCsp = `default-src 'self'; script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}; style-src 'unsafe-inline' 'self'; connect-src 'self' ${apiOrigin}; img-src 'self' data: ${apiOrigin}; frame-ancestors ${allowedEmbedHosts}`;
     const dashCsp = `default-src 'self'; script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}; style-src 'unsafe-inline' 'self'; connect-src 'self' ${apiOrigin}; img-src 'self' data: ${apiOrigin}; frame-src 'self' blob:; frame-ancestors 'self'`;
@@ -112,7 +120,8 @@ const nextConfig = {
       },
 
       {
-        source: "/:path*",
+        // Aplicar CSP global a todo MENOS /chat para evitar conflicto de herencia
+        source: "/((?!chat).*)",
         headers: [
           { key: "X-DNS-Prefetch-Control", value: "on" },
           {
