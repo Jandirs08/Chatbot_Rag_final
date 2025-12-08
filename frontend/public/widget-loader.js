@@ -201,28 +201,31 @@
     button.appendChild(msgIcon);
     button.appendChild(xIcon);
 
-    // --- BOTÓN DE CIERRE MÓVIL (X) ---
-    // Este botón solo aparecerá en móvil cuando el chat esté abierto
+    // --- BOTÓN DE CIERRE MÓVIL (Píldora "Cerrar X") ---
+    // Diseño tipo "Cerrar x" más pequeño y elegante, posicionado encima del chat
     var mobileCloseBtn = document.createElement("button");
     mobileCloseBtn.type = "button";
-    mobileCloseBtn.innerHTML = "&times;"; // Símbolo de multiplicación (X)
+    mobileCloseBtn.innerHTML =
+      "Cerrar <span style='font-size:16px; font-weight:bold; margin-left:4px;'>&times;</span>";
     mobileCloseBtn.setAttribute("aria-label", "Cerrar chat");
     mobileCloseBtn.style.position = "fixed";
-    mobileCloseBtn.style.top = "10px";
-    mobileCloseBtn.style.right = "10px";
-    mobileCloseBtn.style.width = "40px";
-    mobileCloseBtn.style.height = "40px";
-    mobileCloseBtn.style.borderRadius = "50%";
-    mobileCloseBtn.style.background = "rgba(0, 0, 0, 0.5)";
+    // Lo posicionamos arriba a la derecha, pero dentro del área visual
+    mobileCloseBtn.style.top = "15px";
+    mobileCloseBtn.style.right = "15px";
+    mobileCloseBtn.style.padding = "6px 12px";
+    mobileCloseBtn.style.borderRadius = "20px";
+    mobileCloseBtn.style.background = "rgba(50, 50, 50, 0.9)"; // Fondo oscuro semitransparente
     mobileCloseBtn.style.color = "#ffffff";
-    mobileCloseBtn.style.fontSize = "24px";
-    mobileCloseBtn.style.border = "none";
+    mobileCloseBtn.style.fontSize = "13px";
+    mobileCloseBtn.style.fontWeight = "500";
+    mobileCloseBtn.style.border = "1px solid rgba(255,255,255,0.2)";
     mobileCloseBtn.style.cursor = "pointer";
-    mobileCloseBtn.style.display = "none"; // Oculto por defecto
-    mobileCloseBtn.style.zIndex = "2147483647"; // Mismo nivel máximo
+    mobileCloseBtn.style.display = "none";
+    mobileCloseBtn.style.zIndex = "2147483647"; // Máximo nivel
     mobileCloseBtn.style.alignItems = "center";
     mobileCloseBtn.style.justifyContent = "center";
-    mobileCloseBtn.style.lineHeight = "1";
+    mobileCloseBtn.style.boxShadow = "0 2px 8px rgba(0,0,0,0.2)";
+    mobileCloseBtn.style.backdropFilter = "blur(4px)";
 
     var open = false;
 
@@ -234,10 +237,18 @@
       if (open) {
         // Lógica de apertura
         if (isMobile) {
-          // En móvil: Ocultar botón flotante, mostrar botón de cierre dedicado
+          // En móvil: Ocultar botón flotante, mostrar botón de cierre
           button.style.display = "none";
           mobileCloseBtn.style.display = "flex";
-          // Bloquear scroll del body para mejor experiencia
+
+          // Ajustar iframe para dejar un margen superior (tipo modal sheet)
+          iframe.style.top = "60px"; // Deja ver un poco del fondo arriba
+          iframe.style.height = "calc(100% - 60px)";
+          iframe.style.borderTopLeftRadius = "20px";
+          iframe.style.borderTopRightRadius = "20px";
+          iframe.style.boxShadow = "0 -4px 20px rgba(0,0,0,0.15)";
+
+          // Bloquear scroll del body
           document.body.style.overflow = "hidden";
         } else {
           // En desktop: Transformar botón flotante
@@ -250,12 +261,18 @@
       } else {
         // Lógica de cierre
         if (isMobile) {
-          // En móvil: Restaurar botón flotante, ocultar botón de cierre
+          // En móvil: Restaurar
           button.style.display = "flex";
           mobileCloseBtn.style.display = "none";
           document.body.style.overflow = "";
+
+          // Resetear estilos iframe por si acaso se redimensiona a desktop
+          iframe.style.top = "0";
+          iframe.style.height = "100%";
+          iframe.style.borderTopLeftRadius = "0";
+          iframe.style.borderTopRightRadius = "0";
         } else {
-          // En desktop: Restaurar botón flotante
+          // En desktop: Restaurar
           msgIcon.style.opacity = "1";
           msgIcon.style.transform =
             "translate(-50%, -50%) scale(1) rotate(0deg)";
