@@ -58,7 +58,10 @@
     // --- DETECCIÓN MÓVIL Y RESPONSIVIDAD ---
     var isMobile = false;
     try {
-      isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      isMobile =
+        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+          navigator.userAgent,
+        );
     } catch (_) {}
 
     var button = document.createElement("button");
@@ -78,7 +81,7 @@
     button.style.transition = "transform 0.2s ease";
     button.style.background = bubbleBg;
     // Z-Index alto para sobresalir sobre otros elementos
-    button.style.zIndex = "2147483647"; 
+    button.style.zIndex = "2147483647";
 
     var iframe = document.createElement("iframe");
     iframe.title = "AI Chatbot Widget";
@@ -88,7 +91,7 @@
     iframe.style.borderRadius = isMobile ? "0" : "16px";
     iframe.style.boxShadow = "0 8px 32px rgba(0,0,0,0.1)";
     iframe.style.display = "none";
-    
+
     // Ajuste responsivo del iframe
     if (isMobile) {
       iframe.style.width = "100%";
@@ -104,7 +107,7 @@
       iframe.style.width = widthPx;
       iframe.style.height = heightPx;
     }
-    
+
     iframe.style.zIndex = "2147483646"; // Un nivel menos que el botón para que el botón de cerrar flote encima
     iframe.src = chatUrl;
 
@@ -198,27 +201,76 @@
     button.appendChild(msgIcon);
     button.appendChild(xIcon);
 
+    // --- BOTÓN DE CIERRE MÓVIL (X) ---
+    // Este botón solo aparecerá en móvil cuando el chat esté abierto
+    var mobileCloseBtn = document.createElement("button");
+    mobileCloseBtn.type = "button";
+    mobileCloseBtn.innerHTML = "&times;"; // Símbolo de multiplicación (X)
+    mobileCloseBtn.setAttribute("aria-label", "Cerrar chat");
+    mobileCloseBtn.style.position = "fixed";
+    mobileCloseBtn.style.top = "10px";
+    mobileCloseBtn.style.right = "10px";
+    mobileCloseBtn.style.width = "40px";
+    mobileCloseBtn.style.height = "40px";
+    mobileCloseBtn.style.borderRadius = "50%";
+    mobileCloseBtn.style.background = "rgba(0, 0, 0, 0.5)";
+    mobileCloseBtn.style.color = "#ffffff";
+    mobileCloseBtn.style.fontSize = "24px";
+    mobileCloseBtn.style.border = "none";
+    mobileCloseBtn.style.cursor = "pointer";
+    mobileCloseBtn.style.display = "none"; // Oculto por defecto
+    mobileCloseBtn.style.zIndex = "2147483647"; // Mismo nivel máximo
+    mobileCloseBtn.style.alignItems = "center";
+    mobileCloseBtn.style.justifyContent = "center";
+    mobileCloseBtn.style.lineHeight = "1";
+
     var open = false;
-    button.addEventListener("click", function () {
+
+    function toggleChat() {
       open = !open;
       iframe.style.display = open ? "block" : "none";
       button.setAttribute("aria-label", open ? "Cerrar chat" : "Abrir chat");
+
       if (open) {
-        msgIcon.style.opacity = "0";
-        msgIcon.style.transform =
-          "translate(-50%, -50%) scale(0.5) rotate(90deg)";
-        xIcon.style.opacity = "1";
-        xIcon.style.transform = "translate(-50%, -50%) scale(1) rotate(0deg)";
+        // Lógica de apertura
+        if (isMobile) {
+          // En móvil: Ocultar botón flotante, mostrar botón de cierre dedicado
+          button.style.display = "none";
+          mobileCloseBtn.style.display = "flex";
+          // Bloquear scroll del body para mejor experiencia
+          document.body.style.overflow = "hidden";
+        } else {
+          // En desktop: Transformar botón flotante
+          msgIcon.style.opacity = "0";
+          msgIcon.style.transform =
+            "translate(-50%, -50%) scale(0.5) rotate(90deg)";
+          xIcon.style.opacity = "1";
+          xIcon.style.transform = "translate(-50%, -50%) scale(1) rotate(0deg)";
+        }
       } else {
-        msgIcon.style.opacity = "1";
-        msgIcon.style.transform = "translate(-50%, -50%) scale(1) rotate(0deg)";
-        xIcon.style.opacity = "0";
-        xIcon.style.transform =
-          "translate(-50%, -50%) scale(0.5) rotate(-90deg)";
+        // Lógica de cierre
+        if (isMobile) {
+          // En móvil: Restaurar botón flotante, ocultar botón de cierre
+          button.style.display = "flex";
+          mobileCloseBtn.style.display = "none";
+          document.body.style.overflow = "";
+        } else {
+          // En desktop: Restaurar botón flotante
+          msgIcon.style.opacity = "1";
+          msgIcon.style.transform =
+            "translate(-50%, -50%) scale(1) rotate(0deg)";
+          xIcon.style.opacity = "0";
+          xIcon.style.transform =
+            "translate(-50%, -50%) scale(0.5) rotate(-90deg)";
+        }
       }
-    });
+    }
+
+    button.addEventListener("click", toggleChat);
+    mobileCloseBtn.addEventListener("click", toggleChat);
 
     document.body.appendChild(button);
     document.body.appendChild(iframe);
+    document.body.appendChild(mobileCloseBtn);
   } catch (_) {}
 })();
