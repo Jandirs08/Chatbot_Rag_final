@@ -55,6 +55,12 @@
       scriptEl.getAttribute("data-bubble-background") || defaultBg,
     );
 
+    // --- DETECCIÓN MÓVIL Y RESPONSIVIDAD ---
+    var isMobile = false;
+    try {
+      isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    } catch (_) {}
+
     var button = document.createElement("button");
     button.type = "button";
     button.setAttribute("aria-label", "Abrir chat");
@@ -71,45 +77,69 @@
     button.style.boxShadow = "0 4px 20px rgba(0,0,0,0.15)";
     button.style.transition = "transform 0.2s ease";
     button.style.background = bubbleBg;
-    button.style.zIndex = "1000";
+    // Z-Index alto para sobresalir sobre otros elementos
+    button.style.zIndex = "2147483647"; 
 
     var iframe = document.createElement("iframe");
     iframe.title = "AI Chatbot Widget";
     iframe.setAttribute("frameborder", "0");
     iframe.style.position = "fixed";
     iframe.style.border = "none";
-    iframe.style.borderRadius = "16px";
+    iframe.style.borderRadius = isMobile ? "0" : "16px";
     iframe.style.boxShadow = "0 8px 32px rgba(0,0,0,0.1)";
     iframe.style.display = "none";
-    iframe.style.width = widthPx;
-    iframe.style.height = heightPx;
-    iframe.style.zIndex = "1000";
+    
+    // Ajuste responsivo del iframe
+    if (isMobile) {
+      iframe.style.width = "100%";
+      iframe.style.height = "100%";
+      iframe.style.bottom = "0";
+      iframe.style.right = "0";
+      iframe.style.left = "0";
+      iframe.style.top = "0";
+      iframe.style.margin = "0";
+      iframe.style.maxHeight = "100%";
+      iframe.style.maxWidth = "100%";
+    } else {
+      iframe.style.width = widthPx;
+      iframe.style.height = heightPx;
+    }
+    
+    iframe.style.zIndex = "2147483646"; // Un nivel menos que el botón para que el botón de cerrar flote encima
     iframe.src = chatUrl;
 
     var pos = {
       "bottom-right": function () {
         button.style.bottom = "20px";
         button.style.right = "20px";
-        iframe.style.bottom = "90px";
-        iframe.style.right = "20px";
+        if (!isMobile) {
+          iframe.style.bottom = "90px";
+          iframe.style.right = "20px";
+        }
       },
       "bottom-left": function () {
         button.style.bottom = "20px";
         button.style.left = "20px";
-        iframe.style.bottom = "90px";
-        iframe.style.left = "20px";
+        if (!isMobile) {
+          iframe.style.bottom = "90px";
+          iframe.style.left = "20px";
+        }
       },
       "top-right": function () {
         button.style.top = "20px";
         button.style.right = "20px";
-        iframe.style.top = "90px";
-        iframe.style.right = "20px";
+        if (!isMobile) {
+          iframe.style.top = "90px";
+          iframe.style.right = "20px";
+        }
       },
       "top-left": function () {
         button.style.top = "20px";
         button.style.left = "20px";
-        iframe.style.top = "90px";
-        iframe.style.left = "20px";
+        if (!isMobile) {
+          iframe.style.top = "90px";
+          iframe.style.left = "20px";
+        }
       },
     };
     (pos[position] || pos["bottom-right"])();
