@@ -4,6 +4,7 @@ import { authenticatedFetch } from "@/app/lib/services/authService";
 export interface BotState {
   is_active: boolean;
   message: string;
+  last_activity_iso?: string | null;
 }
 
 export const botService = {

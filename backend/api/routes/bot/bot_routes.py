@@ -2,6 +2,7 @@
 from utils.logging_utils import get_logger
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
+from datetime import datetime, timezone
 
 logger = get_logger(__name__)
 router = APIRouter(tags=["bot"])
@@ -13,6 +14,7 @@ class BotStateResponse(BaseModel):
     """Modelo de respuesta para el estado del bot."""
     is_active: bool
     message: str
+    last_activity_iso: str | None = None
 
 
 class BotRuntimeResponse(BaseModel):
@@ -31,9 +33,32 @@ async def get_bot_state(request: Request):
     """Obtener el estado actual del bot."""
     try:
         is_active = request.app.state.bot_instance.is_active
+
+        last_activity_iso: str | None = None
+        try:
+            chat_manager = getattr(request.app.state, "chat_manager", None)
+            db = getattr(chat_manager, "db", None)
+            if db is not None and hasattr(db, "messages"):
+                cursor = db.messages.find({}, {"timestamp": 1}).sort("timestamp", -1).limit(1)
+                docs = await cursor.to_list(length=1)
+                if docs:
+                    ts = docs[0].get("timestamp")
+                    if isinstance(ts, datetime):
+                        if ts.tzinfo is None:
+                            ts = ts.replace(tzinfo=timezone.utc)
+                        last_activity_iso = ts.isoformat()
+                    elif ts:
+                        try:
+                            last_activity_iso = str(ts)
+                        except Exception:
+                            last_activity_iso = None
+        except Exception:
+            last_activity_iso = None
+
         return BotStateResponse(
             is_active=is_active,
-            message="Estado del bot obtenido exitosamente"
+            message="Estado del bot obtenido exitosamente",
+            last_activity_iso=last_activity_iso,
         )
     except Exception as e:
         logger.error(f"Error al obtener estado del bot: {str(e)}", exc_info=True)

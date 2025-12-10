@@ -46,6 +46,8 @@ export default function Dashboard() {
   const [isBotActive, setIsBotActive] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
+  const [lastActivityIso, setLastActivityIso] = useState<string | null>(null);
+  const [relativeLastActivity, setRelativeLastActivity] = useState<string>("-");
 
   const [stats, setStats] = useState({
     total_queries: 0,
@@ -67,6 +69,7 @@ export default function Dashboard() {
         const statsRes = results[1];
         if (botRes.status === "fulfilled") {
           setIsBotActive(botRes.value.is_active);
+          setLastActivityIso(botRes.value.last_activity_iso ?? null);
         } else {
           logger.warn("Estado del bot no disponible:", botRes.reason);
         }
@@ -85,6 +88,29 @@ export default function Dashboard() {
 
     fetchData();
   }, [isAuthorized]);
+
+  useEffect(() => {
+    const fmt = (iso?: string | null) => {
+      if (!iso) return "-";
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return "-";
+      const now = Date.now();
+      const diffMs = Math.max(0, now - d.getTime());
+      const sec = Math.floor(diffMs / 1000);
+      if (sec < 60) return "Hace segundos";
+      const min = Math.floor(sec / 60);
+      if (min < 60) return `Hace ${min} min`;
+      const hr = Math.floor(min / 60);
+      if (hr < 24) return `Hace ${hr} h`;
+      const day = Math.floor(hr / 24);
+      return `Hace ${day} d`;
+    };
+    setRelativeLastActivity(fmt(lastActivityIso));
+    const id = setInterval(() => {
+      setRelativeLastActivity(fmt(lastActivityIso));
+    }, 60000);
+    return () => clearInterval(id);
+  }, [lastActivityIso]);
 
   // Si no está autorizado, no renderizar nada (se redirigirá). Importante: después de declarar hooks.
   if (!isAuthorized) return null;
@@ -208,7 +234,7 @@ export default function Dashboard() {
                     </div>
                     <div className="text-sm text-muted-foreground flex items-center gap-2">
                       <Clock className="w-4 h-4" />
-                      <span>Última actividad: Hace 2 min</span>
+                      <span>Última actividad: {relativeLastActivity}</span>
                     </div>
                   </div>
                 </div>
