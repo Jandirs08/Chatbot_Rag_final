@@ -47,7 +47,7 @@ export const Sidebar = React.forwardRef<
     if (isMobile) {
       return (
         <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
-          <SheetOverlay />
+          <SheetOverlay className="bg-black/50" />
           <SheetContent
             data-sidebar="sidebar"
             data-mobile="true"

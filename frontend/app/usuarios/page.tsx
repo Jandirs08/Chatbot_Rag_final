@@ -182,11 +182,11 @@ export default function UsuariosPage() {
     <div className="space-y-6 p-6">
       {/* Filtros */}
       <div className="flex flex-wrap gap-4 items-end">
-        <div className="space-y-2 w-64">
+        <div className="space-y-2 w-full md:w-64">
           <Label htmlFor="search">Buscar</Label>
           <Input id="search" value={search} onChange={(e) => { setSearch(e.target.value); setSkip(0); }} placeholder="Email o usuario" />
         </div>
-        <div className="space-y-2 w-56">
+        <div className="space-y-2 w-full md:w-56">
           <Label htmlFor="filter_role">Rol</Label>
           <Select value={roleFilter} onValueChange={(v) => { setRoleFilter(v); setSkip(0); }}>
             <SelectTrigger id="filter_role" className="w-full"><SelectValue placeholder="Rol" /></SelectTrigger>
@@ -197,7 +197,7 @@ export default function UsuariosPage() {
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2 w-56">
+        <div className="space-y-2 w-full md:w-56">
           <Label htmlFor="filter_active">Estado</Label>
           <Select value={activeFilter} onValueChange={(v) => { setActiveFilter(v); setSkip(0); }}>
             <SelectTrigger id="filter_active" className="w-full"><SelectValue placeholder="Estado" /></SelectTrigger>

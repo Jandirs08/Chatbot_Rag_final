@@ -473,7 +473,7 @@ export default function AdminSettingsPage() {
           <TabsTrigger value="system">Sistema</TabsTrigger>
         </TabsList>
         <TabsContent value="appearance" className="flex-1 min-h-0">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full">
+          <div className="flex flex-col lg:grid lg:grid-cols-12 gap-6 h-full">
             <div className="lg:col-span-5 h-full overflow-y-auto">
               <div className="flex items-center justify-between px-4 md:px-6 pt-4 md:pt-6">
                 <h2 className="text-base font-semibold">
@@ -801,7 +801,7 @@ export default function AdminSettingsPage() {
               </Card>
             </div>
 
-            <div className="lg:col-span-7 h-full hidden lg:block">
+            <div className="lg:col-span-7 h-full mt-6 lg:mt-0">
               <div className="relative h-full">
                 <div className="sticky top-0 h-full">
                   <div className="border rounded-md bg-white/60 backdrop-blur-sm">

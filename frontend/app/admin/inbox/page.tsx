@@ -221,7 +221,7 @@ function AdminInboxContent() {
       {/* --- COLUMNA IZQUIERDA: LISTA --- */}
       <div className={cn(
         hasChat ? "hidden md:flex" : "flex",
-        "w-80 md:w-96 flex-none border-r border-slate-200 flex-col bg-slate-50/30",
+        "w-full md:w-96 flex-none border-r border-slate-200 flex-col bg-slate-50/30",
       )}
       >
         <div className="px-4 py-3 border-b bg-white sticky top-0 z-10 space-y-2">
@@ -557,7 +557,7 @@ function AdminInboxContent() {
 
       <div className={cn(
         hasChat ? "flex w-full" : "hidden md:flex",
-        "flex-1 flex flex-col bg-background dark:bg-slate-900",
+        "flex-1 md:flex md:flex-col bg-background dark:bg-slate-900",
       )}
       >
         {!chatIdFromUrl ? (
