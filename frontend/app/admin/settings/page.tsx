@@ -461,7 +461,7 @@ export default function AdminSettingsPage() {
   );
 
   return (
-    <div className="min-h-screen flex flex-col overflow-y-auto lg:h-full lg:overflow-hidden">
+    <div className="flex flex-col lg:h-full lg:overflow-hidden">
       <Tabs
         value={activeTab}
         onValueChange={handleTabChange}
@@ -473,7 +473,7 @@ export default function AdminSettingsPage() {
           <TabsTrigger value="system">Sistema</TabsTrigger>
         </TabsList>
         <TabsContent value="appearance" className="flex-1 min-h-0">
-          <div className="flex flex-col lg:grid lg:grid-cols-12 gap-6 h-auto lg:h-full">
+          <div className="flex flex-col lg:grid lg:grid-cols-12 gap-6 min-h-0 h-auto lg:h-full">
             <div className="lg:col-span-5 h-auto lg:h-full lg:overflow-y-auto">
               <div className="flex items-center justify-between px-4 md:px-6 pt-4 md:pt-6">
                 <h2 className="text-base font-semibold">
@@ -802,8 +802,8 @@ export default function AdminSettingsPage() {
             </div>
 
             <div className="lg:col-span-7 h-auto lg:h-full">
-              <div className="relative h-auto lg:h-full">
-                <div className="lg:sticky lg:top-0 lg:h-full">
+              <div className="relative h-full">
+                <div className="relative lg:sticky lg:top-0 h-[650px] lg:h-full">
                   <div className="border rounded-md bg-white/60 backdrop-blur-sm">
                     <div className="flex items-center justify-between px-4 py-2 border-b">
                       <div className="text-sm font-medium">Preview</div>
@@ -817,7 +817,7 @@ export default function AdminSettingsPage() {
                         </TabsList>
                       </Tabs>
                     </div>
-                    <div className="relative h-[540px] md:h-[640px]">
+                    <div className="relative h-[640px]">
                       <div className="absolute inset-0 bg-[radial-gradient(circle,_rgba(226,232,240,0.6)_1px,_transparent_1px)] [background-size:16px_16px]" />
                       <div className="relative h-full flex items-center justify-center p-4">
                         {previewMode === "mobile" ? (
