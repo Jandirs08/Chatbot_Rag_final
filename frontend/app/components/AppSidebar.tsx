@@ -80,7 +80,7 @@ const mainMenuItems = baseMenuItems.filter(
 );
 
 export function AppSidebar() {
-  const { state } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   const { user, logout, isAdmin } = useAuth();
   const router = useRouter();
   const [isDark, setIsDark] = React.useState(false);
@@ -187,6 +187,9 @@ export function AppSidebar() {
                     <Link
                       href={item.url}
                       className={`flex ${state === "collapsed" ? "flex-col items-center justify-center" : "items-center"} gap-3`}
+                      onClick={() => {
+                        if (isMobile) setOpenMobile(false);
+                      }}
                     >
                       <item.icon
                         className={`${state === "collapsed" ? "w-6 h-6" : "w-5 h-5"}`}
@@ -225,6 +228,9 @@ export function AppSidebar() {
                     <Link
                       href={item.url}
                       className={`flex ${state === "collapsed" ? "flex-col items-center justify-center" : "items-center"} gap-3`}
+                      onClick={() => {
+                        if (isMobile) setOpenMobile(false);
+                      }}
                     >
                       <item.icon
                         className={`${state === "collapsed" ? "w-6 h-6" : "w-5 h-5"}`}

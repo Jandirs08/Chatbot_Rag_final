@@ -801,7 +801,7 @@ export default function AdminSettingsPage() {
               </Card>
             </div>
 
-            <div className="lg:col-span-7 h-full">
+            <div className="lg:col-span-7 h-full hidden lg:block">
               <div className="relative h-full">
                 <div className="sticky top-0 h-full">
                   <div className="border rounded-md bg-white/60 backdrop-blur-sm">
@@ -916,15 +916,15 @@ export default function AdminSettingsPage() {
         </Dialog>
         <TabsContent value="system" className="flex-1 min-h-0">
           <div className="p-4 md:p-6 h-full overflow-y-auto">
-            <Card className="border-red-200 bg-red-50">
+            <Card className="border border-border/50 bg-white">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-red-700">
-                  <AlertTriangle className="w-5 h-5" /> Zona de Peligro
+                <CardTitle className="flex items-center gap-2 text-gray-900">
+                  <AlertTriangle className="w-5 h-5" /> Precaución
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center justify-between">
-                  <div className="text-sm text-red-700">
+                  <div className="text-sm text-gray-700">
                     Eliminar Historial de Conversaciones
                   </div>
                   <Dialog open={open} onOpenChange={setOpen}>
