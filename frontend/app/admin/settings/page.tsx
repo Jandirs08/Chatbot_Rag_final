@@ -473,8 +473,8 @@ export default function AdminSettingsPage() {
           <TabsTrigger value="system">Sistema</TabsTrigger>
         </TabsList>
         <TabsContent value="appearance" className="flex-1 min-h-0">
-          <div className="flex flex-col gap-8 lg:flex-row lg:items-start h-full">
-            <div className="h-full overflow-y-auto lg:flex-1">
+          <div className="flex flex-col lg:flex-row gap-8 w-full">
+            <div className="w-full lg:w-1/2">
               <div className="flex items-center justify-between px-4 md:px-6 pt-4 md:pt-6">
                 <h2 className="text-base font-semibold">
                   Apariencia y Comportamiento
@@ -801,44 +801,40 @@ export default function AdminSettingsPage() {
               </Card>
             </div>
 
-            <div className="h-full lg:flex-1">
-              <div className="relative h-full">
-                <div className="sticky top-0 h-full">
-                  <div className="border rounded-md bg-white/60 backdrop-blur-sm">
-                    <div className="flex items-center justify-between px-4 py-2 border-b">
-                      <div className="text-sm font-medium">Preview</div>
-                      <Tabs
-                        defaultValue={previewMode}
-                        onValueChange={(v) => setPreviewMode(v as any)}
-                      >
-                        <TabsList className="h-9">
-                          <TabsTrigger value="mobile">📱 Móvil</TabsTrigger>
-                          <TabsTrigger value="desktop">💻 Desktop</TabsTrigger>
-                        </TabsList>
-                      </Tabs>
-                    </div>
-                    <div className="relative h-[640px]">
-                      <div className="absolute inset-0 bg-[radial-gradient(circle,_rgba(226,232,240,0.6)_1px,_transparent_1px)] [background-size:16px_16px]" />
-                      <div className="relative h-full flex items-center justify-center p-4">
-                        {previewMode === "mobile" ? (
-                          <PhonePreview
-                            name={config.name || baseline.name}
-                            avatarUrl={config.avatarUrl}
-                            brandColor={config.brandColor}
-                            placeholder={config.placeholder}
-                            starters={config.starters}
-                          />
-                        ) : (
-                          <DesktopPreview
-                            name={config.name || baseline.name}
-                            avatarUrl={config.avatarUrl}
-                            brandColor={config.brandColor}
-                            placeholder={config.placeholder}
-                            starters={config.starters}
-                          />
-                        )}
-                      </div>
-                    </div>
+            <div className="w-full lg:w-1/2">
+              <div className="border rounded-md bg-white/60 backdrop-blur-sm">
+                <div className="flex items-center justify-between px-4 py-2 border-b">
+                  <div className="text-sm font-medium">Preview</div>
+                  <Tabs
+                    defaultValue={previewMode}
+                    onValueChange={(v) => setPreviewMode(v as any)}
+                  >
+                    <TabsList className="h-9">
+                      <TabsTrigger value="mobile">📱 Móvil</TabsTrigger>
+                      <TabsTrigger value="desktop">💻 Desktop</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
+                <div className="relative h-[640px]">
+                  <div className="absolute inset-0 bg-[radial-gradient(circle,_rgba(226,232,240,0.6)_1px,_transparent_1px)] [background-size:16px_16px]" />
+                  <div className="relative h-full flex items-center justify-center p-4">
+                    {previewMode === "mobile" ? (
+                      <PhonePreview
+                        name={config.name || baseline.name}
+                        avatarUrl={config.avatarUrl}
+                        brandColor={config.brandColor}
+                        placeholder={config.placeholder}
+                        starters={config.starters}
+                      />
+                    ) : (
+                      <DesktopPreview
+                        name={config.name || baseline.name}
+                        avatarUrl={config.avatarUrl}
+                        brandColor={config.brandColor}
+                        placeholder={config.placeholder}
+                        starters={config.starters}
+                      />
+                    )}
                   </div>
                 </div>
               </div>
