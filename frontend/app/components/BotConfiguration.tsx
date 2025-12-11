@@ -81,7 +81,7 @@ export function BotConfiguration({
         {/* Configuración principal con Tabs */}
         <div className="lg:col-span-2 space-y-6">
           <Tabs defaultValue="personalidad" className="w-full">
-            <TabsList className="w-full">
+            <TabsList className="w-full overflow-x-auto whitespace-nowrap scroll-smooth md:overflow-visible">
               <TabsTrigger value="personalidad">Personalidad</TabsTrigger>
               <TabsTrigger value="parametros">Parámetros</TabsTrigger>
               <TabsTrigger value="vista-previa">Vista Previa</TabsTrigger>
@@ -266,7 +266,7 @@ export function BotConfiguration({
                 onClick={() => {
                   onSave();
                 }}
-                className="w-full gradient-primary hover:opacity-90"
+                className="w-full h-11 gradient-primary hover:opacity-90"
                 disabled={!!isLoading || !canSave}
               >
                 <Save className="w-4 h-4 mr-2" />
@@ -277,7 +277,7 @@ export function BotConfiguration({
                   onReset();
                 }}
                 variant="outline"
-                className={`w-full ${!canReset ? "opacity-50 cursor-not-allowed" : ""}`}
+                className={`w-full h-11 ${!canReset ? "opacity-50 cursor-not-allowed" : ""}`}
                 disabled={!!isLoading || !canReset}
               >
                 <RotateCcw className="w-4 h-4 mr-2" />

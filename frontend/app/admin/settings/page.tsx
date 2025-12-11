@@ -467,7 +467,7 @@ export default function AdminSettingsPage() {
         onValueChange={handleTabChange}
         className="flex-1 min-h-0 flex flex-col"
       >
-        <TabsList className="w-full">
+        <TabsList className="w-full overflow-x-auto whitespace-nowrap scroll-smooth md:overflow-visible">
           <TabsTrigger value="appearance">Apariencia</TabsTrigger>
           <TabsTrigger value="brain">Cerebro</TabsTrigger>
           <TabsTrigger value="system">Sistema</TabsTrigger>
@@ -475,7 +475,7 @@ export default function AdminSettingsPage() {
         <TabsContent value="appearance" className="flex-1 min-h-0">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full">
             <div className="lg:col-span-5 h-full overflow-y-auto">
-              <div className="flex items-center justify-between px-6 pt-6">
+              <div className="flex items-center justify-between px-4 md:px-6 pt-4 md:pt-6">
                 <h2 className="text-base font-semibold">
                   Apariencia y Comportamiento
                 </h2>
@@ -509,7 +509,7 @@ export default function AdminSettingsPage() {
                             }
                           />
                         </div>
-                        <div className="grid grid-cols-[1fr_auto] items-end gap-3">
+                        <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] items-end gap-3">
                           <div className="space-y-2">
                             <Label htmlFor="avatar-file">Logo/Avatar</Label>
                             <Input
@@ -781,7 +781,7 @@ export default function AdminSettingsPage() {
                       <div className="pt-2">
                         <Button
                           type="button"
-                          className="w-full"
+                          className="w-full h-11"
                           onClick={handleSave}
                           disabled={saving || !appearanceIsDirty}
                         >
@@ -846,7 +846,7 @@ export default function AdminSettingsPage() {
           </div>
         </TabsContent>
         <TabsContent value="brain" className="flex-1 min-h-0">
-          <div className="p-6 h-full overflow-y-auto">
+          <div className="p-4 md:p-6 h-full overflow-y-auto">
             <BotConfiguration
               showBotName={false}
               fieldsReadOnly={fieldsLocked}
@@ -915,7 +915,7 @@ export default function AdminSettingsPage() {
           </DialogContent>
         </Dialog>
         <TabsContent value="system" className="flex-1 min-h-0">
-          <div className="p-6 h-full overflow-y-auto">
+          <div className="p-4 md:p-6 h-full overflow-y-auto">
             <Card className="border-red-200 bg-red-50">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-red-700">
