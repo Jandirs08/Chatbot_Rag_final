@@ -395,7 +395,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
   }
 
   return (
-    <div className="h-full w-full flex flex-col overflow-hidden bg-transparent">
+    <div className="h-full w-full flex flex-col overflow-visible md:overflow-hidden bg-transparent">
       <div className="flex-none border-b bg-card p-3 dark:bg-slate-900 dark:border-slate-800">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -455,7 +455,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
           </div>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto p-3 space-y-8">
+      <div className="flex-1 overflow-visible md:overflow-y-auto p-3 space-y-8">
         <div className="space-y-6">
           <section>
             <div className="rounded-xl border border-border bg-card shadow-md ring-1 ring-white/5 p-6 dark:bg-slate-900 dark:border-slate-800">
@@ -544,7 +544,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                               />
                             );
                             return (
-                              <div className="flex items-center justify-center">
+                              <div className="flex flex-wrap md:flex-nowrap items-center justify-center gap-2 overflow-x-auto md:overflow-visible">
                                 {node(
                                   intentCompleted,
                                   activeStage === "intencion",
@@ -636,7 +636,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                   })()
                 )}
                 <div>
-                    <div className="grid grid-cols-3 gap-4 rounded-xl border border-border bg-card shadow-md ring-1 ring-white/5 p-4 dark:bg-slate-900 dark:border-slate-800">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 rounded-xl border border-border bg-card shadow-md ring-1 ring-white/5 p-4 dark:bg-slate-900 dark:border-slate-800">
                       <div className="flex flex-col gap-2">
                       <div className="text-xs font-semibold text-foreground">Motor</div>
                       <div className="flex flex-wrap items-center gap-3">

@@ -117,8 +117,8 @@ export default function ConfiguracionWhatsAppPage() {
     <div className="space-y-6 p-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div className="flex items-center gap-2 flex-wrap">
               <CardTitle>Configuración de WhatsApp</CardTitle>
               {status === "ok" && (
                 <span className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded bg-green-600 text-white">
@@ -141,7 +141,7 @@ export default function ConfiguracionWhatsAppPage() {
                 </span>
               )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <Button
                 variant="outline"
                 onClick={() => setFieldsLocked((v) => !v)}

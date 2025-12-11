@@ -19,11 +19,11 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble(props: {
         isUser
           ? "bg-brand text-brand-foreground"
           : "bg-gray-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 dark:border dark:border-slate-700"
-      } rounded-2xl p-3 sm:p-4 shadow-sm max-w-[85%] break-words`}
+      } rounded-2xl p-3 sm:p-4 shadow-sm max-w-[90%] sm:max-w-[85%] break-words`}
     >
       {isUser ? (
         <div className="flex flex-col items-end">
-          <p className="whitespace-pre-wrap leading-relaxed text-sm sm:text-base">
+          <p className="whitespace-pre-wrap leading-relaxed text-sm sm:text-base break-words">
             {content}
           </p>
         </div>

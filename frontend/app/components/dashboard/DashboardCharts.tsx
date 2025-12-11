@@ -74,9 +74,9 @@ export default function DashboardCharts() {
 
   return (
     <Card className="border-0 shadow-md">
-      <CardHeader className="flex flex-row items-center justify-between gap-4">
+      <CardHeader className="flex flex-wrap md:flex-nowrap items-start md:items-center justify-between gap-x-4 gap-y-2">
         <CardTitle className="text-xl">Evolución de métricas</CardTitle>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap md:flex-nowrap w-full md:w-auto">
           <div className="w-44">
             <Select value={range} onValueChange={(v: any) => setRange(v)}>
               <SelectTrigger aria-label="Rango de tiempo">

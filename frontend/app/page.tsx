@@ -222,7 +222,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between p-4">
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-5">
                   <div
                     className={`w-5 h-5 rounded-full ${isBotActive ? "bg-emerald-500 animate-pulse" : "bg-gray-400"}`}
                   ></div>
@@ -234,7 +234,7 @@ export default function Dashboard() {
                     </div>
                     <div className="text-sm text-muted-foreground flex items-center gap-2">
                       <Clock className="w-4 h-4" />
-                      <span>Última actividad: {relativeLastActivity}</span>
+                      <span className="whitespace-nowrap">Última actividad: {relativeLastActivity}</span>
                     </div>
                   </div>
                 </div>

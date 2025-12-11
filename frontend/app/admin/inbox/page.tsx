@@ -19,6 +19,7 @@ import {
   Copy,
   UserCircle2,
   ListFilter,
+  ChevronLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/app/components/ui/input";
@@ -104,6 +105,7 @@ function AdminInboxContent() {
 
   // Estado local solo para la selección visual inmediata
   const chatIdFromUrl = searchParams.get("chatId");
+  const hasChat = Boolean(chatIdFromUrl);
   const [filterConfig, setFilterConfig] = useState({
     search: "",
     startDate: "",
@@ -206,12 +208,22 @@ function AdminInboxContent() {
     router.replace(`?${params.toString()}`);
   };
 
+  const clearSelectedChat = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("chatId");
+    router.replace(`?${params.toString()}`);
+  };
+
   if (!isAuthorized) return null;
 
   return (
     <div className="flex h-full overflow-hidden bg-white border-t border-slate-200">
       {/* --- COLUMNA IZQUIERDA: LISTA --- */}
-      <div className="w-80 md:w-96 flex-none border-r border-slate-200 flex flex-col bg-slate-50/30">
+      <div className={cn(
+        hasChat ? "hidden md:flex" : "flex",
+        "w-80 md:w-96 flex-none border-r border-slate-200 flex-col bg-slate-50/30",
+      )}
+      >
         <div className="px-4 py-3 border-b bg-white sticky top-0 z-10 space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -543,7 +555,11 @@ function AdminInboxContent() {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col bg-background dark:bg-slate-900">
+      <div className={cn(
+        hasChat ? "flex w-full" : "hidden md:flex",
+        "flex-1 flex flex-col bg-background dark:bg-slate-900",
+      )}
+      >
         {!chatIdFromUrl ? (
           <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
             <div className="w-16 h-16 rounded-2xl bg-white shadow-sm flex items-center justify-center mb-4">
@@ -558,6 +574,15 @@ function AdminInboxContent() {
             {/* Chat Header */}
             <div className="flex items-center justify-between px-6 py-3 bg-card border-b border-border shadow-md ring-1 ring-white/5 sticky top-0 z-20 dark:bg-slate-900 dark:border-slate-800">
               <div className="flex items-center gap-3">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="md:hidden"
+                  onClick={clearSelectedChat}
+                  aria-label="Volver"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </Button>
                 <div
                   className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border"
                   style={{ backgroundColor: colorFromId(chatIdFromUrl) }}
