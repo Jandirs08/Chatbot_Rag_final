@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { Sheet, SheetContent, SheetOverlay } from "@/components/ui/sheet";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { SidebarRail } from "./SidebarRail";
 import { useSidebar, SIDEBAR_WIDTH, SIDEBAR_WIDTH_ICON, SIDEBAR_WIDTH_MOBILE } from "./context";
 
@@ -47,7 +47,6 @@ export const Sidebar = React.forwardRef<
     if (isMobile) {
       return (
         <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
-          <SheetOverlay className="bg-black/50" />
           <SheetContent
             data-sidebar="sidebar"
             data-mobile="true"

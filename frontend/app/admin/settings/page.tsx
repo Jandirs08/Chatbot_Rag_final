@@ -801,7 +801,7 @@ export default function AdminSettingsPage() {
               </Card>
             </div>
 
-            <div className="lg:col-span-7 h-full mt-6 lg:mt-0">
+            <div className="lg:col-span-7 h-full">
               <div className="relative h-full">
                 <div className="sticky top-0 h-full">
                   <div className="border rounded-md bg-white/60 backdrop-blur-sm">
