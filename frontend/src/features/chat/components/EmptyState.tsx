@@ -1,4 +1,4 @@
-import { MouseEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import useSWR from "swr";
 import Image from "next/image";
 import { getPublicBotConfig } from "@/app/lib/services/botConfigService";
@@ -21,11 +21,8 @@ export function EmptyState(props: { onSubmit: (question: string) => any }) {
     }
   }, [cfg]);
 
-  const handleClick = (e: MouseEvent) => {
-    const target = e.target as HTMLElement;
-    if (target.textContent) {
-      props.onSubmit(target.textContent);
-    }
+  const handleStarter = (text: string) => {
+    props.onSubmit(text);
   };
 
   const starters: string[] = Array.isArray(cfg?.starters)
@@ -64,7 +61,7 @@ export function EmptyState(props: { onSubmit: (question: string) => any }) {
         {starters.map((text, index) => (
           <button
             key={`${text}-${index}`}
-            onClick={handleClick}
+            onClick={() => handleStarter(text)}
             className="group relative p-5 text-left bg-white border border-gray-200/60 rounded-xl hover:bg-gray-50 transition-colors duration-200 shadow-sm"
           >
             <div className="flex items-start gap-4">
