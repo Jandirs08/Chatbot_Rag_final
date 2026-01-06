@@ -134,7 +134,8 @@ class RAGIngestor:
                     return {"filename": filename, "status": "error", "error": f"No se pudo limpiar previo: {e}"}
 
             # Procesar PDF → chunks
-            chunks = self.pdf_content_loader.load_and_split_pdf(pdf_path)
+            # Optimización: Usar los documentos ya cargados en memoria
+            chunks = self.pdf_content_loader.split_documents_direct(documents, pdf_path)
             if not chunks:
                 return {"filename": filename, "status": "error", "error": "PDF sin contenido útil"}
 

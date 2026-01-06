@@ -56,8 +56,15 @@ class PDFContentLoader:
             logger.error(f"Error leyendo PDF {pdf_path.name}: {e}", exc_info=True)
             return []
 
+        return self.split_documents_direct(documents, pdf_path)
+
+    def split_documents_direct(self, documents: List[Document], source_path: Path) -> List[Document]:
+        """
+        Procesa documentos ya cargados en memoria.
+        Optimización para evitar doble I/O cuando el ingestor ya cargó el PDF.
+        """
         if not documents:
-            logger.warning(f"PDF vacío: {pdf_path.name}")
+            logger.warning(f"PDF vacío o lista de documentos vacía: {source_path.name}")
             return []
 
         # Preprocesado seguro
@@ -68,7 +75,7 @@ class PDFContentLoader:
         logger.info(f"{len(chunks)} chunks generados")
 
         # Post-procesado seguro (sin filtrado destructivo)
-        final_chunks = self._postprocess_chunks(chunks, pdf_path)
+        final_chunks = self._postprocess_chunks(chunks, source_path)
         logger.info(f"{len(final_chunks)} chunks finales después de metadata")
         try:
             preview_count = min(len(final_chunks), 10)
