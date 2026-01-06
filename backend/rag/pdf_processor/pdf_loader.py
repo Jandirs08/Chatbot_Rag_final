@@ -6,7 +6,7 @@ from typing import List, Optional
 from pathlib import Path
 import logging
 
-from langchain.text_splitter import TokenTextSplitter
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 from langchain_community.document_loaders import PyMuPDFLoader
 
@@ -30,10 +30,11 @@ class PDFContentLoader:
         self.chunk_overlap = chunk_overlap if chunk_overlap is not None else settings.chunk_overlap
         self.min_chunk_length = min_chunk_length if min_chunk_length is not None else settings.min_chunk_length
 
-        self.text_splitter = TokenTextSplitter(
+        self.text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
             encoding_name="cl100k_base",
             chunk_size=self.chunk_size,
             chunk_overlap=self.chunk_overlap,
+            separators=["\n\n", "\n", ". ", " ", ""]
         )
 
         logger.debug(
