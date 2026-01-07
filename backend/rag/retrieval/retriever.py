@@ -186,7 +186,8 @@ class RAGRetriever:
         query: str,
         k: int = 4,
         filter_criteria: Optional[Dict[str, Any]] = None,
-        use_semantic_ranking: bool = True
+        use_semantic_ranking: bool = True,
+        use_mmr: bool = False
     ) -> List[Document]:
         """
         Recupera documentos relevantes con reranking avanzado.
@@ -227,15 +228,15 @@ class RAGRetriever:
             initial_k = min(k * settings.retrieval_k_multiplier, 20)
 
             try:
-                # Determinar si necesitamos vectores: se requieren para reranking semántico o MMR posterior
-                need_vectors = bool(use_semantic_ranking or not use_semantic_ranking)
+                # Determinar si necesitamos vectores: se requieren para reranking semántico o MMR
+                need_vectors = bool(use_semantic_ranking or use_mmr)
 
                 relevant_docs = await asyncio.wait_for(
                     self.vector_store.retrieve(
                         query,
                         k=initial_k,
                         filter=filter_criteria,
-                        use_mmr=False,
+                        use_mmr=False,  # Siempre False aquí, MMR se aplica después si es necesario
                         with_vectors=need_vectors,
                     ),
                     timeout=5.0
@@ -254,10 +255,10 @@ class RAGRetriever:
                 return []
 
             # ====== No need for reranking if <= k =======
-            if len(relevant_docs) <= k:
+            if len(relevant_docs) <= k and not use_semantic_ranking and not use_mmr:
                 return relevant_docs
 
-            # ====== Reranking =======
+            # ====== Post-processing (Reranking / MMR) =======
             final_docs = []
             if use_semantic_ranking:
                 rerank_start = time.perf_counter()
@@ -267,13 +268,16 @@ class RAGRetriever:
                     time.perf_counter() - rerank_start
                 )
                 final_docs = reranked[:k]
-            else:
+            elif use_mmr:
                 mmr_start = time.perf_counter()
                 final_docs = await self._apply_mmr(query, relevant_docs, k)
                 self.performance_metrics.add_metric(
                     'mmr_application',
                     time.perf_counter() - mmr_start
                 )
+                final_docs = final_docs[:k]
+            else:
+                final_docs = relevant_docs[:k]
 
             # ====== Cache store =======
             if self.cache_enabled and bool(getattr(settings, "enable_cache", True)):
@@ -725,7 +729,8 @@ class RAGRetriever:
             except Exception:
                 filter_key = str(filter_criteria or "")
 
-            cache_key = f"rag:{query}:{k}:{filter_key}"
+            query_norm = query.strip().lower()
+            cache_key = f"rag:{query_norm}:{k}:{filter_key}"
             cached = cache.get(cache_key)
 
             if not cached:
@@ -754,7 +759,8 @@ class RAGRetriever:
             except Exception:
                 filter_key = str(filter_criteria or "")
 
-            cache_key = f"rag:{query}:{k}:{filter_key}"
+            query_norm = query.strip().lower()
+            cache_key = f"rag:{query_norm}:{k}:{filter_key}"
 
             serialized_docs = [
                 {
