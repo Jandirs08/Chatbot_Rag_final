@@ -2,7 +2,6 @@ import logging
 from typing import List, Dict, Any, Optional, Tuple
 import time
 import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
 from functools import wraps
 import statistics
 import json
@@ -87,7 +86,13 @@ class PerformanceMetrics:
 # ============================================================
 
 class RAGRetriever:
-    """Retriever optimizado para RAG con reranking avanzado + gating premium robusto."""
+    """
+    Retriever optimizado para RAG con reranking avanzado + gating premium robusto.
+
+    IMPORTANTE: Se debe llamar a `await retriever.warmup()` durante el inicio de la aplicación
+    (startup event) para garantizar que el centroide esté calculado y el sistema de gating
+    funcione correctamente desde la primera petición.
+    """
 
     def __init__(
         self,
@@ -99,11 +104,18 @@ class RAGRetriever:
         self.embedding_manager = embedding_manager
         self.cache_enabled = cache_enabled
         self.performance_metrics = PerformanceMetrics()
-        self._is_recalculating: bool = False
 
-        # Centroide cacheado
+        # Control de Tareas (Concurrency & Race Conditions)
+        self._recalc_task: Optional[asyncio.Task] = None
+
+        # Lock async (lazy) para blindar llamadas concurrentes directas (warmup/trigger/gating)
+        self._centroid_lock: Optional[asyncio.Lock] = None
+
+        # Datos del Centroide
         self._centroid_embedding: Optional[np.ndarray] = None
-        self._last_corpus_size: Optional[int] = None
+
+        # Control de Invalidación (Puntos Totales en Qdrant)
+        self._last_total_points_count: Optional[int] = None
         self._last_corpus_size_check_time: float = 0.0
         self._corpus_size_cache_ttl: int = 10
         self._last_centroid_recalc_timestamp: float = 0.0
@@ -116,8 +128,8 @@ class RAGRetriever:
         except Exception:
             self._gating_threshold = 0.45
 
-        # Inicialización del centroide desde caché
-        self._try_load_centroid_from_cache()
+        # Inicialización del centroide desde caché (con spawn automático por ser init)
+        self._try_load_centroid_from_cache(spawn_if_missing=True)
 
         logger.info("RAGRetriever inicializado con optimizaciones y gating robusto.")
         try:
@@ -125,16 +137,33 @@ class RAGRetriever:
         except Exception:
             pass
 
+    # ============================================================
+    #   INTERNAL: LOCK (LAZY)
+    # ============================================================
 
-    def _try_load_centroid_from_cache(self):
-        """Intenta cargar el centroide desde caché de forma síncrona."""
+    def _get_centroid_lock(self) -> asyncio.Lock:
+        # Lazy para evitar problemas si se instancia fuera de un loop en ciertos entornos
+        if self._centroid_lock is None:
+            self._centroid_lock = asyncio.Lock()
+        return self._centroid_lock
+
+    # ============================================================
+    #   CENTROID CACHE LOAD + SCHEDULER
+    # ============================================================
+
+    def _try_load_centroid_from_cache(self, spawn_if_missing: bool = True):
+        """
+        Intenta cargar el centroide desde caché de forma síncrona.
+        Args:
+            spawn_if_missing: Si es True, dispara un recálculo en background si no hay cache.
+                              Si es False, solo carga o falla silenciosamente.
+        """
         try:
             if not bool(getattr(settings, "enable_cache", True)):
                 return
 
             cached = cache.get("rag:centroid")
             if cached and isinstance(cached, list):
-                # Validación de dimensión
                 dim = int(getattr(settings, "default_embedding_dimension", 1536))
                 if len(cached) != dim:
                     logger.warning(f"Centroide en caché con dimensión incorrecta ({len(cached)} vs {dim}).")
@@ -153,46 +182,42 @@ class RAGRetriever:
         except Exception as e:
             logger.warning(f"Error cargando centroide de caché: {e}")
 
-        # Si llegamos aquí, no se pudo cargar.
-        # Intentar disparar recálculo en background si hay loop
+        if spawn_if_missing:
+            self._schedule_centroid_recalc("cache_miss_on_load")
+
+    def _schedule_centroid_recalc(self, reason: str):
+        """
+        Helper robusto para disparar recálculo.
+        - Evita duplicados verificando Task en vuelo.
+        - Actualiza timestamp SOLO si se agenda exitosamente.
+        """
+        if self._recalc_task and not self._recalc_task.done():
+            return
+
         try:
             loop = asyncio.get_running_loop()
-            loop.create_task(self._recalculate_centroid_logic())
-            logger.info("Centroide no estaba en cache; recálculo disparado en background")
+            self._recalc_task = loop.create_task(self._recalculate_centroid_logic())
+            self._last_centroid_recalc_timestamp = time.time()
+            logger.info(f"Recálculo de centroide disparado en background. Razón: {reason}")
         except RuntimeError:
+            # No hay event loop corriendo: no tocamos timestamp para permitir reintento en path async.
             pass
-        except Exception:
-            pass
-
+        except Exception as e:
+            logger.warning(f"Error agendando recálculo de centroide: {e}")
 
     def ensure_centroid(self) -> bool:
         """
-        Método de conveniencia (sync) que garantiza o intenta recuperar el centroide.
-        - Si existe: return True
-        - Si no: intenta cargar de cache.
-        - Si falla cache: dispara recálculo background y return False.
+        Método sync: intenta cargar desde caché; si falta, intenta agendar recálculo (si hay loop).
         """
         if self._centroid_embedding is not None:
             return True
 
-        # Intentar cargar de nuevo (por si otro proceso lo actualizó)
-        self._try_load_centroid_from_cache()
-        
-        if self._centroid_embedding is not None:
-            return True
+        self._try_load_centroid_from_cache(spawn_if_missing=True)
+        return self._centroid_embedding is not None
 
-        # Si sigue sin estar, asegurar que se está recalculando
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(self._recalculate_centroid_logic())
-        except RuntimeError:
-            pass
-        except Exception:
-            pass
-            
-        return False
-
-
+    # ============================================================
+    #   SCORING HELPERS
+    # ============================================================
 
     def _get_content_type_score(self, chunk_type: str) -> float:
         try:
@@ -213,15 +238,12 @@ class RAGRetriever:
             return 0.6
 
     # ============================================================
-    #   VECTOR CLEANER (Patch 3)
+    #   VECTOR CLEANER
     # ============================================================
 
     def _clean_vector(self, v: Any) -> Optional[np.ndarray]:
         """
         Normaliza y valida un vector proveniente de Qdrant o metadata.
-        - Rechaza vectores corruptos
-        - Rechaza dimensiones incorrectas
-        - Normaliza unitariamente
         """
         try:
             if v is None:
@@ -244,10 +266,21 @@ class RAGRetriever:
                 return None
 
             return arr / norm
-
         except Exception:
             return None
 
+    async def _embed_query_async(self, text: str) -> Optional[np.ndarray]:
+        try:
+            if not self.embedding_manager:
+                return None
+            emb = await asyncio.to_thread(self.embedding_manager.embed_query, text)
+            return self._clean_vector(emb)
+        except Exception:
+            return None
+
+    # ============================================================
+    #   TRIVIAL QUERY
+    # ============================================================
 
     def _is_trivial_query(self, q: str) -> Tuple[bool, str]:
         s = (q or "").strip().lower()
@@ -257,13 +290,10 @@ class RAGRetriever:
             "ayuda", "quien eres", "como te llamas", "ok", "vale"
         }
         if s in small_talk:
-            logger.info("Trivial check: reason=small_talk, length_threshold=<3, precedence=small_talk")
             return (True, "small_talk")
         if len(s) < 3:
-            logger.info("Trivial check: reason=too_short, length_threshold=<3")
             return (True, "too_short")
         return (False, "")
-
 
     # ============================================================
     #   DOCUMENT RETRIEVAL
@@ -278,21 +308,12 @@ class RAGRetriever:
         use_semantic_ranking: bool = True,
         use_mmr: bool = False
     ) -> List[Document]:
-        """
-        Recupera documentos relevantes con reranking avanzado.
-        Incluye patch 2: NO filtramos nada en vector_store.
-        """
-
         start_time = time.perf_counter()
         query = query.strip() if query else ""
 
-        is_trivial, reason = self._is_trivial_query(query)
-        if is_trivial:
-            logger.info(f"Consulta trivial detectada ('{query}'): Salto de RAG ({reason})")
-            return []
-
-        gating_reason, use_rag = self.gating(query)
+        gating_reason, use_rag = await self.gating_async(query)
         logger.info(f"Retrieve: gating reason={gating_reason}, use_rag={use_rag}")
+
         if not use_rag:
             logger.info(f"Retrieve: Salto de RAG por gating (reason={gating_reason})")
             return []
@@ -303,10 +324,7 @@ class RAGRetriever:
             try:
                 cached_results = self._get_from_cache(query, k, filter_criteria, use_semantic_ranking, use_mmr)
                 if cached_results:
-                    self.performance_metrics.add_metric(
-                        'cache_operations',
-                        time.perf_counter() - cache_start
-                    )
+                    self.performance_metrics.add_metric('cache_operations', time.perf_counter() - cache_start)
                     return cached_results
             except Exception:
                 pass
@@ -317,15 +335,13 @@ class RAGRetriever:
             initial_k = min(k * settings.retrieval_k_multiplier, 20)
 
             try:
-                # Determinar si necesitamos vectores: se requieren para reranking semántico o MMR
                 need_vectors = bool(use_semantic_ranking or use_mmr)
-
                 relevant_docs = await asyncio.wait_for(
                     self.vector_store.retrieve(
                         query,
                         k=initial_k,
                         filter=filter_criteria,
-                        use_mmr=False,  # Siempre False aquí, MMR se aplica después si es necesario
+                        use_mmr=False,
                         with_vectors=need_vectors,
                     ),
                     timeout=5.0
@@ -335,35 +351,24 @@ class RAGRetriever:
             except Exception:
                 relevant_docs = []
 
-            self.performance_metrics.add_metric(
-                'vector_retrieval',
-                time.perf_counter() - vector_start
-            )
+            self.performance_metrics.add_metric('vector_retrieval', time.perf_counter() - vector_start)
 
             if not relevant_docs:
                 return []
 
-            # ====== Early return if <= k =======
             if len(relevant_docs) <= k:
                 return relevant_docs
 
-            # ====== Post-processing (Reranking / MMR) =======
-            final_docs = []
+            # ====== Post-processing =======
             if use_semantic_ranking:
                 rerank_start = time.perf_counter()
                 reranked = await self._semantic_reranking(query, relevant_docs)
-                self.performance_metrics.add_metric(
-                    'semantic_reranking',
-                    time.perf_counter() - rerank_start
-                )
+                self.performance_metrics.add_metric('semantic_reranking', time.perf_counter() - rerank_start)
                 final_docs = reranked[:k]
             elif use_mmr:
                 mmr_start = time.perf_counter()
                 final_docs = await self._apply_mmr(query, relevant_docs, k)
-                self.performance_metrics.add_metric(
-                    'mmr_application',
-                    time.perf_counter() - mmr_start
-                )
+                self.performance_metrics.add_metric('mmr_application', time.perf_counter() - mmr_start)
                 final_docs = final_docs[:k]
             else:
                 final_docs = relevant_docs[:k]
@@ -373,18 +378,14 @@ class RAGRetriever:
                 try:
                     cache_update = time.perf_counter()
                     self._add_to_cache(query, k, filter_criteria, final_docs, use_semantic_ranking, use_mmr)
-                    self.performance_metrics.add_metric(
-                        'cache_operations',
-                        time.perf_counter() - cache_update
-                    )
+                    self.performance_metrics.add_metric('cache_operations', time.perf_counter() - cache_update)
                 except Exception:
                     pass
 
-            # ====== Stats =======
             total_time = time.perf_counter() - start_time
             self.performance_metrics.add_metric('total_time', total_time)
 
-            if len(self.performance_metrics.metrics['total_time']) % 5 == 0:
+            if len(self.performance_metrics.metrics['total_time']) % 1 == 0:
                 self.performance_metrics.log_statistics()
 
             return final_docs
@@ -392,7 +393,6 @@ class RAGRetriever:
         except Exception as e:
             logger.error(f"Error retrieve_documents: {e}", exc_info=True)
             return []
-
 
     # ============================================================
     #   TRACE MODE
@@ -405,15 +405,12 @@ class RAGRetriever:
         filter_criteria: Optional[Dict[str, Any]] = None,
         include_context: bool = True,
     ) -> Dict[str, Any]:
-
         try:
             docs = await self.retrieve_documents(query, k, filter_criteria)
             items = []
-
             for doc in docs:
                 meta = doc.metadata or {}
                 preview = doc.page_content[:300] if doc.page_content else ""
-
                 items.append({
                     "score": float(meta.get("score", 0.0)),
                     "source": meta.get("source"),
@@ -424,7 +421,6 @@ class RAGRetriever:
                     "preview": preview,
                     "page_number": (int(meta.get("page_number")) if isinstance(meta.get("page_number"), (int, float)) else None),
                 })
-
             return {
                 "query": query,
                 "k": k,
@@ -432,43 +428,31 @@ class RAGRetriever:
                 "context": self.format_context_from_documents(docs) if include_context else None,
                 "timings": self.performance_metrics.get_statistics(),
             }
-
         except Exception as e:
             logger.error(f"Error retrieve_with_trace: {e}")
-            return {
-                "query": query,
-                "k": k,
-                "retrieved": [],
-                "context": None,
-                "timings": {},
-            }
-
+            return {"query": query, "k": k, "retrieved": [], "context": None, "timings": {}}
 
     # ============================================================
-    #   SEMANTIC RERANKING
+    #   SEMANTIC RERANKING & MMR
     # ============================================================
 
     async def _semantic_reranking(self, query: str, docs: List[Document]) -> List[Document]:
         if not self.embedding_manager:
             return docs
-
         try:
-            query_embedding = self.embedding_manager.embed_query(query)
-            query_vec = self._clean_vector(query_embedding)
+            query_vec = await self._embed_query_async(query)
+            if query_vec is None:
+                return docs
 
-            # No re-embeddings: si faltan vectores, no los regeneramos aquí
-            # Usaremos score semántico 0 para documentos sin vector y registraremos una advertencia
-            for idx, doc in enumerate(docs):
+            for doc in docs:
                 if doc.metadata.get("vector") is None:
-                    logger.warning("Documento sin vector durante semantic_reranking; se continúa sin re-embedding.")
+                    logger.warning("Documento sin vector durante semantic_reranking.")
 
             scored_docs = []
-
             for doc in docs:
                 doc_embedding = doc.metadata.get("vector")
                 semantic_score = 0.0
-
-                if query_vec is not None and doc_embedding is not None:
+                if doc_embedding is not None:
                     doc_vec = self._clean_vector(doc_embedding)
                     if doc_vec is not None:
                         semantic_score = float(np.dot(query_vec, doc_vec))
@@ -476,46 +460,37 @@ class RAGRetriever:
                 quality_score = float(doc.metadata.get('quality_score', 0.5))
                 length_score = min(len(doc.page_content.split()) / 100, 1.0)
                 content_type_score = self._get_content_type_score(doc.metadata.get('chunk_type', 'text'))
-
-                pdf_priority_factor = 1.5 if str(doc.metadata.get("source", "")).lower().endswith(".pdf") else 1.0
+                pdf_priority = 1.5 if str(doc.metadata.get("source", "")).lower().endswith(".pdf") else 1.0
 
                 final_score = (
                     semantic_score * 0.5 +
                     quality_score * 0.35 +
                     length_score * 0.1 +
                     content_type_score * 0.05
-                ) * pdf_priority_factor
+                ) * pdf_priority
 
                 doc.metadata["score"] = final_score
                 scored_docs.append((doc, final_score))
 
             return [doc for doc, _ in sorted(scored_docs, key=lambda x: x[1], reverse=True)]
-
         except Exception as e:
             logger.error(f"Error en reranking semántico: {e}")
             return docs
 
-
-    # ============================================================
-    #   MMR
-    # ============================================================
-
     async def _apply_mmr(self, query: str, docs: List[Document], k: int, lambda_mult: float = 0.5) -> List[Document]:
         if not self.embedding_manager:
             return docs[:k]
-
         try:
-            query_embedding = self.embedding_manager.embed_query(query)
-            query_vec = self._clean_vector(query_embedding)
+            query_vec = await self._embed_query_async(query)
+            if query_vec is None:
+                return docs[:k]
 
-            # Construir la lista de índices candidatos que sí tienen vector
             candidate_indices = []
             doc_embeddings = {}
 
             for idx, doc in enumerate(docs):
                 emb = doc.metadata.get("vector")
                 if emb is None:
-                    logger.warning("Documento sin vector durante MMR; se omite para diversidad.")
                     continue
                 cleaned = self._clean_vector(emb)
                 if cleaned is None:
@@ -524,7 +499,6 @@ class RAGRetriever:
                 candidate_indices.append(idx)
 
             if not candidate_indices:
-                # Sin vectores disponibles: fallback a top-k original
                 return docs[:k]
 
             selected_indices = []
@@ -532,17 +506,14 @@ class RAGRetriever:
 
             for _ in range(min(k, len(docs))):
                 mmr_scores = []
-
                 for idx in remaining:
-                    relevance = float(np.dot(query_vec, doc_embeddings[idx])) if query_vec is not None else 0.0
-
+                    relevance = float(np.dot(query_vec, doc_embeddings[idx]))
                     if selected_indices:
                         selected_embeds = [doc_embeddings[i] for i in selected_indices]
                         similarities = [float(np.dot(doc_embeddings[idx], s)) for s in selected_embeds]
                         diversity = 1 - max(similarities)
                     else:
                         diversity = 1.0
-
                     mmr_score = lambda_mult * relevance + (1 - lambda_mult) * diversity
                     mmr_scores.append((idx, mmr_score))
 
@@ -551,10 +522,8 @@ class RAGRetriever:
                 remaining.remove(best_idx)
 
             return [docs[i] for i in selected_indices]
-
         except Exception:
             return docs[:k]
-
 
     # ============================================================
     #   CONTEXT FORMATTER
@@ -566,262 +535,278 @@ class RAGRetriever:
 
         grouped = self._group_documents_by_type(documents)
         parts = ["Información relevante encontrada:"]
-
-        if "header" in grouped:
-            parts.extend([f"## {d.page_content.strip()}" for d in grouped["header"]])
-            parts.append("")
-
-        if "paragraph" in grouped:
-            parts.extend([d.page_content.strip() for d in grouped["paragraph"]])
-            parts.append("")
-
-        for ltype in ["numbered_list", "bullet_list"]:
-            if ltype in grouped:
-                parts.extend([d.page_content.strip() for d in grouped[ltype]])
+        for t in ["header", "paragraph", "numbered_list", "bullet_list", "text"]:
+            if t in grouped:
+                parts.extend([d.page_content.strip() for d in grouped[t]])
                 parts.append("")
-
-        if "text" in grouped:
-            parts.extend([d.page_content.strip() for d in grouped["text"]])
-
         return "\n\n".join(filter(None, parts))
 
-
     def _group_documents_by_type(self, documents: List[Document]) -> Dict[str, List[Document]]:
-        grouped = {}
+        grouped: Dict[str, List[Document]] = {}
         for doc in documents:
             t = doc.metadata.get("chunk_type", "text")
             grouped.setdefault(t, []).append(doc)
         return grouped
 
-
     # ============================================================
-    #   PREMIUM GATING (Patch 3)
+    #   PREMIUM GATING: CENTROID RECALC (FIXED + LOCKED)
     # ============================================================
 
     async def _recalculate_centroid_logic(self) -> bool:
         """
-        Calcula el centroide usando Streaming Mean en memoria constante.
-        Recorre Qdrant por lotes sin acumular todos los vectores.
-        Al finalizar, normaliza y guarda en self._centroid_embedding.
+        Calcula el centroide usando Streaming Mean.
+        FIXES:
+        - Protegido con Lock async (evita 2 recalcs simultáneos incluso si llaman trigger/warmup a la vez).
+        - Actualiza _last_total_points_count con COUNT real de Qdrant al final (alineado con gating_async).
         """
+        lock = self._get_centroid_lock()
+        async with lock:
+            try:
+                client = getattr(self.vector_store, "client", None)
+                if client is None:
+                    return False
 
-        if self._is_recalculating:
-            return False
-        self._is_recalculating = True
-        try:
-            client = getattr(self.vector_store, "client", None)
-            if client is None:
-                logger.warning("VectorStore no disponible para recálculo de centroide.")
-                return False
+                limit = 1000
+                next_offset = None
+                sum_vector: Optional[np.ndarray] = None
+                valid_vectors_count: int = 0
 
-            limit = 1000
-            next_offset = None
-            sum_vector: Optional[np.ndarray] = None
-            count: int = 0
+                while True:
+                    try:
+                        res = await asyncio.to_thread(
+                            client.scroll,
+                            collection_name="rag_collection",
+                            limit=limit,
+                            offset=next_offset,
+                            with_payload=True,
+                            with_vectors=True,
+                        )
 
-            while True:
-                try:
-                    # Ejecutar scroll en hilo para no bloquear el loop
-                    res = await asyncio.to_thread(
-                        client.scroll,
-                        collection_name="rag_collection",
-                        limit=limit,
-                        offset=next_offset,
-                        with_payload=True,
-                        with_vectors=True,
-                    )
+                        points = getattr(res, "points", None)
+                        next_offset = getattr(res, "next_page_offset", None)
+                        if points is None and isinstance(res, tuple) and len(res) == 2:
+                            points, next_offset = res
 
-                    points = getattr(res, "points", None)
-                    next_offset = getattr(res, "next_page_offset", None)
+                        if not points:
+                            break
 
-                    # compat
-                    if points is None and isinstance(res, tuple) and len(res) == 2:
-                        points, next_offset = res
+                        for p in points:
+                            emb = self._clean_vector(getattr(p, "vector", None))
+                            if emb is None:
+                                vs = getattr(p, "vectors", None)
+                                if isinstance(vs, dict) and vs:
+                                    try:
+                                        emb = self._clean_vector(next(iter(vs.values())))
+                                    except Exception:
+                                        emb = None
 
-                    if not points:
-                        break
-
-                    for p in points:
-                        emb = self._clean_vector(getattr(p, "vector", None))
-                        if emb is None:
-                            vs = getattr(p, "vectors", None)
-                            if isinstance(vs, dict) and vs:
-                                try:
-                                    emb = self._clean_vector(next(iter(vs.values())))
-                                except Exception:
-                                    emb = None
-
-                        if emb is None:
-                            continue
-
-                        if sum_vector is None:
-                            try:
-                                sum_vector = np.zeros_like(emb, dtype=np.float32)
-                            except Exception:
+                            if emb is None:
                                 continue
 
-                        try:
-                            sum_vector += emb.astype(np.float32)
-                            count += 1
-                        except Exception:
-                            # Ignorar vectores corruptos
-                            pass
+                            if sum_vector is None:
+                                try:
+                                    sum_vector = np.zeros_like(emb, dtype=np.float32)
+                                except Exception:
+                                    continue
 
-                    if not next_offset:
+                            try:
+                                sum_vector += emb.astype(np.float32)
+                                valid_vectors_count += 1
+                            except Exception:
+                                pass
+
+                        if not next_offset:
+                            break
+
+                    except Exception as e:
+                        logger.warning(f"Error scroll streaming centroide: {e}")
                         break
 
-                except Exception as e:
-                    logger.warning(f"Error scroll streaming centroide: {e}")
-                    break
+                if sum_vector is None or valid_vectors_count == 0:
+                    logger.info("No embeddings válidos disponibles para centroide.")
+                    return False
 
-            if sum_vector is None or count == 0:
-                logger.info("No embeddings válidos disponibles para centroide (streaming).")
-                return False
-
-            try:
-                centroid = sum_vector / float(count)
+                centroid = sum_vector / float(valid_vectors_count)
                 norm = np.linalg.norm(centroid)
                 if norm == 0:
-                    logger.info("Norma cero al normalizar centroide.")
                     return False
+
                 self._centroid_embedding = (centroid / norm).astype(np.float32)
-                self._last_centroid_recalc_timestamp = time.time()
+
+                # Alinear con gating_async: guardar COUNT total real
+                try:
+                    c = await asyncio.to_thread(client.count, collection_name="rag_collection")
+                    self._last_total_points_count = int(getattr(c, "count", 0))
+                    self._last_corpus_size_check_time = time.time()
+                except Exception:
+                    pass
+
+                try:
+                    if bool(getattr(settings, "enable_cache", True)):
+                        cache.set("rag:centroid", self._centroid_embedding.tolist())
+                except Exception:
+                    pass
+
+                logger.info(
+                    f"Centroide recalculado. Valid Vectors: {valid_vectors_count}. "
+                    f"Total Qdrant Points: {self._last_total_points_count}"
+                )
+                return True
+
+            except asyncio.CancelledError:
+                # Si cancelamos por reset_centroid(), salimos limpio
+                logger.info("Recalculo de centroide cancelado.")
+                return False
             except Exception as e:
-                logger.warning(f"Error normalizando centroide: {e}")
+                logger.warning(f"Error _recalculate_centroid_logic: {e}")
                 return False
 
-            # Opcional: cachear centroide (lista) para acelerar reinicios
+    # ============================================================
+    #   GATING (SYNC + ASYNC)
+    # ============================================================
+
+    def should_use_rag(self, query: str) -> bool:
+        """Compatibilidad: NO bloquear event loop. En async usar gating_async()."""
+        try:
             try:
-                if bool(getattr(settings, "enable_cache", True)):
-                    cache.set("rag:centroid", self._centroid_embedding.tolist())
+                asyncio.get_running_loop()
+                logger.warning("should_use_rag() llamado dentro de un event loop; usar gating_async().")
+                return True
+            except RuntimeError:
+                return self.gating(query)[1]
+        except Exception:
+            return True
+
+    def gating(self, query: str) -> Tuple[str, bool]:
+        """
+        Sistema de gating Ruta B (Síncrono/Legacy).
+        NO hace llamadas de red. Usa memoria local.
+        """
+        try:
+            q = (query or "").strip()
+            self.ensure_centroid()  # intenta cache + schedule si hay loop
+
+            corpus_size = self._last_total_points_count
+            q_vec = None  # legacy sync: no embebemos para no bloquear
+
+            return self._evaluate_gating_logic(q, q_vec, corpus_size)
+        except Exception as e:
+            logger.warning(f"Error gating: {e}")
+            return ("error", True)
+
+    async def gating_async(self, query: str) -> Tuple[str, bool]:
+        """
+        Versión async de gating. Orquestador principal de recálculos.
+        """
+        try:
+            q = (query or "").strip()
+
+            # 1) Carga rápida (sin spawnear)
+            self._try_load_centroid_from_cache(spawn_if_missing=False)
+
+            # 2) Verificar invalidación por tamaño (TOTAL vs TOTAL)
+            current_total_points = None
+            try:
+                now = time.time()
+                if (now - self._last_corpus_size_check_time) < float(self._corpus_size_cache_ttl):
+                    current_total_points = self._last_total_points_count
+                else:
+                    c = await asyncio.to_thread(self.vector_store.client.count, collection_name="rag_collection")
+                    new_count = int(getattr(c, "count", 0))
+
+                    if new_count is not None and self._last_total_points_count is not None and new_count != self._last_total_points_count:
+                        self._centroid_embedding = None
+                        logger.info(
+                            f"Corpus size changed ({self._last_total_points_count} -> {new_count}). "
+                            f"Invalidating centroid."
+                        )
+                        self._schedule_centroid_recalc("corpus_size_changed")
+
+                    self._last_total_points_count = new_count
+                    self._last_corpus_size_check_time = now
+                    current_total_points = new_count
             except Exception:
                 pass
 
-            logger.info("Centroide recalculado exitosamente con Streaming Mean.")
-            return True
+            # 3) Si falta centroide, agendar (task-check evita spam)
+            if self._centroid_embedding is None:
+                self._schedule_centroid_recalc("missing_centroid_async")
+
+            # 4) Embedding query
+            q_vec = None
+            try:
+                if self.embedding_manager:
+                    q_vec = await self._embed_query_async(q)
+            except Exception:
+                pass
+
+            return self._evaluate_gating_logic(q, q_vec, current_total_points)
 
         except Exception as e:
-            logger.warning(f"Error _recalculate_centroid_logic: {e}")
-            return False
-        finally:
-            self._is_recalculating = False
+            logger.warning(f"Error gating_async: {e}")
+            return ("error", True)
 
-
-    def should_use_rag(self, query: str) -> bool:
-        """Compatibilidad: delega al nuevo sistema de gating (Ruta B)."""
-        try:
-            return self.gating(query)[1]
-        except Exception as e:
-            logger.warning(f"Error should_use_rag (delegado): {e}")
-            return False
-
-    def gating(self, query: str) -> Tuple[str, bool]:
-        """Sistema de gating Ruta B.
-        Devuelve (reason, use_rag) implementando capas: heurística, intención mínima,
-        centroide con invalidación por tamaño de corpus, similitud con threshold dinámico
-        y activación en corpus pequeño.
+    def _evaluate_gating_logic(self, query: str, query_vec: Optional[np.ndarray], corpus_size: Optional[int]) -> Tuple[str, bool]:
+        """
+        Lógica pura de gating sin I/O.
         """
         try:
             q = (query or "").strip()
 
             is_trivial, trivial_reason = self._is_trivial_query(q)
             if is_trivial:
-                logger.info(f"Gating: similitud=—, threshold={self._gating_threshold:.4f}, reason={trivial_reason}")
                 return (trivial_reason, False)
 
-            # 0. Asegurar centroide disponible
-            self.ensure_centroid()
-
-            # Detección mínima de intención semántica
             interrogatives = ("qué", "como", "cómo", "donde", "dónde", "cuando", "cuándo", "por qué", "para qué", "puedo", "quiero", "necesito")
             has_interrogative = any(w in q.lower() for w in interrogatives) or ("?" in q)
             tokens = [t for t in q.lower().split() if t]
+
             if not has_interrogative and len(tokens) <= 3:
-                logger.info(f"Gating: similitud=—, threshold={self._gating_threshold:.4f}, reason=low_intent")
                 return ("low_intent", False)
 
-            # Invalidación automática del centroide si cambia tamaño del corpus (con cache de count)
-            corpus_size = None
-            try:
-                now = time.time()
-            except Exception:
-                now = 0.0
-
-            try:
-                # Si el último check es reciente, usar cache
-                if (now - self._last_corpus_size_check_time) < float(self._corpus_size_cache_ttl):
-                    corpus_size = self._last_corpus_size
-                else:
-                    try:
-                        c = self.vector_store.client.count(collection_name="rag_collection")
-                        new_size = int(getattr(c, "count", 0))
-                    except Exception:
-                        new_size = None
-
-                    # Invalidar centroide solo si cambia el tamaño del corpus
-                    if new_size is not None and self._last_corpus_size is not None and new_size != self._last_corpus_size:
-                        self._centroid_embedding = None
-                        logger.info(f"Corpus size changed ({self._last_corpus_size} -> {new_size}) -> centroid invalidated -> recalculation scheduled")
-                        
-                        # Disparar recálculo con rate-limit (ej. no más de 1 vez cada 60s)
-                        if (now - self._last_centroid_recalc_timestamp) > 60.0:
-                            try:
-                                loop = asyncio.get_running_loop()
-                                loop.create_task(self._recalculate_centroid_logic())
-                            except RuntimeError:
-                                pass
-                            except Exception:
-                                pass
-
-                    # Actualizar cache y timestamp
-                    self._last_corpus_size = new_size if new_size is not None else self._last_corpus_size
-                    self._last_corpus_size_check_time = now
-                    corpus_size = self._last_corpus_size
-            except Exception:
-                pass
-
-            # Activación con corpus pequeño
-            if isinstance(corpus_size, int) and corpus_size < 20:
+            if corpus_size is not None and corpus_size < 20:
                 use_small = bool(has_interrogative or len(tokens) >= 4)
-                logger.info(f"Gating: similitud=—, threshold={self._gating_threshold:.4f}, reason=small_corpus")
                 return ("small_corpus", use_small)
 
-            # Fail Open: no bloquear si el centroide no está disponible
             if not self.embedding_manager:
-                logger.warning("Centroide no disponible, omitiendo gating (Fail Open).")
-                return ("no_centroid_fallback", True)
+                return ("no_embedder_fail_open", True)
 
             c_vec = self._centroid_embedding
             if not isinstance(c_vec, np.ndarray) or c_vec.size == 0:
-                logger.info(f"Gating: similitud=—, threshold={self._gating_threshold:.4f}, reason=no_centroid")
                 return ("no_centroid", True)
 
-            # Similaridad query-centroide
-            q_emb = self.embedding_manager.embed_query(q)
-            q_vec = self._clean_vector(q_emb)
-            
-            if q_vec is None:
-                logger.info(f"Gating: similitud=—, threshold={self._gating_threshold:.4f}, reason=invalid_query_vector")
-                return ("invalid_query_vector", False)
-                
-            sim = float(np.dot(q_vec, c_vec))
+            if query_vec is None:
+                if corpus_size is None:
+                    use_unknown = bool(has_interrogative or len(tokens) >= 4)
+                    return ("no_vector_unknown_corpus", use_unknown)
 
+                if 0 <= corpus_size < 50:
+                    return ("no_vector_small_corpus", True)
+
+                return ("no_vector_fail_closed", False)
+
+            sim = float(np.dot(query_vec, c_vec))
             use = bool(sim >= self._gating_threshold)
             reason = "semantic_match" if use else "low_similarity"
             logger.info(f"Gating: similitud={sim:.4f}, threshold={self._gating_threshold:.4f}, reason={reason}")
             return (reason, use)
 
         except Exception as e:
-            logger.info(f"Gating: similitud=—, threshold={self._gating_threshold:.4f}, reason=error")
-            logger.warning(f"Error gating: {e}")
-            return ("error", False)
-
+            logger.warning(f"Error _evaluate_gating_logic: {e}")
+            return ("error", True)
 
     # ============================================================
     #   CACHE
     # ============================================================
 
-    def _get_from_cache(self, query: str, k: int, filter_criteria: Optional[Dict[str, Any]], use_semantic_ranking: bool, use_mmr: bool) -> Optional[List[Document]]:
+    def _get_from_cache(
+        self,
+        query: str,
+        k: int,
+        filter_criteria: Optional[Dict[str, Any]],
+        use_semantic_ranking: bool,
+        use_mmr: bool
+    ) -> Optional[List[Document]]:
         try:
             if not bool(getattr(settings, "enable_cache", True)) or not self.cache_enabled:
                 return None
@@ -832,28 +817,30 @@ class RAGRetriever:
                 filter_key = str(filter_criteria or "")
 
             query_norm = query.strip().lower()
-            sr = bool(use_semantic_ranking)
-            mmr = bool(use_mmr)
-            cache_key = f"rag:{query_norm}:sr={int(sr)}:mmr={int(mmr)}:{k}:{filter_key}"
+            cache_key = f"rag:{query_norm}:sr={int(bool(use_semantic_ranking))}:mmr={int(bool(use_mmr))}:{k}:{filter_key}"
             cached = cache.get(cache_key)
-
             if not cached:
                 return None
 
-            docs = []
+            docs: List[Document] = []
             for item in cached:
                 try:
                     docs.append(Document(page_content=item["page_content"], metadata=item["metadata"]))
                 except Exception:
                     pass
-
             return docs
-
         except Exception:
             return None
 
-
-    def _add_to_cache(self, query: str, k: int, filter_criteria: Optional[Dict[str, Any]], docs: List[Document], use_semantic_ranking: bool, use_mmr: bool):
+    def _add_to_cache(
+        self,
+        query: str,
+        k: int,
+        filter_criteria: Optional[Dict[str, Any]],
+        docs: List[Document],
+        use_semantic_ranking: bool,
+        use_mmr: bool
+    ):
         try:
             if not bool(getattr(settings, "enable_cache", True)) or not self.cache_enabled:
                 return
@@ -864,36 +851,68 @@ class RAGRetriever:
                 filter_key = str(filter_criteria or "")
 
             query_norm = query.strip().lower()
-            sr = bool(use_semantic_ranking)
-            mmr = bool(use_mmr)
-            cache_key = f"rag:{query_norm}:sr={int(sr)}:mmr={int(mmr)}:{k}:{filter_key}"
+            cache_key = f"rag:{query_norm}:sr={int(bool(use_semantic_ranking))}:mmr={int(bool(use_mmr))}:{k}:{filter_key}"
 
-            serialized_docs = [
-                {
-                    "page_content": d.page_content,
-                    "metadata": d.metadata
-                }
-                for d in docs
-            ]
+            serialized_docs = []
+            for d in docs:
+                meta = dict(d.metadata or {})
+                for heavy_key in ("vector", "vectors", "embedding", "embeddings"):
+                    if heavy_key in meta:
+                        del meta[heavy_key]
+                serialized_docs.append({"page_content": d.page_content, "metadata": meta})
 
             cache.set(cache_key, serialized_docs)
-
         except Exception as e:
             logger.warning(f"Cache update error: {e}")
-
 
     def invalidate_rag_cache(self) -> None:
         try:
             if bool(getattr(settings, "enable_cache", True)):
                 cache.invalidate_prefix("rag:")
-            # Opcional: resetear centroide para forzar recálculo posterior sin bloquear
             self.reset_centroid()
         except Exception:
             pass
 
+    # ============================================================
+    #   RESET / WARMUP / TRIGGER (FIXED)
+    # ============================================================
+
     def reset_centroid(self) -> None:
+        """
+        FIX CRÍTICO:
+        - Limpia el centroide
+        - Cancela task de recálculo en vuelo (evita que escriba un centroide "viejo" después del reset)
+        - Libera el slot para poder re-agendar
+        """
         self._centroid_embedding = None
 
+        t = self._recalc_task
+        if t and not t.done():
+            try:
+                t.cancel()
+            except Exception:
+                pass
+        self._recalc_task = None
+
     async def trigger_centroid_update(self) -> bool:
-        """Dispara el recálculo del centroide de forma asíncrona."""
+        """
+        Fuerza recálculo y espera a que termine (protegido por lock).
+        """
+        # Si ya hay task corriendo por schedule, esperamos esa (no lanzamos doble)
+        if self._recalc_task and not self._recalc_task.done():
+            try:
+                return bool(await self._recalc_task)
+            except Exception:
+                return False
         return await self._recalculate_centroid_logic()
+
+    async def warmup(self):
+        """
+        Arranque: intenta cache; si no existe, recalcula y ESPERA su finalización.
+        """
+        try:
+            self._try_load_centroid_from_cache(spawn_if_missing=False)
+            if not isinstance(self._centroid_embedding, np.ndarray) or self._centroid_embedding.size == 0:
+                await self.trigger_centroid_update()
+        except Exception as e:
+            logger.warning(f"Warmup error: {e}")
