@@ -94,6 +94,11 @@ class RAGRetriever:
     funcione correctamente desde la primera petición.
     """
 
+    # --- Ajustes de logging (solo observabilidad) ---
+    _TOP_DOCS_LOG_N = 5
+    _PREVIEW_CHARS = 180
+    _MAX_QUERY_LOG_CHARS = 160
+
     def __init__(
         self,
         vector_store: VectorStore,
@@ -134,6 +139,81 @@ class RAGRetriever:
         logger.info("RAGRetriever inicializado con optimizaciones y gating robusto.")
         try:
             logger.info(f"Umbral de gating (RAG_GATING_SIMILARITY_THRESHOLD)={self._gating_threshold}")
+        except Exception:
+            pass
+
+    # ============================================================
+    #   INTERNAL: LOG HELPERS
+    # ============================================================
+
+    def _safe_query_for_log(self, q: str) -> str:
+        s = (q or "").replace("\n", " ").strip()
+        if len(s) > self._MAX_QUERY_LOG_CHARS:
+            return s[:self._MAX_QUERY_LOG_CHARS] + "..."
+        return s
+
+    def _extract_doc_fields_for_log(self, doc: Document) -> Dict[str, Any]:
+        meta = doc.metadata or {}
+        source = meta.get("source") or meta.get("file_path") or "unknown"
+        page = meta.get("page_number")
+        score = meta.get("score", 0.0)
+        try:
+            score = float(score or 0.0)
+        except Exception:
+            score = 0.0
+
+        preview = (doc.page_content or "").replace("\n", " ").strip()
+        if len(preview) > self._PREVIEW_CHARS:
+            preview = preview[:self._PREVIEW_CHARS] + "..."
+
+        return {"source": source, "page": page, "score": score, "preview": preview}
+
+    def _log_score_distribution(self, docs: List[Document], stage: str, query: str) -> None:
+        try:
+            scores = []
+            for d in docs or []:
+                try:
+                    scores.append(float((d.metadata or {}).get("score", 0.0) or 0.0))
+                except Exception:
+                    pass
+            if not scores:
+                return
+            q = self._safe_query_for_log(query)
+            logger.debug(
+                f"[RAG][SCORES][{stage}] q='{q}' "
+                f"count={len(scores)} min={min(scores):.4f} max={max(scores):.4f} avg={statistics.mean(scores):.4f}"
+            )
+        except Exception:
+            pass
+
+    def _log_top_docs(self, docs: List[Document], stage: str, query: str, k: int) -> None:
+        """
+        Loguea top N docs por score (ya sea score de Qdrant o score post-rerank).
+        """
+        try:
+            if not docs:
+                return
+
+            # Ordenar por score desc
+            def s(d: Document) -> float:
+                try:
+                    return float((d.metadata or {}).get("score", 0.0) or 0.0)
+                except Exception:
+                    return 0.0
+
+            sorted_docs = sorted(docs, key=s, reverse=True)
+            top_n = sorted_docs[: max(1, min(self._TOP_DOCS_LOG_N, k, len(sorted_docs)))]
+
+            q = self._safe_query_for_log(query)
+            logger.debug(f"[RAG][TOP_DOCS][{stage}] q='{q}' showing={len(top_n)}/{len(sorted_docs)}")
+
+            for i, d in enumerate(top_n, start=1):
+                info = self._extract_doc_fields_for_log(d)
+                logger.debug(
+                    f"[RAG][TOP_DOCS][{stage}] #{i} "
+                    f"score={info['score']:.4f} source={info['source']} page={info['page']} "
+                    f"preview='{info['preview']}'"
+                )
         except Exception:
             pass
 
@@ -311,6 +391,7 @@ class RAGRetriever:
         start_time = time.perf_counter()
         query = query.strip() if query else ""
 
+        # --- gating ---
         gating_reason, use_rag = await self.gating_async(query)
         logger.info(f"Retrieve: gating reason={gating_reason}, use_rag={use_rag}")
 
@@ -325,14 +406,29 @@ class RAGRetriever:
                 cached_results = self._get_from_cache(query, k, filter_criteria, use_semantic_ranking, use_mmr)
                 if cached_results:
                     self.performance_metrics.add_metric('cache_operations', time.perf_counter() - cache_start)
+                    logger.debug(
+                        f"[RAG][CACHE][HIT] q='{self._safe_query_for_log(query)}' "
+                        f"k={k} sr={int(bool(use_semantic_ranking))} mmr={int(bool(use_mmr))} "
+                        f"docs={len(cached_results)}"
+                    )
+                    # log de top docs (ya vienen con score si estaban serializados con metadata)
+                    self._log_top_docs(cached_results, stage="cache", query=query, k=k)
                     return cached_results
+                else:
+                    logger.debug(
+                        f"[RAG][CACHE][MISS] q='{self._safe_query_for_log(query)}' "
+                        f"k={k} sr={int(bool(use_semantic_ranking))} mmr={int(bool(use_mmr))}"
+                    )
             except Exception:
                 pass
 
         # ====== VectorStore retrieve =======
         try:
             vector_start = time.perf_counter()
-            initial_k = min(k * settings.retrieval_k_multiplier, 20)
+
+            # Traer más candidatos que k (para reranking / mmr)
+            # Mantengo tu lógica original con cap a 20.
+            initial_k = min(max(1, k) * int(getattr(settings, "retrieval_k_multiplier", 3)), 20)
 
             try:
                 need_vectors = bool(use_semantic_ranking or use_mmr)
@@ -341,22 +437,36 @@ class RAGRetriever:
                         query,
                         k=initial_k,
                         filter=filter_criteria,
-                        use_mmr=False,
+                        use_mmr=False,           # (tu pipeline aplica mmr/rerank aquí, no en VectorStore)
                         with_vectors=need_vectors,
                     ),
                     timeout=5.0
                 )
             except asyncio.TimeoutError:
                 relevant_docs = []
-            except Exception:
+                logger.warning(f"[RAG][VECTOR] Timeout Qdrant retrieve (timeout=5s) q='{self._safe_query_for_log(query)}'")
+            except Exception as e:
                 relevant_docs = []
+                logger.warning(f"[RAG][VECTOR] Error Qdrant retrieve: {e}")
 
             self.performance_metrics.add_metric('vector_retrieval', time.perf_counter() - vector_start)
 
             if not relevant_docs:
+                logger.info(f"[RAG] 0 docs recuperados desde VectorStore | q='{self._safe_query_for_log(query)}'")
                 return []
 
+            # Logs de observabilidad (raw vector results)
+            logger.debug(
+                f"[RAG][VECTOR] q='{self._safe_query_for_log(query)}' "
+                f"requested_k={k} initial_k={initial_k} got={len(relevant_docs)} "
+                f"sr={int(bool(use_semantic_ranking))} mmr={int(bool(use_mmr))}"
+            )
+            self._log_score_distribution(relevant_docs, stage="raw_vector", query=query)
+            self._log_top_docs(relevant_docs, stage="raw_vector", query=query, k=initial_k)
+
             if len(relevant_docs) <= k:
+                # Aún así logueamos final
+                self._log_top_docs(relevant_docs, stage="final", query=query, k=k)
                 return relevant_docs
 
             # ====== Post-processing =======
@@ -364,14 +474,24 @@ class RAGRetriever:
                 rerank_start = time.perf_counter()
                 reranked = await self._semantic_reranking(query, relevant_docs)
                 self.performance_metrics.add_metric('semantic_reranking', time.perf_counter() - rerank_start)
+
                 final_docs = reranked[:k]
+
+                # Logs post-rerank
+                self._log_score_distribution(reranked, stage="post_rerank", query=query)
+                self._log_top_docs(final_docs, stage="final", query=query, k=k)
+
             elif use_mmr:
                 mmr_start = time.perf_counter()
                 final_docs = await self._apply_mmr(query, relevant_docs, k)
                 self.performance_metrics.add_metric('mmr_application', time.perf_counter() - mmr_start)
+
                 final_docs = final_docs[:k]
+                self._log_top_docs(final_docs, stage="final", query=query, k=k)
+
             else:
                 final_docs = relevant_docs[:k]
+                self._log_top_docs(final_docs, stage="final", query=query, k=k)
 
             # ====== Cache store =======
             if self.cache_enabled and bool(getattr(settings, "enable_cache", True)):
@@ -379,13 +499,18 @@ class RAGRetriever:
                     cache_update = time.perf_counter()
                     self._add_to_cache(query, k, filter_criteria, final_docs, use_semantic_ranking, use_mmr)
                     self.performance_metrics.add_metric('cache_operations', time.perf_counter() - cache_update)
+                    logger.debug(
+                        f"[RAG][CACHE][SET] q='{self._safe_query_for_log(query)}' "
+                        f"k={k} sr={int(bool(use_semantic_ranking))} mmr={int(bool(use_mmr))} "
+                        f"docs={len(final_docs)}"
+                    )
                 except Exception:
                     pass
 
             total_time = time.perf_counter() - start_time
             self.performance_metrics.add_metric('total_time', total_time)
 
-            if len(self.performance_metrics.metrics['total_time']) % 1 == 0:
+            if len(self.performance_metrics.metrics['total_time']) % 5 == 0:
                 self.performance_metrics.log_statistics()
 
             return final_docs
@@ -740,7 +865,13 @@ class RAGRetriever:
             except Exception:
                 pass
 
-            return self._evaluate_gating_logic(q, q_vec, current_total_points)
+            reason, use = self._evaluate_gating_logic(q, q_vec, current_total_points)
+            # Log “final” (para que no te confunda cuando hay razones previas en otras capas)
+            logger.debug(
+                f"[RAG][GATING][FINAL] q='{self._safe_query_for_log(q)}' "
+                f"reason={reason} use_rag={use} corpus_size={current_total_points}"
+            )
+            return (reason, use)
 
         except Exception as e:
             logger.warning(f"Error gating_async: {e}")
