@@ -99,12 +99,14 @@ class RAGRetriever:
         self.embedding_manager = embedding_manager
         self.cache_enabled = cache_enabled
         self.performance_metrics = PerformanceMetrics()
+        self._is_recalculating: bool = False
 
         # Centroide cacheado
         self._centroid_embedding: Optional[np.ndarray] = None
         self._last_corpus_size: Optional[int] = None
         self._last_corpus_size_check_time: float = 0.0
         self._corpus_size_cache_ttl: int = 10
+        self._last_centroid_recalc_timestamp: float = 0.0
 
         # Umbral de gating
         try:
@@ -114,11 +116,82 @@ class RAGRetriever:
         except Exception:
             self._gating_threshold = 0.45
 
+        # Inicialización del centroide desde caché
+        self._try_load_centroid_from_cache()
+
         logger.info("RAGRetriever inicializado con optimizaciones y gating robusto.")
         try:
             logger.info(f"Umbral de gating (RAG_GATING_SIMILARITY_THRESHOLD)={self._gating_threshold}")
         except Exception:
             pass
+
+
+    def _try_load_centroid_from_cache(self):
+        """Intenta cargar el centroide desde caché de forma síncrona."""
+        try:
+            if not bool(getattr(settings, "enable_cache", True)):
+                return
+
+            cached = cache.get("rag:centroid")
+            if cached and isinstance(cached, list):
+                # Validación de dimensión
+                dim = int(getattr(settings, "default_embedding_dimension", 1536))
+                if len(cached) != dim:
+                    logger.warning(f"Centroide en caché con dimensión incorrecta ({len(cached)} vs {dim}).")
+                    return
+
+                arr = np.array(cached, dtype=np.float32)
+                cleaned = self._clean_vector(arr)
+                if cleaned is not None:
+                    self._centroid_embedding = cleaned
+                    logger.info("Centroide cargado desde cache (rag:centroid)")
+                    return
+                else:
+                    logger.warning("Centroide en caché inválido (norma cero o corrupto).")
+            elif cached:
+                logger.warning("Centroide en caché tiene formato inválido (no es lista).")
+        except Exception as e:
+            logger.warning(f"Error cargando centroide de caché: {e}")
+
+        # Si llegamos aquí, no se pudo cargar.
+        # Intentar disparar recálculo en background si hay loop
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(self._recalculate_centroid_logic())
+            logger.info("Centroide no estaba en cache; recálculo disparado en background")
+        except RuntimeError:
+            pass
+        except Exception:
+            pass
+
+
+    def ensure_centroid(self) -> bool:
+        """
+        Método de conveniencia (sync) que garantiza o intenta recuperar el centroide.
+        - Si existe: return True
+        - Si no: intenta cargar de cache.
+        - Si falla cache: dispara recálculo background y return False.
+        """
+        if self._centroid_embedding is not None:
+            return True
+
+        # Intentar cargar de nuevo (por si otro proceso lo actualizó)
+        self._try_load_centroid_from_cache()
+        
+        if self._centroid_embedding is not None:
+            return True
+
+        # Si sigue sin estar, asegurar que se está recalculando
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(self._recalculate_centroid_logic())
+        except RuntimeError:
+            pass
+        except Exception:
+            pass
+            
+        return False
+
 
 
     def _get_content_type_score(self, chunk_type: str) -> float:
@@ -176,6 +249,22 @@ class RAGRetriever:
             return None
 
 
+    def _is_trivial_query(self, q: str) -> Tuple[bool, str]:
+        s = (q or "").strip().lower()
+        small_talk = {
+            "hola", "buenos días", "buenas tardes", "buenas noches",
+            "como estás", "qué tal", "gracias", "adios", "hasta luego",
+            "ayuda", "quien eres", "como te llamas", "ok", "vale"
+        }
+        if s in small_talk:
+            logger.info("Trivial check: reason=small_talk, length_threshold=<3, precedence=small_talk")
+            return (True, "small_talk")
+        if len(s) < 3:
+            logger.info("Trivial check: reason=too_short, length_threshold=<3")
+            return (True, "too_short")
+        return (False, "")
+
+
     # ============================================================
     #   DOCUMENT RETRIEVAL
     # ============================================================
@@ -197,22 +286,22 @@ class RAGRetriever:
         start_time = time.perf_counter()
         query = query.strip() if query else ""
 
-        clean_query = query.strip().lower()
-        small_talk = {
-            "hola", "buenos días", "buenas tardes", "buenas noches",
-            "como estás", "qué tal", "gracias", "adios", "hasta luego",
-            "ayuda", "quien eres", "como te llamas", "ok", "vale"
-        }
+        is_trivial, reason = self._is_trivial_query(query)
+        if is_trivial:
+            logger.info(f"Consulta trivial detectada ('{query}'): Salto de RAG ({reason})")
+            return []
 
-        if clean_query in small_talk or len(clean_query) < 3:
-            logger.info(f"Consulta trivial detectada ('{query}'): Salto de RAG")
+        gating_reason, use_rag = self.gating(query)
+        logger.info(f"Retrieve: gating reason={gating_reason}, use_rag={use_rag}")
+        if not use_rag:
+            logger.info(f"Retrieve: Salto de RAG por gating (reason={gating_reason})")
             return []
 
         # ====== Cache =======
         cache_start = time.perf_counter()
         if self.cache_enabled and bool(getattr(settings, "enable_cache", True)):
             try:
-                cached_results = self._get_from_cache(query, k, filter_criteria)
+                cached_results = self._get_from_cache(query, k, filter_criteria, use_semantic_ranking, use_mmr)
                 if cached_results:
                     self.performance_metrics.add_metric(
                         'cache_operations',
@@ -254,8 +343,8 @@ class RAGRetriever:
             if not relevant_docs:
                 return []
 
-            # ====== No need for reranking if <= k =======
-            if len(relevant_docs) <= k and not use_semantic_ranking and not use_mmr:
+            # ====== Early return if <= k =======
+            if len(relevant_docs) <= k:
                 return relevant_docs
 
             # ====== Post-processing (Reranking / MMR) =======
@@ -283,7 +372,7 @@ class RAGRetriever:
             if self.cache_enabled and bool(getattr(settings, "enable_cache", True)):
                 try:
                     cache_update = time.perf_counter()
-                    self._add_to_cache(query, k, filter_criteria, final_docs)
+                    self._add_to_cache(query, k, filter_criteria, final_docs, use_semantic_ranking, use_mmr)
                     self.performance_metrics.add_metric(
                         'cache_operations',
                         time.perf_counter() - cache_update
@@ -365,6 +454,7 @@ class RAGRetriever:
 
         try:
             query_embedding = self.embedding_manager.embed_query(query)
+            query_vec = self._clean_vector(query_embedding)
 
             # No re-embeddings: si faltan vectores, no los regeneramos aquí
             # Usaremos score semántico 0 para documentos sin vector y registraremos una advertencia
@@ -378,10 +468,10 @@ class RAGRetriever:
                 doc_embedding = doc.metadata.get("vector")
                 semantic_score = 0.0
 
-                if doc_embedding is not None:
-                    semantic_score = float(
-                        cosine_similarity([query_embedding], [doc_embedding])[0][0]
-                    )
+                if query_vec is not None and doc_embedding is not None:
+                    doc_vec = self._clean_vector(doc_embedding)
+                    if doc_vec is not None:
+                        semantic_score = float(np.dot(query_vec, doc_vec))
 
                 quality_score = float(doc.metadata.get('quality_score', 0.5))
                 length_score = min(len(doc.page_content.split()) / 100, 1.0)
@@ -416,6 +506,7 @@ class RAGRetriever:
 
         try:
             query_embedding = self.embedding_manager.embed_query(query)
+            query_vec = self._clean_vector(query_embedding)
 
             # Construir la lista de índices candidatos que sí tienen vector
             candidate_indices = []
@@ -426,9 +517,10 @@ class RAGRetriever:
                 if emb is None:
                     logger.warning("Documento sin vector durante MMR; se omite para diversidad.")
                     continue
-                if isinstance(emb, list):
-                    emb = np.array(emb)
-                doc_embeddings[idx] = emb
+                cleaned = self._clean_vector(emb)
+                if cleaned is None:
+                    continue
+                doc_embeddings[idx] = cleaned
                 candidate_indices.append(idx)
 
             if not candidate_indices:
@@ -442,11 +534,11 @@ class RAGRetriever:
                 mmr_scores = []
 
                 for idx in remaining:
-                    relevance = float(cosine_similarity([query_embedding], [doc_embeddings[idx]])[0][0])
+                    relevance = float(np.dot(query_vec, doc_embeddings[idx])) if query_vec is not None else 0.0
 
                     if selected_indices:
                         selected_embeds = [doc_embeddings[i] for i in selected_indices]
-                        similarities = cosine_similarity([doc_embeddings[idx]], selected_embeds)[0]
+                        similarities = [float(np.dot(doc_embeddings[idx], s)) for s in selected_embeds]
                         diversity = 1 - max(similarities)
                     else:
                         diversity = 1.0
@@ -513,6 +605,9 @@ class RAGRetriever:
         Al finalizar, normaliza y guarda en self._centroid_embedding.
         """
 
+        if self._is_recalculating:
+            return False
+        self._is_recalculating = True
         try:
             client = getattr(self.vector_store, "client", None)
             if client is None:
@@ -590,6 +685,7 @@ class RAGRetriever:
                     logger.info("Norma cero al normalizar centroide.")
                     return False
                 self._centroid_embedding = (centroid / norm).astype(np.float32)
+                self._last_centroid_recalc_timestamp = time.time()
             except Exception as e:
                 logger.warning(f"Error normalizando centroide: {e}")
                 return False
@@ -607,6 +703,8 @@ class RAGRetriever:
         except Exception as e:
             logger.warning(f"Error _recalculate_centroid_logic: {e}")
             return False
+        finally:
+            self._is_recalculating = False
 
 
     def should_use_rag(self, query: str) -> bool:
@@ -625,19 +723,14 @@ class RAGRetriever:
         """
         try:
             q = (query or "").strip()
-            # Heurística de small-talk (evaluar primero para cubrir términos cortos como "ok")
-            small_talk = {
-                "hola", "buenos días", "buenas tardes", "buenas noches",
-                "como estás", "qué tal", "gracias", "adios", "hasta luego",
-                "ayuda", "quien eres", "como te llamas", "ok", "vale"
-            }
-            if q.lower() in small_talk:
-                logger.info(f"Gating: similitud=—, threshold={self._gating_threshold:.4f}, reason=small_talk")
-                return ("small_talk", False)
 
-            if len(q) < 4:
-                logger.info(f"Gating: similitud=—, threshold={self._gating_threshold:.4f}, reason=too_short")
-                return ("too_short", False)
+            is_trivial, trivial_reason = self._is_trivial_query(q)
+            if is_trivial:
+                logger.info(f"Gating: similitud=—, threshold={self._gating_threshold:.4f}, reason={trivial_reason}")
+                return (trivial_reason, False)
+
+            # 0. Asegurar centroide disponible
+            self.ensure_centroid()
 
             # Detección mínima de intención semántica
             interrogatives = ("qué", "como", "cómo", "donde", "dónde", "cuando", "cuándo", "por qué", "para qué", "puedo", "quiero", "necesito")
@@ -668,6 +761,17 @@ class RAGRetriever:
                     # Invalidar centroide solo si cambia el tamaño del corpus
                     if new_size is not None and self._last_corpus_size is not None and new_size != self._last_corpus_size:
                         self._centroid_embedding = None
+                        logger.info(f"Corpus size changed ({self._last_corpus_size} -> {new_size}) -> centroid invalidated -> recalculation scheduled")
+                        
+                        # Disparar recálculo con rate-limit (ej. no más de 1 vez cada 60s)
+                        if (now - self._last_centroid_recalc_timestamp) > 60.0:
+                            try:
+                                loop = asyncio.get_running_loop()
+                                loop.create_task(self._recalculate_centroid_logic())
+                            except RuntimeError:
+                                pass
+                            except Exception:
+                                pass
 
                     # Actualizar cache y timestamp
                     self._last_corpus_size = new_size if new_size is not None else self._last_corpus_size
@@ -689,20 +793,18 @@ class RAGRetriever:
 
             c_vec = self._centroid_embedding
             if not isinstance(c_vec, np.ndarray) or c_vec.size == 0:
-                logger.warning("Centroide no disponible, omitiendo gating (Fail Open).")
-                return ("no_centroid_fallback", True)
+                logger.info(f"Gating: similitud=—, threshold={self._gating_threshold:.4f}, reason=no_centroid")
+                return ("no_centroid", True)
 
             # Similaridad query-centroide
             q_emb = self.embedding_manager.embed_query(q)
             q_vec = self._clean_vector(q_emb)
-            if q_vec is None or c_vec is None:
-                logger.info(f"Gating: similitud=—, threshold={self._gating_threshold:.4f}, reason=invalid_vectors")
-                return ("invalid_vectors", False)
-
-            try:
-                sim = float(cosine_similarity(q_vec.reshape(1, -1), c_vec.reshape(1, -1))[0][0])
-            except Exception:
-                sim = float(np.dot(q_vec, c_vec))
+            
+            if q_vec is None:
+                logger.info(f"Gating: similitud=—, threshold={self._gating_threshold:.4f}, reason=invalid_query_vector")
+                return ("invalid_query_vector", False)
+                
+            sim = float(np.dot(q_vec, c_vec))
 
             use = bool(sim >= self._gating_threshold)
             reason = "semantic_match" if use else "low_similarity"
@@ -719,7 +821,7 @@ class RAGRetriever:
     #   CACHE
     # ============================================================
 
-    def _get_from_cache(self, query: str, k: int, filter_criteria: Optional[Dict[str, Any]]) -> Optional[List[Document]]:
+    def _get_from_cache(self, query: str, k: int, filter_criteria: Optional[Dict[str, Any]], use_semantic_ranking: bool, use_mmr: bool) -> Optional[List[Document]]:
         try:
             if not bool(getattr(settings, "enable_cache", True)) or not self.cache_enabled:
                 return None
@@ -730,7 +832,9 @@ class RAGRetriever:
                 filter_key = str(filter_criteria or "")
 
             query_norm = query.strip().lower()
-            cache_key = f"rag:{query_norm}:{k}:{filter_key}"
+            sr = bool(use_semantic_ranking)
+            mmr = bool(use_mmr)
+            cache_key = f"rag:{query_norm}:sr={int(sr)}:mmr={int(mmr)}:{k}:{filter_key}"
             cached = cache.get(cache_key)
 
             if not cached:
@@ -749,7 +853,7 @@ class RAGRetriever:
             return None
 
 
-    def _add_to_cache(self, query: str, k: int, filter_criteria: Optional[Dict[str, Any]], docs: List[Document]):
+    def _add_to_cache(self, query: str, k: int, filter_criteria: Optional[Dict[str, Any]], docs: List[Document], use_semantic_ranking: bool, use_mmr: bool):
         try:
             if not bool(getattr(settings, "enable_cache", True)) or not self.cache_enabled:
                 return
@@ -760,7 +864,9 @@ class RAGRetriever:
                 filter_key = str(filter_criteria or "")
 
             query_norm = query.strip().lower()
-            cache_key = f"rag:{query_norm}:{k}:{filter_key}"
+            sr = bool(use_semantic_ranking)
+            mmr = bool(use_mmr)
+            cache_key = f"rag:{query_norm}:sr={int(sr)}:mmr={int(mmr)}:{k}:{filter_key}"
 
             serialized_docs = [
                 {
