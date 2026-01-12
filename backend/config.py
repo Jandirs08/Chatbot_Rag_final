@@ -92,6 +92,8 @@ class Settings(BaseSettings):
     # Configuraciones de Redis
     # Nota: Se usa redis_url como configuración principal, no configuraciones individuales
     redis_url: Optional[SecretStr] = Field(default=None, env="REDIS_URL")
+    cache_retry_attempts: int = Field(default=3, env="CACHE_RETRY_ATTEMPTS")
+    cache_retry_delay_base: float = Field(default=0.5, env="CACHE_RETRY_DELAY_BASE")
     
     
     # Configuraciones de Memoria
