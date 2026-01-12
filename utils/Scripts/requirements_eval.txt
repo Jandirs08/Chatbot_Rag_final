@@ -1,7 +1,0 @@
-ragas
-langchain-openai
-datasets
-httpx
-pandas
-python-dotenv
-openai
