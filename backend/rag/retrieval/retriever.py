@@ -463,6 +463,9 @@ class RAGRetriever:
 
             try:
                 need_vectors = bool(use_semantic_ranking or use_mmr)
+                # Obtener threshold de settings (default 0.3)
+                sim_threshold = float(getattr(settings, "similarity_threshold", 0.3))
+                
                 relevant_docs = await asyncio.wait_for(
                     self.vector_store.retrieve(
                         query,
@@ -470,6 +473,7 @@ class RAGRetriever:
                         filter=filter_criteria,
                         use_mmr=False,           # (tu pipeline aplica mmr/rerank aquí, no en VectorStore)
                         with_vectors=need_vectors,
+                        score_threshold=sim_threshold,  # Filtrar documentos con score bajo
                     ),
                     timeout=5.0
                 )

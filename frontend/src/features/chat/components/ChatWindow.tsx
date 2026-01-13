@@ -4,7 +4,7 @@ import React, { useRef, useEffect } from "react";
 import useSWR from "swr";
 import Image from "next/image";
 import { EmptyState } from "./EmptyState";
-import { ChatMessageBubble } from "./ChatMessageBubble";
+import { ChatMessageBubble, TypingIndicator } from "./ChatMessageBubble";
 import { AutoResizeTextarea } from "@/shared/components/ui/AutoResizeTextarea";
 import { Button } from "@/app/components/ui/button";
 import { ArrowUp, MessageCircle, Trash } from "lucide-react";
@@ -78,7 +78,7 @@ export function ChatWindow(props: {
             "--brand-color",
             cfg.theme_color,
           );
-        } catch {}
+        } catch { }
       }
     }
   }, [cfg]);
@@ -90,7 +90,7 @@ export function ChatWindow(props: {
           const state = await botService.getState();
           setIsBotActive(state.is_active);
         }
-      } catch (_e) {}
+      } catch (_e) { }
     })();
   }, []);
 
@@ -215,20 +215,7 @@ export function ChatWindow(props: {
           const showTyping = isLoading && !lastIsAssistantWithContent;
           return showTyping ? (
             <div className="flex justify-start">
-              <div className="bg-gray-100 dark:bg-slate-800 rounded-2xl rounded-tl-none p-4 inline-flex items-center gap-2">
-                <span
-                  className="h-2 w-2 rounded-full bg-gray-400 dark:bg-slate-500 animate-bounce"
-                  style={{ animationDelay: "0ms" }}
-                />
-                <span
-                  className="h-2 w-2 rounded-full bg-gray-400 dark:bg-slate-500 animate-bounce"
-                  style={{ animationDelay: "150ms" }}
-                />
-                <span
-                  className="h-2 w-2 rounded-full bg-gray-400 dark:bg-slate-500 animate-bounce"
-                  style={{ animationDelay: "300ms" }}
-                />
-              </div>
+              <TypingIndicator />
             </div>
           ) : null;
         })()}

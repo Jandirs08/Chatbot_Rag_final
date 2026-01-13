@@ -8,7 +8,7 @@ import {
 } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
-import { FileText, Upload, Trash2, Search, Download, Clock, Info } from "lucide-react";
+import { FileText, Upload, Trash2, Search, Download, Clock } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -417,35 +417,11 @@ export function DocumentManagement() {
             {isUploading ? "Subiendo..." : "Subir PDF"}
           </Button>
 
-          {/* Indicador de Rate Limit Profesional */}
-          {rateLimitInfo && (
-            <div className={`flex flex-col sm:flex-row items-center gap-3 px-4 py-2 rounded-xl border shadow-sm transition-all duration-300 ${rateLimitInfo.remaining === 0
-              ? 'bg-red-50 border-red-200 text-red-700 dark:bg-red-950/20 dark:border-red-900/50 dark:text-red-400'
-              : rateLimitInfo.remaining <= 2
-                ? 'bg-yellow-50 border-yellow-200 text-yellow-700 dark:bg-yellow-950/20 dark:border-yellow-900/50 dark:text-yellow-400'
-                : 'bg-indigo-50 border-indigo-100 text-indigo-700 dark:bg-indigo-950/20 dark:border-indigo-900/50 dark:text-indigo-400'
-              }`}>
-              <div className="flex items-center gap-2">
-                <div className={`p-1.5 rounded-full ${rateLimitInfo.remaining === 0 ? 'bg-red-100 dark:bg-red-900/40' : 'bg-indigo-100 dark:bg-indigo-900/40'
-                  }`}>
-                  {rateLimitInfo.remaining === 0 ? <Clock className="w-3.5 h-3.5" /> : <Info className="w-3.5 h-3.5" />}
-                </div>
-                <div className="flex flex-col leading-tight">
-                  <span className="text-[10px] uppercase tracking-wider font-bold opacity-70">Límite por hora</span>
-                  <span className="text-sm font-semibold">
-                    {rateLimitInfo.remaining}/{rateLimitInfo.limit} disponibles
-                  </span>
-                </div>
-              </div>
-
-              {countdown !== null && countdown > 0 && (
-                <div className="flex items-center gap-1.5 pl-3 border-l border-current/20 ml-1">
-                  <Clock className="w-3.5 h-3.5 animate-pulse" />
-                  <span className="text-xs font-mono font-medium">
-                    {rateLimitInfo.remaining === 0 ? 'Reinicia en' : 'Refresco en'}: {formatCountdown(countdown)}
-                  </span>
-                </div>
-              )}
+          {/* Indicador de Rate Limit - Solo cuando se agota la cuota */}
+          {rateLimitInfo && rateLimitInfo.remaining === 0 && countdown !== null && countdown > 0 && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-medium">
+              <Clock className="w-3 h-3" />
+              <span>Disponible en {formatCountdown(countdown)}</span>
             </div>
           )}
 
