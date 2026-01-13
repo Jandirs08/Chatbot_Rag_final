@@ -3,7 +3,7 @@ from typing import Any, Dict, List
 from utils.logging_utils import get_logger
 import time
 from cache.manager import cache
-import hashlib
+from utils.hashing import hash_for_cache_key
 import asyncio
 
 from config import settings
@@ -48,7 +48,7 @@ class ChatManager:
                 logger.warning("ENABLE_RAG_LCEL desactivado: la recuperación contextual no se aplicará.")
 
             # Intentar obtener respuesta cacheada por (conversation_id + input_text)
-            cache_key = f"resp:{conversation_id}:{hashlib.sha256((input_text or '').strip().encode('utf-8')).hexdigest()}"
+            cache_key = f"resp:{conversation_id}:{hash_for_cache_key(input_text)}"
             cached_response = None
             try:
                 if bool(getattr(settings, "enable_cache", True)):
@@ -286,7 +286,7 @@ class ChatManager:
             if not debug_mode:
                 await self.db.add_message(conversation_id, USER_ROLE, input_text, source)
 
-            cache_key = f"resp:{conversation_id}:{hashlib.sha256((input_text or '').strip().encode('utf-8')).hexdigest()}"
+            cache_key = f"resp:{conversation_id}:{hash_for_cache_key(input_text)}"
             cached_response = None
             try:
                 if bool(getattr(settings, "enable_cache", True)):

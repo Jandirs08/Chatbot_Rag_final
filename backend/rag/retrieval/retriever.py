@@ -124,6 +124,7 @@ class RAGRetriever:
         self._last_corpus_size_check_time: float = 0.0
         self._corpus_size_cache_ttl: int = 10
         self._last_centroid_recalc_timestamp: float = 0.0
+        self._last_gating_reason: Optional[str] = None  # Para debug info del Bot
 
         # Umbral de gating
         try:
@@ -393,6 +394,7 @@ class RAGRetriever:
 
         # --- gating ---
         gating_reason, use_rag = await self.gating_async(query)
+        self._last_gating_reason = gating_reason  # Exponer para debug info del Bot
         logger.info(f"Retrieve: gating reason={gating_reason}, use_rag={use_rag}")
 
         if not use_rag:

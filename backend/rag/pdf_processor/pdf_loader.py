@@ -1,7 +1,8 @@
 """Módulo para cargar y procesar contenido de PDFs (versión estable, segura y no destructiva)."""
 
 import re
-import hashlib
+
+from utils.hashing import hash_content_for_dedup
 from typing import List, Optional
 from pathlib import Path
 import logging
@@ -297,5 +298,4 @@ class PDFContentLoader:
         return "text"
 
     def _generate_content_hash(self, content: str) -> str:
-        normalized = re.sub(r'\s+', ' ', content.lower().strip())
-        return hashlib.md5(normalized.encode()).hexdigest()
+        return hash_content_for_dedup(content)

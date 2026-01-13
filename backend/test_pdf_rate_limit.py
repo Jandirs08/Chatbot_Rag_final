@@ -1,7 +1,7 @@
 """
 Test PDF upload rate limiting functionality.
 
-Este test verifica que el rate limit de 5/hour se aplica correctamente
+Este test verifica que el rate limit de 2/hour se aplica correctamente
 al endpoint de carga de PDFs, protegiendo contra DoS attacks.
 """
 import asyncio
@@ -34,7 +34,7 @@ async def test_pdf_upload_rate_limit_sequential():
     endpoint = f"{base_url}/api/v1/pdfs/upload"
     
     print("[TEST] Iniciando test de rate limiting para PDFs...")
-    print(f"[CONFIG] Limite configurado: 5 uploads/hora")
+    print(f"[CONFIG] Limite configurado: 2 uploads/hora")
     print(f"[TARGET] Endpoint: {endpoint}\n")
     
     # PASO 1: Autenticación
@@ -141,7 +141,12 @@ async def test_pdf_upload_rate_limit_sequential():
     
     if rate_limited_count > 0:
         print("[PASS] Rate limiting esta ACTIVO")
-        print(f"   Primer bloqueo en upload #{results.index(429) + 1}")
+        # Esperamos bloqueo en el upload #3 (índice 2) ya que el límite es 2
+        first_block_index = results.index(429) + 1
+        if first_block_index == 3:
+             print(f"[PASS] Primer bloqueo correcto en upload #{first_block_index}")
+        else:
+             print(f"[WARN] Bloqueo en upload #{first_block_index}, se esperaba en #3")
         
         # Verificar headers del último request (bloqueado)
         last_headers = headers_info[-1]
@@ -163,11 +168,14 @@ async def test_pdf_upload_rate_limit_sequential():
         print("   - Redis no disponible")
         print("   - Limite configurado muy alto")
     
-    # Verificar que NO se bloqueó antes del límite
-    if results[0:5].count(429) > 0:
-        print("[FAIL] ERROR: Se bloqueo antes de alcanzar el limite de 5")
+    # Verificar que NO se bloqueó antes del límite (2)
+    # Uploads 1 y 2 deben ser 200, Upload 3 debe ser 429
+    if 429 in results[0:2]:
+        print("[FAIL] ERROR: Se bloqueo antes de alcanzar el limite de 2")
+    elif results[2] != 429:
+        print("[FAIL] ERROR: No se bloqueo en el limite de 2 (upload #3)")
     else:
-        print("[PASS] Primeros 5 uploads no fueron bloqueados prematuramente")
+        print("[PASS] Comportamiento correcto: 2 permitidos, siguientes bloqueados")
     
     print("\n" + "="*60)
     print("Test completado")

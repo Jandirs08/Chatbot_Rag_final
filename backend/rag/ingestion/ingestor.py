@@ -53,10 +53,10 @@ class RAGIngestor:
         Normalización mínima: lower, strip, colapsar espacios.
         """
         try:
+            from utils.hashing import hash_content_for_dedup
             texts = [doc.page_content or "" for doc in documents]
             concat = "\n".join(texts)
-            normalized = " ".join(concat.lower().strip().split())
-            return hashlib.md5(normalized.encode()).hexdigest()
+            return hash_content_for_dedup(concat)
         except Exception as e:
             logger.error(f"Error generando content_hash_global: {e}", exc_info=True)
             return ""

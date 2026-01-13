@@ -154,17 +154,17 @@ class Bot:
                 if not query.strip():
                     return fallback_ctx
 
-                # Gating
-                reason, use = self.rag_retriever.gating(query)
-                self._last_gating_reason = reason
-                self.logger.debug(f"RAG gating: reason={reason}")
-                if not use:
-                    return fallback_ctx
-
+                # El retriever ya hace gating_async() internamente en retrieve_documents()
+                # con mejor precisión (embebe el query para calcular similitud real)
                 docs = await self.rag_retriever.retrieve_documents(
                     query=query,
                     k=self.settings.retrieval_k
                 )
+                
+                # Capturar la razón del gating desde el retriever (para debug info)
+                self._last_gating_reason = getattr(self.rag_retriever, "_last_gating_reason", None)
+                self.logger.debug(f"RAG gating (from retriever): reason={self._last_gating_reason}")
+                
                 if not docs:
                     self._last_rag_time = time.perf_counter() - t_start
                     return fallback_ctx
@@ -175,6 +175,7 @@ class Bot:
                 self._last_context = ctx if (isinstance(ctx, str) and ctx.strip()) else fallback_ctx
                 self._last_rag_time = time.perf_counter() - t_start
                 return self._last_context
+
 
             except Exception as e:
                 self.logger.warning(f"Context RAG failed: {e}")

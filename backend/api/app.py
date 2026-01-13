@@ -152,6 +152,7 @@ from rag.embeddings.embedding_manager import EmbeddingManager
 from rag.vector_store.vector_store import VectorStore
 from rag.ingestion.ingestor import RAGIngestor
 from utils.deploy_log import build_full_startup_summary
+from storage.pdf_processor_adapter import PDFProcessorAdapter
 
 # ---- Lifespan ----
 @asynccontextmanager
@@ -291,27 +292,6 @@ async def lifespan(app: FastAPI):
             logger.error(f"Error inicializando AuthDependencies: {e}", exc_info=True)
             raise
         # --- PDF Processor para RAG status ---
-        class PDFProcessorAdapter:
-            def __init__(self, pdf_manager, vector_store):
-                self.pdf_manager = pdf_manager
-                self.vector_store = vector_store
-
-            async def list_pdfs(self):
-                return await self.pdf_manager.list_pdfs()
-
-            def get_vector_store_info(self):
-                url = settings.qdrant_url
-                count = 0
-                try:
-                    c = self.vector_store.client.count(collection_name="rag_collection")
-                    count = int(getattr(c, "count", 0))
-                except Exception:
-                    count = 0
-                return {"url": url, "collection": "rag_collection", "count": count}
-
-            async def clear_pdfs(self):
-                return await self.pdf_manager.clear_all_pdfs()
-
         app.state.pdf_processor = PDFProcessorAdapter(app.state.pdf_file_manager, app.state.vector_store)
 
         # Resumen de deploy del backend (Enterprise Clean Mode)

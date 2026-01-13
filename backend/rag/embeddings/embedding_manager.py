@@ -4,7 +4,7 @@ import time
 from utils.logging_utils import get_logger
 from config import settings
 from cache.manager import cache
-import hashlib
+from utils.hashing import hash_for_cache_key
 
 # Usar embeddings remotos de OpenAI para reducir uso de memoria
 try:
@@ -46,8 +46,7 @@ class EmbeddingManager:
 
     @staticmethod
     def _hash_text(text: str) -> str:
-        norm = (text or "").strip().lower()
-        return hashlib.sha256(norm.encode("utf-8")).hexdigest()
+        return hash_for_cache_key((text or "").strip().lower())
 
     # ----------------------------------------------------------------------
     #   EMBED DOCUMENTS — FIX 1 COMPLETO
