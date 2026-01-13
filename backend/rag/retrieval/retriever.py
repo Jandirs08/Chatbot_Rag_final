@@ -99,6 +99,12 @@ class RAGRetriever:
     _PREVIEW_CHARS = 180
     _MAX_QUERY_LOG_CHARS = 160
 
+    # --- Constantes de Gating (evitar magic numbers) ---
+    _MIN_TOKENS_FOR_INTENT = 3          # Mínimo de tokens para considerar que hay intención real
+    _SMALL_CORPUS_THRESHOLD = 20        # Corpus pequeño: relajar criterios
+    _MEDIUM_CORPUS_THRESHOLD = 50       # Corpus mediano: fallback conservador
+    _MIN_TOKENS_FOR_FALLBACK = 4        # Tokens mínimos para usar RAG en caso de duda
+
     def __init__(
         self,
         vector_store: VectorStore,
@@ -364,12 +370,35 @@ class RAGRetriever:
     # ============================================================
 
     def _is_trivial_query(self, q: str) -> Tuple[bool, str]:
+        """Detecta queries triviales que no requieren RAG.
+        
+        Incluye: saludos, despedidas, agradecimientos, confirmaciones,
+        y variantes comunes en español.
+        """
         s = (q or "").strip().lower()
+        
+        # Set expandido con variantes comunes y errores tipográficos frecuentes
         small_talk = {
-            "hola", "buenos días", "buenas tardes", "buenas noches",
-            "como estás", "qué tal", "gracias", "adios", "hasta luego",
-            "ayuda", "quien eres", "como te llamas", "ok", "vale"
+            # Saludos
+            "hola", "hla", "ola", "hi", "hey", "buenos días", "buen dia", "buen día",
+            "buenas tardes", "buenas noches", "buenas", "saludos",
+            # Estado
+            "como estás", "cómo estás", "como estas", "qué tal", "que tal",
+            "todo bien", "bien y tú", "bien y tu",
+            # Agradecimientos
+            "gracias", "gracia", "grcias", "muchas gracias", "te agradezco",
+            "thanks", "thx", "genial", "perfecto", "excelente",
+            # Despedidas
+            "adios", "adiós", "chao", "chau", "bye", "hasta luego",
+            "hasta pronto", "nos vemos", "cuídate",
+            # Confirmaciones
+            "ok", "okey", "okay", "vale", "sí", "si", "no", "entendido",
+            "de acuerdo", "claro", "listo",
+            # Meta-preguntas
+            "ayuda", "help", "quien eres", "quién eres", "como te llamas",
+            "cómo te llamas", "qué puedes hacer", "que puedes hacer",
         }
+        
         if s in small_talk:
             return (True, "small_talk")
         if len(s) < 3:
@@ -827,6 +856,7 @@ class RAGRetriever:
         """
         try:
             q = (query or "").strip()
+            logger.info(f"[RAG][GATING][START] q='{self._safe_query_for_log(q)}'")
 
             # 1) Carga rápida (sin spawnear)
             self._try_load_centroid_from_cache(spawn_if_missing=False)
@@ -894,11 +924,11 @@ class RAGRetriever:
             has_interrogative = any(w in q.lower() for w in interrogatives) or ("?" in q)
             tokens = [t for t in q.lower().split() if t]
 
-            if not has_interrogative and len(tokens) <= 3:
+            if not has_interrogative and len(tokens) <= self._MIN_TOKENS_FOR_INTENT:
                 return ("low_intent", False)
 
-            if corpus_size is not None and corpus_size < 20:
-                use_small = bool(has_interrogative or len(tokens) >= 4)
+            if corpus_size is not None and corpus_size < self._SMALL_CORPUS_THRESHOLD:
+                use_small = bool(has_interrogative or len(tokens) >= self._MIN_TOKENS_FOR_FALLBACK)
                 return ("small_corpus", use_small)
 
             if not self.embedding_manager:
@@ -910,10 +940,10 @@ class RAGRetriever:
 
             if query_vec is None:
                 if corpus_size is None:
-                    use_unknown = bool(has_interrogative or len(tokens) >= 4)
+                    use_unknown = bool(has_interrogative or len(tokens) >= self._MIN_TOKENS_FOR_FALLBACK)
                     return ("no_vector_unknown_corpus", use_unknown)
 
-                if 0 <= corpus_size < 50:
+                if 0 <= corpus_size < self._MEDIUM_CORPUS_THRESHOLD:
                     return ("no_vector_small_corpus", True)
 
                 return ("no_vector_fail_closed", False)
