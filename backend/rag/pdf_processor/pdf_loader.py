@@ -30,11 +30,37 @@ class PDFContentLoader:
         self.chunk_overlap = chunk_overlap if chunk_overlap is not None else settings.chunk_overlap
         self.min_chunk_length = min_chunk_length if min_chunk_length is not None else settings.min_chunk_length
 
+        # Enhanced separators for better structural awareness
+        # Ordered by semantic strength (strongest breaks first)
+        improved_separators = [
+            "\n\n\n",      # Multiple blank lines (strong section break)
+            "\n\n",        # Paragraph break
+            "\n---\n",     # Horizontal rule / section divider
+            "\n## ",       # Markdown header
+            "\n# ",        # Markdown header
+            "\n- ",        # List item (dash)
+            "\n• ",        # List item (bullet)
+            "\n* ",        # List item (asterisk)
+            "\n\t",        # Tab-indented content (often lists or code)
+            ".\n",        # Sentence ending with newline
+            "!\n",        # Exclamation with newline
+            "?\n",        # Question with newline
+            "\n",          # Line break
+            ". ",          # Sentence ending with space
+            "! ",          # Exclamation with space
+            "? ",          # Question with space
+            "; ",          # Semicolon (natural pause)
+            ": ",          # Colon (often precedes explanation)
+            ", ",          # Comma (lighter pause)
+            " ",           # Word boundary
+            ""             # Character boundary (last resort)
+        ]
+        
         self.text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
             encoding_name="cl100k_base",
             chunk_size=self.chunk_size,
             chunk_overlap=self.chunk_overlap,
-            separators=["\n\n", "\n", ". ", " ", ""]
+            separators=improved_separators
         )
 
         logger.debug(
@@ -116,6 +142,52 @@ class PDFContentLoader:
 
         return "\n".join(cleaned).strip()
 
+    def _validate_sentence_boundaries(self, text: str) -> tuple:
+        """
+        Validates and adjusts text to end on sentence boundaries when possible.
+        This prevents chunks from cutting mid-sentence.
+        
+        Returns:
+            tuple: (adjusted_text, has_complete_sentences, boundary_quality_score)
+                - adjusted_text: text trimmed to last sentence boundary if found
+                - has_complete_sentences: True if ends on sentence boundary
+                - boundary_quality_score: 0.0-1.0 indicating quality
+        """
+        if not text or len(text.strip()) == 0:
+            return text, False, 0.0
+        
+        # Sentence ending patterns (various punctuation marks)
+        # Handles: period, exclamation, question, with optional quotes
+        sentence_end_pattern = r'[.!?]["\']?\s*$'
+        
+        # Check if text already ends with sentence boundary
+        if re.search(sentence_end_pattern, text.rstrip()):
+            return text, True, 1.0
+        
+        # Try to find last complete sentence within the text
+        # Match sentence endings followed by space/newline or quotes then space
+        sentences_pattern = r'[.!?]["\']?(?:\s+|\n)'
+        matches = list(re.finditer(sentences_pattern, text))
+        
+        if matches:
+            # Get position after last sentence boundary
+            last_boundary = matches[-1].end()
+            
+            # Calculate how much content we're trimming
+            remaining_ratio = last_boundary / max(len(text), 1)
+            
+            # Only trim if we're keeping at least 70% of the content
+            # This prevents over-aggressive trimming that loses too much context
+            if remaining_ratio >= 0.7:
+                adjusted_text = text[:last_boundary].rstrip()
+                quality_score = remaining_ratio
+                return adjusted_text, True, quality_score
+        
+        # No good sentence boundary found, or would trim too much
+        # Return original text but flag it
+        # Quality score 0.5 = uncertain boundary
+        return text, False, 0.5
+
     # ============================================================
     # 3) POSTPROCESAMIENTO — SOLO AÑADIR METADATA (NO filtrar)
     # ============================================================
@@ -132,6 +204,18 @@ class PDFContentLoader:
             if len(content) < self.min_chunk_length:
                 continue
 
+            # Validate and potentially adjust for sentence boundaries
+            adjusted_content, has_complete_sentences, boundary_score = self._validate_sentence_boundaries(content)
+            
+            # Only use adjusted content if it passes minimum length after adjustment
+            if len(adjusted_content.strip()) >= self.min_chunk_length:
+                content = adjusted_content
+                chunk.page_content = content  # Update chunk with adjusted content
+            else:
+                # If adjustment would make it too short, keep original
+                has_complete_sentences = False
+                boundary_score = 0.5
+            
             quality_score = self._calculate_chunk_quality(content)
             page_idx = None
             try:
@@ -161,6 +245,9 @@ class PDFContentLoader:
                 "word_count": len(content.split()),
                 "char_count": len(content),
                 "page_number": ((page_idx + 1) if page_idx is not None else None),
+                # New metadata for semantic boundary tracking
+                "has_complete_sentences": has_complete_sentences,
+                "boundary_quality_score": boundary_score,
             })
 
             final_chunks.append(chunk)
@@ -184,10 +271,29 @@ class PDFContentLoader:
         return min(score, 1.0)
 
     def _detect_chunk_type(self, content: str) -> str:
-        if re.match(r'^\d+\.', content):
+        """Detects the type of content in the chunk for better categorization."""
+        # Check for table patterns (common indicators)
+        if '|' in content and content.count('|') > 3:
+            return "table"
+        
+        # Check for numbered lists
+        if re.match(r'^\d+\.\s', content) or re.search(r'\n\d+\.\s', content):
             return "numbered_list"
-        if content.startswith("•") or content.startswith("- "):
+        
+        # Check for bullet lists (various bullet styles)
+        if content.startswith("• ") or content.startswith("- ") or content.startswith("* "):
             return "bullet_list"
+        if re.search(r'\n[•\-\*]\s', content):
+            return "bullet_list"
+        
+        # Check for header patterns (short, capitalized, possibly ending with :)
+        lines = content.split('\n')
+        if lines and len(lines[0]) < 100 and lines[0].strip().endswith(':'):
+            return "header"
+        if lines and len(lines[0]) < 80 and lines[0].isupper():
+            return "header"
+        
+        # Default to text
         return "text"
 
     def _generate_content_hash(self, content: str) -> str:
