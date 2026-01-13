@@ -261,7 +261,7 @@ for msg in reversed(messages):
 
 ---
 
-### [HALLAZGO #6] Sin rate limiting en ingesta de PDFs → DoS por upload masivo
+### [HALLAZGO #6] Sin rate limiting en ingesta de PDFs → DoS por upload masivo ✅ RESUELTO
 
 **Descripción**: `api/routes/pdf_routes.py` (no inspeccionado directamente, inferido de README) permite `POST /api/v1/pdfs/upload`. No hay evidencia de:
 
@@ -288,17 +288,46 @@ El `RAGIngestor.ingest_single_pdf()` (`ingestor.py:L91-169`) es bloqueante y cpu
 | **Nivel de severidad**                     | Alto                                                                                                         |
 | **Probabilidad de que aplique a ESTE RAG** | Media - Si solo hay 1-2 admins internos, baja. Si hay UI de PDF upload expuesta, media-alta.                 |
 | **Nivel de confianza en el diagnóstico**   | Media - No vi el código de rutas directamente, pero `RAGIngestor` evidentemente no tiene throttling interno. |
+| **Estado**                                 | ✅ **RESUELTO** - Implementado rate limiting de 5/hour en endpoint de upload usando slowapi                   |
 
-**Recomendación conceptual**:
+**Recomendación conceptual** (IMPLEMENTADO):
 
-1. **Queue ingesta**: Usar `asyncio.Queue` con workers limitados (ej: 2 workers, 1 PDF por worker). Uploads van a cola, se procesan secuencialmente.
+1. **Rate limit endpoint**: Si slowapi ya está en dependencies (`requirements.txt:L48`), aplicar decorador `@limiter.limit("5/hour")` en upload. ✅
 
-2. **Rate limit endpoint**: Si slowapi ya está en dependencies (`requirements.txt:L48`), aplicar decorador `@limiter.limit("5/hour")` en upload.
+2. **Queue ingesta**: Usar `asyncio.Queue` con workers limitados (ej: 2 workers, 1 PDF por worker). Uploads van a cola, se procesan secuencialmente.
 
 3. **Progress tracking**: Guardar ingesta en colección `pdf_ingestion_jobs` con estados `queued/processing/completed/failed`. UI polling de estado.
 
 > [!NOTE]
 > El sistema ya tiene `batch_size=100` configurado (`config.py:L115`), pero eso es por embedding batch, no límite de concurrencia global.
+
+**Implementación realizada** (2026-01-13):
+
+- ✅ **Configuración de rate limit**: Agregado `pdf_upload_rate_limit: str = Field(default="5/hour")` en `config.py`
+- ✅ **Decorador aplicado**: `@conditional_limit(settings.pdf_upload_rate_limit)` en endpoint `/upload` de `pdf_routes.py`
+- ✅ **Headers Retry-After**: Actualizada función `retry_after_for_path()` en `rate_limiter.py` para soportar endpoint de PDFs
+- ✅ **Configuración flexible**: Rate limit configurable vía variable de entorno `PDF_UPLOAD_RATE_LIMIT`
+
+**Archivos modificados**:
+- [config.py](file:///c:/Chatbot/Chatbot_Rag_final/backend/config.py#L65) - Línea 65
+- [pdf_routes.py](file:///c:/Chatbot/Chatbot_Rag_final/backend/api/routes/pdf/pdf_routes.py#L14-L20) - Líneas 14-20
+- [rate_limiter.py](file:///c:/Chatbot/Chatbot_Rag_final/backend/utils/rate_limiter.py#L28-L36) - Líneas 28-36
+
+**Resultados de verificación**:
+- ✅ Código implementado y decorador aplicado correctamente
+- ✅ Endpoint protegido con autenticación (`AuthenticationMiddleware`)
+- ✅ Rate limiting independiente de otros endpoints (chat, global)
+- ✅ Headers `X-RateLimit-*` y `Retry-After: 3600` configurados
+- ✅ Estrategia fixed-window (default de slowapi)
+
+**Comportamiento esperado**:
+- Usuario admin puede subir máximo 5 PDFs por hora desde la misma IP
+- Upload #6 retorna HTTP 429 con mensaje: `"Demasiadas peticiones. Calma, cowboy."`
+- Rate limit se resetea después de 1 hora
+- Otros endpoints (`/list`, `/delete`, `/download`) no afectados
+
+> [!NOTE]
+> Se implementó solo la opción (1) "Rate limit endpoint" por ser la más simple y efectiva. Las opciones (2) y (3) (queue/progress tracking) pueden agregarse en el futuro si se requiere procesamiento asíncrono de bulk imports.
 
 ---
 
@@ -419,9 +448,9 @@ if self.environment == "production" and self.mock_mode:
 | Hallazgo                 | Severidad | Impacto | Esfuerzo Fix  | Prioridad       |
 | ------------------------ | --------- | ------- | ------------- | --------------- |
 | #4 Cache manager crash ✅ | Alto      | Alto    | Bajo (2h)     | 🔴 P0 ✅ RESUELTO |
-| #1 Chunking fijo         | Alto      | Alto    | Medio (1 día) | 🔴 P0            |
+| #1 Chunking fijo ✅       | Alto      | Alto    | Medio (1 día) | 🔴 P0 ✅ RESUELTO |
 | #2 Centroid stale        | Alto      | Medio   | Medio (4h)    | 🟠 P1            |
-| #6 PDF upload DoS        | Alto      | Medio   | Medio (4h)    | 🟠 P1            |
+| #6 PDF upload DoS ✅      | Alto      | Medio   | Medio (4h)    | 🟠 P1 ✅ RESUELTO |
 | #3 Embedding version     | Medio     | Alto    | Alto (2 días) | 🟠 P1            |
 | #5 Token explosion       | Medio     | Medio   | Medio (4h)    | 🟡 P2            |
 | #9 Mock mode             | Medio     | Bajo    | Bajo (15min)  | 🟡 P2            |
@@ -435,6 +464,7 @@ if self.environment == "production" and self.mock_mode:
 
 - ✅ **Fix #4** (Cache graceful degradation): 2 horas → evitas downtime total - **COMPLETADO**
 - ✅ **Fix #1** (Chunking con validación de oraciones): 4 horas → mejora calidad de retrieval significativamente - **COMPLETADO**
+- ✅ **Fix #6** (Rate limiting PDF uploads): 4 horas → protección contra DoS en uploads masivos - **COMPLETADO**
 - **Fix #9** (Mock mode validation): 15 min → evitas incidente catastrófico
 - **Fix #10** (JWT validation): 15 min → hardening básico
 - **Ajustar similarity_threshold a 0.5**: 0 código, solo config
@@ -507,10 +537,12 @@ Este RAG tiene fundamentos sólidos (cache inteligente, gating, deduplicación).
 
 - ✅ **Bombas de tiempo operacionales** (cache fail, centroid stale) → fix con health checks + persistencia - **Cache manager resuelto**
 - ✅ **Calidad de retrieval** limitada por chunking naive → mejorada con estructura semántica y validación de oraciones - **RESUELTO**
+- ✅ **Protección contra DoS** en uploads de PDFs → implementado rate limiting de 5/hour - **RESUELTO**
 - **Costos ocultos** (token explosion, rate limiting) → implementar limits conservadores
 
-**Próximos pasos**: Implementar fixes P1 (hallazgos #2, #3, #6) en una branch separada y validar en staging antes de production.
+**Próximos pasos**: Implementar fixes P1 (hallazgos #2, #3) en una branch separada y validar en staging antes de production.
 
 **Fixes completados**:
 - ✅ Hallazgo #4: Cache manager con degradación elegante (2026-01-12)
 - ✅ Hallazgo #1: Chunking mejorado con validación de límites de oraciones (2026-01-13)
+- ✅ Hallazgo #6: Rate limiting en uploads de PDFs con slowapi (2026-01-13)

@@ -24,6 +24,11 @@ export class PDFService {
     message: string;
     file_path: string;
     pdfs_in_directory: string[];
+    rateLimit?: {
+      limit: number;
+      remaining: number;
+      retryAfter?: number;
+    };
   }> {
     // Usar XMLHttpRequest para poder obtener eventos de progreso de subida
     return new Promise((resolve, reject) => {
@@ -51,10 +56,23 @@ export class PDFService {
       xhr.onreadystatechange = () => {
         if (xhr.readyState === XMLHttpRequest.DONE) {
           const status = xhr.status;
+
+          // Extraer rate limit headers
+          const rateLimitLimit = xhr.getResponseHeader('X-RateLimit-Limit');
+          const rateLimitRemaining = xhr.getResponseHeader('X-RateLimit-Remaining');
+          const retryAfter = xhr.getResponseHeader('Retry-After');
+
           if (status >= 200 && status < 300) {
             try {
               const json = JSON.parse(xhr.responseText);
-              resolve(json);
+              resolve({
+                ...json,
+                rateLimit: rateLimitLimit ? {
+                  limit: parseInt(rateLimitLimit),
+                  remaining: parseInt(rateLimitRemaining || '0'),
+                  retryAfter: retryAfter ? parseInt(retryAfter) : undefined
+                } : undefined
+              });
             } catch (e) {
               // Fallback: si la respuesta no es JSON, devolver un objeto mínimo
               resolve({
@@ -63,6 +81,12 @@ export class PDFService {
                 pdfs_in_directory: [],
               });
             }
+          } else if (status === 429) {
+            // Rate limit exceeded - error especial con tipo identificable
+            const errorObj: any = new Error("Límite de uploads alcanzado");
+            errorObj.type = 'RATE_LIMIT_EXCEEDED';
+            errorObj.retryAfter = retryAfter ? parseInt(retryAfter) : 3600;
+            reject(errorObj);
           } else {
             try {
               const errJson = JSON.parse(xhr.responseText);

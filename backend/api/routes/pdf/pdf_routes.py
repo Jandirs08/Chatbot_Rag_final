@@ -1,7 +1,7 @@
 """API routes for PDF management."""
 import logging
 import datetime
-from fastapi import APIRouter, HTTPException, UploadFile, File, Request, BackgroundTasks
+from fastapi import APIRouter, HTTPException, UploadFile, File, Request, BackgroundTasks, Response
 from pathlib import Path
 from starlette.responses import FileResponse
 
@@ -11,14 +11,18 @@ from api.schemas import (
     PDFDeleteResponse,
     PDFListItem
 )
+from utils.rate_limiter import conditional_limit
+from config import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["pdfs"])
 
 
 @router.post("/upload", response_model=PDFUploadResponse)
+@conditional_limit(settings.pdf_upload_rate_limit)
 async def upload_pdf(
     request: Request,
+    response: Response,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...)
 ):

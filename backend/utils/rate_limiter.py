@@ -27,7 +27,13 @@ def conditional_limit(value: str):
 
 def retry_after_for_path(path: str):
     try:
-        v = settings.chat_rate_limit if path.startswith("/api/v1/chat") else settings.global_rate_limit
+        if path.startswith("/api/v1/chat"):
+            v = settings.chat_rate_limit
+        elif path.startswith("/api/v1/pdfs/upload"):
+            v = settings.pdf_upload_rate_limit
+        else:
+            v = settings.global_rate_limit
+            
         parts = str(v).split("/")
         unit = parts[1].lower() if len(parts) > 1 else "minute"
         if "second" in unit:

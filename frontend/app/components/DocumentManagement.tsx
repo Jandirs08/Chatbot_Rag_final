@@ -8,7 +8,7 @@ import {
 } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
-import { FileText, Upload, Trash2, Search, Download } from "lucide-react";
+import { FileText, Upload, Trash2, Search, Download, Clock, Info } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -63,6 +63,12 @@ export function DocumentManagement() {
     vector_store_size?: number;
   } | null>(null);
   const [clearError, setClearError] = useState<string | null>(null);
+  const [rateLimitInfo, setRateLimitInfo] = useState<{
+    limit: number;
+    remaining: number;
+    resetTime?: Date;
+  } | null>(null);
+  const [countdown, setCountdown] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -88,6 +94,76 @@ export function DocumentManagement() {
     loadDocuments();
   }, [loadDocuments]);
 
+  // Cargar rate limit info de localStorage al montar
+  useEffect(() => {
+    const saved = localStorage.getItem("pdf_upload_ratelimit");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.resetTime) {
+          const resetDate = new Date(parsed.resetTime);
+          // Solo cargar si no ha expirado
+          if (resetDate.getTime() > new Date().getTime()) {
+            setRateLimitInfo({
+              ...parsed,
+              resetTime: resetDate
+            });
+          } else {
+            localStorage.removeItem("pdf_upload_ratelimit");
+          }
+        }
+      } catch (e) {
+        console.error("Error parsing saved rate limit:", e);
+      }
+    }
+  }, []);
+
+  // Guardar rate limit info en localStorage cuando cambie
+  useEffect(() => {
+    if (rateLimitInfo) {
+      localStorage.setItem("pdf_upload_ratelimit", JSON.stringify(rateLimitInfo));
+    }
+  }, [rateLimitInfo]);
+
+  // Efecto para el countdown del rate limit
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (rateLimitInfo?.resetTime) {
+      const calculateCountdown = () => {
+        const now = new Date().getTime();
+        const reset = rateLimitInfo.resetTime!.getTime();
+        const diff = Math.max(0, Math.floor((reset - now) / 1000));
+        setCountdown(diff);
+
+        // Si el tiempo se acabó, limpiar
+        if (diff <= 0) {
+          localStorage.removeItem("pdf_upload_ratelimit");
+          setRateLimitInfo(null);
+        }
+        return diff;
+      };
+
+      const initialDiff = calculateCountdown();
+      if (initialDiff > 0) {
+        timer = setInterval(() => {
+          const remaining = calculateCountdown();
+          if (remaining <= 0) {
+            clearInterval(timer);
+          }
+        }, 1000);
+      }
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [rateLimitInfo]);
+
+  const formatCountdown = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  };
+
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -95,16 +171,52 @@ export function DocumentManagement() {
     try {
       setIsUploading(true);
       setUploadProgress(0);
-      await PDFService.uploadPDF(file, (p) => setUploadProgress(p));
+      const response = await PDFService.uploadPDF(file, (p) => setUploadProgress(p));
+
+      // Actualizar rate limit info desde headers
+      if (response.rateLimit) {
+        setRateLimitInfo({
+          limit: response.rateLimit.limit,
+          remaining: response.rateLimit.remaining,
+          resetTime: response.rateLimit.retryAfter
+            ? new Date(Date.now() + response.rateLimit.retryAfter * 1000)
+            : undefined
+        });
+      }
+
       toast({
         title: "Éxito",
         description: "PDF subido correctamente",
       });
       loadDocuments();
-    } catch (error) {
+    } catch (error: any) {
       const message = error instanceof Error ? error.message : String(error);
-      // Toast específico para duplicado
-      if (message.toLowerCase().includes("contenido duplicado")) {
+
+      // Manejar error de rate limit específicamente
+      if (error.type === 'RATE_LIMIT_EXCEEDED') {
+        const minutes = Math.ceil((error.retryAfter || 3600) / 60);
+        const hours = Math.floor(minutes / 60);
+        const remainingMins = minutes % 60;
+
+        const timeMessage = hours > 0
+          ? `${hours} hora${hours > 1 ? 's' : ''}${remainingMins > 0 ? ` y ${remainingMins} minutos` : ''}`
+          : `${minutes} minuto${minutes > 1 ? 's' : ''}`;
+
+        toast({
+          title: "⚠️ Límite de uploads alcanzado",
+          description: `Has alcanzado el límite de uploads por hora. Podrás subir más PDFs en ${timeMessage}.`,
+          variant: "destructive",
+          duration: 10000,
+        });
+
+        // Actualizar rate limit info
+        setRateLimitInfo({
+          limit: 5,
+          remaining: 0,
+          resetTime: new Date(Date.now() + (error.retryAfter || 3600) * 1000)
+        });
+      } else if (message.toLowerCase().includes("contenido duplicado")) {
+        // Toast específico para duplicado
         toast({
           title: "Documento duplicado",
           description:
@@ -287,23 +399,56 @@ export function DocumentManagement() {
             className="pl-10"
           />
         </div>
-        <div className="relative flex gap-2 items-start">
+        <div className="relative flex gap-2 items-center">
           <input
             ref={fileInputRef}
             type="file"
             accept=".pdf"
             onChange={handleUpload}
             className="hidden"
-            disabled={isUploading || isLoadingList}
+            disabled={isUploading || isLoadingList || (rateLimitInfo?.remaining === 0)}
           />
           <Button
             onClick={handleButtonClick}
             className="gradient-primary hover:opacity-90 cursor-pointer"
-            disabled={isUploading || isLoadingList}
+            disabled={isUploading || isLoadingList || (rateLimitInfo?.remaining === 0)}
           >
             <Upload className="w-4 h-4 mr-2" />
             {isUploading ? "Subiendo..." : "Subir PDF"}
           </Button>
+
+          {/* Indicador de Rate Limit Profesional */}
+          {rateLimitInfo && (
+            <div className={`flex flex-col sm:flex-row items-center gap-3 px-4 py-2 rounded-xl border shadow-sm transition-all duration-300 ${rateLimitInfo.remaining === 0
+              ? 'bg-red-50 border-red-200 text-red-700 dark:bg-red-950/20 dark:border-red-900/50 dark:text-red-400'
+              : rateLimitInfo.remaining <= 2
+                ? 'bg-yellow-50 border-yellow-200 text-yellow-700 dark:bg-yellow-950/20 dark:border-yellow-900/50 dark:text-yellow-400'
+                : 'bg-indigo-50 border-indigo-100 text-indigo-700 dark:bg-indigo-950/20 dark:border-indigo-900/50 dark:text-indigo-400'
+              }`}>
+              <div className="flex items-center gap-2">
+                <div className={`p-1.5 rounded-full ${rateLimitInfo.remaining === 0 ? 'bg-red-100 dark:bg-red-900/40' : 'bg-indigo-100 dark:bg-indigo-900/40'
+                  }`}>
+                  {rateLimitInfo.remaining === 0 ? <Clock className="w-3.5 h-3.5" /> : <Info className="w-3.5 h-3.5" />}
+                </div>
+                <div className="flex flex-col leading-tight">
+                  <span className="text-[10px] uppercase tracking-wider font-bold opacity-70">Límite por hora</span>
+                  <span className="text-sm font-semibold">
+                    {rateLimitInfo.remaining}/{rateLimitInfo.limit} disponibles
+                  </span>
+                </div>
+              </div>
+
+              {countdown !== null && countdown > 0 && (
+                <div className="flex items-center gap-1.5 pl-3 border-l border-current/20 ml-1">
+                  <Clock className="w-3.5 h-3.5 animate-pulse" />
+                  <span className="text-xs font-mono font-medium">
+                    {rateLimitInfo.remaining === 0 ? 'Reinicia en' : 'Refresco en'}: {formatCountdown(countdown)}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
           <Button
             variant="outline"
             className="text-destructive border-destructive hover:bg-destructive/10"
@@ -393,72 +538,72 @@ export function DocumentManagement() {
               <TableBody>
                 {isLoadingList && documents.length === 0
                   ? // Skeletons mientras carga por primera vez
-                    Array.from({ length: 3 }).map((_, idx) => (
-                      <TableRow key={`skeleton-${idx}`}>
-                        <TableCell className="py-4">
-                          <div className="flex items-center gap-2">
-                            <Skeleton className="h-4 w-4 rounded" />
-                            <Skeleton className="h-4 w-40" />
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Skeleton className="h-4 w-32" />
-                        </TableCell>
-                        <TableCell>
-                          <Skeleton className="h-4 w-24" />
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Skeleton className="h-8 w-20 ml-auto" />
-                        </TableCell>
-                      </TableRow>
-                    ))
+                  Array.from({ length: 3 }).map((_, idx) => (
+                    <TableRow key={`skeleton-${idx}`}>
+                      <TableCell className="py-4">
+                        <div className="flex items-center gap-2">
+                          <Skeleton className="h-4 w-4 rounded" />
+                          <Skeleton className="h-4 w-40" />
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-32" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Skeleton className="h-8 w-20 ml-auto" />
+                      </TableCell>
+                    </TableRow>
+                  ))
                   : filteredDocuments.map((doc) => (
-                      <TableRow key={doc.filename}>
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2">
-                            <FileText className="w-4 h-4 text-primary" />
-                            {doc.filename}
-                          </div>
-                        </TableCell>
-                        <TableCell>{formatDate(doc.last_modified)}</TableCell>
-                        <TableCell>{formatFileSize(doc.size)}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex gap-2 justify-end">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handlePreview(doc.filename)}
-                              disabled={isLoadingList || isUploading}
-                              title="Preview"
-                              className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600"
-                            >
-                              <Search className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDownload(doc.filename)}
-                              disabled={
-                                isLoadingList || isUploading || isDownloading
-                              }
-                              title="Download"
-                              className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600"
-                            >
-                              <Download className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDelete(doc.filename)}
-                              className="text-gray-500 hover:text-red-600 hover:bg-red-50 dark:text-slate-400 dark:hover:text-red-500 dark:bg-slate-700 dark:border-slate-600 dark:hover:bg-red-900/20"
-                              disabled={isLoadingList || isUploading}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    <TableRow key={doc.filename}>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-primary" />
+                          {doc.filename}
+                        </div>
+                      </TableCell>
+                      <TableCell>{formatDate(doc.last_modified)}</TableCell>
+                      <TableCell>{formatFileSize(doc.size)}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex gap-2 justify-end">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handlePreview(doc.filename)}
+                            disabled={isLoadingList || isUploading}
+                            title="Preview"
+                            className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600"
+                          >
+                            <Search className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDownload(doc.filename)}
+                            disabled={
+                              isLoadingList || isUploading || isDownloading
+                            }
+                            title="Download"
+                            className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600"
+                          >
+                            <Download className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDelete(doc.filename)}
+                            className="text-gray-500 hover:text-red-600 hover:bg-red-50 dark:text-slate-400 dark:hover:text-red-500 dark:bg-slate-700 dark:border-slate-600 dark:hover:bg-red-900/20"
+                            disabled={isLoadingList || isUploading}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
               </TableBody>
             </Table>
           </div>
