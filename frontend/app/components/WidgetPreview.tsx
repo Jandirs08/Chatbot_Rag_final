@@ -17,7 +17,6 @@ export function WidgetPreview() {
   const [height, setHeight] = useState("600");
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [position, setPosition] = useState("bottom-right");
-  const [theme, setTheme] = useState("default");
   const [bubbleStartColor, setBubbleStartColor] = useState("#667eea");
   const [bubbleEndColor, setBubbleEndColor] = useState("#764ba2");
   const [iframeCode, setIframeCode] = useState("");
@@ -67,7 +66,7 @@ export function WidgetPreview() {
   data-bubble-background="${bubbleBackground}" 
   defer 
 ></script>`;
-    
+
     setIframeCode(code);
   }, [bubbleEndColor, bubbleStartColor, height, position, width]);
 
@@ -88,9 +87,7 @@ export function WidgetPreview() {
     setPosition(e.target.value);
   };
 
-  const handleThemeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setTheme(e.target.value);
-  };
+  // Theme feature placeholder - TODO: implement when needed
 
   const handleIframeLoad = () => {
     setIsLoading(false);
@@ -150,7 +147,7 @@ export function WidgetPreview() {
                   position: 'absolute',
                   ...(position === 'bottom-right' ? { bottom: 20, right: 20 } :
                     position === 'bottom-left' ? { bottom: 20, left: 20 } :
-                    position === 'top-right' ? { top: 20, right: 20 } : { top: 20, left: 20 }),
+                      position === 'top-right' ? { top: 20, right: 20 } : { top: 20, left: 20 }),
                   width: '60px',
                   height: '60px',
                   borderRadius: '50%',
@@ -211,7 +208,7 @@ export function WidgetPreview() {
                   position: 'absolute',
                   ...(position === 'bottom-right' ? { bottom: 90, right: 20 } :
                     position === 'bottom-left' ? { bottom: 90, left: 20 } :
-                    position === 'top-right' ? { top: 90, right: 20 } : { top: 90, left: 20 }),
+                      position === 'top-right' ? { top: 90, right: 20 } : { top: 90, left: 20 }),
                   display: isPreviewOpen ? 'block' : 'none',
                   border: 'none',
                   borderRadius: '16px',
@@ -317,65 +314,53 @@ export function WidgetPreview() {
             </div>
 
             {/* Configuración avanzada */}
-              <div className="space-y-3 border-t pt-4">
-                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                  <Settings className="w-4 h-4" />
-                  Configuración Avanzada
-                </div>
-                
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor="position">Posición</Label>
-                    <select
-                      id="position"
-                      value={position}
-                      onChange={handlePositionChange}
-                      className="w-full mt-1 h-11 px-2 border border-border rounded-md bg-background"
-                    >
-                      <option value="bottom-right">Abajo Derecha</option>
-                      <option value="bottom-left">Abajo Izquierda</option>
-                      <option value="top-right">Arriba Derecha</option>
-                      <option value="top-left">Arriba Izquierda</option>
-                    </select>
-                  </div>
-                  <div>
-                    <Label htmlFor="theme">Tema</Label>
-                    <select
-                      id="theme"
-                      value={theme}
-                      onChange={handleThemeChange}
-                      className="w-full mt-1 h-11 px-2 border border-border rounded-md bg-background"
-                    >
-                      <option value="default">Por Defecto</option>
-                      <option value="light">Claro</option>
-                      <option value="dark">Oscuro</option>
-                    </select>
-                  </div>
-                </div>
+            <div className="space-y-3 border-t pt-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <Settings className="w-4 h-4" />
+                Configuración Avanzada
+              </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor="bubbleStartColor">Color Inicio</Label>
-                    <Input
-                      id="bubbleStartColor"
-                      type="color"
-                      value={bubbleStartColor}
-                      onChange={(e) => setBubbleStartColor(e.target.value)}
-                      className="mt-1 h-11 p-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="bubbleEndColor">Color Fin</Label>
-                    <Input
-                      id="bubbleEndColor"
-                      type="color"
-                      value={bubbleEndColor}
-                      onChange={(e) => setBubbleEndColor(e.target.value)}
-                      className="mt-1 h-11 p-1"
-                    />
-                  </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="position">Posición</Label>
+                  <select
+                    id="position"
+                    value={position}
+                    onChange={handlePositionChange}
+                    className="w-full mt-1 h-11 px-2 border border-border rounded-md bg-background"
+                  >
+                    <option value="bottom-right">Abajo Derecha</option>
+                    <option value="bottom-left">Abajo Izquierda</option>
+                    <option value="top-right">Arriba Derecha</option>
+                    <option value="top-left">Arriba Izquierda</option>
+                  </select>
                 </div>
-              
+                {/* Theme selector removed - feature not yet implemented */}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="bubbleStartColor">Color Inicio</Label>
+                  <Input
+                    id="bubbleStartColor"
+                    type="color"
+                    value={bubbleStartColor}
+                    onChange={(e) => setBubbleStartColor(e.target.value)}
+                    className="mt-1 h-11 p-1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="bubbleEndColor">Color Fin</Label>
+                  <Input
+                    id="bubbleEndColor"
+                    type="color"
+                    value={bubbleEndColor}
+                    onChange={(e) => setBubbleEndColor(e.target.value)}
+                    className="mt-1 h-11 p-1"
+                  />
+                </div>
+              </div>
+
               <div className="bg-muted/30 p-3 rounded-lg">
                 <p className="text-xs text-muted-foreground">
                   <strong>URL del chat:</strong> {getBaseUrl()}

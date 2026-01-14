@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -339,8 +339,18 @@ export function DocumentManagement() {
     return `${lima.getFullYear()}-${pad(lima.getMonth() + 1)}-${pad(lima.getDate())} ${pad(lima.getHours())}:${pad(lima.getMinutes())}:${pad(lima.getSeconds())}`;
   };
 
-  const filteredDocuments = documents.filter((doc) =>
-    doc.filename.toLowerCase().includes(searchTerm.toLowerCase()),
+  // Memoize filtered documents to prevent recalculation on every render
+  const filteredDocuments = useMemo(
+    () => documents.filter((doc) =>
+      doc.filename.toLowerCase().includes(searchTerm.toLowerCase()),
+    ),
+    [documents, searchTerm]
+  );
+
+  // Memoize total size calculation
+  const totalSize = useMemo(
+    () => documents.reduce((acc, doc) => acc + doc.size, 0),
+    [documents]
   );
 
   const handleButtonClick = () => {
@@ -480,9 +490,7 @@ export function DocumentManagement() {
               {isLoadingList ? (
                 <Skeleton className="h-6 w-24" />
               ) : (
-                formatFileSize(
-                  documents.reduce((acc, doc) => acc + doc.size, 0),
-                )
+                formatFileSize(totalSize)
               )}
             </div>
             <p className="text-xs text-muted-foreground mt-1">

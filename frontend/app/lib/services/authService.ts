@@ -51,16 +51,20 @@ class TokenManager {
     this.refreshToken = refreshToken;
     this.expiryTime = Date.now() + expiresIn * 1000;
 
-    // Persistencia básica en cookies (solo access_token para middleware simple)
+    // Persistencia en cookies (más seguro que localStorage contra XSS)
+    // NOTA: Para máxima seguridad, el backend debería setear HttpOnly cookies
     try {
       if (typeof document !== "undefined") {
         const maxAge = Math.max(0, Math.floor(expiresIn));
         const secure = window.location.protocol === "https:" ? "; Secure" : "";
+        // Access token - corta duración
         document.cookie = `auth_token=${accessToken}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
-        // Guardar refresh token en localStorage para sobrevivir recargas (menos seguro que HttpOnly, pero funcional para MVP)
-        localStorage.setItem("refresh_token", refreshToken);
+        // Refresh token - más larga duración, SameSite=Strict para mayor seguridad
+        // Usamos 7 días como Max-Age para el refresh token
+        const refreshMaxAge = 7 * 24 * 60 * 60; // 7 días en segundos
+        document.cookie = `refresh_token=${refreshToken}; Path=/; Max-Age=${refreshMaxAge}; SameSite=Strict${secure}`;
       }
-    } catch {}
+    } catch { }
   }
 
   static getAccessToken(): string | null {
@@ -78,21 +82,23 @@ class TokenManager {
           return this.accessToken;
         }
       }
-    } catch {}
+    } catch { }
     return null;
   }
 
   static getRefreshToken(): string | null {
     if (this.refreshToken) return this.refreshToken;
     try {
-      if (typeof window !== "undefined") {
-        const stored = localStorage.getItem("refresh_token");
-        if (stored) {
-          this.refreshToken = stored;
-          return stored;
+      if (typeof document !== "undefined") {
+        const match = document.cookie.match(
+          new RegExp("(^| )refresh_token=([^;]+)"),
+        );
+        if (match) {
+          this.refreshToken = match[2];
+          return this.refreshToken;
         }
       }
-    } catch {}
+    } catch { }
     return null;
   }
 
@@ -108,9 +114,9 @@ class TokenManager {
     try {
       if (typeof document !== "undefined") {
         document.cookie = "auth_token=; Path=/; Max-Age=0; SameSite=Lax";
-        localStorage.removeItem("refresh_token");
+        document.cookie = "refresh_token=; Path=/; Max-Age=0; SameSite=Strict";
       }
-    } catch {}
+    } catch { }
   }
 
   static isTokenValid(): boolean {

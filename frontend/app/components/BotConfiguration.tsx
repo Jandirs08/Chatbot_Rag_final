@@ -5,13 +5,13 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
-import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+} from "@/app/components/ui/card";
+import { Button } from "@/app/components/ui/button";
+import { Textarea } from "@/app/components/ui/textarea";
+import { Label } from "@/app/components/ui/label";
+import { Slider } from "@/app/components/ui/slider";
+import { Input } from "@/app/components/ui/input";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/app/components/ui/tabs";
 import { Settings, Save, RotateCcw, Clock, Pencil } from "lucide-react";
 import { toast } from "sonner";
 export interface BotConfigurationProps {
@@ -225,17 +225,15 @@ export function BotConfiguration({
             </CardHeader>
             <CardContent className="space-y-4">
               <div
-                className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border ${
-                  isBotActive
+                className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border ${isBotActive
                     ? "bg-emerald-100 text-emerald-800 border-emerald-200"
                     : "bg-gray-100 text-gray-700 border-gray-200"
-                }`}
+                  }`}
                 aria-live="polite"
               >
                 <div
-                  className={`w-2 h-2 rounded-full ${
-                    isBotActive ? "bg-emerald-600 animate-pulse" : "bg-red-500"
-                  }`}
+                  className={`w-2 h-2 rounded-full ${isBotActive ? "bg-emerald-600 animate-pulse" : "bg-red-500"
+                    }`}
                 ></div>
                 <span className="text-sm font-medium">
                   {isBotActive ? "Activo" : "Inactivo"}

@@ -188,17 +188,15 @@ export default function Dashboard() {
             Control del Chatbot
           </h1>
           <span
-            className={`inline-flex items-center gap-2 px-3 py-1 rounded-[20px] text-xs font-semibold ${
-              isBotActive
+            className={`inline-flex items-center gap-2 px-3 py-1 rounded-[20px] text-xs font-semibold ${isBotActive
                 ? "bg-[#da5b3e] text-white border-0"
                 : "bg-gray-100 text-gray-600 border-0"
-            }`}
+              }`}
             aria-live="polite"
           >
             <span
-              className={`inline-block w-2 h-2 rounded-full ${
-                isBotActive ? "bg-white" : "bg-gray-500"
-              }`}
+              className={`inline-block w-2 h-2 rounded-full ${isBotActive ? "bg-white" : "bg-gray-500"
+                }`}
             />
             {isBotActive ? "Bot activo" : "Bot inactivo"}
           </span>

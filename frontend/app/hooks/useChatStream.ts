@@ -102,9 +102,29 @@ export function useChatStream(
             }
           },
           onerror(err) {
-            logger.error("Error en la conexión:", err);
+            logger.error("Error en la conexión SSE:", err);
             setIsLoading(false);
-            throw err;
+            // Add error message to chat instead of throwing
+            // The throw was causing unhandled promise rejections
+            setMessages((prev) => {
+              // Only add error if we don't already have an error message as last
+              const last = prev[prev.length - 1];
+              if (last?.role === "assistant" && last?.content?.includes("error")) {
+                return prev;
+              }
+              return [
+                ...prev,
+                {
+                  id: crypto?.randomUUID
+                    ? crypto.randomUUID()
+                    : `${Date.now()}-${Math.random()}`,
+                  content:
+                    "Se perdió la conexión. Por favor, intenta de nuevo.",
+                  role: "assistant" as const,
+                  createdAt: new Date(),
+                },
+              ];
+            });
           },
           async onmessage(msg) {
             if (msg.data) {
@@ -115,7 +135,7 @@ export function useChatStream(
                 if (typeof delta === "string" && delta.length > 0) {
                   try {
                     logger.log("[SSE] chunk received", { len: delta.length });
-                  } catch {}
+                  } catch { }
                   setMessages((prevMessages) => {
                     const last = prevMessages[prevMessages.length - 1];
                     if (last && last.role === "assistant") {

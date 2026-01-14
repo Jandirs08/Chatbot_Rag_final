@@ -68,6 +68,24 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
     instructions: true,
   });
   const [jsonCollapsed, setJsonCollapsed] = useState<Record<string, boolean>>({});
+
+  // Cleanup Object URL when PDF modal closes to prevent memory leaks
+  React.useEffect(() => {
+    // Only cleanup when modal is closed and we have a URL
+    if (!pdfOpen && pdfUrl) {
+      URL.revokeObjectURL(pdfUrl);
+      setPdfUrl(null);
+    }
+  }, [pdfOpen, pdfUrl]);
+
+  // Cleanup on unmount as safety net
+  React.useEffect(() => {
+    return () => {
+      if (pdfUrl) {
+        URL.revokeObjectURL(pdfUrl);
+      }
+    };
+  }, [pdfUrl]);
   const SEGMENTS = ["context", "history", "instructions"] as const;
   const ORDERED_SEGMENTS = ["instructions", "context", "history"] as const;
   const sysPrompt = (data?.system_prompt_used ?? data?.system_prompt ?? "") as string;
@@ -146,7 +164,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
     typeof modelParams.temperature === "number"
       ? modelParams.temperature
       : undefined;
-  
+
   const ragTime = typeof data?.rag_time === "number" ? data!.rag_time! : null;
   const llmTime = typeof data?.llm_time === "number" ? data!.llm_time! : null;
   const inTok =
@@ -408,8 +426,8 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                     data?.verification?.is_grounded === false
                       ? "bg-amber-50 border-amber-200 text-amber-700"
                       : data?.verification?.is_grounded === true
-                      ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                      : "bg-slate-50 border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300",
+                        ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                        : "bg-slate-50 border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300",
                   )}
                 >
                   {data?.verification?.is_grounded === false ? (
@@ -423,8 +441,8 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                     {data?.verification?.is_grounded === false
                       ? "Posible Alucinación"
                       : data?.verification?.is_grounded === true
-                      ? "Verificado"
-                      : "Sin verificación"}
+                        ? "Verificado"
+                        : "Sin verificación"}
                   </span>
                 </div>
               </TooltipTrigger>
@@ -590,7 +608,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                                   ),
                                   "Veredicto",
                                 )}
-                          </div>
+                              </div>
                             );
                           })()}
                         </div>
@@ -600,16 +618,16 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                         <div className="w-full">
                           <div className="flex mb-2 text-xs text-slate-800">
                             <div style={{ width: `${Math.max(0, Math.min(100, rPct))}%` }} className="relative">
-                            <div className="flex justify-center">
-                              {typeof ragTime === "number" && ragTime >= 0.01 && (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className="px-2 py-[2px] rounded bg-amber-200 text-slate-900">RAG {fmtSVal(ragTime)}s</span>
-                                  </TooltipTrigger>
-                                  <TooltipContent className="text-xs">Tiempo de búsqueda en el corpus</TooltipContent>
-                                </Tooltip>
-                              )}
-                            </div>
+                              <div className="flex justify-center">
+                                {typeof ragTime === "number" && ragTime >= 0.01 && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="px-2 py-[2px] rounded bg-amber-200 text-slate-900">RAG {fmtSVal(ragTime)}s</span>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="text-xs">Tiempo de búsqueda en el corpus</TooltipContent>
+                                  </Tooltip>
+                                )}
+                              </div>
                             </div>
                             <div style={{ width: `${Math.max(0, Math.min(100, lPct))}%` }} className="relative">
                               <div className="flex justify-center">
@@ -636,8 +654,8 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                   })()
                 )}
                 <div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 rounded-xl border border-border bg-card shadow-md ring-1 ring-white/5 p-4 dark:bg-slate-900 dark:border-slate-800">
-                      <div className="flex flex-col gap-2">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 rounded-xl border border-border bg-card shadow-md ring-1 ring-white/5 p-4 dark:bg-slate-900 dark:border-slate-800">
+                    <div className="flex flex-col gap-2">
                       <div className="text-xs font-semibold text-foreground">Motor</div>
                       <div className="flex flex-wrap items-center gap-3">
                         <Tooltip>
@@ -663,7 +681,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                           </TooltipTrigger>
                           <TooltipContent className="text-xs">Indica si se respondió desde caché</TooltipContent>
                         </Tooltip>
-                        
+
                       </div>
                     </div>
                     <div className="flex flex-col gap-2">
@@ -727,12 +745,12 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                             decisionTone === "green"
                               ? "bg-emerald-50 border-emerald-200 text-emerald-700"
                               : decisionTone === "indigo"
-                              ? "bg-indigo-50 border-indigo-200 text-indigo-700"
-                              : decisionTone === "amber"
-                              ? "bg-amber-50 border-amber-200 text-amber-700"
-                              : decisionTone === "rose"
-                              ? "bg-rose-50 border-rose-200 text-rose-700"
-                              : "bg-slate-50 border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300"
+                                ? "bg-indigo-50 border-indigo-200 text-indigo-700"
+                                : decisionTone === "amber"
+                                  ? "bg-amber-50 border-amber-200 text-amber-700"
+                                  : decisionTone === "rose"
+                                    ? "bg-rose-50 border-rose-200 text-rose-700"
+                                    : "bg-slate-50 border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300"
                           )}
                         >
                           <Shield className="w-3.5 h-3.5" />
@@ -745,203 +763,203 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
               </div>
             </div>
           </section>
-          
+
           <TooltipProvider delayDuration={0}>
-          
 
-          
-        
-          
-        
-          <section className="mt-6 pl-6">
-            <div className="text-sm font-semibold text-foreground mb-1">
-              Fuentes
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Fragmentos recuperados y similitud
-            </div>
-            <div className="rounded-xl border border-border p-4 bg-card shadow-md ring-1 ring-white/5 space-y-4 text-[13px] leading-relaxed mt-2 dark:bg-slate-900 dark:border-slate-800">
-              {docs.length === 0 ? (
-                <div className="inline-flex items-center px-3 py-2 rounded-md text-sm bg-muted text-muted-foreground border border-border dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700">
-                  Salto de Búsqueda
-                </div>
-              ) : (
-                <div>
-                  <div className="mt-3 space-y-4">
-                    {docs.map((d, idx) => {
-                      const score =
-                        typeof d.score === "number" ? d.score : undefined;
-                      const pct =
-                        score !== undefined
-                          ? Math.max(0, Math.min(1, score)) * 100
-                          : undefined;
-                      const contentText = String(
-                        d.text ?? d.preview ?? "",
-                      ).trim();
-                      const src = d.source ?? d.file_path ?? null;
-                      const pageNum =
-                        typeof d.page_number === "number"
-                          ? d.page_number
-                          : null;
-                      const fileName = src
-                        ? String(src).split("/").pop()
-                        : undefined;
-                      const scoreColorHex =
-                        score !== undefined
-                          ? score > 0.7
-                            ? "#10b981"
-                            : score > 0.4
-                              ? "#f59e0b"
-                              : "#f43f5e"
-                          : "#94a3b8";
-                      const confidenceLabel =
-                        score === undefined
-                          ? "Sin score"
-                          : score > 0.7
-                            ? "High semantic match"
-                            : score > 0.4
-                              ? "Medium semantic match"
-                              : "Low semantic match";
-                      const confidenceClass = "bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700";
-                      const scoreToneClass =
-                        score === undefined
-                          ? "bg-slate-100 text-slate-700 border border-slate-200"
-                          : score > 0.7
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                            : score > 0.4
-                              ? "bg-amber-50 text-amber-700 border-amber-200"
-                              : "bg-rose-50 text-rose-700 border-rose-200";
-                      return (
-                        <div
-                          key={idx}
-                          className={cn(
-                            "rounded-lg shadow-md ring-1 ring-white/5 border border-border border-l-4 overflow-hidden transition ease-out duration-300 hover:shadow-lg bg-card dark:bg-slate-900 dark:border-slate-800",
-                          )}
-                          style={{ borderLeftColor: scoreColorHex }}
-                        >
-                          <div className="flex items-center justify-between px-3 py-2">
-                            <div className="text-sm font-medium text-foreground">
-                              {fileName || `Fragmento #${idx + 1}`}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {pageNum && pageNum > 0 && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-[10px]"
-                                >
-                                  Pág. {pageNum}
-                                </Badge>
-                              )}
-                              {typeof score === "number" && (
-                                <Badge className={cn("text-[10px]", scoreToneClass)}>
-                                  Score {Math.round(score * 100) / 100}
-                                </Badge>
-                              )}
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Badge
-                                    className={cn(
-                                      "text-[10px]",
-                                      confidenceClass,
-                                    )}
-                                  >
-                                    {confidenceLabel}
-                                  </Badge>
-                                </TooltipTrigger>
-                                <TooltipContent className="text-xs">
-                                  Confianza basada en similitud semántica
-                                </TooltipContent>
-                              </Tooltip>
-                              {d.source && (
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7"
-                                        onClick={async () => {
-                                          try {
-                                            const url = await (
-                                              await import(
-                                                "@/app/lib/services/pdfService"
-                                              )
-                                            ).PDFService.getPDFBlobUrl(
-                                              d.source as string,
-                                              "view",
-                                            );
-                                            setPdfUrl(url);
-                                            setPdfPage(pageNum);
-                                            setPdfOpen(true);
-                                          } catch (_) {}
-                                        }}
-                                      >
-                                        <Eye className="w-4 h-4" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      Ver documento original
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              )}
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                  setExpandedDocs((s) => ({
-                                    ...(s || {}),
-                                    [idx]: !s?.[idx],
-                                  }))
-                                }
-                              >
-                                {expandedDocs?.[idx] ? "Ver menos" : "Ver más"}
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="px-3 pb-3">
-                            {pct !== undefined && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
-                                      <div
-                                        className="h-full"
-                                        style={{
-                                          width: `${Math.round(pct)}%`,
-                                          backgroundColor: scoreColorHex,
-                                        }}
-                                      />
-                                    </div>
-                                    <span className="text-xs text-slate-500">
-                                      {Math.round(pct)}%
-                                    </span>
-                                  </div>
-                                </TooltipTrigger>
-                                <TooltipContent className="text-xs">
-                                  Similitud semántica del fragmento
-                                </TooltipContent>
-                              </Tooltip>
-                            )}
-                            <div className="bg-slate-50 text-slate-500 rounded-md px-3 py-2 text-xs font-mono leading-relaxed">
-                              {expandedDocs?.[idx]
-                                ? contentText
-                                : contentText.length > 220
-                                  ? contentText.slice(0, 220) + "…"
-                                  : contentText}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
+
+
+
+
+
+            <section className="mt-6 pl-6">
+              <div className="text-sm font-semibold text-foreground mb-1">
+                Fuentes
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Fragmentos recuperados y similitud
+              </div>
+              <div className="rounded-xl border border-border p-4 bg-card shadow-md ring-1 ring-white/5 space-y-4 text-[13px] leading-relaxed mt-2 dark:bg-slate-900 dark:border-slate-800">
+                {docs.length === 0 ? (
+                  <div className="inline-flex items-center px-3 py-2 rounded-md text-sm bg-muted text-muted-foreground border border-border dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700">
+                    Salto de Búsqueda
                   </div>
-                </div>
-              )}
-            </div>
-          </section>
+                ) : (
+                  <div>
+                    <div className="mt-3 space-y-4">
+                      {docs.map((d, idx) => {
+                        const score =
+                          typeof d.score === "number" ? d.score : undefined;
+                        const pct =
+                          score !== undefined
+                            ? Math.max(0, Math.min(1, score)) * 100
+                            : undefined;
+                        const contentText = String(
+                          d.text ?? d.preview ?? "",
+                        ).trim();
+                        const src = d.source ?? d.file_path ?? null;
+                        const pageNum =
+                          typeof d.page_number === "number"
+                            ? d.page_number
+                            : null;
+                        const fileName = src
+                          ? String(src).split("/").pop()
+                          : undefined;
+                        const scoreColorHex =
+                          score !== undefined
+                            ? score > 0.7
+                              ? "#10b981"
+                              : score > 0.4
+                                ? "#f59e0b"
+                                : "#f43f5e"
+                            : "#94a3b8";
+                        const confidenceLabel =
+                          score === undefined
+                            ? "Sin score"
+                            : score > 0.7
+                              ? "High semantic match"
+                              : score > 0.4
+                                ? "Medium semantic match"
+                                : "Low semantic match";
+                        const confidenceClass = "bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700";
+                        const scoreToneClass =
+                          score === undefined
+                            ? "bg-slate-100 text-slate-700 border border-slate-200"
+                            : score > 0.7
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              : score > 0.4
+                                ? "bg-amber-50 text-amber-700 border-amber-200"
+                                : "bg-rose-50 text-rose-700 border-rose-200";
+                        return (
+                          <div
+                            key={idx}
+                            className={cn(
+                              "rounded-lg shadow-md ring-1 ring-white/5 border border-border border-l-4 overflow-hidden transition ease-out duration-300 hover:shadow-lg bg-card dark:bg-slate-900 dark:border-slate-800",
+                            )}
+                            style={{ borderLeftColor: scoreColorHex }}
+                          >
+                            <div className="flex items-center justify-between px-3 py-2">
+                              <div className="text-sm font-medium text-foreground">
+                                {fileName || `Fragmento #${idx + 1}`}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {pageNum && pageNum > 0 && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px]"
+                                  >
+                                    Pág. {pageNum}
+                                  </Badge>
+                                )}
+                                {typeof score === "number" && (
+                                  <Badge className={cn("text-[10px]", scoreToneClass)}>
+                                    Score {Math.round(score * 100) / 100}
+                                  </Badge>
+                                )}
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge
+                                      className={cn(
+                                        "text-[10px]",
+                                        confidenceClass,
+                                      )}
+                                    >
+                                      {confidenceLabel}
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="text-xs">
+                                    Confianza basada en similitud semántica
+                                  </TooltipContent>
+                                </Tooltip>
+                                {d.source && (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7"
+                                          onClick={async () => {
+                                            try {
+                                              const url = await (
+                                                await import(
+                                                  "@/app/lib/services/pdfService"
+                                                )
+                                              ).PDFService.getPDFBlobUrl(
+                                                d.source as string,
+                                                "view",
+                                              );
+                                              setPdfUrl(url);
+                                              setPdfPage(pageNum);
+                                              setPdfOpen(true);
+                                            } catch (_) { }
+                                          }}
+                                        >
+                                          <Eye className="w-4 h-4" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        Ver documento original
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    setExpandedDocs((s) => ({
+                                      ...(s || {}),
+                                      [idx]: !s?.[idx],
+                                    }))
+                                  }
+                                >
+                                  {expandedDocs?.[idx] ? "Ver menos" : "Ver más"}
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="px-3 pb-3">
+                              {pct !== undefined && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
+                                        <div
+                                          className="h-full"
+                                          style={{
+                                            width: `${Math.round(pct)}%`,
+                                            backgroundColor: scoreColorHex,
+                                          }}
+                                        />
+                                      </div>
+                                      <span className="text-xs text-slate-500">
+                                        {Math.round(pct)}%
+                                      </span>
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="text-xs">
+                                    Similitud semántica del fragmento
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                              <div className="bg-slate-50 text-slate-500 rounded-md px-3 py-2 text-xs font-mono leading-relaxed">
+                                {expandedDocs?.[idx]
+                                  ? contentText
+                                  : contentText.length > 220
+                                    ? contentText.slice(0, 220) + "…"
+                                    : contentText}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
 
-          
-        </TooltipProvider>
+
+          </TooltipProvider>
         </div>
       </div>
 
@@ -1019,11 +1037,11 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                           </div>
                           <span className="text-xs text-slate-200">{inner.length} chars</span>
                         </button>
-                        <div className={cn("px-4 pb-4 transition-opacity duration-150", open ? "opacity-100" : "opacity-0 hidden") }>
-                  <div className="text-slate-100 font-mono text-[14px]" style={{ overflowWrap: "anywhere" }}>
+                        <div className={cn("px-4 pb-4 transition-opacity duration-150", open ? "opacity-100" : "opacity-0 hidden")}>
+                          <div className="text-slate-100 font-mono text-[14px]" style={{ overflowWrap: "anywhere" }}>
                             <div className="text-slate-300 mb-2">────────────────────────────────────────────────</div>
                             {name === "instructions" ? (
-                              <div className={cn("px-4 py-3 inline-block rounded leading-7 break-words", "bg-emerald-500/15") }>
+                              <div className={cn("px-4 py-3 inline-block rounded leading-7 break-words", "bg-emerald-500/15")}>
                                 {splitInstructions(inner).map((item, idx) => {
                                   const m = item.match(/^\s*(\d+)\.\s*([\s\S]*)$/);
                                   const number = m ? m[1] : String(idx + 1);
@@ -1031,12 +1049,12 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                                   return (
                                     <div key={idx} className="mb-3 whitespace-pre-wrap break-words">
                                       <div className="mb-1"><span className="inline-block w-full break-words">[{number}] {emphasize(rest)}</span></div>
-                                      </div>
-                                    );
+                                    </div>
+                                  );
                                 })}
                               </div>
                             ) : (
-                              <pre className={cn("px-4 py-3 inline-block rounded leading-7 whitespace-pre-wrap break-words", name === "context" ? "bg-indigo-500/15" : "bg-violet-500/15") }>
+                              <pre className={cn("px-4 py-3 inline-block rounded leading-7 whitespace-pre-wrap break-words", name === "context" ? "bg-indigo-500/15" : "bg-violet-500/15")}>
                                 {formatGeneral(inner)}
                               </pre>
                             )}
@@ -1110,7 +1128,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                             <span className="text-slate-400">{value.length} items</span>
                             <span className="text-slate-300">]</span>
                           </button>
-                          <div className={cn("transition-opacity duration-150", collapsed ? "opacity-0 hidden" : "opacity-100") }>
+                          <div className={cn("transition-opacity duration-150", collapsed ? "opacity-0 hidden" : "opacity-100")}>
                             {value.map((v, i) => (
                               <div key={`${path}|${i}`} className="leading-7">
                                 {renderNode(v, `${path}|${i}`, depth + 1)}
@@ -1135,7 +1153,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                           <span className="text-slate-400">{entries.length} keys</span>
                           <span className="text-slate-300">{`}`}</span>
                         </button>
-                        <div className={cn("transition-opacity duration-150", collapsed ? "opacity-0 hidden" : "opacity-100") }>
+                        <div className={cn("transition-opacity duration-150", collapsed ? "opacity-0 hidden" : "opacity-100")}>
                           {entries.map(([k, v], i) => (
                             <div key={`${path}|${k}`} className="leading-7">
                               <span className="text-sky-300 font-semibold break-words">&quot;{k}&quot;</span>

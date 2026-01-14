@@ -14,6 +14,7 @@ import {
   Sun,
   Moon,
 } from "lucide-react";
+import React from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -72,7 +73,7 @@ const baseMenuItems = [
 ];
 
 const integrationItems = baseMenuItems.filter(
-  (item) => item.title === "Widget" || item.title === "Configuración WhatsApp",
+  (item) => item.title === "Web" || item.title === "WhatsApp",
 );
 
 const mainMenuItems = baseMenuItems.filter(
@@ -158,19 +159,19 @@ export function AppSidebar() {
             <SidebarMenu>
               {(isAdmin
                 ? [
-                    ...mainMenuItems,
-                    {
-                      title: "Buzón",
-                      url: "/admin/inbox",
-                      icon: MessageSquare,
-                    },
-                    { title: "Usuarios", url: "/usuarios", icon: Users },
-                    {
-                      title: "Configuración",
-                      url: "/admin/settings",
-                      icon: Settings,
-                    },
-                  ]
+                  ...mainMenuItems,
+                  {
+                    title: "Buzón",
+                    url: "/admin/inbox",
+                    icon: MessageSquare,
+                  },
+                  { title: "Usuarios", url: "/usuarios", icon: Users },
+                  {
+                    title: "Configuración",
+                    url: "/admin/settings",
+                    icon: Settings,
+                  },
+                ]
                 : mainMenuItems
               ).map((item) => (
                 <SidebarMenuItem key={item.title}>
@@ -279,12 +280,7 @@ export function AppSidebar() {
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => {
-                    const next = !isDark;
-                    document.documentElement.classList.toggle("dark", next);
-                    localStorage.setItem("theme", next ? "dark" : "light");
-                    setIsDark(next);
-                  }}
+                  onClick={toggleTheme}
                   className="h-8 w-8 bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700 dark:hover:bg-slate-700"
                   aria-label={
                     isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"
@@ -304,12 +300,7 @@ export function AppSidebar() {
                     aria-label={
                       isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"
                     }
-                    onClick={() => {
-                      const next = !isDark;
-                      document.documentElement.classList.toggle("dark", next);
-                      localStorage.setItem("theme", next ? "dark" : "light");
-                      setIsDark(next);
-                    }}
+                    onClick={toggleTheme}
                     className={`relative h-7 w-14 rounded-full transition-colors ${isDark ? "bg-slate-800" : "bg-gray-200"}`}
                   >
                     <div
@@ -332,4 +323,4 @@ export function AppSidebar() {
     </Sidebar>
   );
 }
-import React from "react";
+
