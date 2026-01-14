@@ -16,13 +16,14 @@ class PDFProcessorAdapter:
     def get_vector_store_info(self):
         """Obtiene información del vector store: URL, colección y count de puntos."""
         url = settings.qdrant_url
+        collection = self.vector_store.collection_name
         count = 0
         try:
-            c = self.vector_store.client.count(collection_name="rag_collection")
+            c = self.vector_store.client.count(collection_name=collection)
             count = int(getattr(c, "count", 0))
         except Exception:
             count = 0
-        return {"url": url, "collection": "rag_collection", "count": count}
+        return {"url": url, "collection": collection, "count": count}
 
     async def clear_pdfs(self):
         """Limpia todos los PDFs."""

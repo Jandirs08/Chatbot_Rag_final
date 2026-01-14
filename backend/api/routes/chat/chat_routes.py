@@ -59,23 +59,27 @@ async def chat_stream_log(request: Request):
         if not input_text:
             raise HTTPException(status_code=400, detail="El mensaje no puede estar vacío")
         
-        logger.info(f"Recibida solicitud de chat: '{input_text}' para conversación {conversation_id}")
+        # Protección: límite de caracteres para evitar abuso de tokens
+        max_length = getattr(settings, "max_message_length", 2000)
+        if len(input_text) > max_length:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Mensaje muy largo. Máximo {max_length} caracteres."
+            )
+        
+        logger.info(f"[CHAT] Request: '{input_text[:50]}...' conv={conversation_id}")
         
         async def generate():
             try:
-                logger.info(f"[SSE] Iniciando streaming para conv={conversation_id}")
+                logger.debug(f"[CHAT] Streaming iniciado | conv={conversation_id}")
                 stream_gen = chat_manager.generate_streaming_response(input_text, conversation_id, source, debug_mode, enable_verification)
                 async for chunk in stream_gen:
                     try:
                         payload = json.dumps({"stream": chunk})
                     except Exception:
                         payload = json.dumps({"stream": str(chunk)})
-                    try:
-                        logger.debug(f"[SSE] Chunk emitido len={len(str(chunk))}")
-                    except Exception:
-                        pass
                     yield f"data: {payload}\n\n"
-                logger.info(f"[SSE] Streaming finalizado para conv={conversation_id}")
+                logger.debug(f"[CHAT] Streaming finalizado | conv={conversation_id}")
                 if debug_mode:
                     try:
                         dbg = getattr(chat_manager, "_last_debug_info", None)

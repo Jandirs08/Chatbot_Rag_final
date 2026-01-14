@@ -260,7 +260,7 @@ class RAGRetriever:
                 cleaned = self._clean_vector(arr)
                 if cleaned is not None:
                     self._centroid_embedding = cleaned
-                    logger.info("Centroide cargado desde cache (rag:centroid)")
+                    logger.debug("[RAG] Centroide cargado desde cache")
                     return
                 else:
                     logger.warning("Centroide en caché inválido (norma cero o corrupto).")
@@ -424,10 +424,11 @@ class RAGRetriever:
         # --- gating ---
         gating_reason, use_rag = await self.gating_async(query)
         self._last_gating_reason = gating_reason  # Exponer para debug info del Bot
-        logger.info(f"Retrieve: gating reason={gating_reason}, use_rag={use_rag}")
+        # Log consolidado de gating
+        action = "usando RAG" if use_rag else "omitido"
+        logger.info(f"[RAG] Gating: {action} | reason={gating_reason} q='{self._safe_query_for_log(query)}'")
 
         if not use_rag:
-            logger.info(f"Retrieve: Salto de RAG por gating (reason={gating_reason})")
             return []
 
         # ====== Cache =======
@@ -735,7 +736,7 @@ class RAGRetriever:
                     try:
                         res = await asyncio.to_thread(
                             client.scroll,
-                            collection_name="rag_collection",
+                            collection_name=self.vector_store.collection_name,
                             limit=limit,
                             offset=next_offset,
                             with_payload=True,
@@ -795,7 +796,7 @@ class RAGRetriever:
 
                 # Alinear con gating_async: guardar COUNT total real
                 try:
-                    c = await asyncio.to_thread(client.count, collection_name="rag_collection")
+                    c = await asyncio.to_thread(client.count, collection_name=self.vector_store.collection_name)
                     self._last_total_points_count = int(getattr(c, "count", 0))
                     self._last_corpus_size_check_time = time.time()
                 except Exception:
@@ -860,7 +861,7 @@ class RAGRetriever:
         """
         try:
             q = (query or "").strip()
-            logger.info(f"[RAG][GATING][START] q='{self._safe_query_for_log(q)}'")
+            # Log de inicio removido - consolidado en FINAL
 
             # 1) Carga rápida (sin spawnear)
             self._try_load_centroid_from_cache(spawn_if_missing=False)
@@ -872,7 +873,7 @@ class RAGRetriever:
                 if (now - self._last_corpus_size_check_time) < float(self._corpus_size_cache_ttl):
                     current_total_points = self._last_total_points_count
                 else:
-                    c = await asyncio.to_thread(self.vector_store.client.count, collection_name="rag_collection")
+                    c = await asyncio.to_thread(self.vector_store.client.count, collection_name=self.vector_store.collection_name)
                     new_count = int(getattr(c, "count", 0))
 
                     if new_count is not None and self._last_total_points_count is not None and new_count != self._last_total_points_count:
@@ -902,11 +903,6 @@ class RAGRetriever:
                 pass
 
             reason, use = self._evaluate_gating_logic(q, q_vec, current_total_points)
-            # Log “final” (para que no te confunda cuando hay razones previas en otras capas)
-            logger.debug(
-                f"[RAG][GATING][FINAL] q='{self._safe_query_for_log(q)}' "
-                f"reason={reason} use_rag={use} corpus_size={current_total_points}"
-            )
             return (reason, use)
 
         except Exception as e:

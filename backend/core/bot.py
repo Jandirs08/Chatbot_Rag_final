@@ -123,13 +123,10 @@ class Bot:
             conversation_id = x.get("conversation_id")
             hist = await self.memory.get_history(conversation_id)
 
-            # 🔥 LOG: ver historia cruda tal cual viene de la memoria
-            self.logger.debug(f"[DEBUG-HISTORY] Raw hist_list:\n{hist}")
-
             formatted = self._format_history(hist)
 
-            # 🔥 LOG: ver cómo se formatea para insertarse en el prompt
-            self.logger.debug(f"[DEBUG-HISTORY] Formatted history for prompt:\n{formatted}")
+            # Log conciso del historial cargado
+            self.logger.debug(f"[HISTORY] Cargado | msgs={len(hist)} conv={x.get('conversation_id', 'unknown')}")
 
             return formatted
 

@@ -52,6 +52,8 @@ def _setup_logging_and_warnings() -> None:
         logging.getLogger("langchain").setLevel(logging.WARNING)
         logging.getLogger("langchain_core").setLevel(logging.WARNING)
         logging.getLogger("langchain_openai").setLevel(logging.WARNING)
+        # Suprimir específicamente el warning de "model not found" de embeddings
+        logging.getLogger("langchain_openai.embeddings.base").setLevel(logging.ERROR)
         logging.getLogger("langchain_community").setLevel(logging.WARNING)
         logging.getLogger("huggingface_hub").setLevel(logging.WARNING)
         logging.getLogger("urllib3").setLevel(logging.WARNING)
@@ -159,7 +161,7 @@ from storage.pdf_processor_adapter import PDFProcessorAdapter
 async def lifespan(app: FastAPI):
     """Application lifespan context manager for setup and teardown."""
     logger = get_logger(__name__)
-    logger.info("Iniciando aplicación y configurando recursos...")
+    logger.debug("Iniciando aplicación...")
     
     try:
         s = settings
@@ -193,7 +195,6 @@ async def lifespan(app: FastAPI):
 
         # Inicializar componentes
         app.state.pdf_file_manager = PDFManager(base_dir=Path(s.pdfs_dir).resolve() if s.pdfs_dir else None)
-        logger.info(f"PDFManager inicializado. Directorio de PDFs: {app.state.pdf_file_manager.pdf_dir}")
 
         app.state.pdf_content_loader = PDFContentLoader(
             chunk_size=s.chunk_size,
@@ -205,7 +206,6 @@ async def lifespan(app: FastAPI):
         )
 
         app.state.embedding_manager = EmbeddingManager(model_name=s.embedding_model)
-        logger.info(f"EmbeddingManager inicializado con modelo: {s.embedding_model}")
 
         app.state.vector_store = VectorStore(
             embedding_function=app.state.embedding_manager,
@@ -214,8 +214,7 @@ async def lifespan(app: FastAPI):
             cache_ttl=s.cache_ttl,
             batch_size=s.batch_size
         )
-        logger.info("VectorStore inicializado (Qdrant)")
-        logger.info(f"Umbral de similitud configurado: {s.similarity_threshold}")
+        logger.debug("VectorStore inicializado (Qdrant)")
 
         app.state.rag_ingestor = RAGIngestor(
             pdf_file_manager=app.state.pdf_file_manager,
@@ -223,13 +222,11 @@ async def lifespan(app: FastAPI):
             embedding_manager=app.state.embedding_manager,
             vector_store=app.state.vector_store
         )
-        logger.info("RAGIngestor inicializado.")
 
         app.state.rag_retriever = RAGRetriever(
             vector_store=app.state.vector_store,
             embedding_manager=app.state.embedding_manager
         )
-        logger.info("RAGRetriever inicializado.")
 
         # Ping ligero de embeddings para visibilidad (sin bloquear arranque si falla)
         try:
@@ -266,7 +263,7 @@ async def lifespan(app: FastAPI):
             logger.info("Initializing persistent MongoDB client for application lifespan...")
             app.state.mongodb_client = get_mongodb_client()
             await app.state.mongodb_client.ensure_indexes()
-            logger.warning(f"[MONGO] Cliente A (lifespan): {id(app.state.mongodb_client)}")
+            logger.debug(f"[DB] MongoDB client id={id(app.state.mongodb_client)}")
             # Asegurar índices de usuarios (únicos y de estado)
             try:
                 await app.state.mongodb_client.ensure_user_indexes()

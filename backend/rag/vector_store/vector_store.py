@@ -48,6 +48,7 @@ class VectorStore:
         self.cache_enabled = cache_enabled
         self.cache_ttl = cache_ttl
         self.batch_size = batch_size
+        self.collection_name = getattr(settings, "qdrant_collection_name", "rag_collection")
 
         # Inicialización de conexión
         self._initialize_store()
@@ -81,10 +82,10 @@ class VectorStore:
             except Exception as e:
                 logger.warning("No se pudieron listar colecciones (posible primer inicio): %s", e)
 
-            if "rag_collection" not in existing_collections:
-                logger.info("Creando colección 'rag_collection' en Qdrant | dim=%s | distance=COSINE", dim)
+            if self.collection_name not in existing_collections:
+                logger.info("Creando colección '%s' en Qdrant | dim=%s | distance=COSINE", self.collection_name, dim)
                 self.client.create_collection(
-                    collection_name="rag_collection",
+                    collection_name=self.collection_name,
                     vectors_config=VectorParams(size=dim, distance=Distance.COSINE),
                     hnsw_config=HnswConfigDiff(m=16, ef_construct=200),
                     optimizers_config=OptimizersConfigDiff(default_segment_number=1)
@@ -92,7 +93,7 @@ class VectorStore:
                 # Crear índices solo si es nueva
                 self._ensure_payload_indexes()
             else:
-                logger.info("Colección 'rag_collection' ya existe.")
+                logger.info("Colección '%s' ya existe.", self.collection_name)
                 # Asegurar índices de todas formas por si hubo cambios de esquema
                 self._ensure_payload_indexes()
 
@@ -118,7 +119,7 @@ class VectorStore:
             for field, idx_type in required_indexes.items():
                 try:
                     self.client.create_payload_index(
-                        collection_name="rag_collection",
+                        collection_name=self.collection_name,
                         field_name=field,
                         field_schema=idx_type,
                     )
@@ -224,7 +225,7 @@ class VectorStore:
                 try:
                     await asyncio.to_thread(
                         self.client.upsert,
-                        collection_name="rag_collection",
+                        collection_name=self.collection_name,
                         points=points,
                         wait=True
                     )
@@ -483,7 +484,7 @@ class VectorStore:
 
             results = await asyncio.to_thread(
                 self.client.query_points,
-                collection_name="rag_collection",
+                collection_name=self.collection_name,
                 query=NearestQuery(nearest=vector),
                 limit=max(1, k),
                 query_filter=qfilter,
@@ -535,7 +536,7 @@ class VectorStore:
 
                 await asyncio.to_thread(
                     self.client.delete,
-                    collection_name="rag_collection",
+                    collection_name=self.collection_name,
                     points_selector=selector
                 )
             else:
@@ -557,7 +558,7 @@ class VectorStore:
         """Elimina y recrea la colección completa."""
         try:
             try:
-                await asyncio.to_thread(self.client.delete_collection, "rag_collection")
+                await asyncio.to_thread(self.client.delete_collection, self.collection_name)
             except Exception:
                 pass
 

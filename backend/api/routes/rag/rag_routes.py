@@ -94,7 +94,7 @@ async def clear_rag(request: Request):
         # Verificación del estado del vector store en Qdrant (fallback)
         try:
             vs = request.app.state.vector_store
-            c = vs.client.count(collection_name="rag_collection")
+            c = vs.client.count(collection_name=vs.collection_name)
             count_after_clear = int(getattr(c, "count", count_after_clear))
         except Exception as e:
             logger.warning(f"No se pudo verificar el conteo de la colección (Qdrant) tras limpieza: {e}")

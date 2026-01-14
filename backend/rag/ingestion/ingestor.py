@@ -67,7 +67,7 @@ class RAGIngestor:
             f = QFilter(
                 must=[FieldCondition(key="content_hash_global", match=MatchValue(value=content_hash_global))]
             )
-            count = client.count("rag_collection", count_filter=f)
+            count = client.count(self.vector_store.collection_name, count_filter=f)
             return int(getattr(count, "count", 0)) > 0
         except Exception as e:
             logger.error(f"Error verificando duplicado por content_hash_global: {e}")
@@ -79,7 +79,7 @@ class RAGIngestor:
             f = QFilter(
                 must=[FieldCondition(key="pdf_hash", match=MatchValue(value=pdf_hash))]
             )
-            count = client.count("rag_collection", count_filter=f)
+            count = client.count(self.vector_store.collection_name, count_filter=f)
             return int(count.count) > 0
         except Exception as e:
             logger.error(f"Error verificando duplicado por hash: {e}")

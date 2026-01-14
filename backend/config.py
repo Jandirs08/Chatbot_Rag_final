@@ -63,6 +63,7 @@ class Settings(BaseSettings):
     global_rate_limit: str = Field(default="100/minute", env="GLOBAL_RATE_LIMIT")
     chat_rate_limit: str = Field(default="10/minute", env="CHAT_RATE_LIMIT")
     pdf_upload_rate_limit: str = Field(default="5/hour", env="PDF_UPLOAD_RATE_LIMIT")
+    max_message_length: int = Field(default=2000, env="MAX_MESSAGE_LENGTH")
     
     # Configuraciones del Modelo
     model_type: str = Field(default="OPENAI", env="MODEL_TYPE")
@@ -124,6 +125,7 @@ class Settings(BaseSettings):
     distance_strategy: str = Field(default="cosine", env="DISTANCE_STRATEGY")
     qdrant_url: str = Field(default="http://localhost:6333", env="QDRANT_URL")
     qdrant_api_key: Optional[SecretStr] = Field(default=None, env="QDRANT_API_KEY")
+    qdrant_collection_name: str = Field(default="rag_collection", env="QDRANT_COLLECTION_NAME")
     
     # Configuraciones de RAG - Embeddings
     embedding_model: str = Field(default="openai:text-embedding-3-small", env="EMBEDDING_MODEL")

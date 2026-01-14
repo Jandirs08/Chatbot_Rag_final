@@ -37,7 +37,7 @@ class ChatManager:
         self.bot = bot_instance
         self.db = get_mongodb_client()
 
-        logger.warning(f"[MONGO] Cliente B (ChatManager): {id(self.db)}")
+        logger.debug(f"[DB] ChatManager inicializado | client_id={id(self.db)}")
 
     async def generate_response(self, input_text: str, conversation_id: str, source: str | None = None, debug_mode: bool = False):
         """Genera la respuesta usando el Bot (LCEL maneja el RAG automáticamente)."""
@@ -282,7 +282,7 @@ class ChatManager:
 
     async def generate_streaming_response(self, input_text: str, conversation_id: str, source: str | None = None, debug_mode: bool = False, enable_verification: bool = False):
         try:
-            logger.info(f"[ChatManager] Streaming start conv={conversation_id}")
+            logger.debug(f"[CHAT] Streaming start | conv={conversation_id}")
             if not debug_mode:
                 await self.db.add_message(conversation_id, USER_ROLE, input_text, source)
 
@@ -322,10 +322,6 @@ class ChatManager:
                 t_llm_start = time.perf_counter()
                 first = await asyncio.wait_for(stream.__anext__(), timeout=getattr(settings, "llm_timeout", 25))
                 final_text += first
-                try:
-                    logger.debug(f"[ChatManager] First chunk len={len(first)}")
-                except Exception:
-                    pass
                 yield first
             except asyncio.TimeoutError:
                 raise
@@ -342,10 +338,6 @@ class ChatManager:
 
             async for chunk in stream:
                 final_text += chunk
-                try:
-                    logger.debug(f"[ChatManager] Chunk len={len(chunk)}")
-                except Exception:
-                    pass
                 yield chunk
 
             if not debug_mode:
@@ -377,7 +369,7 @@ class ChatManager:
                 )
             else:
                 self._last_debug_info = None
-            logger.info(f"[ChatManager] Streaming end conv={conversation_id} total_len={len(final_text)}")
+            logger.debug(f"[CHAT] Streaming end | conv={conversation_id} len={len(final_text)}")
         except Exception as e:
             logger.error(f"Error generando respuesta streaming en ChatManager: {e}", exc_info=True)
             raise
