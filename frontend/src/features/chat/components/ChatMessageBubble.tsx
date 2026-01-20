@@ -41,9 +41,9 @@ const UserAvatar = ({ className = "" }: { className?: string }) => (
 export const TypingIndicator = React.memo(function TypingIndicator() {
   return (
     <div className="flex items-end gap-2">
-      <BotAvatar className="w-7 h-7 sm:w-8 sm:h-8" />
+      <BotAvatar className="w-8 h-8 shadow-sm" />
       <div className="flex flex-col items-start">
-        <div className="bg-gray-100 dark:bg-slate-800 rounded-2xl px-4 py-3 shadow-sm">
+        <div className="bg-white border border-gray-100 dark:bg-slate-800 dark:border-slate-700 rounded-2xl rounded-bl-none px-4 py-3 shadow-sm">
           <div className="flex items-center gap-2">
             <div className="typing-indicator">
               <span></span>
@@ -74,26 +74,22 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble(props: {
     <div className={`flex items-end gap-2 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
       {/* Avatar - posicionado abajo de la burbuja */}
       {isUser ? (
-        <UserAvatar className="w-7 h-7 sm:w-8 sm:h-8" />
+        <UserAvatar className="w-8 h-8 shadow-sm" />
       ) : (
-        <BotAvatar className="w-7 h-7 sm:w-8 sm:h-8" />
+        <BotAvatar className="w-8 h-8 shadow-sm" />
       )}
 
       {/* Contenedor de burbuja + timestamp */}
-      <div className={`flex flex-col ${isUser ? "items-end" : "items-start"} max-w-[80%] sm:max-w-[75%]`}>
+      <div className={`flex flex-col ${isUser ? "items-end" : "items-start"} max-w-[85%] sm:max-w-[75%]`}>
         {/* Burbuja del mensaje */}
         <div
-          className={`${isUser
-              ? "bg-brand text-brand-foreground"
-              : "bg-gray-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200"
-            } rounded-2xl p-3 sm:p-4 shadow-sm break-words`}
-          style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+          className={`px-4 py-3 shadow-sm text-sm sm:text-base ${isUser
+              ? "bg-brand text-brand-foreground rounded-2xl rounded-br-none"
+              : "bg-white border border-gray-100 text-slate-800 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 rounded-2xl rounded-bl-none"
+            }`}
         >
           {isUser ? (
-            <p
-              className="whitespace-pre-wrap leading-relaxed text-sm sm:text-base break-words"
-              style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-            >
+            <p className="whitespace-pre-wrap leading-relaxed break-words">
               {content}
             </p>
           ) : (
@@ -103,7 +99,7 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble(props: {
 
         {/* Timestamp - color más sutil */}
         {createdAt && (
-          <span className="text-[11px] mt-1 text-slate-400 dark:text-slate-500">
+          <span className={`text-[10px] mt-1 px-1 ${isUser ? "text-right" : "text-left"} text-slate-400 dark:text-slate-500`}>
             {formatTime(createdAt)}
           </span>
         )}

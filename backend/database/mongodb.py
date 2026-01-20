@@ -84,6 +84,8 @@ class MongodbClient:
             logger.info(f"Mensaje agregado a la conversación {conversation_id}")
         except Exception as e:
             logger.error(f"Error al agregar mensaje: {str(e)}")
+            # Propagar el error para que la API pueda manejarlo (e.g. devolver 500 o notificar al usuario)
+            raise
 
     async def ensure_indexes(self) -> None:
         """Ensure MongoDB indexes are created for optimal performance."""

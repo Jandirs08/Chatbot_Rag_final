@@ -13,6 +13,18 @@ try:
 except Exception:
     _OPENAI_AVAILABLE = False
 
+# Tenacity para retry robusto (ya instalado como dependencia de langchain-core)
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+    RetryError,
+)
+import logging
+
+_retry_logger = logging.getLogger("embedding_retry")
+
 
 class EmbeddingManager:
     def __init__(self, model_name: str = "openai:text-embedding-3-small"):
@@ -47,6 +59,34 @@ class EmbeddingManager:
     @staticmethod
     def _hash_text(text: str) -> str:
         return hash_for_cache_key((text or "").strip().lower())
+
+    def _embed_batch_with_retry(self, batch_texts: List[str]) -> List[List[float]]:
+        """
+        Llama a OpenAI con retry robusto usando tenacity.
+        
+        Categoría de errores:
+        - Retriable: TimeoutError, ConnectionError, errores transitorios
+        - No retriable: AuthenticationError, errores 4xx del API (los propaga)
+        """
+        @retry(
+            stop=stop_after_attempt(3),
+            wait=wait_exponential(multiplier=1, min=1, max=8),
+            retry=retry_if_exception_type((TimeoutError, ConnectionError, OSError)),
+            reraise=True,
+        )
+        def _call():
+            return self._openai.embed_documents(batch_texts)
+        
+        try:
+            return _call()
+        except RetryError as e:
+            # Todos los reintentos fallaron
+            _retry_logger.error(f"OpenAI embeddings falló después de reintentos: {e}")
+            raise
+        except Exception as e:
+            # Error no retriable (ej: API key inválida)
+            _retry_logger.warning(f"Error no retriable en OpenAI embeddings: {type(e).__name__}: {e}")
+            raise
 
     # ----------------------------------------------------------------------
     #   EMBED DOCUMENTS — FIX 1 COMPLETO
@@ -99,12 +139,8 @@ class EmbeddingManager:
             )
 
         try:
-            # Embeddings por lotes con retry y backoff exponencial
+            # Embeddings por lotes con retry usando tenacity
             index_to_embedding: dict[int, List[float]] = {}
-            
-            # Configuración de retry
-            max_retries = 3
-            base_delay = 1.0  # segundos
 
             for start in range(0, len(miss_indices), self._batch_size):
                 batch_indices = miss_indices[start:start + self._batch_size]
@@ -114,27 +150,12 @@ class EmbeddingManager:
                     f"Generando embeddings por lotes de misses: lote={len(batch_texts)}, batch_size={self._batch_size}"
                 )
 
-                # Retry con backoff exponencial para resiliencia ante rate limits
+                # Usar método con retry robusto (tenacity)
                 batch_embs = None
-                last_error = None
-                
-                for attempt in range(max_retries):
-                    try:
-                        batch_embs = self._openai.embed_documents(batch_texts)
-                        break  # Éxito, salir del loop de retry
-                    except Exception as e:
-                        last_error = e
-                        if attempt < max_retries - 1:
-                            delay = base_delay * (2 ** attempt)  # 1s, 2s, 4s
-                            self.logger.warning(
-                                f"Error en OpenAI embeddings (intento {attempt + 1}/{max_retries}): {e}. "
-                                f"Reintentando en {delay}s..."
-                            )
-                            time.sleep(delay)
-                        else:
-                            self.logger.error(
-                                f"OpenAI embeddings falló después de {max_retries} intentos: {e}"
-                            )
+                try:
+                    batch_embs = self._embed_batch_with_retry(batch_texts)
+                except Exception as e:
+                    self.logger.error(f"OpenAI embeddings falló para lote: {e}")
                 
                 # Si todos los reintentos fallaron, usar fallback
                 if batch_embs is None:

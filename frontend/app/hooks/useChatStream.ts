@@ -104,14 +104,22 @@ export function useChatStream(
           onerror(err) {
             logger.error("Error en la conexión SSE:", err);
             setIsLoading(false);
-            // Add error message to chat instead of throwing
-            // The throw was causing unhandled promise rejections
+
+            // Add error message to chat
             setMessages((prev) => {
               // Only add error if we don't already have an error message as last
+              // We check for specific error content or generic error indicators
               const last = prev[prev.length - 1];
-              if (last?.role === "assistant" && last?.content?.includes("error")) {
+              const isLastError = last?.role === "assistant" && (
+                last?.content?.includes("error") ||
+                last?.content?.includes("conexión") ||
+                last?.content?.includes("intentarlo")
+              );
+
+              if (isLastError) {
                 return prev;
               }
+
               return [
                 ...prev,
                 {
@@ -119,12 +127,16 @@ export function useChatStream(
                     ? crypto.randomUUID()
                     : `${Date.now()}-${Math.random()}`,
                   content:
-                    "Se perdió la conexión. Por favor, intenta de nuevo.",
+                    "Se perdió la conexión con el servidor. Por favor, verifica tu conexión o intenta más tarde.",
                   role: "assistant" as const,
                   createdAt: new Date(),
                 },
               ];
             });
+
+            // Re-throw to stop infinite retries by fetchEventSource
+            // This prevents the "multiple bubbles" issue when backend is down
+            throw err;
           },
           async onmessage(msg) {
             if (msg.data) {

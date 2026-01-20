@@ -39,11 +39,7 @@ class ConfigRepository:
         if not doc:
             logger.info("No existing bot config found, creating default configuration.")
             # Seed default from Settings
-            default_personality = (
-                app_settings.system_prompt
-                if app_settings.system_prompt is not None
-                else prompt_module.BOT_PERSONALITY.format(nombre=prompt_module.BOT_NAME)
-            )
+            default_personality = prompt_module.BOT_PERSONALITY.format(nombre=prompt_module.BOT_NAME)
             config = BotConfig(
                 system_prompt=default_personality,
                 temperature=getattr(app_settings, "temperature", 0.7),
@@ -64,7 +60,10 @@ class ConfigRepository:
             logger.info("Default bot configuration has been saved.")
             return config
 
-        return BotConfig(**{k: v for k, v in doc.items() if k != "_id"})
+        merged = {k: v for k, v in doc.items() if k != "_id"}
+        effective_bot_name = merged.get("bot_name") or prompt_module.BOT_NAME
+        merged["system_prompt"] = prompt_module.BOT_PERSONALITY.format(nombre=effective_bot_name)
+        return BotConfig(**merged)
 
 
     async def update_config(self, system_prompt: Optional[str] = None, temperature: Optional[float] = None, bot_name: Optional[str] = None, ui_prompt_extra: Optional[str] = None, twilio_account_sid: Optional[str] = None, twilio_auth_token: Optional[str] = None, twilio_whatsapp_from: Optional[str] = None, theme_color: Optional[str] = None, starters: Optional[list[str]] = None, input_placeholder: Optional[str] = None) -> BotConfig:

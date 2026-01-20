@@ -1,4 +1,5 @@
 import { API_URL } from "@/app/lib/config";
+import { fetchWithRetrySafe } from "@/app/lib/fetchUtils";
 
 // Interfaces
 export interface LoginCredentials {
@@ -287,6 +288,7 @@ export const authService = {
 };
 
 // --- Helper Fetch Autenticado (Interceptor) ---
+// Usa fetchWithRetrySafe para reintentar errores de red en métodos GET
 export const authenticatedFetch = async (
   url: string,
   options: RequestInit = {},
@@ -300,8 +302,8 @@ export const authenticatedFetch = async (
     return h;
   };
 
-  // 1. Intento inicial
-  let response = await fetch(url, {
+  // 1. Intento inicial (con retry para errores de red en GET)
+  let response = await fetchWithRetrySafe(url, {
     ...options,
     headers: getHeaders(token),
   });
@@ -313,7 +315,7 @@ export const authenticatedFetch = async (
       token = TokenManager.getAccessToken(); // Token nuevo
 
       // Reintentar petición original
-      response = await fetch(url, {
+      response = await fetchWithRetrySafe(url, {
         ...options,
         headers: getHeaders(token),
       });

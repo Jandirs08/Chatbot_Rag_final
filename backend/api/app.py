@@ -441,7 +441,14 @@ def create_app() -> FastAPI:
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):
         main_logger.error(f"HTTPException: {exc.detail}")
-        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+        
+        # Sanitizar errores 5xx en producción para no exponer detalles técnicos
+        detail = exc.detail
+        if settings.environment == "production" and exc.status_code >= 500:
+            # En producción, usar mensaje genérico para errores de servidor
+            detail = "Error interno del servidor"
+        
+        return JSONResponse(status_code=exc.status_code, content={"detail": detail})
 
     if settings.enable_rate_limiting:
         @app.exception_handler(RateLimitExceeded)
