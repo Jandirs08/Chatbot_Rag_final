@@ -1,5 +1,7 @@
 """Chat manager for handling conversations with LLMs."""
-from typing import Any, Dict, List
+import json
+import re
+from typing import Any, Dict, List, Optional
 from utils.logging_utils import get_logger
 import time
 from cache.manager import cache
@@ -29,6 +31,40 @@ def _get_token_count(text: str) -> int:
         return int(len(_TIKTOKEN_ENCODING.encode(text or "")))
     except Exception:
         return int(max(0, (len(text or "") // 4)))
+
+
+def _parse_verification_json(text: str) -> Optional[Dict[str, Any]]:
+    """
+    Parsea JSON de verificación de forma robusta.
+    Maneja: JSON puro, JSON en markdown, comillas simples, booleanos Python.
+    """
+    if not text:
+        return None
+    
+    # 1. Intentar extraer JSON de bloques markdown ```json ... ```
+    md_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', text, re.IGNORECASE)
+    if md_match:
+        text = md_match.group(1).strip()
+    
+    # 2. Intentar extraer JSON suelto { ... }
+    json_match = re.search(r'\{[\s\S]*\}', text)
+    if json_match:
+        candidate = json_match.group(0)
+    else:
+        candidate = text.strip().strip('`')
+    
+    # 3. Normalizar para JSON válido
+    # Reemplazar comillas simples por dobles (común en outputs Python-style)
+    normalized = candidate.replace("'", '"')
+    # Normalizar booleanos Python -> JSON
+    normalized = re.sub(r'\bTrue\b', 'true', normalized)
+    normalized = re.sub(r'\bFalse\b', 'false', normalized)
+    normalized = re.sub(r'\bNone\b', 'null', normalized)
+    
+    try:
+        return json.loads(normalized)
+    except json.JSONDecodeError:
+        return None
 
 class ChatManager:
     """Manager principal para la interacción con el Bot y almacenamiento en base de datos."""
@@ -180,26 +216,24 @@ class ChatManager:
             txt = getattr(res, "content", None)
             if not isinstance(txt, str):
                 txt = str(res)
-            import json
-            try:
-                obj = json.loads(txt)
-                isg = bool(obj.get("is_grounded"))
+            
+            # Usar helper robusto para parsear JSON
+            obj = _parse_verification_json(txt)
+            if obj is not None:
+                isg = bool(obj.get("is_grounded", False))
                 rsn = str(obj.get("reason") or "")
                 return {"is_grounded": isg, "reason": rsn}
-            except Exception:
-                cleaned = txt.strip().strip("`")
-                try:
-                    fixed = cleaned.replace("'", '"')
-                    fixed = fixed.replace("True", "true").replace("False", "false")
-                    obj = json.loads(fixed)
-                    isg = bool(obj.get("is_grounded"))
-                    rsn = str(obj.get("reason") or "")
-                    return {"is_grounded": isg, "reason": rsn}
-                except Exception:
-                    low = cleaned.lower()
-                    grounded = ("true" in low) and ("false" not in low)
-                    return {"is_grounded": grounded, "reason": cleaned[:400]}
-        except Exception:
+            
+            # Fallback: heurística simple si no se pudo parsear
+            low = txt.lower()
+            # Buscar patrón "is_grounded": true/false
+            if '"is_grounded"' in low or "'is_grounded'" in low:
+                grounded = 'true' in low and 'false' not in low.split('is_grounded')[1][:20]
+            else:
+                grounded = 'true' in low and 'false' not in low
+            return {"is_grounded": grounded, "reason": txt[:400]}
+        except Exception as e:
+            logger.warning(f"Error en verificación de respuesta: {e}")
             return {"is_grounded": False, "reason": "Error verificando respuesta"}
 
     async def _build_debug_info(self, conversation_id, input_text, final_text, t_start, t_end, verification=None, is_cached: bool = False) -> DebugInfo:

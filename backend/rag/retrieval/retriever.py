@@ -462,8 +462,17 @@ class RAGRetriever:
             # Mantengo tu lógica original con cap a 20.
             initial_k = min(max(1, k) * int(getattr(settings, "retrieval_k_multiplier", 3)), 20)
 
+            # OPTIMIZATION: Generar query embedding UNA sola vez para reutilizar en reranking/MMR
+            # Esto evita llamadas duplicadas a la API de OpenAI Embeddings
+            query_embedding: Optional[np.ndarray] = None
+            need_vectors = bool(use_semantic_ranking or use_mmr)
+            if need_vectors and self.embedding_manager:
+                try:
+                    query_embedding = await self._embed_query_async(query)
+                except Exception as e:
+                    logger.warning(f"[RAG] Failed to pre-compute query embedding: {e}")
+
             try:
-                need_vectors = bool(use_semantic_ranking or use_mmr)
                 # Obtener threshold de settings (default 0.3)
                 sim_threshold = float(getattr(settings, "similarity_threshold", 0.3))
                 
@@ -506,9 +515,10 @@ class RAGRetriever:
                 return relevant_docs
 
             # ====== Post-processing =======
+            # OPTIMIZATION: Pasar query_embedding precalculado para evitar doble API call
             if use_semantic_ranking:
                 rerank_start = time.perf_counter()
-                reranked = await self._semantic_reranking(query, relevant_docs)
+                reranked = await self._semantic_reranking(relevant_docs, query_embedding=query_embedding)
                 self.performance_metrics.add_metric('semantic_reranking', time.perf_counter() - rerank_start)
 
                 final_docs = reranked[:k]
@@ -519,7 +529,7 @@ class RAGRetriever:
 
             elif use_mmr:
                 mmr_start = time.perf_counter()
-                final_docs = await self._apply_mmr(query, relevant_docs, k)
+                final_docs = await self._apply_mmr(relevant_docs, k, query_embedding=query_embedding)
                 self.performance_metrics.add_metric('mmr_application', time.perf_counter() - mmr_start)
 
                 final_docs = final_docs[:k]
@@ -597,13 +607,20 @@ class RAGRetriever:
     #   SEMANTIC RERANKING & MMR
     # ============================================================
 
-    async def _semantic_reranking(self, query: str, docs: List[Document]) -> List[Document]:
+    async def _semantic_reranking(
+        self,
+        docs: List[Document],
+        query_embedding: Optional[np.ndarray] = None
+    ) -> List[Document]:
+        """Reranking semántico usando embedding precalculado para evitar llamadas API duplicadas."""
         if not self.embedding_manager:
             return docs
         try:
-            query_vec = await self._embed_query_async(query)
+            # OPTIMIZATION: Usar embedding precalculado si está disponible
+            query_vec = query_embedding
             if query_vec is None:
-                return docs
+                logger.debug("[RERANK] query_embedding no provisto, generando (fallback)")
+                return docs  # Sin embedding, retornar sin reranking
 
             for doc in docs:
                 if doc.metadata.get("vector") is None:
@@ -638,12 +655,21 @@ class RAGRetriever:
             logger.error(f"Error en reranking semántico: {e}")
             return docs
 
-    async def _apply_mmr(self, query: str, docs: List[Document], k: int, lambda_mult: float = 0.5) -> List[Document]:
+    async def _apply_mmr(
+        self,
+        docs: List[Document],
+        k: int,
+        query_embedding: Optional[np.ndarray] = None,
+        lambda_mult: float = 0.5
+    ) -> List[Document]:
+        """MMR usando embedding precalculado para evitar llamadas API duplicadas."""
         if not self.embedding_manager:
             return docs[:k]
         try:
-            query_vec = await self._embed_query_async(query)
+            # OPTIMIZATION: Usar embedding precalculado si está disponible
+            query_vec = query_embedding
             if query_vec is None:
+                logger.debug("[MMR] query_embedding no provisto, retornando top-k simple")
                 return docs[:k]
 
             candidate_indices = []
