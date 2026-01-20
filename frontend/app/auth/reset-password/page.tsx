@@ -9,7 +9,7 @@ import { Button } from "@/app/components/ui/button";
 import { Alert, AlertDescription } from "@/app/components/ui/alert";
 import { Loader2, CheckCircle2, Circle, CheckCircle } from "lucide-react";
 import { authService } from "@/app/lib/services/authService";
-import { useToast } from "@/app/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 
 function ResetPasswordContent() {
   const router = useRouter();

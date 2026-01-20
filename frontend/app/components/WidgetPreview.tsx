@@ -10,7 +10,7 @@ import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
 import { Copy, Eye, MessageCircle, X, Settings } from "lucide-react";
-import { useToast } from "@/app/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 
 export function WidgetPreview() {
   const [width, setWidth] = useState("400");
