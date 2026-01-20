@@ -87,9 +87,13 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble(props: {
               ? "bg-brand text-brand-foreground"
               : "bg-gray-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200"
             } rounded-2xl p-3 sm:p-4 shadow-sm break-words`}
+          style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
         >
           {isUser ? (
-            <p className="whitespace-pre-wrap leading-relaxed text-sm sm:text-base break-words">
+            <p
+              className="whitespace-pre-wrap leading-relaxed text-sm sm:text-base break-words"
+              style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+            >
               {content}
             </p>
           ) : (

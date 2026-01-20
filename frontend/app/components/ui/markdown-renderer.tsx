@@ -11,7 +11,8 @@ type Props = {
 export function MarkdownRenderer({ content }: Props) {
   return (
     <ReactMarkdown
-      className="prose prose-sm dark:prose-invert max-w-none"
+      className="prose prose-sm dark:prose-invert max-w-none break-words"
+      style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
       remarkPlugins={[remarkGfm]}
       components={{
         a: (props: any) => (
@@ -23,7 +24,7 @@ export function MarkdownRenderer({ content }: Props) {
           />
         ),
         p: (props: any) => (
-          <p {...props} className="mb-2 last:mb-0" />
+          <p {...props} className="mb-2 last:mb-0 whitespace-pre-wrap break-words" />
         ),
         ul: (props: any) => (
           <ul {...props} className="pl-4" />

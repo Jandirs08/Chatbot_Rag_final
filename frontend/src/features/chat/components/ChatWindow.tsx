@@ -14,6 +14,17 @@ import { botService } from "@/app/lib/services/botService";
 import { TokenManager } from "@/app/lib/services/authService";
 import { API_URL } from "@/app/lib/config";
 
+// Helper para determinar si un color es claro u oscuro
+function isLightColor(hexColor: string) {
+  const hex = hexColor.replace("#", "");
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  // Fórmula de luminosidad relativa (YIQ)
+  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+  return yiq >= 128;
+}
+
 export function ChatWindow(props: {
   placeholder?: string;
   titleText?: string;
@@ -42,6 +53,7 @@ export function ChatWindow(props: {
   const [isBotActive, setIsBotActive] = React.useState(true);
   const [inputPh, setInputPh] = React.useState<string>("Escribe tu mensaje...");
   const [logoUrl, setLogoUrl] = React.useState<string | undefined>(undefined);
+  const [isThemeLight, setIsThemeLight] = React.useState(false);
 
   const { messages, isLoading, debugData, sendMessage, clearMessages } =
     useChatStream(conversationId, initialMessages);
@@ -74,6 +86,7 @@ export function ChatWindow(props: {
       setLogoUrl(`${API_URL}/assets/logo`);
       if (cfg.theme_color) {
         try {
+          setIsThemeLight(isLightColor(cfg.theme_color));
           document.documentElement.style.setProperty(
             "--brand-color",
             cfg.theme_color,
@@ -152,12 +165,18 @@ export function ChatWindow(props: {
             </div>
             <div className="flex items-center gap-2">
               <div
-                className={`w-5 h-5 rounded-full ${isBotActive ? "bg-emerald-500 animate-pulse" : "bg-gray-400"}`}
-              ></div>
-              <div>
+                className={`px-2 py-1 rounded-full flex items-center gap-2 transition-colors ${
+                  isThemeLight
+                    ? "bg-slate-900/90 text-white"
+                    : "bg-white/90 text-slate-800"
+                }`}
+              >
                 <div
-                  className={`text-sm font-semibold ${isBotActive ? "text-white" : "text-white"}`}
-                >
+                  className={`w-2.5 h-2.5 rounded-full ${
+                    isBotActive ? "bg-emerald-500" : "bg-gray-400"
+                  }`}
+                ></div>
+                <div className="text-xs font-semibold">
                   {isBotActive ? "Estado: Activo" : "Estado: En Pausa"}
                 </div>
               </div>
@@ -222,7 +241,7 @@ export function ChatWindow(props: {
       </div>
 
       <div className="border-t bg-gradient-to-r from-gray-50 to-white p-4">
-        <div className="flex items-end gap-3 pb-2">
+        <div className="flex items-center gap-3 pb-2">
           <AutoResizeTextarea
             ref={inputRef}
             value={input}
