@@ -145,7 +145,8 @@ class RAGIngestor:
                 c.metadata["content_hash_global"] = content_hash_global
 
             texts = [c.page_content for c in chunks]
-            embeddings = self.embedding_manager.embed_documents(texts)
+            # Usar método async para no bloquear workers durante ingesta
+            embeddings = await self.embedding_manager.embed_documents_async(texts)
 
             # UPLOAD por lotes
             total_added = 0

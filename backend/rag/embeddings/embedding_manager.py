@@ -207,6 +207,17 @@ class EmbeddingManager:
             return [0.0] * vector_dim
 
     # ----------------------------------------------------------------------
+    #   EMBED DOCUMENTS ASYNC — Para no bloquear workers en ingesta
+    # ----------------------------------------------------------------------
+    async def embed_documents_async(self, texts: List[str]) -> List[List[float]]:
+        """Genera embeddings de forma asíncrona para no bloquear el event loop.
+        
+        Útil para ingesta de PDFs donde el proceso puede tardar varios segundos.
+        """
+        import asyncio
+        return await asyncio.to_thread(self.embed_documents, texts)
+
+    # ----------------------------------------------------------------------
     async def embed_text(self, text: str) -> List[float]:
         """Genera embedding para un texto individual de forma asíncrona."""
         vector_dim = getattr(settings, "default_embedding_dimension", 1536)

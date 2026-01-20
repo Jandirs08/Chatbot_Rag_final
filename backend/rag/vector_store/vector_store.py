@@ -71,7 +71,21 @@ class VectorStore:
             if getattr(settings, "qdrant_api_key", None):
                 api_key = settings.qdrant_api_key.get_secret_value()
 
-            self.client = QdrantClient(url=settings.qdrant_url, api_key=api_key)
+            # Configurar límites de conexión para producción
+            # Evita saturar Qdrant bajo carga alta
+            from httpx import Limits
+            
+            http_limits = Limits(
+                max_connections=100,      # Conexiones totales máximas
+                max_keepalive_connections=20,  # Conexiones keep-alive
+            )
+            
+            self.client = QdrantClient(
+                url=settings.qdrant_url,
+                api_key=api_key,
+                limits=http_limits,
+                timeout=30,  # Timeout en segundos (QdrantClient espera un número)
+            )
 
             dim = int(getattr(settings, "default_embedding_dimension", 1536))
 

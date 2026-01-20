@@ -228,6 +228,14 @@ async def lifespan(app: FastAPI):
             embedding_manager=app.state.embedding_manager
         )
 
+        # Warmup del centroide para gating (precalcula en background si no está en caché)
+        # Esto mejora tiempos de respuesta de la primera consulta
+        try:
+            await app.state.rag_retriever.warmup()
+            logger.info("✅ RAG Retriever warmup completado")
+        except Exception as e:
+            logger.warning(f"⚠️ RAG Retriever warmup falló (gating funcionará pero más lento): {e}")
+
         # Ping ligero de embeddings para visibilidad (sin bloquear arranque si falla)
         try:
             emb = await app.state.embedding_manager.embed_text("ping")

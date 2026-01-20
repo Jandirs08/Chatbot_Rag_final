@@ -327,4 +327,42 @@ export const authenticatedFetch = async (
   return response;
 };
 
+/**
+ * Helper para uploads autenticados (FormData).
+ * No fuerza Content-Type para permitir que el navegador establezca multipart/form-data.
+ */
+export const authenticatedUpload = async (
+  url: string,
+  options: RequestInit = {},
+): Promise<Response> => {
+  let token = TokenManager.getAccessToken();
+
+  const getHeaders = (t: string | null) => {
+    const h = new Headers(options.headers);
+    // No establecer Content-Type para FormData - el navegador lo maneja
+    if (t) h.set("Authorization", `Bearer ${t}`);
+    return h;
+  };
+
+  let response = await fetch(url, {
+    ...options,
+    headers: getHeaders(token),
+  });
+
+  if (response.status === 401) {
+    try {
+      await authService.refreshToken();
+      token = TokenManager.getAccessToken();
+      response = await fetch(url, {
+        ...options,
+        headers: getHeaders(token),
+      });
+    } catch {
+      TokenManager.clearTokens();
+    }
+  }
+
+  return response;
+};
+
 export { TokenManager };

@@ -52,7 +52,7 @@ import { Alert, AlertDescription } from "@/app/components/ui/alert";
 import { API_URL } from "@/app/lib/config";
 import {
   authenticatedFetch,
-  TokenManager,
+  authenticatedUpload,
 } from "@/app/lib/services/authService";
 import { BotConfiguration } from "@/app/components/BotConfiguration";
 import { botService } from "@/app/lib/services/botService";
@@ -187,7 +187,7 @@ export default function AdminSettingsPage() {
           ) {
             return "";
           }
-        } catch (_) {}
+        } catch (_) { }
         return txt;
       };
       setUiExtra(sanitizeUiExtra(data.ui_prompt_extra));
@@ -276,7 +276,7 @@ export default function AdminSettingsPage() {
           ) {
             return "";
           }
-        } catch (_) {}
+        } catch (_) { }
         return txt;
       };
       setUiExtra(sanitizeUiExtra(updated.ui_prompt_extra));
@@ -517,56 +517,35 @@ export default function AdminSettingsPage() {
                               type="file"
                               accept="image/*"
                               disabled={appearanceLocked}
-                              onChange={(e) => {
+                              onChange={async (e) => {
                                 const file = e.target.files?.[0];
                                 if (!file) return;
                                 try {
-                                  const xhr = new XMLHttpRequest();
-                                  const url = `${API_URL}/assets/logo`;
-                                  xhr.open("POST", url);
-                                  const token = TokenManager.getAccessToken();
-                                  if (token)
-                                    xhr.setRequestHeader(
-                                      "Authorization",
-                                      `Bearer ${token}`,
-                                    );
-                                  xhr.onreadystatechange = () => {
-                                    if (
-                                      xhr.readyState === XMLHttpRequest.DONE
-                                    ) {
-                                      if (
-                                        xhr.status >= 200 &&
-                                        xhr.status < 300
-                                      ) {
-                                        const ts = Date.now();
-                                        setConfig((c) => ({
-                                          ...c,
-                                          avatarUrl: `${API_URL}/assets/logo?ts=${ts}`,
-                                        }));
-                                        toast.success("Logo subido");
-                                      } else {
-                                        let detail = "Error al subir el logo";
-                                        try {
-                                          const json = JSON.parse(
-                                            xhr.responseText,
-                                          );
-                                          detail = json?.detail || detail;
-                                        } catch {}
-                                        toast.error(detail);
-                                      }
-                                    }
-                                  };
-                                  xhr.onerror = () => {
-                                    toast.error(
-                                      "Error de red al subir el logo",
-                                    );
-                                  };
                                   const formData = new FormData();
                                   formData.append("file", file);
-                                  xhr.send(formData);
+                                  const res = await authenticatedUpload(
+                                    `${API_URL}/assets/logo`,
+                                    {
+                                      method: "POST",
+                                      body: formData,
+                                    },
+                                  );
+                                  if (res.ok) {
+                                    const ts = Date.now();
+                                    setConfig((c) => ({
+                                      ...c,
+                                      avatarUrl: `${API_URL}/assets/logo?ts=${ts}`,
+                                    }));
+                                    toast.success("Logo subido");
+                                  } else {
+                                    const body = await res.json().catch(() => ({}));
+                                    toast.error(
+                                      body?.detail || "Error al subir el logo",
+                                    );
+                                  }
                                 } catch (err: any) {
                                   toast.error(
-                                    err?.message || "Error inesperado",
+                                    err?.message || "Error de red al subir el logo",
                                   );
                                 }
                               }}
@@ -580,28 +559,16 @@ export default function AdminSettingsPage() {
                                   disabled={appearanceLocked}
                                   onClick={async () => {
                                     try {
-                                      const token =
-                                        TokenManager.getAccessToken();
-                                      const res = await fetch(
+                                      const res = await authenticatedFetch(
                                         `${API_URL}/assets/logo`,
-                                        {
-                                          method: "DELETE",
-                                          headers: token
-                                            ? {
-                                                Authorization: `Bearer ${token}`,
-                                              }
-                                            : undefined,
-                                        },
+                                        { method: "DELETE" },
                                       );
                                       if (!res.ok) {
                                         const body = await res
                                           .json()
                                           .catch(() => ({}));
                                         throw new Error(
-                                          String(
-                                            body?.detail ||
-                                              `Error ${res.status}`,
-                                          ),
+                                          body?.detail || `Error ${res.status}`,
                                         );
                                       }
                                       setConfig((c) => ({
@@ -612,7 +579,7 @@ export default function AdminSettingsPage() {
                                     } catch (err: any) {
                                       toast.error(
                                         err?.message ||
-                                          "No se pudo eliminar el logo",
+                                        "No se pudo eliminar el logo",
                                       );
                                     }
                                   }}
@@ -667,11 +634,10 @@ export default function AdminSettingsPage() {
                                       brandColor: col,
                                     }))
                                   }
-                                  className={`h-8 w-8 rounded-full ring-2 ring-offset-2 ring-gray-200 ${
-                                    appearanceLocked
+                                  className={`h-8 w-8 rounded-full ring-2 ring-offset-2 ring-gray-200 ${appearanceLocked
                                       ? "opacity-50 cursor-not-allowed"
                                       : ""
-                                  }`}
+                                    }`}
                                   style={{ backgroundColor: col }}
                                 />
                               ))}
@@ -990,7 +956,7 @@ export default function AdminSettingsPage() {
                               className="w-full"
                               disabled={
                                 confirmText.trim().toUpperCase() !==
-                                  "ELIMINAR" || isLoading
+                                "ELIMINAR" || isLoading
                               }
                               onClick={async () => {
                                 try {
@@ -1022,8 +988,8 @@ export default function AdminSettingsPage() {
                                     setError(
                                       String(
                                         body?.detail ||
-                                          body?.message ||
-                                          `Error ${res.status}`,
+                                        body?.message ||
+                                        `Error ${res.status}`,
                                       ),
                                     );
                                     return;
@@ -1045,7 +1011,7 @@ export default function AdminSettingsPage() {
                                   setError(
                                     String(
                                       e?.message ||
-                                        "Error inesperado al eliminar",
+                                      "Error inesperado al eliminar",
                                     ),
                                   );
                                 }
