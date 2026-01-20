@@ -370,9 +370,23 @@ def create_app() -> FastAPI:
 
     @app.middleware("http")
     async def log_requests(request: Request, call_next):
+        from utils.request_context import set_request_id, clear_request_id, get_request_id
+        
+        # Generar o reutilizar request_id del header entrante
+        incoming_id = request.headers.get("X-Request-ID")
+        request_id = set_request_id(incoming_id)
+        
         start_time = time.time()
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
+        finally:
+            # Limpiar contexto después del request
+            clear_request_id()
+        
         process_time = time.time() - start_time
+        
+        # Agregar request_id al header de respuesta para trazabilidad
+        response.headers["X-Request-ID"] = request_id
         
         body = None
         try:

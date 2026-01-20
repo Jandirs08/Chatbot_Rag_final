@@ -99,8 +99,12 @@ class EmbeddingManager:
             )
 
         try:
-            # Embeddings por lotes
+            # Embeddings por lotes con retry y backoff exponencial
             index_to_embedding: dict[int, List[float]] = {}
+            
+            # Configuración de retry
+            max_retries = 3
+            base_delay = 1.0  # segundos
 
             for start in range(0, len(miss_indices), self._batch_size):
                 batch_indices = miss_indices[start:start + self._batch_size]
@@ -110,8 +114,32 @@ class EmbeddingManager:
                     f"Generando embeddings por lotes de misses: lote={len(batch_texts)}, batch_size={self._batch_size}"
                 )
 
-                # Llamado real a OpenAI
-                batch_embs = self._openai.embed_documents(batch_texts)
+                # Retry con backoff exponencial para resiliencia ante rate limits
+                batch_embs = None
+                last_error = None
+                
+                for attempt in range(max_retries):
+                    try:
+                        batch_embs = self._openai.embed_documents(batch_texts)
+                        break  # Éxito, salir del loop de retry
+                    except Exception as e:
+                        last_error = e
+                        if attempt < max_retries - 1:
+                            delay = base_delay * (2 ** attempt)  # 1s, 2s, 4s
+                            self.logger.warning(
+                                f"Error en OpenAI embeddings (intento {attempt + 1}/{max_retries}): {e}. "
+                                f"Reintentando en {delay}s..."
+                            )
+                            time.sleep(delay)
+                        else:
+                            self.logger.error(
+                                f"OpenAI embeddings falló después de {max_retries} intentos: {e}"
+                            )
+                
+                # Si todos los reintentos fallaron, usar fallback
+                if batch_embs is None:
+                    self.logger.warning("Usando embeddings de fallback (zeros) para este lote")
+                    batch_embs = [[0.0] * vector_dim for _ in batch_texts]
 
                 for idx, emb in zip(batch_indices, batch_embs):
                     # FIX 1: Validación estricta de vectores

@@ -3,39 +3,51 @@ from typing import Optional
 from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorClient
 import logging
-from functools import lru_cache
+import threading
 
 from config import settings as app_settings
 
 logger = logging.getLogger(__name__)
 
-@lru_cache(maxsize=1)
+# ============================================================
+#   SINGLETON THREAD-SAFE PARA MULTI-WORKER
+# ============================================================
+# Nota: @lru_cache no es thread-safe para creación de singletons
+# con estado en entornos multi-worker (uvicorn -w 4).
+# Usamos un Lock explícito para garantizar una sola instancia.
+
+_mongodb_client_instance: Optional["MongodbClient"] = None
+_mongodb_client_lock = threading.Lock()
+
+
 def get_mongodb_client() -> "MongodbClient":
     """
-    Returns a cached instance of the MongodbClient.
-    If the instance doesn't exist, it creates one.
+    Returns a thread-safe singleton instance of MongodbClient.
+    Safe for use with multiple Uvicorn workers.
     """
-    logger.info("Attempting to get MongoDB client instance.")
+    global _mongodb_client_instance
     
-    # La información de la caché se puede consultar así:
-    cache_info = get_mongodb_client.cache_info()
-    logger.debug(f"Cache info for get_mongodb_client: {cache_info}")
-
-    if cache_info.hits > 0:
-        logger.info("Returning cached MongoDB client instance.")
-    else:
-        logger.info("No cached instance found, creating a new one.")
-
-    try:
-        client = MongodbClient(
-            mongo_uri=app_settings.mongo_uri.get_secret_value(),
-            database_name=app_settings.mongo_database_name
-        )
-        logger.debug("New MongodbClient instance created successfully.")
-        return client
-    except Exception as e:
-        logger.error(f"Failed to create MongodbClient instance: {e}", exc_info=True)
-        raise
+    # Fast path: si ya existe, retornar sin lock (double-checked locking)
+    if _mongodb_client_instance is not None:
+        return _mongodb_client_instance
+    
+    # Slow path: adquirir lock para crear instancia
+    with _mongodb_client_lock:
+        # Re-check después de adquirir el lock (otro thread pudo crearla)
+        if _mongodb_client_instance is not None:
+            return _mongodb_client_instance
+        
+        logger.info("Creating new MongoDB client instance (singleton)...")
+        try:
+            _mongodb_client_instance = MongodbClient(
+                mongo_uri=app_settings.mongo_uri.get_secret_value(),
+                database_name=app_settings.mongo_database_name
+            )
+            logger.info("✅ MongoDB client singleton created successfully.")
+            return _mongodb_client_instance
+        except Exception as e:
+            logger.error(f"Failed to create MongodbClient instance: {e}", exc_info=True)
+            raise
 
 class MongodbClient:
     """MongoDB client for chat history."""

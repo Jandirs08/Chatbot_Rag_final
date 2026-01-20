@@ -42,20 +42,33 @@ def measure_time(func):
 #   PERFORMANCE METRICS
 # ============================================================
 
-class PerformanceMetrics:
-    """Clase para almacenar y analizar métricas de rendimiento."""
+from collections import deque
 
-    def __init__(self):
+# Límite máximo de muestras por métrica para evitar memory leak en long-running
+_METRICS_MAX_SAMPLES = 1000
+
+
+class PerformanceMetrics:
+    """
+    Clase para almacenar y analizar métricas de rendimiento.
+    
+    Usa ring buffers (deque con maxlen) para evitar memory leak en
+    aplicaciones long-running. Solo mantiene las últimas N muestras.
+    """
+
+    def __init__(self, max_samples: int = _METRICS_MAX_SAMPLES):
+        self.max_samples = max_samples
         self.metrics = {
-            'query_processing': [],
-            'vector_retrieval': [],
-            'semantic_reranking': [],
-            'mmr_application': [],
-            'cache_operations': [],
-            'total_time': []
+            'query_processing': deque(maxlen=max_samples),
+            'vector_retrieval': deque(maxlen=max_samples),
+            'semantic_reranking': deque(maxlen=max_samples),
+            'mmr_application': deque(maxlen=max_samples),
+            'cache_operations': deque(maxlen=max_samples),
+            'total_time': deque(maxlen=max_samples)
         }
 
     def add_metric(self, operation: str, time_taken: float):
+        """Agrega una métrica. El ring buffer descarta automáticamente las más antiguas."""
         if operation in self.metrics:
             self.metrics[operation].append(time_taken)
 
@@ -63,22 +76,32 @@ class PerformanceMetrics:
         stats = {}
         for operation, times in self.metrics.items():
             if times:
+                times_list = list(times)  # Convertir deque a list para statistics
                 stats[operation] = {
-                    'min': min(times),
-                    'max': max(times),
-                    'avg': statistics.mean(times),
-                    'median': statistics.median(times),
-                    'count': len(times)
+                    'min': min(times_list),
+                    'max': max(times_list),
+                    'avg': statistics.mean(times_list),
+                    'median': statistics.median(times_list),
+                    'count': len(times_list),
+                    'buffer_size': self.max_samples  # Info sobre el límite
                 }
         return stats
 
     def log_statistics(self):
         stats = self.get_statistics()
-        logger.info("Estadísticas de rendimiento:")
+        logger.info("Estadísticas de rendimiento (últimas %d muestras):", self.max_samples)
         for operation, metrics in stats.items():
             logger.info(f"{operation}:")
             for metric, value in metrics.items():
-                logger.info(f"  {metric}: {value:.3f}s" if metric != 'count' else f"  {metric}: {value}")
+                if metric == 'count' or metric == 'buffer_size':
+                    logger.info(f"  {metric}: {value}")
+                else:
+                    logger.info(f"  {metric}: {value:.3f}s")
+    
+    def reset(self):
+        """Limpia todas las métricas."""
+        for key in self.metrics:
+            self.metrics[key].clear()
 
 
 # ============================================================
