@@ -229,9 +229,7 @@ export function WidgetPreview() {
               <Copy className="w-5 h-5 text-primary" />
               Integración
             </CardTitle>
-            <CardDescription>
-              Copia este código y pégalo en tu sitio web. Los cambios se actualizan automáticamente.
-            </CardDescription>
+            <CardDescription>Copia y pega este código. Se actualiza solo.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 p-4">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">

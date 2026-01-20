@@ -220,9 +220,6 @@ export default function UsuariosPage() {
       {error && <p className="text-red-600">{error}</p>}
 
       <Card>
-        <CardHeader>
-          <CardTitle>Usuarios</CardTitle>
-        </CardHeader>
         <CardContent>
           {loading ? (
             <div className="space-y-3">

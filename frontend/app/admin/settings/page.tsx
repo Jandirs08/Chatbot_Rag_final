@@ -462,6 +462,38 @@ export default function AdminSettingsPage() {
 
   return (
     <div className="flex flex-col lg:h-full lg:overflow-hidden">
+      <div className="px-4 md:px-6 pt-4 md:pt-6 pb-4 border-b">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold text-foreground">Configuración del Bot</h1>
+            <span
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold ${
+                isBotActive
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  : "bg-slate-100 text-slate-700 border border-slate-200"
+              }`}
+            >
+              <span
+                className={`inline-block w-2 h-2 rounded-full ${
+                  isBotActive ? "bg-emerald-500" : "bg-gray-400"
+                }`}
+              />
+              {isBotActive ? "Estado: Activo" : "Estado: En Pausa"}
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              onClick={handleOpenRuntime}
+              disabled={runtimeLoading}
+              className="gradient-primary hover:opacity-90"
+            >
+              <Terminal className="w-4 h-4 mr-2" />
+              {runtimeLoading ? "Cargando..." : "Ver Runtime"}
+            </Button>
+          </div>
+        </div>
+      </div>
       <Tabs
         value={activeTab}
         onValueChange={handleTabChange}

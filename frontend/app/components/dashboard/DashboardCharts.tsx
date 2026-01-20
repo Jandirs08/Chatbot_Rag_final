@@ -73,7 +73,7 @@ export default function DashboardCharts() {
   }, [range]);
 
   return (
-    <Card className="border-0 shadow-md">
+    <Card className="border-0 shadow-none">
       <CardHeader className="flex flex-wrap md:flex-nowrap items-start md:items-center justify-between gap-x-4 gap-y-2">
         <CardTitle className="text-xl">Evolución de métricas</CardTitle>
         <div className="flex items-center gap-2 flex-wrap md:flex-nowrap w-full md:w-auto">

@@ -214,205 +214,226 @@ function AdminInboxContent() {
     router.replace(`?${params.toString()}`);
   };
 
-  if (!isAuthorized) return null;
+  if (!isAuthorized) {
+    return null;
+  }
 
   return (
-    <div className="flex h-full overflow-hidden bg-white border-t border-slate-200">
-      {/* --- COLUMNA IZQUIERDA: LISTA --- */}
-      <div className={cn(
-        hasChat ? "hidden md:flex" : "flex",
-        "w-80 md:w-96 flex-none border-r border-slate-200 flex-col bg-slate-50/30",
-      )}
-      >
-        <div className="px-4 py-3 border-b bg-white sticky top-0 z-10 space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-slate-800">Buzón</h2>
-              <Badge variant="outline" className="text-xs">
-                {totalConversations}
-              </Badge>
+    <div className="flex flex-col h-full overflow-hidden bg-white border-t border-slate-200">
+      <div className="px-6 py-4 border-b bg-white">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Bandeja de Conversaciones</h1>
+            <p className="text-sm text-muted-foreground">Monitorea las conversaciones</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-success/10 text-success border border-success/20 text-xs font-semibold">
+              <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+              Sincronización activa
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-slate-500 hover:text-blue-600"
-              onClick={() => refreshList()}
-              title="Actualizar lista"
-            >
-              <RefreshCw
-                className={cn("w-4 h-4", loadingList && "animate-spin")}
-              />
+            <Button onClick={() => refreshList()} className="gradient-primary hover:opacity-90">
+              <RefreshCw className={cn("w-4 h-4 mr-2", loadingList && "animate-spin")} />
+              Actualizar
             </Button>
           </div>
-          <div className="flex items-center gap-2">
-            <Input
-              placeholder="Buscar por texto o ID…"
-              value={filterConfig.search}
-              onChange={(e) =>
-                setFilterConfig((f) => ({ ...f, search: e.target.value }))
-              }
-            />
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="icon" aria-label="Filtros">
-                  <ListFilter className="w-4 h-4" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-80 shadow-lg">
-                <div className="space-y-3">
-                  <div className="text-xs font-semibold text-slate-700">
-                    Fechas
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant={
-                        !filterConfig.startDate && !filterConfig.endDate
-                          ? "default"
-                          : "outline"
-                      }
-                      size="sm"
-                      onClick={() =>
-                        setFilterConfig((f) => ({
-                          ...f,
-                          startDate: "",
-                          endDate: "",
-                        }))
-                      }
-                    >
-                      Todo
-                    </Button>
-                    <Button
-                      variant={(() => {
-                        const t = new Date();
-                        const y = t.getFullYear(),
-                          m = t.getMonth() + 1,
-                          d = t.getDate();
-                        const s = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-                        return filterConfig.startDate === s &&
-                          filterConfig.endDate === s
-                          ? "default"
-                          : "outline";
-                      })()}
-                      size="sm"
-                      onClick={() => {
-                        const t = new Date();
-                        const y = t.getFullYear(),
-                          m = t.getMonth() + 1,
-                          d = t.getDate();
-                        const s = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-                        setFilterConfig((f) => ({
-                          ...f,
-                          startDate: s,
-                          endDate: s,
-                        }));
-                      }}
-                    >
-                      Hoy
-                    </Button>
-                    <Button
-                      variant={(() => {
-                        const t = new Date();
-                        const end = new Date(
-                          t.getFullYear(),
-                          t.getMonth(),
-                          t.getDate(),
-                        );
-                        const start = new Date(end);
-                        start.setDate(end.getDate() - 7);
-                        const s = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
-                        const e = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
-                        return filterConfig.startDate === s &&
-                          filterConfig.endDate === e
-                          ? "default"
-                          : "outline";
-                      })()}
-                      size="sm"
-                      onClick={() => {
-                        const t = new Date();
-                        const end = new Date(
-                          t.getFullYear(),
-                          t.getMonth(),
-                          t.getDate(),
-                        );
-                        const start = new Date(end);
-                        start.setDate(end.getDate() - 7);
-                        const s = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
-                        const e = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
-                        setFilterConfig((f) => ({
-                          ...f,
-                          startDate: s,
-                          endDate: e,
-                        }));
-                      }}
-                    >
-                      Última Semana
-                    </Button>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1">
-                      <Input
-                        type="date"
-                        value={filterConfig.startDate}
-                        onChange={(e) =>
-                          setFilterConfig((f) => ({
-                            ...f,
-                            startDate: e.target.value,
-                          }))
-                        }
-                        placeholder="Desde"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <Input
-                        type="date"
-                        value={filterConfig.endDate}
-                        onChange={(e) =>
-                          setFilterConfig((f) => ({
-                            ...f,
-                            endDate: e.target.value,
-                          }))
-                        }
-                        placeholder="Hasta"
-                      />
-                    </div>
-                  </div>
-                  <div className="pt-2 space-y-2">
-                    <div className="text-xs font-semibold text-slate-700">
-                      Calidad
-                    </div>
-                    <label className="flex items-center gap-2 text-sm">
-                      <Switch
-                        checked={filterConfig.hideTrivial}
-                        onCheckedChange={(v) =>
-                          setFilterConfig((f) => ({ ...f, hideTrivial: !!v }))
-                        }
-                      />
-                      <span>Ocultar conversaciones cortas/vacías</span>
-                    </label>
-                  </div>
-                  <div className="pt-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        setFilterConfig({
-                          search: "",
-                          startDate: "",
-                          endDate: "",
-                          hideTrivial: false,
-                        })
-                      }
-                    >
-                      Limpiar Filtros
-                    </Button>
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
-          </div>
         </div>
-
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+      </div>
+      <div className="flex flex-1 overflow-hidden">
+        <div
+          className={cn(
+            hasChat ? "hidden md:flex" : "flex",
+            "w-80 md:w-96 flex-none border-r border-slate-200 flex-col bg-slate-50/30",
+          )}
+        >
+          <div className="px-4 py-3 border-b bg-white sticky top-0 z-10 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-slate-800">Buzón</h2>
+                <Badge variant="outline" className="text-xs">
+                  {totalConversations}
+                </Badge>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-slate-500 hover:text-blue-600"
+                onClick={() => refreshList()}
+                title="Actualizar lista"
+              >
+                <RefreshCw
+                  className={cn("w-4 h-4", loadingList && "animate-spin")}
+                />
+              </Button>
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="Buscar por texto o ID…"
+                value={filterConfig.search}
+                onChange={(e) =>
+                  setFilterConfig((f) => ({ ...f, search: e.target.value }))
+                }
+              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="icon" aria-label="Filtros">
+                    <ListFilter className="w-4 h-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-80 shadow-lg">
+                  <div className="space-y-3">
+                    <div className="text-xs font-semibold text-slate-700">
+                      Fechas
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant={
+                          !filterConfig.startDate && !filterConfig.endDate
+                            ? "default"
+                            : "outline"
+                        }
+                        size="sm"
+                        onClick={() =>
+                          setFilterConfig((f) => ({
+                            ...f,
+                            startDate: "",
+                            endDate: "",
+                          }))
+                        }
+                      >
+                        Todo
+                      </Button>
+                      <Button
+                        variant={(() => {
+                          const t = new Date();
+                          const y = t.getFullYear(),
+                            m = t.getMonth() + 1,
+                            d = t.getDate();
+                          const s = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+                          return filterConfig.startDate === s &&
+                            filterConfig.endDate === s
+                            ? "default"
+                            : "outline";
+                        })()}
+                        size="sm"
+                        onClick={() => {
+                          const t = new Date();
+                          const y = t.getFullYear(),
+                            m = t.getMonth() + 1,
+                            d = t.getDate();
+                          const s = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+                          setFilterConfig((f) => ({
+                            ...f,
+                            startDate: s,
+                            endDate: s,
+                          }));
+                        }}
+                      >
+                        Hoy
+                      </Button>
+                      <Button
+                        variant={(() => {
+                          const t = new Date();
+                          const end = new Date(
+                            t.getFullYear(),
+                            t.getMonth(),
+                            t.getDate(),
+                          );
+                          const start = new Date(end);
+                          start.setDate(end.getDate() - 7);
+                          const s = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
+                          const e = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
+                          return filterConfig.startDate === s &&
+                            filterConfig.endDate === e
+                            ? "default"
+                            : "outline";
+                        })()}
+                        size="sm"
+                        onClick={() => {
+                          const t = new Date();
+                          const end = new Date(
+                            t.getFullYear(),
+                            t.getMonth(),
+                            t.getDate(),
+                          );
+                          const start = new Date(end);
+                          start.setDate(end.getDate() - 7);
+                          const s = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
+                          const e = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
+                          setFilterConfig((f) => ({
+                            ...f,
+                            startDate: s,
+                            endDate: e,
+                          }));
+                        }}
+                      >
+                        Última Semana
+                      </Button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1">
+                        <Input
+                          type="date"
+                          value={filterConfig.startDate}
+                          onChange={(e) =>
+                            setFilterConfig((f) => ({
+                              ...f,
+                              startDate: e.target.value,
+                            }))
+                          }
+                          placeholder="Desde"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <Input
+                          type="date"
+                          value={filterConfig.endDate}
+                          onChange={(e) =>
+                            setFilterConfig((f) => ({
+                              ...f,
+                              endDate: e.target.value,
+                            }))
+                          }
+                          placeholder="Hasta"
+                        />
+                      </div>
+                    </div>
+                    <div className="pt-2 space-y-2">
+                      <div className="text-xs font-semibold text-slate-700">
+                        Calidad
+                      </div>
+                      <label className="flex items-center gap-2 text-sm">
+                        <Switch
+                          checked={filterConfig.hideTrivial}
+                          onCheckedChange={(v) =>
+                            setFilterConfig((f) => ({ ...f, hideTrivial: !!v }))
+                          }
+                        />
+                        <span>Ocultar conversaciones cortas/vacías</span>
+                      </label>
+                    </div>
+                    <div className="pt-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          setFilterConfig({
+                            search: "",
+                            startDate: "",
+                            endDate: "",
+                            hideTrivial: false,
+                          })
+                        }
+                      >
+                        Limpiar Filtros
+                      </Button>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+ 
+          <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {loadingList && conversations.length === 0 ? (
             // Skeletons
             Array.from({ length: 5 }).map((_, i) => (
@@ -553,13 +574,12 @@ function AdminInboxContent() {
             </PaginationContent>
           </Pagination>
         </div>
-      </div>
+        </div>
 
-      <div className={cn(
-        hasChat ? "flex w-full" : "hidden md:flex",
-        "flex-1 flex flex-col bg-background dark:bg-slate-900",
-      )}
-      >
+        <div className={cn(
+          hasChat ? "flex w-full" : "hidden md:flex",
+          "flex-1 flex flex-col bg-background dark:bg-slate-900",
+        )}>
         {!chatIdFromUrl ? (
           <div className="hidden md:flex flex-1 flex-col items-center justify-center text-slate-400">
             <div className="w-16 h-16 rounded-2xl bg-white shadow-sm flex items-center justify-center mb-4">
@@ -695,6 +715,7 @@ function AdminInboxContent() {
             </div>
           </>
         )}
+        </div>
       </div>
     </div>
   );

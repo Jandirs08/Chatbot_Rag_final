@@ -160,258 +160,165 @@ export default function Dashboard() {
       description: "Previsualiza y obtén el código del iframe",
       icon: Monitor,
       href: "/widget",
-      gradient: "gradient-secondary",
     },
     {
       title: "Subir un nuevo PDF",
       description: "Añade nuevo contenido al conocimiento del bot",
       icon: Upload,
       href: "/Documents",
-      gradient: "gradient-primary",
     },
     {
       title: "Configurar Bot",
       description: "Ajusta el prompt y temperatura del modelo",
       icon: Settings,
       href: "/dashboard/settings",
-      gradient: "gradient-primary",
     },
-    { title: "__EXPORT__", gradient: "gradient-secondary" },
+    { title: "__EXPORT__" },
   ];
 
   return (
-    <div className="space-y-8 animate-fade-in">
-      {/* Header */}
-      <div className="space-y-2 pb-6 border-b border-gray-200">
-        <div className="flex items-center gap-4">
-          <h1 className="text-5xl font-bold text-foreground">
-            Control del Chatbot
+    <div className="space-y-12 animate-fade-in w-full px-6 md:px-10 pt-6">
+      {/* Header Superior Fuerte */}
+      <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between pb-2">
+        <div className="space-y-4">
+          <h1 className="text-5xl font-extrabold tracking-tight text-foreground">
+            Panel de Control
           </h1>
-          <span
-            className={`inline-flex items-center gap-2 px-3 py-1 rounded-[20px] text-xs font-semibold ${isBotActive
-                ? "bg-[#da5b3e] text-white border-0"
-                : "bg-gray-100 text-gray-600 border-0"
-              }`}
-            aria-live="polite"
-          >
-            <span
-              className={`inline-block w-2 h-2 rounded-full ${isBotActive ? "bg-white" : "bg-gray-500"
-                }`}
-            />
-            {isBotActive ? "Bot activo" : "Bot inactivo"}
-          </span>
+          
+          <div className="flex flex-wrap items-center gap-6">
+            {/* Estado Integrado */}
+            <div className="flex items-center gap-3 bg-muted/30 px-4 py-2 rounded-full border border-border/50">
+              <div 
+                className={`w-3 h-3 rounded-full transition-all duration-500 ${isBotActive 
+                  ? "bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.4)]" 
+                  : "bg-red-500"}`} 
+              />
+              <span className="text-base font-medium text-foreground">
+                {isBotActive ? "Sistema Activo" : "Sistema Pausado"}
+              </span>
+              <Switch
+                checked={isBotActive}
+                onCheckedChange={handleBotToggle}
+                disabled={isLoading}
+                className="ml-2 data-[state=checked]:bg-emerald-600"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Clock className="w-4 h-4" />
+              <span>{relativeLastActivity}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <a href="/dashboard/settings" aria-label="Configurar Bot">
+            <Button variant="outline" className="h-10">
+              <Settings className="w-4 h-4 mr-2" />
+              Configuración
+            </Button>
+          </a>
+          <a href="/Documents" aria-label="Subir Documentos">
+            <Button className="h-10 gradient-primary shadow-lg shadow-primary/20">
+              <Upload className="w-4 h-4 mr-2" />
+              Subir PDF
+            </Button>
+          </a>
         </div>
       </div>
 
-      {/* Layout principal: izquierda estado+stats, derecha acciones */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-8">
-          {/* Bot Status Control */}
-          <Card className="border-0 shadow">
-            <CardHeader>
-              <CardTitle className="text-xl flex items-center gap-3">
-                <Bot className="w-6 h-6 text-primary" />
-                Estado del chatbot
-              </CardTitle>
-              <CardDescription>
-                Cuando el bot está inactivo, la burbuja sigue cargando, pero no
-                responde preguntas.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between p-4">
-                <div className="flex items-center gap-5">
-                  <div
-                    className={`w-5 h-5 rounded-full ${isBotActive ? "bg-emerald-500 animate-pulse" : "bg-gray-400"}`}
-                  ></div>
-                  <div>
-                    <div
-                      className={`text-xl font-semibold ${isBotActive ? "text-emerald-700" : "text-gray-700"}`}
-                    >
-                      {isBotActive ? "Estado: Activo" : "Estado: En Pausa"}
-                    </div>
-                    <div className="text-sm text-muted-foreground flex items-center gap-2">
-                      <Clock className="w-4 h-4" />
-                      <span className="whitespace-nowrap">Última actividad: {relativeLastActivity}</span>
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <Switch
-                    checked={isBotActive}
-                    onCheckedChange={handleBotToggle}
-                    disabled={isLoading}
-                    className="scale-110 data-[state=checked]:bg-emerald-600"
-                  />
-                </div>
+      {/* Métricas Integradas - Sin Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 border-y border-border/60 py-10">
+        {statsCards.map((stat, index) => {
+          const content = (
+            <div className="flex flex-col gap-2 group cursor-default">
+              <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                <stat.icon className="w-4 h-4" />
+                <span className="text-sm font-medium uppercase tracking-wider">{stat.title}</span>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Stats Grid */}
-          <div className="space-y-4">
-            <h2 className="text-3xl font-semibold text-foreground">
-              Estado y Métricas
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {statsCards.map((stat, index) => {
-                const content = (
-                  <Card className="border-0 shadow-md border-t-4 border-orange-500 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg dark:bg-slate-800">
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="text-sm font-medium text-gray-500 uppercase tracking-wider">
-                            {stat.title}
-                          </div>
-                          <div className="text-3xl font-bold text-gray-900 dark:text-white mt-1">
-                            {isLoading ? (
-                              <span className="inline-block h-7 w-24 bg-muted animate-pulse rounded" />
-                            ) : (
-                              stat.value
-                            )}
-                          </div>
-                        </div>
-                        <div className="bg-orange-100 p-4 rounded-full">
-                          <stat.icon className="w-6 h-6 text-orange-600" />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-
-                return stat.href ? (
-                  <a
-                    key={index}
-                    href={stat.href}
-                    className="group block"
-                    aria-label={`Ir a ${stat.title}`}
-                  >
-                    {content}
-                  </a>
+              <div className="text-5xl font-bold text-foreground tracking-tight group-hover:text-primary transition-colors duration-300">
+                {isLoading ? (
+                  <span className="inline-block h-10 w-24 bg-muted animate-pulse rounded" />
                 ) : (
-                  <div
-                    key={index}
-                    className="group block"
-                    aria-label={stat.title}
-                  >
-                    {content}
-                  </div>
-                );
-              })}
+                  stat.value
+                )}
+              </div>
             </div>
+          );
+
+          return stat.href ? (
+            <a key={index} href={stat.href} className="block hover:opacity-80 transition-opacity">
+              {content}
+            </a>
+          ) : (
+            <div key={index}>
+              {content}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Contenido Principal */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+        <div className="lg:col-span-2 space-y-8">
+          <div className="flex items-center justify-between">
+            <h2 className="text-3xl font-bold tracking-tight text-foreground">Actividad Reciente</h2>
+          </div>
+          <div className="p-1">
             <DashboardCharts />
           </div>
         </div>
 
-        {/* Acciones Rápidas compactas (columna derecha) */}
-        <div className="lg:col-span-1 space-y-4">
-          <h2 className="text-3xl font-semibold text-foreground">
-            Accesos Directos
-          </h2>
+        <div className="lg:col-span-1 space-y-8">
+          <h2 className="text-3xl font-bold tracking-tight text-foreground">Accesos Directos</h2>
           <div className="grid grid-cols-1 gap-4">
-            {quickActions.map((action, index) => {
+            {quickActions
+              .filter(a => a.href !== "/Documents" && a.href !== "/dashboard/settings") // Ya están arriba
+              .map((action, index) => {
               const content = (
-                <Card className="group hover:shadow-xl shadow transition-all duration-300 cursor-pointer border-0 overflow-hidden">
-                  <CardHeader className="space-y-2 p-4">
-                    <div
-                      className={`w-12 h-12 rounded-lg ${action.gradient} flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}
-                    >
-                      {action.title === "__EXPORT__" ? (
-                        <Download className="w-6 h-6 text-white" />
-                      ) : (
-                        // @ts-ignore
-                        <action.icon className="w-6 h-6 text-white" />
-                      )}
+                <div className="group flex items-center gap-4 p-4 rounded-xl border border-border/40 hover:border-primary/50 hover:bg-muted/30 transition-all duration-300 cursor-pointer">
+                  <div
+                    className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center group-hover:bg-background border border-transparent group-hover:border-border transition-colors duration-300"
+                  >
+                    {action.title === "__EXPORT__" ? (
+                      <Download className="w-5 h-5 text-foreground/70" />
+                    ) : (
+                      // @ts-ignore
+                      <action.icon className="w-5 h-5 text-foreground/70" />
+                    )}
+                  </div>
+                  <div>
+                    {action.title === "__EXPORT__" ? (
+                      <div className="text-lg font-semibold text-foreground group-hover:text-primary transition-colors">
+                        Exportar Datos
+                      </div>
+                    ) : (
+                      <div className="text-lg font-semibold text-foreground group-hover:text-primary transition-colors">
+                        {action.title}
+                      </div>
+                    )}
+                    <div className="text-sm font-medium text-muted-foreground/80 line-clamp-1">
+                      {action.title === "__EXPORT__" ? "Descargar historial" : action.description}
                     </div>
-                    <div>
-                      {action.title === "__EXPORT__" ? (
-                        <>
-                          <CardTitle className="text-base group-hover:text-primary transition-colors">
-                            Exportar Conversaciones
-                          </CardTitle>
-                          <CardDescription className="mt-1">
-                            Descarga en Excel, CSV o JSON
-                          </CardDescription>
-                        </>
-                      ) : (
-                        <>
-                          <CardTitle className="text-base group-hover:text-primary transition-colors">
-                            {action.title}
-                          </CardTitle>
-                          <CardDescription className="mt-1">
-                            {action.description}
-                          </CardDescription>
-                        </>
-                      )}
-                    </div>
-                  </CardHeader>
-                </Card>
+                  </div>
+                </div>
               );
 
               if (action.title === "__EXPORT__") {
                 return (
                   <DropdownMenu key={index}>
                     <DropdownMenuTrigger asChild>
-                      <div aria-label="Exportar Conversaciones" role="button">
-                        {content}
-                      </div>
+                      <div role="button">{content}</div>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-56">
-                      <DropdownMenuLabel>Exportar</DropdownMenuLabel>
-                      <DropdownMenuItem
-                        onClick={async () => {
-                          const toastId = toast.loading("Generando Excel...");
-                          try {
-                            setIsExporting(true);
-                            await exportService.exportConversations("xlsx");
-                            toast.dismiss(toastId);
-                            toast.success("Exportado Excel");
-                          } catch {
-                            toast.dismiss(toastId);
-                            toast.error("Error exportando Excel");
-                          } finally {
-                            setIsExporting(false);
-                          }
-                        }}
-                      >
+                      <DropdownMenuLabel>Formato de Exportación</DropdownMenuLabel>
+                      <DropdownMenuItem onClick={() => exportService.exportConversations("xlsx")}>
                         Excel (.xlsx)
                       </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={async () => {
-                          const toastId = toast.loading("Generando CSV...");
-                          try {
-                            setIsExporting(true);
-                            await exportService.exportConversations("csv");
-                            toast.dismiss(toastId);
-                            toast.success("Exportado CSV");
-                          } catch {
-                            toast.dismiss(toastId);
-                            toast.error("Error exportando CSV");
-                          } finally {
-                            setIsExporting(false);
-                          }
-                        }}
-                      >
+                      <DropdownMenuItem onClick={() => exportService.exportConversations("csv")}>
                         CSV
                       </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={async () => {
-                          const toastId = toast.loading("Generando JSON...");
-                          try {
-                            setIsExporting(true);
-                            await exportService.exportConversations("json", {
-                              pretty: true,
-                            });
-                            toast.dismiss(toastId);
-                            toast.success("Exportado JSON");
-                          } catch {
-                            toast.dismiss(toastId);
-                            toast.error("Error exportando JSON");
-                          } finally {
-                            setIsExporting(false);
-                          }
-                        }}
-                      >
+                      <DropdownMenuItem onClick={() => exportService.exportConversations("json", { pretty: true })}>
                         JSON
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -419,13 +326,9 @@ export default function Dashboard() {
                 );
               }
               return action.href ? (
-                <a key={index} href={action.href} aria-label={action.title}>
-                  {content}
-                </a>
+                <a key={index} href={action.href}>{content}</a>
               ) : (
-                <div key={index} role="button" aria-label={action.title}>
-                  {content}
-                </div>
+                <div key={index}>{content}</div>
               );
             })}
           </div>

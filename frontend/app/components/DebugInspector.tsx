@@ -424,10 +424,10 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                   className={cn(
                     "inline-flex items-center gap-2 rounded-full px-3 py-1 border text-xs",
                     data?.verification?.is_grounded === false
-                      ? "bg-amber-50 border-amber-200 text-amber-700"
+                      ? "bg-warning/10 border-warning/20 text-warning"
                       : data?.verification?.is_grounded === true
-                        ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                        : "bg-slate-50 border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300",
+                        ? "bg-success/10 border-success/20 text-success"
+                        : "bg-muted border-border text-muted-foreground",
                   )}
                 >
                   {data?.verification?.is_grounded === false ? (
@@ -480,12 +480,12 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
               <div className="text-sm font-semibold text-foreground mb-3">Resumen del Flujo RAG</div>
               <div className="space-y-4">
                 {Boolean(data?.is_cached) ? (
-                  <div className="rounded-lg border border-emerald-200 bg-emerald-100 px-4 py-3 flex items-center justify-between">
+                  <div className="rounded-lg border border-success/20 bg-success/10 px-4 py-3 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Zap className="w-5 h-5 text-emerald-700" />
-                      <div className="text-sm font-medium text-emerald-800">Respuesta Instantánea (Caché)</div>
+                      <Zap className="w-5 h-5 text-success" />
+                      <div className="text-sm font-medium text-success">Respuesta Instantánea (Caché)</div>
                     </div>
-                    <div className="text-xs text-emerald-800">{fmtSVal(totalTime)}s</div>
+                    <div className="text-xs text-success">{fmtSVal(totalTime)}s</div>
                   </div>
                 ) : (
                   (() => {
@@ -539,14 +539,14 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                                     className={cn(
                                       "relative flex items-center justify-center w-5 h-5 rounded-full",
                                       completed
-                                        ? "bg-emerald-500"
+                                        ? "bg-success"
                                         : active
-                                          ? "bg-blue-500"
-                                          : "bg-slate-300",
-                                      active && "ring-2 ring-blue-300 animate-pulse",
+                                          ? "bg-primary"
+                                          : "bg-muted",
+                                      active && "ring-2 ring-primary/50 animate-pulse",
                                     )}
                                   >
-                                    <div className="text-white">{icon}</div>
+                                    <div className="text-primary-foreground">{icon}</div>
                                   </div>
                                 </TooltipTrigger>
                                 <TooltipContent className="text-xs">{label}</TooltipContent>
@@ -556,7 +556,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                               <div
                                 className={cn(
                                   "h-[2px] w-12",
-                                  active ? "bg-blue-400" : "bg-slate-300",
+                                  active ? "bg-primary" : "bg-muted",
                                   "transition-all duration-500",
                                 )}
                               />
@@ -622,7 +622,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                                 {typeof ragTime === "number" && ragTime >= 0.01 && (
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <span className="px-2 py-[2px] rounded bg-amber-200 text-slate-900">RAG {fmtSVal(ragTime)}s</span>
+                                      <span className="px-2 py-[2px] rounded bg-warning text-warning-foreground">RAG {fmtSVal(ragTime)}s</span>
                                     </TooltipTrigger>
                                     <TooltipContent className="text-xs">Tiempo de búsqueda en el corpus</TooltipContent>
                                   </Tooltip>
@@ -633,7 +633,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                               <div className="flex justify-center">
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <span className="px-2 py-[2px] rounded bg-blue-200 text-slate-900">LLM {fmtSVal(llmTime)}s</span>
+                                    <span className="px-2 py-[2px] rounded bg-info text-info-foreground">LLM {fmtSVal(llmTime)}s</span>
                                   </TooltipTrigger>
                                   <TooltipContent className="text-xs">Tiempo de generación del modelo</TooltipContent>
                                 </Tooltip>
@@ -641,11 +641,11 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                             </div>
                             {oPct > 0 && <div style={{ width: `${Math.max(0, Math.min(100, oPct))}%` }} />}
                           </div>
-                          <div className="h-8 rounded-full bg-slate-100 overflow-hidden flex">
-                            <div className="h-full bg-amber-300 transition-all" style={{ width: `${Math.max(0, Math.min(100, rPct))}%` }} />
-                            <div className="h-full bg-blue-400 transition-all" style={{ width: `${Math.max(0, Math.min(100, lPct))}%` }} />
+                          <div className="h-8 rounded-full bg-muted overflow-hidden flex">
+                            <div className="h-full bg-warning transition-all" style={{ width: `${Math.max(0, Math.min(100, rPct))}%` }} />
+                            <div className="h-full bg-info transition-all" style={{ width: `${Math.max(0, Math.min(100, lPct))}%` }} />
                             {oPct > 0 && (
-                              <div className="h-full bg-slate-300 transition-all" style={{ width: `${Math.max(0, Math.min(100, oPct))}%` }} />
+                              <div className="h-full bg-muted-foreground/30 transition-all" style={{ width: `${Math.max(0, Math.min(100, oPct))}%` }} />
                             )}
                           </div>
                         </div>
@@ -654,7 +654,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                   })()
                 )}
                 <div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 rounded-xl border border-border bg-card shadow-md ring-1 ring-white/5 p-4 dark:bg-slate-900 dark:border-slate-800">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 rounded-xl border-none bg-card shadow-none ring-1 ring-white/5 p-4 dark:bg-slate-900 dark:border-slate-800">
                     <div className="flex flex-col gap-2">
                       <div className="text-xs font-semibold text-foreground">Motor</div>
                       <div className="flex flex-wrap items-center gap-3">
@@ -662,7 +662,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                           <TooltipTrigger asChild>
                             <div className="inline-flex items-center gap-2">
                               <Info className="w-4 h-4 text-muted-foreground" />
-                              <Badge variant="outline" className="px-2 py-[3px] text-[11px] font-mono text-slate-800 dark:text-slate-200 dark:bg-slate-800/60 dark:border-slate-700">{modelName}</Badge>
+                              <Badge variant="outline" className="px-2 py-[3px] text-[11px] font-mono text-foreground bg-muted/50 border-border">{modelName}</Badge>
                             </div>
                           </TooltipTrigger>
                           <TooltipContent className="text-xs">Modelo LLM utilizado</TooltipContent>
@@ -674,8 +674,8 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                               <Badge className={cn(
                                 "px-2 py-[3px] text-[11px]",
                                 data?.is_cached
-                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                  : "bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800/70 dark:text-slate-300 dark:border-slate-700"
+                                  ? "bg-success/10 text-success border border-success/20"
+                                  : "bg-muted text-muted-foreground border border-border"
                               )}>{cacheText}</Badge>
                             </div>
                           </TooltipTrigger>
@@ -778,7 +778,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
               <div className="text-xs text-muted-foreground">
                 Fragmentos recuperados y similitud
               </div>
-              <div className="rounded-xl border border-border p-4 bg-card shadow-md ring-1 ring-white/5 space-y-4 text-[13px] leading-relaxed mt-2 dark:bg-slate-900 dark:border-slate-800">
+              <div className="rounded-xl border-none p-4 bg-card shadow-none ring-1 ring-white/5 space-y-4 text-[13px] leading-relaxed mt-2 dark:bg-slate-900 dark:border-slate-800">
                 {docs.length === 0 ? (
                   <div className="inline-flex items-center px-3 py-2 rounded-md text-sm bg-muted text-muted-foreground border border-border dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700">
                     Salto de Búsqueda

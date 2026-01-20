@@ -38,47 +38,7 @@ import { getBotConfig } from "../lib/services/botConfigService";
 import { logger } from "@/app/lib/logger";
 import { toast } from "sonner";
 
-const baseMenuItems = [
-  {
-    title: "Home",
-    url: "/",
-    icon: BarChart3,
-  },
-  {
-    title: "Chat",
-    url: "/chat",
-    icon: MessageCircle,
-  },
-  {
-    title: "Web",
-    url: "/widget",
-    icon: Code,
-  },
-  {
-    title: "WhatsApp",
-    url: "/configuracion-whatsapp",
-    icon: MessageSquareText,
-  },
-  {
-    title: "Documentos",
-    url: "/Documents",
-    icon: FileText,
-  },
-  // removed standalone Ajustes page; settings live under Admin now
-  {
-    title: "Playground",
-    url: "/dashboard/playground",
-    icon: Code,
-  },
-];
-
-const integrationItems = baseMenuItems.filter(
-  (item) => item.title === "Web" || item.title === "WhatsApp",
-);
-
-const mainMenuItems = baseMenuItems.filter(
-  (item) => item.title !== "Widget" && item.title !== "Configuración WhatsApp",
-);
+type MenuItem = { title: string; url: string; icon: any };
 
 export function AppSidebar() {
   const { state, isMobile, setOpenMobile } = useSidebar();
@@ -147,38 +107,27 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
+        {/* Operación del bot */}
         <SidebarGroup>
           <SidebarGroupLabel
             className={
               state === "collapsed" ? "hidden" : "text-primary font-semibold"
             }
           >
-            Gestión del Bot
+            Operación del bot
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {(isAdmin
-                ? [
-                  ...mainMenuItems,
-                  {
-                    title: "Buzón",
-                    url: "/admin/inbox",
-                    icon: MessageSquare,
-                  },
-                  { title: "Usuarios", url: "/usuarios", icon: Users },
-                  {
-                    title: "Configuración",
-                    url: "/admin/settings",
-                    icon: Settings,
-                  },
-                ]
-                : mainMenuItems
-              ).map((item) => (
+              {([
+                { title: "Home", url: "/", icon: BarChart3 },
+                { title: "Chat", url: "/chat", icon: MessageCircle },
+                ...(isAdmin ? [{ title: "Buzón", url: "/admin/inbox", icon: MessageSquare }] : []),
+              ] as MenuItem[]).map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
                     isActive={pathname === item.url}
-                    className={`hover:bg-primary/10 hover:text-primary transition-all duration-200 dark:hover:bg-slate-800 dark:hover:text-white ${state === "collapsed" ? "flex flex-col items-center justify-center" : ""}`}
+                    className={`transition-all duration-200 ${state === "collapsed" ? "flex flex-col items-center justify-center" : ""}`}
                     tooltip={{
                       children: item.title,
                       className:
@@ -192,9 +141,7 @@ export function AppSidebar() {
                         if (isMobile) setOpenMobile(false);
                       }}
                     >
-                      <item.icon
-                        className={`${state === "collapsed" ? "w-6 h-6" : "w-5 h-5"}`}
-                      />
+                      <item.icon className={`${state === "collapsed" ? "w-6 h-6" : "w-5 h-5"}`} />
                       {state !== "collapsed" && <span>{item.title}</span>}
                     </Link>
                   </SidebarMenuButton>
@@ -204,22 +151,26 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
+        {/* Canales */}
         <SidebarGroup>
           <SidebarGroupLabel
             className={
               state === "collapsed" ? "hidden" : "text-primary font-semibold"
             }
           >
-            Integraciones
+            Canales
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {integrationItems.map((item) => (
+              {([
+                { title: "Web", url: "/widget", icon: Code },
+                { title: "WhatsApp", url: "/configuracion-whatsapp", icon: MessageSquareText },
+              ] as MenuItem[]).map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
                     isActive={pathname === item.url}
-                    className={`hover:bg-primary/10 hover:text-primary transition-all duration-200 ${state === "collapsed" ? "flex flex-col items-center justify-center" : ""}`}
+                    className={`transition-all duration-200 ${state === "collapsed" ? "flex flex-col items-center justify-center" : ""}`}
                     tooltip={{
                       children: item.title,
                       className:
@@ -233,9 +184,88 @@ export function AppSidebar() {
                         if (isMobile) setOpenMobile(false);
                       }}
                     >
-                      <item.icon
-                        className={`${state === "collapsed" ? "w-6 h-6" : "w-5 h-5"}`}
-                      />
+                      <item.icon className={`${state === "collapsed" ? "w-6 h-6" : "w-5 h-5"}`} />
+                      {state !== "collapsed" && <span>{item.title}</span>}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Conocimiento */}
+        <SidebarGroup>
+          <SidebarGroupLabel
+            className={state === "collapsed" ? "hidden" : "text-primary font-semibold"}
+          >
+            Conocimiento
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {([{ title: "Documentos", url: "/Documents", icon: FileText }] as MenuItem[]).map(
+                (item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={pathname === item.url}
+                      className={`transition-all duration-200 ${state === "collapsed" ? "flex flex-col items-center justify-center" : ""}`}
+                      tooltip={{
+                        children: item.title,
+                        className: "bg-slate-900 text-white text-xs rounded px-2 py-1 z-50",
+                      }}
+                    >
+                      <Link
+                        href={item.url}
+                        className={`flex ${state === "collapsed" ? "flex-col items-center justify-center" : "items-center"} gap-3`}
+                        onClick={() => {
+                          if (isMobile) setOpenMobile(false);
+                        }}
+                      >
+                        <item.icon className={`${state === "collapsed" ? "w-6 h-6" : "w-5 h-5"}`} />
+                        {state !== "collapsed" && <span>{item.title}</span>}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ),
+              )}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Sistema */}
+        <SidebarGroup>
+          <SidebarGroupLabel
+            className={state === "collapsed" ? "hidden" : "text-primary font-semibold"}
+          >
+            Sistema
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {(
+                [
+                  ...(isAdmin ? [{ title: "Usuarios", url: "/usuarios", icon: Users }] : []),
+                  ...(isAdmin ? [{ title: "Configuración", url: "/admin/settings", icon: Settings }] : []),
+                ] as MenuItem[]
+              ).map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname === item.url}
+                    className={`transition-all duration-200 ${state === "collapsed" ? "flex flex-col items-center justify-center" : ""}`}
+                    tooltip={{
+                      children: item.title,
+                      className: "bg-slate-900 text-white text-xs rounded px-2 py-1 z-50",
+                    }}
+                  >
+                    <Link
+                      href={item.url}
+                      className={`flex ${state === "collapsed" ? "flex-col items-center justify-center" : "items-center"} gap-3`}
+                      onClick={() => {
+                        if (isMobile) setOpenMobile(false);
+                      }}
+                    >
+                      <item.icon className={`${state === "collapsed" ? "w-6 h-6" : "w-5 h-5"}`} />
                       {state !== "collapsed" && <span>{item.title}</span>}
                     </Link>
                   </SidebarMenuButton>
@@ -323,4 +353,3 @@ export function AppSidebar() {
     </Sidebar>
   );
 }
-

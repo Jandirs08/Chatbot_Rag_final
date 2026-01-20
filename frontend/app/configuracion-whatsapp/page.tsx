@@ -115,43 +115,42 @@ export default function ConfiguracionWhatsAppPage() {
 
   return (
     <div className="space-y-6 p-6">
+      <div className="flex items-center justify-between pb-2 border-b">
+        <div className="flex items-center gap-3">
+          <h1 className="text-3xl font-bold text-foreground">Configuración de WhatsApp</h1>
+          {status === "ok" && (
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold">
+              <CheckCircle className="w-3 h-3" /> Conectado
+            </span>
+          )}
+          {status === "dirty" && (
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold">
+              <AlertTriangle className="w-3 h-3" /> Cambios sin probar
+            </span>
+          )}
+          {status === "error" && (
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-xs font-semibold">
+              <AlertTriangle className="w-3 h-3" /> Error de conexión
+            </span>
+          )}
+          {status === "unknown" && (
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted text-muted-foreground border border-border text-xs font-semibold">
+              <Circle className="w-3 h-3" /> Sin probar
+            </span>
+          )}
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            onClick={() => setFieldsLocked((v) => !v)}
+          >
+            {fieldsLocked ? "Editar" : "Bloquear"}
+          </Button>
+          <Button onClick={onTest} className="gradient-primary hover:opacity-90">Probar conexión</Button>
+        </div>
+      </div>
       <Card>
-        <CardHeader>
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <div className="flex items-center gap-2 flex-wrap">
-              <CardTitle>Configuración de WhatsApp</CardTitle>
-              {status === "ok" && (
-                <span className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded bg-green-600 text-white">
-                  <CheckCircle className="w-3 h-3" /> Conectado
-                </span>
-              )}
-              {status === "dirty" && (
-                <span className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded bg-amber-500 text-white">
-                  <AlertTriangle className="w-3 h-3" /> Cambios sin probar
-                </span>
-              )}
-              {status === "error" && (
-                <span className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded bg-red-600 text-white">
-                  <AlertTriangle className="w-3 h-3" /> Error de conexión
-                </span>
-              )}
-              {status === "unknown" && (
-                <span className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded bg-muted text-foreground">
-                  <Circle className="w-3 h-3" /> Sin probar
-                </span>
-              )}
-            </div>
-            <div className="flex gap-2 flex-wrap">
-              <Button
-                variant="outline"
-                onClick={() => setFieldsLocked((v) => !v)}
-              >
-                {fieldsLocked ? "Editar" : "Bloquear"}
-              </Button>
-              <Button onClick={onTest}>Test Connection</Button>
-            </div>
-          </div>
-        </CardHeader>
+        <CardHeader />
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="twilio_sid">Twilio Account SID</Label>

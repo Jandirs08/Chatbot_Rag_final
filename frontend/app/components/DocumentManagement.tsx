@@ -504,9 +504,7 @@ export function DocumentManagement() {
       <Card className="border-border/50">
         <CardHeader>
           <CardTitle>Documentos Subidos</CardTitle>
-          <CardDescription>
-            Lista de todos los PDFs procesados por el sistema RAG
-          </CardDescription>
+          <CardDescription>Lista de PDFs procesados</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">

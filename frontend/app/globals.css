@@ -1,5 +1,5 @@
 :root {
-  --background: 0 0% 100%;
+  --background: 60 9% 98%;
   --foreground: 222.2 84% 4.9%;
 
   --card: 0 0% 100%;
@@ -8,36 +8,48 @@
   --popover: 0 0% 100%;
   --popover-foreground: 222.2 84% 4.9%;
 
-  /* Becas Grupo Romero Brand Colors */
-  --primary: 0 0% 60%;
-  --primary-foreground: 0 0% 98%;
+  /* Semantic Colors */
+  --primary: 221 83% 53%; /* #2563eb (Blue) - Action Primary */
+  --primary-foreground: 0 0% 100%;
 
-  --secondary: 43 100% 71%; /* #ffd26b */
+  --secondary: 60 5% 96%; /* Warm Neutral */
   --secondary-foreground: 222.2 47.4% 11.2%;
 
-  --accent: 5 95% 58%; /* #fc382a */
-  --accent-foreground: 0 0% 98%;
+  --accent: 60 5% 96%; /* Warm Neutral */
+  --accent-foreground: 222.2 47.4% 11.2%;
 
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
+  --success: 142 71% 45%; /* #22c55e (Green 500) */
+  --success-foreground: 0 0% 100%;
+
+  --warning: 38 92% 50%; /* #f59e0b (Amber 500) */
+  --warning-foreground: 0 0% 100%;
+
+  --error: 0 84% 60%; /* #ef4444 (Red 500) */
+  --error-foreground: 0 0% 100%;
+
+  --info: 199 89% 48%; /* #0ea5e9 (Sky 500) */
+  --info-foreground: 0 0% 100%;
+
+  --muted: 60 5% 96%;
+  --muted-foreground: 215.4 16.3% 46%;
 
   --destructive: 0 84.2% 60.2%;
   --destructive-foreground: 210 40% 98%;
 
-  --border: 214.3 31.8% 91.4%;
+  --border: 214.3 31.8% 96%;
   --input: 214.3 31.8% 91.4%;
-  --ring: 14 74% 54%;
+  --ring: 221 83% 53%; /* Match Primary */
 
   --radius: 0.75rem;
 
-  --sidebar-background: 0 0% 98%;
+  --sidebar-background: 60 9% 98%;
   --sidebar-foreground: 240 5.3% 26.1%;
-  --sidebar-primary: 14 74% 54%;
+  --sidebar-primary: 221 83% 53%; /* Match Primary */
   --sidebar-primary-foreground: 0 0% 98%;
-  --sidebar-accent: 240 4.8% 95.9%;
+  --sidebar-accent: 60 5% 96%;
   --sidebar-accent-foreground: 240 5.9% 10%;
-  --sidebar-border: 220 13% 91%;
-  --sidebar-ring: 14 74% 54%;
+  --sidebar-border: 220 13% 96%;
+  --sidebar-ring: 221 83% 53%;
 
   /* Fallback para el color de marca del chat si no se carga dinámicamente */
   --brand-color: #2563eb; 
@@ -50,27 +62,43 @@
   --card-foreground: 0 0% 100%; /* white */
   --popover: 217.2 32.6% 17.5%; /* slate-800 */
   --popover-foreground: 0 0% 100%; /* white */
-  --primary: 0 0% 60%;
-  --primary-foreground: 222.2 47.4% 11.2%;
-  --secondary: 43 100% 71%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
-  --accent: 5 95% 58%;
-  --accent-foreground: 210 40% 98%;
+  
+  --primary: 221 83% 53%; /* #2563eb */
+  --primary-foreground: 0 0% 100%;
+  
+  --secondary: 217.2 32.6% 17.5%; /* Slate 800 */
+  --secondary-foreground: 0 0% 98%;
+  
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 0 0% 98%;
+  
+  --success: 142 71% 45%;
+  --success-foreground: 0 0% 100%;
+  
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 100%;
+  
+  --error: 0 84% 60%;
+  --error-foreground: 0 0% 100%;
+  
+  --info: 199 89% 48%;
+  --info-foreground: 0 0% 100%;
+
   --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%; /* slate-400 */
+  --muted-foreground: 215 20.2% 60%;
   --destructive: 0 62.8% 30.6%;
   --destructive-foreground: 210 40% 98%;
   --border: 215 20.2% 35%; /* approximate slate-700 */
   --input: 217.2 32.6% 17.5%;
-  --ring: 14 74% 54%;
+  --ring: 221 83% 53%;
   --sidebar-background: 217.2 32.6% 17.5%; /* slate-800 */
   --sidebar-foreground: 0 0% 100%; /* white */
-  --sidebar-primary: 14 74% 54%;
+  --sidebar-primary: 221 83% 53%;
   --sidebar-primary-foreground: 0 0% 100%;
   --sidebar-accent: 217.2 32.6% 17.5%;
   --sidebar-accent-foreground: 210 40% 98%;
   --sidebar-border: 215 20.2% 35%; /* slate-700 */
-  --sidebar-ring: 14 74% 54%;
+  --sidebar-ring: 221 83% 53%;
 }
 
 @tailwind base;
@@ -91,15 +119,30 @@
   }
 
   a {
-    color: #2d7bd4;
+    color: var(--brand-color);
   }
 
   a:hover {
-    border-bottom: 1px solid;
+    text-decoration: underline;
+  }
+
+  h1 {
+    font-size: clamp(2rem, 2.5vw + 1rem, 3rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: hsl(var(--foreground));
+  }
+
+  h2 {
+    font-size: clamp(1.25rem, 1.2vw + 0.75rem, 1.75rem);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: hsl(var(--foreground));
   }
 
   p {
     margin: 8px 0;
+    line-height: 1.7;
   }
 
   code {
@@ -155,7 +198,7 @@
 }
 
 .animate-slide-in {
-  animation: slideInChat 0.4s ease-out;
+  animation: slideIn 0.4s ease-out;
   will-change: transform, opacity;
 }
 
@@ -167,9 +210,9 @@
 }
 
 .typing-indicator span {
-  width: 4px;
-  height: 4px;
-  background-color: #60a5fa;
+  width: 6px;
+  height: 6px;
+  background-color: var(--brand-color);
   border-radius: 50%;
   animation: typing 1.2s infinite ease-in-out;
   will-change: transform;
@@ -220,15 +263,15 @@
 @layer utilities {
   /* Gradientes optimizados usando variables CSS */
   .gradient-primary {
-    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%);
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--info)) 100%);
   }
 
   .gradient-secondary {
-    background: linear-gradient(135deg, hsl(var(--secondary)) 0%, hsl(var(--primary)) 100%);
+    background: linear-gradient(135deg, hsl(var(--secondary)) 0%, hsl(var(--muted)) 100%);
   }
 
   .gradient-soft {
-    background: linear-gradient(135deg, hsl(var(--secondary) / 0.1) 0%, hsl(var(--primary) / 0.1) 100%);
+    background: linear-gradient(135deg, hsl(var(--info) / 0.1) 0%, hsl(var(--primary) / 0.1) 100%);
   }
 
   /* Utilidades de rendimiento */
@@ -242,105 +285,14 @@
   }
 }
 
-/* Animaciones personalizadas para el chat */
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(20px) scale(0.95);
+*:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
   }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes pulse-glow {
-  0%, 100% {
-    box-shadow: 0 0 5px rgba(218, 91, 62, 0.3);
-  }
-  50% {
-    box-shadow: 0 0 20px rgba(218, 91, 62, 0.6);
-  }
-}
-
-@keyframes typing {
-  0%, 60%, 100% {
-    transform: translateY(0);
-  }
-  30% {
-    transform: translateY(-10px);
-  }
-}
-
-.animate-fadeIn {
-  animation: fadeIn 0.5s ease-out;
-}
-
-.animate-slideIn {
-  animation: slideIn 0.3s ease-out;
-}
-
-.animate-pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
-}
-
-/* Indicador de escritura mejorado */
-.typing-indicator {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-}
-
-.typing-indicator span {
-  width: 6px;
-  height: 6px;
-  background-color: #da5b3e;
-  border-radius: 50%;
-  animation: typing 1.4s ease-in-out infinite;
-}
-
-.typing-indicator span:nth-child(2) {
-  animation-delay: 0.2s;
-}
-
-.typing-indicator span:nth-child(3) {
-  animation-delay: 0.4s;
-}
-
-/* Efectos de hover mejorados */
-.chat-button-hover {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.chat-button-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 25px rgba(218, 91, 62, 0.3);
-}
-
-/* Gradiente animado para el fondo */
-@keyframes gradient-shift {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
-}
-
-.animated-gradient {
-  background: linear-gradient(-45deg, #da5b3e, #e67e5b, #f2a078, #da5b3e);
-  background-size: 400% 400%;
-  animation: gradient-shift 8s ease infinite;
 }

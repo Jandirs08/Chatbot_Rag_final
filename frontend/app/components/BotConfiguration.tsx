@@ -62,18 +62,48 @@ export function BotConfiguration({
 
   return (
     <div className="space-y-8 animate-fade-in">
-      {/* Header */}
-      <div className="pb-6 border-b border-gray-200">
-        <div className="flex items-center justify-between">
-          <div className="space-y-2">
-            <h1 className="text-4xl font-bold text-foreground dark:text-white">
-              Configuración del Bot
-            </h1>
-            <p className="text-xl text-muted-foreground dark:text-slate-400">
-              Ajusta el comportamiento y personalidad del chatbot
-            </p>
+      {/* Estado y Métricas Protagonistas (Replaces Header) */}
+      <div className="flex flex-col md:flex-row gap-12 items-start py-8 mb-4 border-b border-border/40">
+        <div className="space-y-2 min-w-[240px]">
+          <h2 className="text-3xl font-bold tracking-tight text-foreground">Estado del Sistema</h2>
+          <div className="flex items-center gap-2 text-base text-muted-foreground/90 font-medium">
+            <div
+              className={`w-2.5 h-2.5 rounded-full ${isBotActive ? "bg-emerald-500 animate-pulse" : "bg-red-500"
+                }`}
+            />
+            {isBotActive
+              ? "El bot está activo y respondiendo"
+              : "El bot está detenido"}
           </div>
-          {rightAction}
+          {isLoading && (
+            <div className="text-sm text-muted-foreground animate-pulse">
+              Sincronizando...
+            </div>
+          )}
+          {error && <div className="text-sm text-red-500">{error}</div>}
+        </div>
+
+        <div className="flex items-center gap-12 pt-1">
+          <div className="flex flex-col items-start gap-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">
+              Actualización
+            </span>
+            <span className="text-2xl font-bold font-mono text-foreground tracking-tight">
+              Hace 5 min
+            </span>
+          </div>
+          <div className="flex flex-col items-start gap-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">
+              Documentos
+            </span>
+            <span className="text-2xl font-bold font-mono text-foreground tracking-tight">3</span>
+          </div>
+          <div className="flex flex-col items-start gap-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">
+              Consultas Hoy
+            </span>
+            <span className="text-2xl font-bold font-mono text-foreground tracking-tight">247</span>
+          </div>
         </div>
       </div>
 
@@ -91,7 +121,7 @@ export function BotConfiguration({
               <Card className="border-border/50">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Settings className="w-5 h-5 text-primary" />
+                    <Settings className="w-5 h-5 text-muted-foreground" />
                     Instrucciones Adicionales
                   </CardTitle>
                   <CardDescription>
@@ -219,41 +249,6 @@ export function BotConfiguration({
 
         {/* Panel lateral */}
         <div className="space-y-6">
-          <Card className="border-border/50">
-            <CardHeader>
-              <CardTitle>Estado del Bot</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div
-                className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border ${isBotActive
-                    ? "bg-emerald-100 text-emerald-800 border-emerald-200"
-                    : "bg-gray-100 text-gray-700 border-gray-200"
-                  }`}
-                aria-live="polite"
-              >
-                <div
-                  className={`w-2 h-2 rounded-full ${isBotActive ? "bg-emerald-600 animate-pulse" : "bg-red-500"
-                    }`}
-                ></div>
-                <span className="text-sm font-medium">
-                  {isBotActive ? "Activo" : "Inactivo"}
-                </span>
-              </div>
-              {isLoading ? (
-                <div className="text-sm text-muted-foreground">Cargando...</div>
-              ) : null}
-              {error ? (
-                <div className="text-sm text-red-600">{error}</div>
-              ) : null}
-              <div className="text-sm text-muted-foreground space-y-1">
-                <p className="flex items-center gap-2">
-                  <Clock className="w-4 h-4" /> Última actualización: Hace 5 min
-                </p>
-                <p>Documentos procesados: 3</p>
-                <p>Consultas hoy: 247</p>
-              </div>
-            </CardContent>
-          </Card>
 
           <Card className="border-border/50">
             <CardHeader>
