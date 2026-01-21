@@ -81,7 +81,7 @@ export default function ChatPage() {
   }, [conversationId]);
 
   return (
-    <div className="h-screen w-screen">
+    <div className="h-screen w-full overflow-hidden">
       {conversationId && (
         <ChatWindow
           titleText="Chatbot"

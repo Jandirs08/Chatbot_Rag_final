@@ -1,6 +1,6 @@
 :root {
-  --background: 60 9% 98%;
-  --foreground: 222.2 84% 4.9%;
+  --background: 0 0% 100%;
+  --foreground: 0 0% 12%;
 
   --card: 0 0% 100%;
   --card-foreground: 222.2 84% 4.9%;
@@ -9,16 +9,16 @@
   --popover-foreground: 222.2 84% 4.9%;
 
   /* Semantic Colors */
-  --primary: 221 83% 53%; /* #2563eb (Blue) - Action Primary */
+  --primary: 212 91% 59%; /* Azul suave (Tailwind blue-500) */
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 60 5% 96%; /* Warm Neutral */
+  --secondary: 210 16% 97%; /* Neutral suave */
   --secondary-foreground: 222.2 47.4% 11.2%;
 
-  --accent: 60 5% 96%; /* Warm Neutral */
+  --accent: 210 16% 97%; /* Neutral suave */
   --accent-foreground: 222.2 47.4% 11.2%;
 
-  --success: 142 71% 45%; /* #22c55e (Green 500) */
+  --success: 160 84% 39%; /* Verde menta (emerald-500) */
   --success-foreground: 0 0% 100%;
 
   --warning: 38 92% 50%; /* #f59e0b (Amber 500) */
@@ -30,28 +30,28 @@
   --info: 199 89% 48%; /* #0ea5e9 (Sky 500) */
   --info-foreground: 0 0% 100%;
 
-  --muted: 60 5% 96%;
-  --muted-foreground: 215.4 16.3% 46%;
+  --muted: 210 20% 97%;
+  --muted-foreground: 220 10% 40%;
 
   --destructive: 0 84.2% 60.2%;
   --destructive-foreground: 210 40% 98%;
 
-  --border: 214.3 31.8% 96%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 221 83% 53%; /* Match Primary */
-  --radius: 0.5rem;
+  --border: 210 16% 90%;
+  --input: 210 16% 95%;
+  --ring: 212 91% 59%; /* Match Primary */
+  --radius: 1.25rem;
 
-  --sidebar-background: 60 9% 98%;
+  --sidebar-background: 0 0% 100%;
   --sidebar-foreground: 240 5.3% 26.1%;
-  --sidebar-primary: 221 83% 53%; /* Match Primary */
+  --sidebar-primary: 212 91% 59%; /* Match Primary */
   --sidebar-primary-foreground: 0 0% 98%;
-  --sidebar-accent: 60 5% 96%;
+  --sidebar-accent: 210 16% 97%;
   --sidebar-accent-foreground: 240 5.9% 10%;
-  --sidebar-border: 220 13% 96%;
-  --sidebar-ring: 221 83% 53%;
+  --sidebar-border: 210 16% 90%;
+  --sidebar-ring: 212 91% 59%;
 
   /* Fallback para el color de marca del chat si no se carga dinámicamente */
-  --brand-color: #2563eb; 
+  --brand-color: #3b82f6; 
 }
 
 .dark {
@@ -286,6 +286,10 @@
   .smooth-transition {
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
+
+  .attention-pulse {
+    animation: pulse-ring 2s infinite;
+  }
 }
 
 *:focus-visible {
@@ -297,5 +301,17 @@
   * {
     animation: none !important;
     transition: none !important;
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 12px hsl(var(--primary) / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 hsl(var(--primary) / 0);
   }
 }

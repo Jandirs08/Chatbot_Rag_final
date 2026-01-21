@@ -23,6 +23,7 @@ export function WidgetPreview() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const { toast } = useToast();
+  const [hovered, setHovered] = useState(false);
 
   // Función para obtener la URL base (siempre /chat)
   const getBaseUrl = () => {
@@ -157,7 +158,10 @@ export function WidgetPreview() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  transform: hovered ? 'scale(1.05)' : 'scale(1)',
+                  filter: hovered ? 'brightness(1.05)' : 'none',
+                  transition: 'transform 0.2s ease, filter 0.2s ease'
                 }}
                 onClick={() => {
                   const next = !isPreviewOpen;
@@ -167,6 +171,8 @@ export function WidgetPreview() {
                     setError("");
                   }
                 }}
+                onMouseEnter={() => setHovered(true)}
+                onMouseLeave={() => setHovered(false)}
               >
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2}
                   style={{
@@ -214,6 +220,7 @@ export function WidgetPreview() {
                   borderRadius: '16px',
                   boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
                 }}
+                className="animate-slide-in"
                 title="AI Chatbot Widget Preview"
                 onLoad={handleIframeLoad}
                 onError={handleIframeError}

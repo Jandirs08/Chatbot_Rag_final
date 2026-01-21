@@ -205,7 +205,7 @@ export default function ConfiguracionWhatsAppPage() {
             />
           </div>
           <div className="flex gap-3">
-            <Button onClick={onSave} disabled={loading || fieldsLocked}>
+            <Button width="full" onClick={onSave} disabled={loading || fieldsLocked}>
               Guardar cambios
             </Button>
           </div>

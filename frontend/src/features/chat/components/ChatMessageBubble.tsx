@@ -84,8 +84,8 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble(props: {
         {/* Burbuja del mensaje */}
         <div
           className={`px-4 py-3 shadow-sm text-sm sm:text-base ${isUser
-              ? "bg-brand text-brand-foreground rounded-2xl rounded-br-none"
-              : "bg-white border border-gray-100 text-slate-800 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 rounded-2xl rounded-bl-none"
+              ? "bg-muted border border-border text-slate-800 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 rounded-2xl rounded-br-none"
+              : "bg-primary/10 border border-primary/30 text-slate-800 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 rounded-2xl rounded-bl-none"
             }`}
         >
           {isUser ? (

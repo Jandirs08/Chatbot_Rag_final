@@ -27,6 +27,7 @@ import {
   CheckCircle2,
   Terminal,
   Pencil,
+  Palette,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -529,6 +530,15 @@ export default function AdminSettingsPage() {
                     </div>
                   ) : (
                     <>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                          <Palette className="w-4 h-4" />
+                          Identidad Visual
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Configura el nombre, logo y color principal del bot
+                        </div>
+                      </div>
                       <div className="space-y-3">
                         <div className="space-y-2">
                           <Label htmlFor="bot-name">Nombre del Bot</Label>

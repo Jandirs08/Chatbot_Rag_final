@@ -38,6 +38,8 @@ export function ChatWindow(props: {
   const messageContainerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const [input, setInput] = React.useState("");
+  const [showPulse, setShowPulse] = React.useState(false);
+  const idleTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
     placeholder,
@@ -71,6 +73,21 @@ export function ChatWindow(props: {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  const resetIdle = React.useCallback(() => {
+    setShowPulse(false);
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current as any);
+      idleTimerRef.current = null;
+    }
+    idleTimerRef.current = setTimeout(() => {
+      setShowPulse(true);
+    }, 30000);
+  }, []);
+
+  useEffect(() => {
+    resetIdle();
+  }, [messages, input, resetIdle]);
 
   useEffect(() => {
     if (!isLoading && inputRef.current) {
@@ -139,11 +156,11 @@ export function ChatWindow(props: {
   if (!cfg) return null;
 
   return (
-    <div className="flex flex-col h-full bg-gradient-to-br from-gray-50 via-white to-gray-50">
+    <div className="flex flex-col h-full w-full bg-gradient-to-br from-gray-50 via-white to-gray-50 rounded-2xl shadow-2xl overflow-hidden animate-slide-in">
       <div className="shadow-lg bg-brand">
         <div className="px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center overflow-hidden">
+            <div className="relative w-10 h-10 bg-white/20 hover:bg-white/30 transition-colors rounded-xl flex items-center justify-center overflow-hidden">
               {logoUrl ? (
                 <Image
                   src={logoUrl}
@@ -157,6 +174,7 @@ export function ChatWindow(props: {
               ) : (
                 <MessageCircle className="w-6 h-6 text-white" />
               )}
+              {showPulse && <span className="absolute inset-0 rounded-xl attention-pulse pointer-events-none" />}
             </div>
             <div className="flex-1">
               <h1 className="text-xl font-bold text-white">
@@ -188,6 +206,7 @@ export function ChatWindow(props: {
                   if (typeof onNewChat === "function") {
                     onNewChat();
                   }
+                  resetIdle();
                 }}
                 className="ml-3 p-2 rounded-lg bg-white/20 hover:bg-white/30 text-white transition-colors"
               >
@@ -200,7 +219,7 @@ export function ChatWindow(props: {
       </div>
 
       <div
-        className="flex-1 overflow-y-auto p-4 flex flex-col space-y-5"
+        className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-4 flex flex-col space-y-5"
         ref={messageContainerRef}
       >
         {messages.length === 0 ? (
@@ -253,7 +272,7 @@ export function ChatWindow(props: {
               }
             }}
             placeholder={placeholder ?? inputPh}
-            className="flex-1 border-gray-200 rounded-xl"
+            className="flex-1"
             disabled={isLoading}
             autoFocus
           />
