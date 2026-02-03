@@ -9,18 +9,16 @@ import { AutoResizeTextarea } from "@/shared/components/ui/AutoResizeTextarea";
 import { Button } from "@/app/components/ui/button";
 import { ArrowUp, MessageCircle, Trash } from "lucide-react";
 import { useChatStream } from "@/app/hooks/useChatStream";
-import { getPublicBotConfig } from "@/app/lib/services/botConfigService";
 import { botService } from "@/app/lib/services/botService";
 import { TokenManager } from "@/app/lib/services/authService";
 import { API_URL } from "@/app/lib/config";
+import { getPublicBotConfig } from "@/app/lib/services/botConfigService";
 
-// Helper para determinar si un color es claro u oscuro
 function isLightColor(hexColor: string) {
   const hex = hexColor.replace("#", "");
   const r = parseInt(hex.substring(0, 2), 16);
   const g = parseInt(hex.substring(2, 4), 16);
   const b = parseInt(hex.substring(4, 6), 16);
-  // Fórmula de luminosidad relativa (YIQ)
   const yiq = (r * 299 + g * 587 + b * 114) / 1000;
   return yiq >= 128;
 }
@@ -55,7 +53,6 @@ export function ChatWindow(props: {
   const [isBotActive, setIsBotActive] = React.useState(true);
   const [inputPh, setInputPh] = React.useState<string>("Escribe tu mensaje...");
   const [logoUrl, setLogoUrl] = React.useState<string | undefined>(undefined);
-  const [isThemeLight, setIsThemeLight] = React.useState(false);
 
   const { messages, isLoading, debugData, sendMessage, clearMessages } =
     useChatStream(conversationId, initialMessages);
@@ -95,21 +92,23 @@ export function ChatWindow(props: {
     }
   }, [isLoading]);
 
-  const { data: cfg } = useSWR("chat-bot-config", getPublicBotConfig);
+  const { data: cfg } = useSWR("chat-window-config", getPublicBotConfig);
+  const [isThemeLight, setIsThemeLight] = React.useState(true);
+
   useEffect(() => {
     if (cfg) {
+      if (cfg.theme_color) {
+        try {
+          document.documentElement.style.setProperty(
+            "--brand-color",
+            cfg.theme_color
+          );
+          setIsThemeLight(isLightColor(cfg.theme_color));
+        } catch {}
+      }
       setBotName(cfg.bot_name || undefined);
       setInputPh(cfg.input_placeholder || "Escribe tu mensaje...");
       setLogoUrl(`${API_URL}/assets/logo`);
-      if (cfg.theme_color) {
-        try {
-          setIsThemeLight(isLightColor(cfg.theme_color));
-          document.documentElement.style.setProperty(
-            "--brand-color",
-            cfg.theme_color,
-          );
-        } catch { }
-      }
     }
   }, [cfg]);
 

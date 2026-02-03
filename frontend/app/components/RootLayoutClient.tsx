@@ -4,6 +4,7 @@ import { AppSidebar } from "./AppSidebar";
 import { SidebarProvider, SidebarTrigger } from "./ui/sidebar";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
+import { useBrandColor } from "@/app/hooks/useBrandColor";
 
 export function RootLayoutClient({ children }: { children: React.ReactNode }) {
   return (
@@ -15,6 +16,7 @@ export function RootLayoutClient({ children }: { children: React.ReactNode }) {
 
 function RootLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  useBrandColor();
 
   useEffect(() => {
     const saved = localStorage.getItem("theme");
@@ -39,17 +41,22 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {shouldShowSidebar && (
-          <div className="shrink-0 h-14 flex items-center px-3 border-b border-border dark:border-slate-800">
+          <div className="shrink-0 h-14 flex items-center px-4 border-b border-border/50 dark:border-slate-800">
             <SidebarTrigger />
           </div>
         )}
 
         <main
-          className={`flex-1 overflow-y-auto ${
-            shouldShowSidebar ? "p-4" : "p-0"
-          } text-gray-900 dark:text-white`}
+          className={`flex-1 overflow-y-auto text-foreground ${shouldShowSidebar ? "" : ""
+            }`}
         >
-          {children}
+          {shouldShowSidebar ? (
+            <div className="w-full px-6 lg:px-8 xl:px-10 py-6 lg:py-8">
+              {children}
+            </div>
+          ) : (
+            children
+          )}
         </main>
       </div>
     </div>

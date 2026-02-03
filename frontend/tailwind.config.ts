@@ -14,6 +14,10 @@ const config: Config = {
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        surface: {
+          DEFAULT: "hsl(var(--surface))",
+          elevated: "hsl(var(--surface-elevated))",
+        },
         brand: {
           DEFAULT: "var(--brand-color)",
           foreground: "#ffffff",
@@ -91,7 +95,7 @@ const config: Config = {
       try {
         return require("@tailwindcss/typography");
       } catch (_e) {
-        return () => {};
+        return () => { };
       }
     })()
   ],

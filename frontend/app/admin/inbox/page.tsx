@@ -6,7 +6,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useRequireAdmin } from "@/app/hooks/useAuthGuard";
 import { API_URL } from "@/app/lib/config";
 import { authenticatedFetch } from "@/app/lib/services/authService";
-import { getPublicBotConfig } from "@/app/lib/services/botConfigService";
 import {
   ChatMessageBubble,
   Message as BubbleMessage,
@@ -119,18 +118,6 @@ function AdminInboxContent() {
 
   const scrollRef = React.useRef<HTMLDivElement | null>(null);
 
-  // Configuración del Bot (para colores)
-  const { data: botConfig } = useSWR("chat-bot-config", getPublicBotConfig);
-
-  useEffect(() => {
-    if (botConfig?.theme_color) {
-      document.documentElement.style.setProperty(
-        "--brand-color",
-        botConfig.theme_color,
-      );
-    }
-  }, [botConfig]);
-
   // 1. SWR para la LISTA de conversaciones (Polling cada 10s)
   const skip = (page - 1) * LIMIT;
   const {
@@ -160,6 +147,25 @@ function AdminInboxContent() {
     fetcher,
     { refreshInterval: 5000, revalidateOnFocus: false },
   );
+
+  const getMessageKey = (m: HistoryItem, idx: number): string => {
+    const maybeId = (m as unknown as { id?: string | number }).id;
+    if (maybeId != null && String(maybeId).trim().length > 0) {
+      return String(maybeId);
+    }
+    const ts = m.timestamp ? new Date(m.timestamp).getTime() : 0;
+    const contentSlice = (m.content ?? "").slice(0, 24).replace(/\s+/g, " ");
+    if (ts) {
+      return `${m.role}-${ts}-${contentSlice}`;
+    }
+    const base = `${m.role}-${m.content ?? ""}`;
+    let hash = 0;
+    for (let i = 0; i < base.length; i++) {
+      hash = (hash << 5) - hash + base.charCodeAt(i);
+      hash |= 0;
+    }
+    return `${m.role}-${hash}-${idx}`;
+  };
 
   // Filtrado client-side
   const filteredConversations = React.useMemo(() => {
@@ -219,49 +225,49 @@ function AdminInboxContent() {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-white border-t border-slate-200">
-      <div className="px-6 py-4 border-b bg-white">
+    <div className="flex flex-col h-screen overflow-hidden bg-background">
+      <div className="px-5 py-3 border-b border-border/40 bg-background">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Bandeja de Conversaciones</h1>
-            <p className="text-sm text-muted-foreground">Monitorea las conversaciones</p>
+            <h1 className="text-base font-semibold text-foreground">Buzón</h1>
+            <p className="text-[12px] text-muted-foreground/70">Conversaciones activas</p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-success/10 text-success border border-success/20 text-xs font-semibold">
-              <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
-              Sincronización activa
+          <div className="flex items-center gap-2">
+            <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-50 text-emerald-600 text-[11px] font-medium dark:bg-emerald-950/30 dark:text-emerald-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+              En vivo
             </div>
-            <Button onClick={() => refreshList()} className="gradient-primary hover:opacity-90">
-              <RefreshCw className={cn("w-4 h-4 mr-2", loadingList && "animate-spin")} />
+            <Button variant="ghost" size="sm" onClick={() => refreshList()} className="h-8 gap-1.5 text-[12px]">
+              <RefreshCw className={cn("w-3.5 h-3.5", loadingList && "animate-spin")} />
               Actualizar
             </Button>
           </div>
         </div>
       </div>
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         <div
           className={cn(
             hasChat ? "hidden md:flex" : "flex",
-            "w-80 md:w-96 flex-none border-r border-slate-200 flex-col bg-slate-50/30",
+            "w-[380px] flex-none border-r border-border/40 flex-col min-h-0 bg-background dark:border-slate-800",
           )}
         >
-          <div className="px-4 py-3 border-b bg-white sticky top-0 z-10 space-y-2">
+          <div className="px-3 py-2.5 border-b border-border/40 bg-background flex-none space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <h2 className="text-sm font-bold text-slate-800">Buzón</h2>
-                <Badge variant="outline" className="text-xs">
+                <span className="text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wider">Conversaciones</span>
+                <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-normal">
                   {totalConversations}
                 </Badge>
               </div>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-slate-500 hover:text-blue-600"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
                 onClick={() => refreshList()}
                 title="Actualizar lista"
               >
                 <RefreshCw
-                  className={cn("w-4 h-4", loadingList && "animate-spin")}
+                  className={cn("w-3.5 h-3.5", loadingList && "animate-spin")}
                 />
               </Button>
             </div>
@@ -432,289 +438,289 @@ function AdminInboxContent() {
               </Popover>
             </div>
           </div>
- 
-          <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {loadingList && conversations.length === 0 ? (
-            // Skeletons
-            Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="p-3 rounded-lg border border-transparent">
-                <div className="flex gap-3">
-                  <Skeleton className="h-10 w-10 rounded-full" />
-                  <div className="space-y-2 flex-1">
-                    <Skeleton className="h-4 w-3/4" />
-                    <Skeleton className="h-3 w-1/2" />
-                  </div>
-                </div>
-              </div>
-            ))
-          ) : filteredConversations.length === 0 ? (
-            <div className="h-32 flex items-center justify-center text-xs text-slate-400">
-              No hay conversaciones recientes
-            </div>
-          ) : (
-            // Lista Real
-            filteredConversations.map((c) => {
-              const isActive = chatIdFromUrl === c.conversation_id;
-              return (
-                <div
-                  key={c.conversation_id}
-                  onClick={() => handleSelectChat(c.conversation_id)}
-                  className={cn(
-                    "group relative flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-all duration-200 border",
-                    isActive
-                      ? "bg-white border-blue-200 shadow-sm ring-1 ring-blue-100 z-10"
-                      : "bg-transparent border-transparent hover:bg-white hover:border-slate-200 hover:shadow-sm",
-                  )}
-                >
-                  {/* Avatar Humanizado */}
-                  <div
-                    className="flex-none w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold text-slate-700 shadow-sm border border-black/5"
-                    style={{ backgroundColor: colorFromId(c.conversation_id) }}
-                  >
-                    <UserCircle2 className="w-6 h-6 opacity-50" />
-                  </div>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-0.5">
-                      <span
-                        className={cn(
-                          "text-xs font-bold truncate",
-                          isActive ? "text-blue-700" : "text-slate-700",
-                        )}
-                      >
-                        {humanizeId(c.conversation_id)}
-                      </span>
-                      <span className="text-[10px] text-slate-400 whitespace-nowrap ml-2">
-                        {fmtDate(c.updated_at)}
-                      </span>
+          <div className="flex-1 overflow-y-auto px-2 py-1.5 space-y-0.5">
+            {loadingList && conversations.length === 0 ? (
+              // Skeletons
+              Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="p-3 rounded-lg border border-transparent">
+                  <div className="flex gap-3">
+                    <Skeleton className="h-10 w-10 rounded-full" />
+                    <div className="space-y-2 flex-1">
+                      <Skeleton className="h-4 w-3/4" />
+                      <Skeleton className="h-3 w-1/2" />
                     </div>
-                    <p className="text-sm text-slate-600 truncate group-hover:text-slate-900">
-                      {c.last_message_preview || (
-                        <span className="italic text-slate-400">
-                          Sin mensajes
-                        </span>
-                      )}
-                    </p>
                   </div>
                 </div>
-              );
-            })
-          )}
-        </div>
+              ))
+            ) : filteredConversations.length === 0 ? (
+              <div className="h-32 flex items-center justify-center text-xs text-slate-400">
+                No hay conversaciones recientes
+              </div>
+            ) : (
+              // Lista Real
+              filteredConversations.map((c) => {
+                const isActive = chatIdFromUrl === c.conversation_id;
+                return (
+                  <div
+                    key={c.conversation_id}
+                    onClick={() => handleSelectChat(c.conversation_id)}
+                    className={cn(
+                      "group relative flex items-start gap-3 px-3 py-2.5 rounded-md cursor-pointer transition-all duration-150",
+                      isActive
+                        ? "bg-black/[0.04] before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-5 before:w-[2px] before:rounded-full before:bg-foreground dark:bg-white/[0.06] dark:before:bg-white"
+                        : "hover:bg-black/[0.02] dark:hover:bg-white/[0.03]",
+                    )}
+                  >
+                    {/* Avatar */}
+                    <div
+                      className="flex-none w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-medium text-foreground/70"
+                      style={{ backgroundColor: colorFromId(c.conversation_id) }}
+                    >
+                      <UserCircle2 className="w-4 h-4 opacity-60" />
+                    </div>
 
-        {/* Paginación */}
-        <div className="p-2 border-t border-slate-200 bg-white">
-          <Pagination>
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  className={
-                    page === 1
-                      ? "pointer-events-none opacity-50"
-                      : "cursor-pointer"
-                  }
-                />
-              </PaginationItem>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span
+                          className={cn(
+                            "text-[12px] font-medium truncate",
+                            isActive ? "text-foreground" : "text-foreground/80",
+                          )}
+                        >
+                          {humanizeId(c.conversation_id)}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground/60 whitespace-nowrap ml-2">
+                          {fmtDate(c.updated_at)}
+                        </span>
+                      </div>
+                      <p className="text-[12px] text-muted-foreground/70 truncate">
+                        {c.last_message_preview || (
+                          <span className="italic text-muted-foreground/50">
+                            Sin mensajes
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
 
-              {(() => {
-                const range = [];
-                const delta = 1;
-                for (let i = 1; i <= totalPages; i++) {
-                  if (
-                    i === 1 ||
-                    i === totalPages ||
-                    (i >= page - delta && i <= page + delta)
-                  ) {
-                    range.push(i);
-                  }
-                }
+          {/* Paginación */}
+          <div className="px-3 py-2 border-t border-border/40 bg-background flex-none">
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className={
+                      page === 1
+                        ? "pointer-events-none opacity-50"
+                        : "cursor-pointer"
+                    }
+                  />
+                </PaginationItem>
 
-                const rangeWithDots = [];
-                let l;
-                for (let i of range) {
-                  if (l) {
-                    if (i - l === 2) {
-                      rangeWithDots.push(l + 1);
-                    } else if (i - l !== 1) {
-                      rangeWithDots.push("...");
+                {(() => {
+                  const range = [];
+                  const delta = 1;
+                  for (let i = 1; i <= totalPages; i++) {
+                    if (
+                      i === 1 ||
+                      i === totalPages ||
+                      (i >= page - delta && i <= page + delta)
+                    ) {
+                      range.push(i);
                     }
                   }
-                  rangeWithDots.push(i);
-                  l = i;
-                }
 
-                return rangeWithDots.map((pageNum, idx) => (
-                  <PaginationItem key={idx}>
-                    {pageNum === "..." ? (
-                      <PaginationEllipsis />
-                    ) : (
-                      <PaginationLink
-                        isActive={page === pageNum}
-                        onClick={() => setPage(Number(pageNum))}
-                        className="cursor-pointer"
-                      >
-                        {pageNum}
-                      </PaginationLink>
-                    )}
-                  </PaginationItem>
-                ));
-              })()}
-
-              <PaginationItem>
-                <PaginationNext
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  className={
-                    page === totalPages
-                      ? "pointer-events-none opacity-50"
-                      : "cursor-pointer"
+                  const rangeWithDots = [];
+                  let l;
+                  for (let i of range) {
+                    if (l) {
+                      if (i - l === 2) {
+                        rangeWithDots.push(l + 1);
+                      } else if (i - l !== 1) {
+                        rangeWithDots.push("...");
+                      }
+                    }
+                    rangeWithDots.push(i);
+                    l = i;
                   }
-                />
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
-        </div>
+
+                  return rangeWithDots.map((pageNum, idx) => (
+                    <PaginationItem key={idx}>
+                      {pageNum === "..." ? (
+                        <PaginationEllipsis />
+                      ) : (
+                        <PaginationLink
+                          isActive={page === pageNum}
+                          onClick={() => setPage(Number(pageNum))}
+                          className="cursor-pointer"
+                        >
+                          {pageNum}
+                        </PaginationLink>
+                      )}
+                    </PaginationItem>
+                  ));
+                })()}
+
+                <PaginationItem>
+                  <PaginationNext
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    className={
+                      page === totalPages
+                        ? "pointer-events-none opacity-50"
+                        : "cursor-pointer"
+                    }
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </div>
         </div>
 
         <div className={cn(
           hasChat ? "flex w-full" : "hidden md:flex",
-          "flex-1 flex flex-col bg-background dark:bg-slate-900",
+          "flex-1 flex flex-col min-h-0 bg-background dark:bg-slate-900",
         )}>
-        {!chatIdFromUrl ? (
-          <div className="hidden md:flex flex-1 flex-col items-center justify-center text-slate-400">
-            <div className="w-16 h-16 rounded-2xl bg-white shadow-sm flex items-center justify-center mb-4">
-              <MessageSquare className="w-8 h-8 text-slate-300" />
+          {!chatIdFromUrl ? (
+            <div className="hidden md:flex flex-1 flex-col items-center justify-center text-muted-foreground/60">
+              <div className="w-12 h-12 rounded-lg bg-muted/50 flex items-center justify-center mb-3">
+                <MessageSquare className="w-5 h-5" />
+              </div>
+              <p className="text-[13px] font-medium">Selecciona una conversación</p>
+              <p className="text-[11px] text-muted-foreground/50 mt-1">Elige un chat de la lista para ver los mensajes</p>
             </div>
-            <p className="text-sm font-medium">
-              Selecciona un chat para monitorear
-            </p>
-          </div>
-        ) : (
-          <>
-            {/* Chat Header */}
-            <div className="flex items-center justify-between px-6 py-3 bg-card border-b border-border shadow-md ring-1 ring-white/5 sticky top-0 z-20 dark:bg-slate-900 dark:border-slate-800">
-              <div className="flex items-center gap-3">
+          ) : (
+            <>
+              {/* Chat Header */}
+              <div className="flex items-center justify-between px-4 py-2.5 bg-background border-b border-border/40 sticky top-0 z-20 dark:border-slate-800">
+                <div className="flex items-center gap-2.5">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="md:hidden h-7 w-7"
+                    onClick={clearSelectedChat}
+                    aria-label="Volver"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <div
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-medium"
+                    style={{ backgroundColor: colorFromId(chatIdFromUrl) }}
+                  >
+                    VT
+                  </div>
+                  <div>
+                    <div className="text-[13px] font-medium text-foreground flex items-center gap-2">
+                      {humanizeId(chatIdFromUrl)}
+                      <span className="px-1.5 py-0.5 rounded bg-muted/50 text-[9px] font-mono text-muted-foreground/70 dark:bg-slate-800">
+                        {chatIdFromUrl.slice(0, 6)}…
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-muted-foreground/60 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      En vivo
+                    </div>
+                  </div>
+                </div>
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="md:hidden"
-                  onClick={clearSelectedChat}
-                  aria-label="Volver"
+                  size="sm"
+                  className="h-7 text-[11px] gap-1.5"
+                  onClick={() => navigator.clipboard.writeText(chatIdFromUrl)}
                 >
-                  <ChevronLeft className="w-5 h-5" />
+                  <Copy className="w-3 h-3" />
+                  Copiar ID
                 </Button>
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border"
-                  style={{ backgroundColor: colorFromId(chatIdFromUrl) }}
-                >
-                  VT
-                </div>
-                <div>
-                  <div className="text-sm font-bold text-foreground flex items-center gap-2">
-                    {humanizeId(chatIdFromUrl)}
-                    <span className="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono text-muted-foreground font-normal border border-border dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700">
-                      {chatIdFromUrl.slice(0, 8)}...
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-muted-foreground flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    Sincronización activa
-                  </div>
-                </div>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 text-xs gap-2"
-                onClick={() => navigator.clipboard.writeText(chatIdFromUrl)}
+
+              {/* Chat Body */}
+              <div
+                className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-background dark:bg-slate-900"
+                ref={scrollRef}
               >
-                <Copy className="w-3 h-3" /> ID
-              </Button>
-            </div>
+                {loadingHistory && messages.length === 0 ? (
+                  // Skeletons Chat
+                  <div className="space-y-6 opacity-50">
+                    <div className="flex justify-end">
+                      <Skeleton className="h-10 w-2/3 rounded-xl rounded-tr-none" />
+                    </div>
+                    <div className="flex justify-start">
+                      <Skeleton className="h-16 w-3/4 rounded-xl rounded-tl-none" />
+                    </div>
+                    <div className="flex justify-end">
+                      <Skeleton className="h-8 w-1/2 rounded-xl rounded-tr-none" />
+                    </div>
+                  </div>
+                ) : messages.length === 0 ? (
+                  <div className="text-center py-10 text-sm text-muted-foreground italic">
+                    Esta conversación no tiene mensajes visibles.
+                  </div>
+                ) : (
+                  messages.map((m, idx) => {
+                    const isUser = m.role === "user";
+                    const stableKey = getMessageKey(m, idx);
+                    const bubbleData: BubbleMessage = {
+                      id: stableKey,
+                      role: m.role,
+                      content: m.content,
+                      createdAt: m.timestamp ? new Date(m.timestamp) : undefined,
+                    };
 
-            {/* Chat Body */}
-            <div
-              className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 bg-background/50 dark:bg-slate-900/60"
-              ref={scrollRef}
-            >
-              {loadingHistory && messages.length === 0 ? (
-                // Skeletons Chat
-                <div className="space-y-6 opacity-50">
-                  <div className="flex justify-end">
-                    <Skeleton className="h-10 w-2/3 rounded-xl rounded-tr-none" />
-                  </div>
-                  <div className="flex justify-start">
-                    <Skeleton className="h-16 w-3/4 rounded-xl rounded-tl-none" />
-                  </div>
-                  <div className="flex justify-end">
-                    <Skeleton className="h-8 w-1/2 rounded-xl rounded-tr-none" />
-                  </div>
-                </div>
-              ) : messages.length === 0 ? (
-                <div className="text-center py-10 text-sm text-muted-foreground italic">
-                  Esta conversación no tiene mensajes visibles.
-                </div>
-              ) : (
-                messages.map((m, idx) => {
-                  const isUser = m.role === "user";
-                  // Adaptador para tu componente Bubble
-                  const bubbleData: BubbleMessage = {
-                    id: `${idx}`,
-                    role: m.role,
-                    content: m.content,
-                    createdAt: m.timestamp ? new Date(m.timestamp) : undefined,
-                  };
-
-                  return (
-                    <div
-                      key={idx}
-                      className={cn(
-                        "flex",
-                        isUser ? "justify-end" : "justify-start",
-                      )}
-                    >
+                    return (
                       <div
+                        key={stableKey}
                         className={cn(
-                          "max-w-[85%] md:max-w-[75%]",
-                          isUser ? "items-end" : "items-start",
+                          "flex",
+                          isUser ? "justify-end" : "justify-start",
                         )}
                       >
-                        <ChatMessageBubble
-                          message={bubbleData}
-                          isMostRecent={false}
-                          messageCompleted={true}
-                          aiEmoji="🤖"
-                          botName="Asistente IA"
-                        />
-                        {m.timestamp && (
-                          <div
-                            className={cn(
-                              "text-[10px] text-muted-foreground mt-1 px-1",
-                              isUser ? "text-right" : "text-left",
-                            )}
-                          >
-                            {new Date(m.timestamp).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </div>
-                        )}
+                        <div
+                          className={cn(
+                            "max-w-[85%] md:max-w-[75%]",
+                            isUser ? "items-end" : "items-start",
+                          )}
+                        >
+                          <ChatMessageBubble
+                            message={bubbleData}
+                            isMostRecent={false}
+                            messageCompleted={true}
+                            aiEmoji="🤖"
+                            botName="Asistente IA"
+                          />
+                          {m.timestamp && (
+                            <div
+                              className={cn(
+                                "text-[10px] text-muted-foreground mt-1 px-1",
+                                isUser ? "text-right" : "text-left",
+                              )}
+                            >
+                              {new Date(m.timestamp).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })
-              )}
-              {/* Espaciador final */}
-              <div className="h-4" />
-            </div>
-
-            <div className="px-6 py-3 bg-muted border-t border-border text-center dark:bg-slate-900 dark:border-slate-800">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted text-muted-foreground text-xs font-medium">
-                🔒 Modo Supervisión (Solo Lectura)
+                    );
+                  })
+                )}
+                {/* Espaciador final */}
+                <div className="h-4" />
               </div>
-            </div>
-          </>
-        )}
+
+              <div className="px-4 py-2 bg-muted/30 border-t border-border/40 text-center dark:bg-slate-900 dark:border-slate-800">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted/50 text-muted-foreground/70 text-[11px] font-medium">
+                  🔒 Solo lectura
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

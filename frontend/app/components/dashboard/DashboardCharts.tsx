@@ -1,6 +1,5 @@
 "use client";
-import React, { useEffect, useMemo, useState } from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import React, { useEffect, useState } from "react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -73,57 +72,58 @@ export default function DashboardCharts() {
   }, [range]);
 
   return (
-    <Card className="border-0 shadow-none">
-      <CardHeader className="flex flex-wrap md:flex-nowrap items-start md:items-center justify-between gap-x-4 gap-y-2">
-        <CardTitle className="text-xl">Evolución de métricas</CardTitle>
-        <div className="flex items-center gap-2 flex-wrap md:flex-nowrap w-full md:w-auto">
-          <div className="w-44">
-            <Select value={range} onValueChange={(v: any) => setRange(v)}>
-              <SelectTrigger aria-label="Rango de tiempo">
-                <SelectValue placeholder="Últimos 7 días" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="7d">Últimos 7 días</SelectItem>
-                <SelectItem value="30d">Últimos 30 días</SelectItem>
-                <SelectItem value="3m">Últimos 3 meses</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+    <div className="space-y-4">
+      {/* Controls bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-base font-medium text-foreground">Evolución de métricas</h3>
+        <div className="flex items-center gap-2">
+          <Select value={range} onValueChange={(v: any) => setRange(v)}>
+            <SelectTrigger className="w-36 h-8 text-xs" aria-label="Rango de tiempo">
+              <SelectValue placeholder="Últimos 7 días" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7d">Últimos 7 días</SelectItem>
+              <SelectItem value="30d">Últimos 30 días</SelectItem>
+              <SelectItem value="3m">Últimos 3 meses</SelectItem>
+            </SelectContent>
+          </Select>
           <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)}>
-            <TabsList>
-              <TabsTrigger value="consultas">Consultas</TabsTrigger>
-              <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
+            <TabsList className="h-8">
+              <TabsTrigger value="consultas" className="text-xs px-3 h-7">Consultas</TabsTrigger>
+              <TabsTrigger value="usuarios" className="text-xs px-3 h-7">Usuarios</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <div className="h-[320px] w-full">
-          {loading ? (
-            <Skeleton className="w-full h-full" />
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data} key={`${activeTab}-${range}`} margin={{ top: 16, right: 24, left: 0, bottom: 0 }}>
+      </div>
+
+      {/* Chart */}
+      <div className="h-[280px] w-full">
+        {loading ? (
+          <Skeleton className="w-full h-full rounded-lg" />
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data} key={`${activeTab}-${range}`} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
               <defs>
                 <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#f97316" stopOpacity={0.35} />
-                  <stop offset="100%" stopColor="#f97316" stopOpacity={0.05} />
+                  <stop offset="0%" stopColor="hsl(217, 91%, 60%)" stopOpacity={0.25} />
+                  <stop offset="100%" stopColor="hsl(217, 91%, 60%)" stopOpacity={0.02} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.5} vertical={false} />
               <XAxis
                 dataKey="name"
-                tick={{ fill: "#94a3b8" }}
-                axisLine={{ stroke: "#e5e7eb" }}
-                tickLine={{ stroke: "#e5e7eb" }}
-                minTickGap={10}
+                tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                minTickGap={15}
                 tickMargin={8}
                 interval="preserveStartEnd"
               />
               <YAxis
-                tick={{ fill: "#94a3b8" }}
+                tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
                 axisLine={false}
-                tickLine={{ stroke: "#e5e7eb" }}
+                tickLine={false}
+                width={35}
               />
               <Tooltip
                 content={(props: any) => (
@@ -133,17 +133,17 @@ export default function DashboardCharts() {
               <Area
                 type="monotone"
                 dataKey={dataKey}
-                stroke="#f97316"
+                stroke="hsl(217, 91%, 60%)"
                 fill="url(#chartGradient)"
                 strokeWidth={2}
-                dot={{ r: 2 }}
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 2, fill: "white", stroke: "hsl(217, 91%, 60%)" }}
                 isAnimationActive
               />
             </AreaChart>
           </ResponsiveContainer>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+        )}
+      </div>
+    </div>
   );
 }

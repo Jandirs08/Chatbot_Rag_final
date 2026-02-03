@@ -13,6 +13,7 @@ import {
   LogOut,
   Sun,
   Moon,
+  type LucideIcon,
 } from "lucide-react";
 import React from "react";
 import {
@@ -29,16 +30,13 @@ import {
   useSidebar,
 } from "./ui/sidebar";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "../hooks/useAuth";
-import { Button } from "./ui/button";
-// removed Switch in favor of a simple toggle button
-import { useRouter } from "next/navigation";
 import { getBotConfig } from "../lib/services/botConfigService";
 import { logger } from "@/app/lib/logger";
 import { toast } from "sonner";
 
-type MenuItem = { title: string; url: string; icon: any };
+type MenuItem = { title: string; url: string; icon: LucideIcon };
 
 export function AppSidebar() {
   const { state, isMobile, setOpenMobile } = useSidebar();
@@ -47,6 +45,11 @@ export function AppSidebar() {
   const [isDark, setIsDark] = React.useState(false);
   const [botName, setBotName] = React.useState<string | undefined>(undefined);
   const pathname = usePathname();
+
+  const isUrlActive = (url: string) => {
+    if (url === "/") return pathname === "/";
+    return pathname?.startsWith(url) ?? false;
+  };
 
   const handleLogout = async () => {
     try {
@@ -89,18 +92,18 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar className="border-r border-border/50 bg-white dark:bg-slate-900 dark:border-slate-800 flex-shrink-0 h-full transition-all duration-300">
-      <SidebarHeader className="p-6">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-orange-100 text-orange-600 dark:bg-slate-800 dark:text-orange-500">
-            <Bot className="w-6 h-6" />
+    <Sidebar className="border-r border-border/30 bg-sidebar-background dark:bg-slate-900 dark:border-slate-800/60 flex-shrink-0 h-full transition-all duration-200">
+      <SidebarHeader className="px-3 py-4">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-md flex items-center justify-center bg-orange-50 text-orange-600 dark:bg-slate-800 dark:text-orange-400">
+            <Bot className="w-4.5 h-4.5" />
           </div>
           <div className={state === "collapsed" ? "hidden" : ""}>
-            <h2 className="text-lg font-bold text-foreground dark:text-white">
+            <h2 className="text-sm font-semibold text-foreground dark:text-white leading-tight">
               {botName ?? "Asistente"}
             </h2>
-            <p className="text-sm text-muted-foreground dark:text-slate-400">
-              {botName ?? "Becas Grupo Romero"}
+            <p className="text-[11px] text-muted-foreground/70 dark:text-slate-500">
+              Panel de control
             </p>
           </div>
         </div>
@@ -109,12 +112,8 @@ export function AppSidebar() {
       <SidebarContent>
         {/* Operación del bot */}
         <SidebarGroup>
-          <SidebarGroupLabel
-            className={
-              state === "collapsed" ? "hidden" : "text-primary font-semibold"
-            }
-          >
-            Operación del bot
+          <SidebarGroupLabel className={state === "collapsed" ? "hidden" : ""}>
+            Operación
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -126,7 +125,7 @@ export function AppSidebar() {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
-                    isActive={pathname === item.url}
+                    isActive={isUrlActive(item.url)}
                     className={`transition-all duration-200 ${state === "collapsed" ? "flex flex-col items-center justify-center" : ""}`}
                     tooltip={{
                       children: item.title,
@@ -153,11 +152,7 @@ export function AppSidebar() {
 
         {/* Canales */}
         <SidebarGroup>
-          <SidebarGroupLabel
-            className={
-              state === "collapsed" ? "hidden" : "text-primary font-semibold"
-            }
-          >
+          <SidebarGroupLabel className={state === "collapsed" ? "hidden" : ""}>
             Canales
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -169,7 +164,7 @@ export function AppSidebar() {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
-                    isActive={pathname === item.url}
+                    isActive={isUrlActive(item.url)}
                     className={`transition-all duration-200 ${state === "collapsed" ? "flex flex-col items-center justify-center" : ""}`}
                     tooltip={{
                       children: item.title,
@@ -196,9 +191,7 @@ export function AppSidebar() {
 
         {/* Conocimiento */}
         <SidebarGroup>
-          <SidebarGroupLabel
-            className={state === "collapsed" ? "hidden" : "text-primary font-semibold"}
-          >
+          <SidebarGroupLabel className={state === "collapsed" ? "hidden" : ""}>
             Conocimiento
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -207,8 +200,8 @@ export function AppSidebar() {
                 (item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
-                      asChild
-                      isActive={pathname === item.url}
+                    asChild
+                    isActive={isUrlActive(item.url)}
                       className={`transition-all duration-200 ${state === "collapsed" ? "flex flex-col items-center justify-center" : ""}`}
                       tooltip={{
                         children: item.title,
@@ -235,9 +228,7 @@ export function AppSidebar() {
 
         {/* Sistema */}
         <SidebarGroup>
-          <SidebarGroupLabel
-            className={state === "collapsed" ? "hidden" : "text-primary font-semibold"}
-          >
+          <SidebarGroupLabel className={state === "collapsed" ? "hidden" : ""}>
             Sistema
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -251,7 +242,7 @@ export function AppSidebar() {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
-                    isActive={pathname === item.url}
+                    isActive={isUrlActive(item.url)}
                     className={`transition-all duration-200 ${state === "collapsed" ? "flex flex-col items-center justify-center" : ""}`}
                     tooltip={{
                       children: item.title,
@@ -276,76 +267,48 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4 border-t border-border/50 dark:border-slate-800">
+      <SidebarFooter className="px-3 py-3 border-t border-border/20 dark:border-slate-800/50">
         {user && (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {state !== "collapsed" && (
-              <div className="px-2">
-                <p className="text-sm font-medium text-foreground truncate">
-                  {user.username}
-                </p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {user.email}
-                </p>
-                {isAdmin && (
-                  <span className="inline-block mt-1 px-2 py-1 text-xs bg-primary/10 text-primary rounded-full">
-                    Administrador
-                  </span>
-                )}
+              <div className="flex items-center gap-2 px-2">
+                <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-[10px] font-medium text-muted-foreground">
+                  {user.username?.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[12px] font-medium text-foreground truncate leading-tight">
+                    {user.username}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground/60 truncate leading-tight">
+                    {isAdmin ? "Admin" : "Usuario"}
+                  </p>
+                </div>
               </div>
             )}
-            <Button
-              variant="outline"
-              size="sm"
+            <button
               onClick={handleLogout}
-              className={`w-full gap-2 text-gray-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-500 border-border/50 hover:bg-transparent dark:border-slate-700 ${state === "collapsed" ? "justify-center" : "justify-start"}`}
+              className={`flex items-center w-full gap-2 px-2 py-1.5 text-[12px] text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-md transition-colors ${state === "collapsed" ? "justify-center" : ""}`}
             >
-              <LogOut className="w-4 h-4" />
-              {state !== "collapsed" && <span>Cerrar Sesión</span>}
-            </Button>
+              <LogOut className="w-3.5 h-3.5" />
+              {state !== "collapsed" && <span>Cerrar sesión</span>}
+            </button>
             <div
               className={`w-full ${state === "collapsed" ? "flex justify-center" : "px-2"}`}
             >
-              {state === "collapsed" ? (
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={toggleTheme}
-                  className="h-8 w-8 bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700 dark:hover:bg-slate-700"
-                  aria-label={
-                    isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"
-                  }
-                >
-                  {isDark ? (
-                    <Sun className="w-4 h-4 text-yellow-500" />
-                  ) : (
-                    <Moon className="w-4 h-4 text-orange-400" />
-                  )}
-                </Button>
-              ) : (
-                <div className="relative inline-flex items-center gap-2">
-                  <Sun className="w-4 h-4 text-gray-500 dark:text-slate-400" />
-                  <div
-                    role="button"
-                    aria-label={
-                      isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"
-                    }
-                    onClick={toggleTheme}
-                    className={`relative h-7 w-14 rounded-full transition-colors ${isDark ? "bg-slate-800" : "bg-gray-200"}`}
-                  >
-                    <div
-                      className={`absolute top-0.5 ${isDark ? "right-0.5" : "left-0.5"} h-6 w-6 rounded-full bg-white shadow transition-all flex items-center justify-center`}
-                    >
-                      {isDark ? (
-                        <Moon className="w-4 h-4 text-slate-700" />
-                      ) : (
-                        <Sun className="w-4 h-4 text-yellow-500" />
-                      )}
-                    </div>
-                  </div>
-                  <Moon className="w-4 h-4 text-gray-500 dark:text-slate-400" />
-                </div>
-              )}
+              <button
+                onClick={toggleTheme}
+                className={`flex items-center gap-2 py-1 text-[11px] text-muted-foreground/60 hover:text-muted-foreground transition-colors ${state === "collapsed" ? "" : ""}`}
+                aria-label={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+              >
+                {isDark ? (
+                  <Sun className="w-3.5 h-3.5" />
+                ) : (
+                  <Moon className="w-3.5 h-3.5" />
+                )}
+                {state !== "collapsed" && (
+                  <span>{isDark ? "Modo claro" : "Modo oscuro"}</span>
+                )}
+              </button>
             </div>
           </div>
         )}
