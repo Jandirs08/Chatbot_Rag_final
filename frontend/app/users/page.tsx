@@ -11,13 +11,11 @@ import { Switch } from "../components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogFooter, AlertDialogCancel, AlertDialogAction, AlertDialogTrigger } from "../components/ui/alert-dialog";
 import { Skeleton } from "../components/ui/skeleton";
-import { useRequireAdmin } from "../hooks";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "../components/ui/select";
 import { userService, CreateUserData, UserListItem, PaginatedUsersResponse } from "../lib/services/userService";
 import { authService } from "../lib/services/authService";
 
 export default function UsuariosPage() {
-  const { isAuthorized } = useRequireAdmin();
   const [users, setUsers] = useState<UserListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +44,6 @@ export default function UsuariosPage() {
   }, [search]);
 
   useEffect(() => {
-    if (!isAuthorized) return;
     setLoading(true);
     (async () => {
       try {
@@ -63,9 +60,7 @@ export default function UsuariosPage() {
         setLoading(false);
       }
     })();
-  }, [isAuthorized, debouncedSearch, roleFilter, activeFilter, skip, limit]);
-
-  if (!isAuthorized) return null;
+  }, [debouncedSearch, roleFilter, activeFilter, skip, limit]);
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -413,27 +408,35 @@ export default function UsuariosPage() {
           </form>
         </DialogContent>
       </Dialog>
-
-      <AlertDialog open={!!deleteUser} onOpenChange={(open)=> !open && setDeleteUser(null)}>
+      
+      <AlertDialog open={!!deleteUser} onOpenChange={(open) => !open && setDeleteUser(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar usuario?</AlertDialogTitle>
+            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+            <div className="text-sm text-muted-foreground">
+              Esta acción eliminará permanentemente al usuario <strong>{deleteUser?.email}</strong>.
+            </div>
           </AlertDialogHeader>
-          <p className="text-sm text-muted-foreground">Esta acción no se puede deshacer.</p>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={async () => {
-              if (!deleteUser) return;
-              try {
-                await userService.deleteUser(deleteUser.id);
-                setUsers(prev => prev.filter(x => x.id !== deleteUser.id));
-                toast.success("Usuario eliminado");
-              } catch (err) {
-                toast.error("No se pudo eliminar el usuario");
-              } finally {
-                setDeleteUser(null);
-              }
-            }}>Eliminar</AlertDialogAction>
+            <AlertDialogAction 
+              className="bg-red-600 hover:bg-red-700"
+              onClick={async () => {
+                if (!deleteUser) return;
+                try {
+                  await userService.deleteUser(deleteUser.id);
+                  setUsers(prev => prev.filter(u => u.id !== deleteUser.id));
+                  setTotal(t => t - 1);
+                  toast.success("Usuario eliminado");
+                } catch (e) {
+                  toast.error("Error al eliminar usuario");
+                } finally {
+                  setDeleteUser(null);
+                }
+              }}
+            >
+              Eliminar
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

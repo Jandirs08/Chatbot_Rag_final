@@ -174,7 +174,7 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
             )}
           </Button>
 
-          {/* Registro deshabilitado: la creación de usuarios se hace en /usuarios */}
+          {/* Registro deshabilitado: la creación de usuarios se hace en /users */}
         </CardFooter>
       </form>
     </Card>

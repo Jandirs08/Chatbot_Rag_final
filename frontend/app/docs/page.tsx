@@ -2,7 +2,6 @@
 
 import { Suspense, lazy } from "react";
 import { Skeleton } from "../components/ui/skeleton";
-import { useRequireAuth } from "../hooks";
 
 // Lazy loading del componente DocumentManagement
 const DocumentManagement = lazy(() => 
@@ -68,10 +67,6 @@ function DocumentManagementSkeleton() {
 }
 
 export default function Documents() {
-  // Proteger la ruta - sin UI de loading; middleware hará redirect si no hay token
-  const { isAuthorized } = useRequireAuth();
-  if (!isAuthorized) return null;
-
   return (
     <Suspense fallback={<DocumentManagementSkeleton />}>
       <DocumentManagement />

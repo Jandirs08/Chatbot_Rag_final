@@ -1,7 +1,6 @@
 "use client";
 import { Suspense, lazy } from "react";
 import { Skeleton } from "@/app/components/ui/skeleton";
-import { useRequireAuth } from "../hooks";
 
 // Lazy loading del componente WidgetPreview
 const WidgetPreview = lazy(() => 
@@ -59,9 +58,6 @@ function WidgetPreviewSkeleton() {
 }
 
 export default function Widget() {
-  const { isAuthorized } = useRequireAuth();
-  if (!isAuthorized) return null;
-
   return (
     <Suspense fallback={<WidgetPreviewSkeleton />}>
       <WidgetPreview />

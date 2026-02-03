@@ -51,56 +51,15 @@ class TokenManager {
     this.accessToken = accessToken;
     this.refreshToken = refreshToken;
     this.expiryTime = Date.now() + expiresIn * 1000;
-
-    // Persistencia en cookies (más seguro que localStorage contra XSS)
-    // NOTA: Para máxima seguridad, el backend debería setear HttpOnly cookies
-    try {
-      if (typeof document !== "undefined") {
-        const maxAge = Math.max(0, Math.floor(expiresIn));
-        const secure = window.location.protocol === "https:" ? "; Secure" : "";
-        // Access token - corta duración
-        document.cookie = `auth_token=${accessToken}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
-        // Refresh token - más larga duración, SameSite=Strict para mayor seguridad
-        // Usamos 7 días como Max-Age para el refresh token
-        const refreshMaxAge = 7 * 24 * 60 * 60; // 7 días en segundos
-        document.cookie = `refresh_token=${refreshToken}; Path=/; Max-Age=${refreshMaxAge}; SameSite=Strict${secure}`;
-      }
-    } catch { }
   }
 
   static getAccessToken(): string | null {
     // 1. Memoria
-    if (this.accessToken) return this.accessToken;
-
-    // 2. Cookie (Recuperación tras F5)
-    try {
-      if (typeof document !== "undefined") {
-        const match = document.cookie.match(
-          new RegExp("(^| )auth_token=([^;]+)"),
-        );
-        if (match) {
-          this.accessToken = match[2];
-          return this.accessToken;
-        }
-      }
-    } catch { }
-    return null;
+    return this.accessToken;
   }
 
   static getRefreshToken(): string | null {
-    if (this.refreshToken) return this.refreshToken;
-    try {
-      if (typeof document !== "undefined") {
-        const match = document.cookie.match(
-          new RegExp("(^| )refresh_token=([^;]+)"),
-        );
-        if (match) {
-          this.refreshToken = match[2];
-          return this.refreshToken;
-        }
-      }
-    } catch { }
-    return null;
+    return this.refreshToken;
   }
 
   // Alias para compatibilidad
@@ -112,12 +71,6 @@ class TokenManager {
     this.accessToken = null;
     this.refreshToken = null;
     this.expiryTime = null;
-    try {
-      if (typeof document !== "undefined") {
-        document.cookie = "auth_token=; Path=/; Max-Age=0; SameSite=Lax";
-        document.cookie = "refresh_token=; Path=/; Max-Age=0; SameSite=Strict";
-      }
-    } catch { }
   }
 
   static isTokenValid(): boolean {
@@ -167,7 +120,18 @@ export const authService = {
 
       const authData: AuthResponse = await response.json();
 
-      // CRÍTICO: Guardamos AMBOS tokens
+      // Guardar tokens en cookie segura (Server Route Handler)
+      await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          access_token: authData.access_token,
+          refresh_token: authData.refresh_token,
+          expires_in: authData.expires_in
+        })
+      });
+
+      // CRÍTICO: Guardamos AMBOS tokens en memoria para uso inmediato
       TokenManager.setTokens(
         authData.access_token,
         authData.refresh_token,
@@ -183,6 +147,9 @@ export const authService = {
 
   async logout(): Promise<void> {
     try {
+      // Limpiar cookies del servidor
+      await fetch('/api/auth/logout', { method: 'POST' });
+
       // Intento best-effort de avisar al backend
       const token = TokenManager.getAccessToken();
       if (token) {
@@ -213,20 +180,11 @@ export const authService = {
     return response.json();
   },
 
-  // CORREGIDO: Envía el refresh_token en el body
+  // CORREGIDO: Llama a la ruta interna de Next.js que maneja la cookie
   async refreshToken(): Promise<AuthResponse> {
-    const refreshToken = TokenManager.getRefreshToken();
-
-    if (!refreshToken) {
-      TokenManager.clearTokens();
-      throw new Error("No hay refresh token disponible");
-    }
-
     try {
-      const response = await fetch(`${API_URL}/auth/refresh`, {
+      const response = await fetch('/api/auth/refresh', {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refresh_token: refreshToken }), // <--- FIX IMPORTANTE
       });
 
       if (!response.ok) {
@@ -234,7 +192,7 @@ export const authService = {
       }
 
       const authData: AuthResponse = await response.json();
-      // Actualizamos tokens
+      // Actualizamos tokens en memoria
       TokenManager.setTokens(
         authData.access_token,
         authData.refresh_token,
@@ -305,6 +263,7 @@ export const authenticatedFetch = async (
   // 1. Intento inicial (con retry para errores de red en GET)
   let response = await fetchWithRetrySafe(url, {
     ...options,
+    credentials: 'include', // Importante para enviar cookies
     headers: getHeaders(token),
   });
 
@@ -317,6 +276,7 @@ export const authenticatedFetch = async (
       // Reintentar petición original
       response = await fetchWithRetrySafe(url, {
         ...options,
+        credentials: 'include',
         headers: getHeaders(token),
       });
     } catch (refreshError) {
@@ -348,6 +308,7 @@ export const authenticatedUpload = async (
 
   let response = await fetch(url, {
     ...options,
+    credentials: 'include',
     headers: getHeaders(token),
   });
 
@@ -357,6 +318,7 @@ export const authenticatedUpload = async (
       token = TokenManager.getAccessToken();
       response = await fetch(url, {
         ...options,
+        credentials: 'include',
         headers: getHeaders(token),
       });
     } catch {

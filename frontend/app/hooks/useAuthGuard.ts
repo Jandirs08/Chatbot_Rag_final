@@ -41,7 +41,7 @@ export function useAuthGuard(options: UseAuthGuardOptions = {}) {
     redirectTo = '/auth/login',
     requireAdmin = false,
     adminRedirectTo = '/auth/login',
-    autoRedirect = true,
+    autoRedirect = false,
   } = options;
 
   const { isAuthenticated, isLoading, isAdmin, user } = useAuth();
@@ -49,32 +49,11 @@ export function useAuthGuard(options: UseAuthGuardOptions = {}) {
 
   // Estados derivados
   const isAuthorized = isAuthenticated && (!requireAdmin || isAdmin);
-  const shouldRedirect = !isLoading && !isAuthorized;
+  const shouldRedirect = false;
 
   useEffect(() => {
-    if (!autoRedirect || isLoading) return;
-
-    if (!isAuthenticated) {
-      // No autenticado - redirigir al login inmediatamente
-      router.replace(redirectTo);
-      return;
-    }
-
-    if (requireAdmin && !isAdmin) {
-      // Autenticado pero no es admin - redirigir
-      router.replace(adminRedirectTo);
-      return;
-    }
-  }, [
-    isAuthenticated,
-    isAdmin,
-    isLoading,
-    requireAdmin,
-    redirectTo,
-    adminRedirectTo,
-    autoRedirect,
-    router,
-  ]);
+    // Sin redirecciones en cliente: el Middleware del servidor se encarga
+  }, []);
 
   return {
     // Estados

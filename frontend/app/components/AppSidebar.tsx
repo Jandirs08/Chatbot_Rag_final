@@ -159,7 +159,7 @@ export function AppSidebar() {
             <SidebarMenu>
               {([
                 { title: "Web", url: "/widget", icon: Code },
-                { title: "WhatsApp", url: "/configuracion-whatsapp", icon: MessageSquareText },
+                { title: "WhatsApp", url: "/whatsapp-settings", icon: MessageSquareText },
               ] as MenuItem[]).map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
@@ -196,7 +196,7 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {([{ title: "Documentos", url: "/Documents", icon: FileText }] as MenuItem[]).map(
+              {([{ title: "Documentos", url: "/docs", icon: FileText }] as MenuItem[]).map(
                 (item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
@@ -235,7 +235,7 @@ export function AppSidebar() {
             <SidebarMenu>
               {(
                 [
-                  ...(isAdmin ? [{ title: "Usuarios", url: "/usuarios", icon: Users }] : []),
+                  ...(isAdmin ? [{ title: "Usuarios", url: "/users", icon: Users }] : []),
                   ...(isAdmin ? [{ title: "Configuración", url: "/admin/settings", icon: Settings }] : []),
                 ] as MenuItem[]
               ).map((item) => (
