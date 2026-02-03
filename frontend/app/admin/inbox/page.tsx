@@ -225,7 +225,7 @@ function AdminInboxContent() {
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-background">
+    <div className="flex flex-col h-full overflow-hidden bg-background">
       <div className="px-5 py-3 border-b border-border/40 bg-background">
         <div className="flex items-center justify-between">
           <div>
@@ -248,7 +248,7 @@ function AdminInboxContent() {
         <div
           className={cn(
             hasChat ? "hidden md:flex" : "flex",
-            "w-[380px] flex-none border-r border-border/40 flex-col min-h-0 bg-background dark:border-slate-800",
+            "w-[380px] flex-none border-r border-border/40 flex flex-col min-h-0 bg-background dark:border-slate-800",
           )}
         >
           <div className="px-3 py-2.5 border-b border-border/40 bg-background flex-none space-y-2">
@@ -731,7 +731,7 @@ export default function AdminInboxPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex h-[calc(100vh-64px)] items-center justify-center">
+        <div className="flex h-full items-center justify-center">
           Cargando buzón...
         </div>
       }

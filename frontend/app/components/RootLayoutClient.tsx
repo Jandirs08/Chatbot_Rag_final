@@ -36,20 +36,19 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
     !pathname.startsWith("/chat") && !pathname.startsWith("/auth"); // <- o login si es otra ruta
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-[#fafaf9] dark:bg-slate-950">
+    <div className="flex h-screen w-full overflow-hidden bg-[#fafaf9] dark:bg-slate-950">
       {shouldShowSidebar && <AppSidebar />}
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        {shouldShowSidebar && (
-          <div className="shrink-0 h-14 flex items-center px-4 border-b border-border/50 dark:border-slate-800">
-            <SidebarTrigger />
-          </div>
-        )}
-
         <main
-          className={`flex-1 overflow-y-auto text-foreground ${shouldShowSidebar ? "" : ""
+          className={`flex-1 h-full overflow-y-auto overflow-x-hidden text-foreground ${shouldShowSidebar ? "" : ""
             }`}
         >
+          {shouldShowSidebar && (
+            <div className="md:hidden fixed left-4 top-4 z-40">
+              <SidebarTrigger />
+            </div>
+          )}
           {shouldShowSidebar ? (
             <div className="w-full px-6 lg:px-8 xl:px-10 py-6 lg:py-8">
               {children}

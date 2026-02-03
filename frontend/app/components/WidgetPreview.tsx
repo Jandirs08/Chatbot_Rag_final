@@ -106,7 +106,7 @@ export function WidgetPreview() {
   };
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="h-full flex flex-col min-h-0 space-y-8 animate-fade-in">
       {/* Header */}
       <div className="space-y-2">
         <h1 className="text-4xl font-bold text-foreground">Widget del Bot</h1>
@@ -115,9 +115,9 @@ export function WidgetPreview() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 flex-1 min-h-0">
         {/* Vista previa */}
-        <Card className="border-border/50">
+        <Card className="border-border/50 h-full">
           <CardHeader className="p-4">
             <CardTitle className="flex items-center gap-2">
               <Eye className="w-5 h-5 text-primary" />
@@ -127,10 +127,9 @@ export function WidgetPreview() {
               Así se verá el bot en tu sitio web
             </CardDescription>
           </CardHeader>
-          <CardContent className="p-4">
+          <CardContent className="p-4 h-full min-h-0">
             <div
-              className="relative bg-gradient-to-br from-muted/30 to-secondary/10 p-6 rounded-lg border border-border/30 flex flex-col justify-center overflow-visible h-full"
-              style={{ minHeight: `${parseInt(height, 10) + 120}px` }}
+              className="relative bg-gradient-to-br from-muted/30 to-secondary/10 p-6 rounded-lg border border-border/30 flex flex-col justify-center overflow-hidden h-full"
             >
               {/* Simulación de una página web */}
               {!isPreviewOpen && (
@@ -218,7 +217,9 @@ export function WidgetPreview() {
                   display: isPreviewOpen ? 'block' : 'none',
                   border: 'none',
                   borderRadius: '16px',
-                  boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+                  maxWidth: 'calc(100% - 40px)',
+                  maxHeight: 'calc(100% - 120px)',
                 }}
                 className="animate-slide-in"
                 title="AI Chatbot Widget Preview"
@@ -230,7 +231,7 @@ export function WidgetPreview() {
         </Card>
 
         {/* Integración: código + pasos */}
-        <Card className="border-border/50">
+        <Card className="border-border/50 h-full">
           <CardHeader className="p-4">
             <CardTitle className="flex items-center gap-2">
               <Copy className="w-5 h-5 text-primary" />
