@@ -20,6 +20,7 @@ export class PDFService {
   static async uploadPDF(
     file: File,
     onProgress?: (percent: number) => void,
+    isRetry: boolean = false
   ): Promise<{
     message: string;
     file_path: string;
@@ -53,9 +54,22 @@ export class PDFService {
         }
       };
 
-      xhr.onreadystatechange = () => {
+      xhr.onreadystatechange = async () => {
         if (xhr.readyState === XMLHttpRequest.DONE) {
           const status = xhr.status;
+
+          // Manejo de token expirado (401)
+          if (status === 401 && !isRetry) {
+            try {
+              await authService.refreshToken();
+              // Reintentar subida con nuevo token
+              const result = await this.uploadPDF(file, onProgress, true);
+              resolve(result);
+            } catch (e) {
+              reject(new Error("Sesión expirada. Por favor inicie sesión nuevamente."));
+            }
+            return;
+          }
 
           // Extraer rate limit headers
           const rateLimitLimit = xhr.getResponseHeader('X-RateLimit-Limit');

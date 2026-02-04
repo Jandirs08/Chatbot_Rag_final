@@ -92,7 +92,7 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar className="border-r border-border/30 bg-sidebar-background dark:bg-slate-900 dark:border-slate-800/60 flex-shrink-0 h-full transition-all duration-200">
+    <Sidebar className="flex-shrink-0 h-screen transition-all duration-200">
       <SidebarHeader className="px-3 py-4">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-md flex items-center justify-center bg-orange-50 text-orange-600 dark:bg-slate-800 dark:text-orange-400">
@@ -200,8 +200,8 @@ export function AppSidebar() {
                 (item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
-                    asChild
-                    isActive={isUrlActive(item.url)}
+                      asChild
+                      isActive={isUrlActive(item.url)}
                       className={`transition-all duration-200 ${state === "collapsed" ? "flex flex-col items-center justify-center" : ""}`}
                       tooltip={{
                         children: item.title,
@@ -267,7 +267,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="px-3 py-3 border-t border-border/20 dark:border-slate-800/50">
+      <SidebarFooter className="px-3 py-3 border-t border-slate-200 dark:border-slate-800">
         {user && (
           <div className="space-y-2">
             {state !== "collapsed" && (

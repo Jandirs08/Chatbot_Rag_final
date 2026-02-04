@@ -78,9 +78,9 @@
     button.style.alignItems = "center";
     button.style.justifyContent = "center";
     button.style.boxShadow = "0 4px 20px rgba(0,0,0,0.15)";
-    button.style.transition = "transform 0.2s ease";
+    button.style.transition = "transform 0.3s ease, box-shadow 0.3s ease";
     button.style.background = bubbleBg;
-    // Z-Index alto para sobresalir sobre otros elementos
+    // Z-Index alto para sobresalir sobre otros elementos (z-50 equivalent usually 50, but we use high number to be safe)
     button.style.zIndex = "2147483647";
 
     var iframe = document.createElement("iframe");
@@ -89,7 +89,8 @@
     iframe.style.position = "fixed";
     iframe.style.border = "none";
     iframe.style.borderRadius = isMobile ? "0" : "16px";
-    iframe.style.boxShadow = "0 8px 32px rgba(0,0,0,0.1)";
+    // Sombra fuerte (shadow-2xl)
+    iframe.style.boxShadow = "0 25px 50px -12px rgba(0, 0, 0, 0.25)";
     iframe.style.display = "none";
 
     // Ajuste responsivo del iframe
@@ -108,7 +109,7 @@
       iframe.style.height = heightPx;
     }
 
-    iframe.style.zIndex = "2147483646"; // Un nivel menos que el botón para que el botón de cerrar flote encima
+    iframe.style.zIndex = "2147483646"; // Un nivel menos que el botón
     iframe.src = chatUrl;
 
     var pos = {
@@ -116,7 +117,7 @@
         button.style.bottom = "20px";
         button.style.right = "20px";
         if (!isMobile) {
-          iframe.style.bottom = "90px";
+          iframe.style.bottom = "100px"; // 20px (btn) + 60px (height) + 20px (gap)
           iframe.style.right = "20px";
         }
       },
@@ -124,7 +125,7 @@
         button.style.bottom = "20px";
         button.style.left = "20px";
         if (!isMobile) {
-          iframe.style.bottom = "90px";
+          iframe.style.bottom = "100px";
           iframe.style.left = "20px";
         }
       },
@@ -132,7 +133,7 @@
         button.style.top = "20px";
         button.style.right = "20px";
         if (!isMobile) {
-          iframe.style.top = "90px";
+          iframe.style.top = "100px";
           iframe.style.right = "20px";
         }
       },
@@ -140,7 +141,7 @@
         button.style.top = "20px";
         button.style.left = "20px";
         if (!isMobile) {
-          iframe.style.top = "90px";
+          iframe.style.top = "100px";
           iframe.style.left = "20px";
         }
       },
@@ -149,12 +150,14 @@
 
     function createMessageIcon() {
       var svg = document.createElementNS(SVG_NS, "svg");
-      svg.setAttribute("width", "24");
-      svg.setAttribute("height", "24");
+      svg.setAttribute("width", "28");
+      svg.setAttribute("height", "28");
       svg.setAttribute("viewBox", "0 0 24 24");
       svg.setAttribute("fill", "none");
       svg.setAttribute("stroke", "white");
       svg.setAttribute("stroke-width", "2");
+      svg.setAttribute("stroke-linecap", "round");
+      svg.setAttribute("stroke-linejoin", "round");
       var path = document.createElementNS(SVG_NS, "path");
       path.setAttribute(
         "d",
@@ -164,130 +167,119 @@
       return svg;
     }
 
-    function createCloseIcon() {
+    function createChevronIcon() {
       var svg = document.createElementNS(SVG_NS, "svg");
-      svg.setAttribute("width", "24");
-      svg.setAttribute("height", "24");
+      svg.setAttribute("width", "28");
+      svg.setAttribute("height", "28");
       svg.setAttribute("viewBox", "0 0 24 24");
       svg.setAttribute("fill", "none");
       svg.setAttribute("stroke", "white");
       svg.setAttribute("stroke-width", "2");
-      var p1 = document.createElementNS(SVG_NS, "path");
-      p1.setAttribute("d", "M18 6L6 18");
-      var p2 = document.createElementNS(SVG_NS, "path");
-      p2.setAttribute("d", "M6 6L18 18");
-      svg.appendChild(p1);
-      svg.appendChild(p2);
+      svg.setAttribute("stroke-linecap", "round");
+      svg.setAttribute("stroke-linejoin", "round");
+      var path = document.createElementNS(SVG_NS, "path");
+      path.setAttribute("d", "M6 9l6 6 6-6");
+      svg.appendChild(path);
       return svg;
     }
 
     var msgIcon = createMessageIcon();
-    var xIcon = createCloseIcon();
+    var chevronIcon = createChevronIcon();
+
+    // Contenedor relativo para los iconos
+    var iconContainer = document.createElement("div");
+    iconContainer.style.position = "relative";
+    iconContainer.style.width = "100%";
+    iconContainer.style.height = "100%";
+    iconContainer.style.display = "flex";
+    iconContainer.style.alignItems = "center";
+    iconContainer.style.justifyContent = "center";
+    button.appendChild(iconContainer);
+
     function setIconBaseStyles(el) {
       el.style.position = "absolute";
       el.style.top = "50%";
       el.style.left = "50%";
-      el.style.transform = "translate(-50%, -50%)";
-      el.style.opacity = "1";
-      el.style.transition = "all 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55)";
+      el.style.transformOrigin = "center center";
+      el.style.transition = "all 0.5s ease-in-out"; // Transición suave
       el.style.pointerEvents = "none";
     }
-    setIconBaseStyles(msgIcon);
-    setIconBaseStyles(xIcon);
-    msgIcon.style.opacity = "1";
-    msgIcon.style.transform = "translate(-50%, -50%) scale(1) rotate(0deg)";
-    xIcon.style.opacity = "0";
-    xIcon.style.transform = "translate(-50%, -50%) scale(0.5) rotate(-90deg)";
-    button.appendChild(msgIcon);
-    button.appendChild(xIcon);
 
-    // --- BOTÓN DE CIERRE MÓVIL (Píldora "Cerrar X") ---
-    // Diseño tipo "Cerrar x" más pequeño y elegante, posicionado encima del chat
-    var mobileCloseBtn = document.createElement("button");
-    mobileCloseBtn.type = "button";
-    mobileCloseBtn.innerHTML =
-      "Cerrar <span style='font-size:16px; font-weight:bold; margin-left:4px;'>&times;</span>";
-    mobileCloseBtn.setAttribute("aria-label", "Cerrar chat");
-    mobileCloseBtn.style.position = "fixed";
-    // Lo posicionamos arriba a la derecha, pero dentro del área visual
-    mobileCloseBtn.style.top = "15px";
-    mobileCloseBtn.style.right = "15px";
-    mobileCloseBtn.style.padding = "6px 12px";
-    mobileCloseBtn.style.borderRadius = "20px";
-    mobileCloseBtn.style.background = "rgba(50, 50, 50, 0.9)"; // Fondo oscuro semitransparente
-    mobileCloseBtn.style.color = "#ffffff";
-    mobileCloseBtn.style.fontSize = "13px";
-    mobileCloseBtn.style.fontWeight = "500";
-    mobileCloseBtn.style.border = "1px solid rgba(255,255,255,0.2)";
-    mobileCloseBtn.style.cursor = "pointer";
-    mobileCloseBtn.style.display = "none";
-    mobileCloseBtn.style.zIndex = "2147483647"; // Máximo nivel
-    mobileCloseBtn.style.alignItems = "center";
-    mobileCloseBtn.style.justifyContent = "center";
-    mobileCloseBtn.style.boxShadow = "0 2px 8px rgba(0,0,0,0.2)";
-    mobileCloseBtn.style.backdropFilter = "blur(4px)";
+    setIconBaseStyles(msgIcon);
+    setIconBaseStyles(chevronIcon);
+
+    // Estado inicial
+    msgIcon.style.opacity = "1";
+    msgIcon.style.transform = "translate(-50%, -50%) rotate(0deg) scale(1)";
+    
+    chevronIcon.style.opacity = "0";
+    chevronIcon.style.transform = "translate(-50%, -50%) rotate(-180deg) scale(0.5)"; // Empieza rotado
+
+    iconContainer.appendChild(msgIcon);
+    iconContainer.appendChild(chevronIcon);
 
     var open = false;
+
+    // Hover effect (Micro-interacción)
+    button.addEventListener("mouseenter", function() {
+      if (!open) {
+        button.style.transform = "translateY(-4px)";
+      }
+    });
+
+    button.addEventListener("mouseleave", function() {
+      if (!open) {
+        button.style.transform = "translateY(0)";
+      }
+    });
 
     function toggleChat() {
       open = !open;
       iframe.style.display = open ? "block" : "none";
       button.setAttribute("aria-label", open ? "Cerrar chat" : "Abrir chat");
 
+      // Efecto de rebote (bounce)
       if (open) {
-        // Lógica de apertura
+        button.style.transform = "scale(1.05)";
+        setTimeout(function() {
+          button.style.transform = "scale(1)";
+        }, 200);
+      } else {
+         button.style.transform = "translateY(0)";
+      }
+
+      if (open) {
+        // ABRIR: Morphing a Chevron
+        msgIcon.style.opacity = "0";
+        msgIcon.style.transform = "translate(-50%, -50%) rotate(180deg) scale(0.5)";
+        
+        chevronIcon.style.opacity = "1";
+        chevronIcon.style.transform = "translate(-50%, -50%) rotate(0deg) scale(1)";
+
         if (isMobile) {
-          // En móvil: Ocultar botón flotante, mostrar botón de cierre
-          button.style.display = "none";
-          mobileCloseBtn.style.display = "flex";
-
-          // Ajustar iframe para dejar un margen superior (tipo modal sheet)
-          iframe.style.top = "60px"; // Deja ver un poco del fondo arriba
-          iframe.style.height = "calc(100% - 60px)";
-          iframe.style.borderTopLeftRadius = "20px";
-          iframe.style.borderTopRightRadius = "20px";
-          iframe.style.boxShadow = "0 -4px 20px rgba(0,0,0,0.15)";
-
-          // Bloquear scroll del body
+          // En móvil: El botón SIGUE visible y controla el cierre
           document.body.style.overflow = "hidden";
-        } else {
-          // En desktop: Transformar botón flotante
-          msgIcon.style.opacity = "0";
-          msgIcon.style.transform =
-            "translate(-50%, -50%) scale(0.5) rotate(90deg)";
-          xIcon.style.opacity = "1";
-          xIcon.style.transform = "translate(-50%, -50%) scale(1) rotate(0deg)";
+          // Ajustar iframe para que no tape el botón si es necesario, 
+          // pero como el botón es z-index mayor, flotará encima.
         }
       } else {
-        // Lógica de cierre
-        if (isMobile) {
-          // En móvil: Restaurar
-          button.style.display = "flex";
-          mobileCloseBtn.style.display = "none";
-          document.body.style.overflow = "";
+        // CERRAR: Morphing a Message
+        msgIcon.style.opacity = "1";
+        msgIcon.style.transform = "translate(-50%, -50%) rotate(0deg) scale(1)";
+        
+        chevronIcon.style.opacity = "0";
+        chevronIcon.style.transform = "translate(-50%, -50%) rotate(-180deg) scale(0.5)";
 
-          // Resetear estilos iframe por si acaso se redimensiona a desktop
-          iframe.style.top = "0";
-          iframe.style.height = "100%";
-          iframe.style.borderTopLeftRadius = "0";
-          iframe.style.borderTopRightRadius = "0";
-        } else {
-          // En desktop: Restaurar
-          msgIcon.style.opacity = "1";
-          msgIcon.style.transform =
-            "translate(-50%, -50%) scale(1) rotate(0deg)";
-          xIcon.style.opacity = "0";
-          xIcon.style.transform =
-            "translate(-50%, -50%) scale(0.5) rotate(-90deg)";
+        if (isMobile) {
+          document.body.style.overflow = "";
         }
       }
     }
 
     button.addEventListener("click", toggleChat);
-    mobileCloseBtn.addEventListener("click", toggleChat);
 
     document.body.appendChild(button);
     document.body.appendChild(iframe);
-    document.body.appendChild(mobileCloseBtn);
+    
   } catch (_) {}
 })();

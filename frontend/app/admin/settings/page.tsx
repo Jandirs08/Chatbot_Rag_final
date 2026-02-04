@@ -400,10 +400,6 @@ export default function AdminSettingsPage() {
             </div>
           </DialogContent>
         </Dialog>
-
-        <TabsContent value="system" className="flex-1 min-h-0">
-          <SettingsSystemTab isLoading={isLoading} />
-        </TabsContent>
       </Tabs>
     </div>
   );

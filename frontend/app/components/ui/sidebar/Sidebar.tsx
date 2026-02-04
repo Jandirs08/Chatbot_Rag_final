@@ -34,7 +34,7 @@ export const Sidebar = React.forwardRef<
         <div
           ref={ref}
           className={cn(
-            "flex h-full w-[--sidebar-width] flex-col bg-sidebar-background text-sidebar-foreground dark:bg-slate-900 dark:border-r dark:border-slate-800/80",
+            "flex h-screen w-[--sidebar-width] flex-col bg-white border-r border-slate-200 text-sidebar-foreground dark:bg-slate-900 dark:border-slate-800",
             className,
           )}
           {...props}
@@ -51,7 +51,7 @@ export const Sidebar = React.forwardRef<
             data-sidebar="sidebar"
             data-mobile="true"
             className={cn(
-              "z-[60] w-[--sidebar-width] bg-sidebar-background p-0 text-sidebar-foreground [&>button]:hidden dark:bg-slate-900 dark:border-r dark:border-slate-800/80",
+              "z-[60] w-[--sidebar-width] bg-white p-0 text-sidebar-foreground [&>button]:hidden dark:bg-slate-900 dark:border-slate-800",
               className,
             )}
             style={{ "--sidebar-width": SIDEBAR_WIDTH_MOBILE } as React.CSSProperties}
@@ -72,7 +72,7 @@ export const Sidebar = React.forwardRef<
         data-collapsible={collapsible}
         data-side={side}
         className={cn(
-          "group relative flex h-full w-[--sidebar-width] flex-col bg-sidebar-background text-sidebar-foreground transition-[width] duration-300 ease-in-out dark:bg-slate-900 dark:border-r dark:border-slate-800/80",
+          "group relative flex h-screen w-[--sidebar-width] flex-col bg-white border-r border-slate-200 text-sidebar-foreground transition-[width] duration-300 ease-in-out dark:bg-slate-900 dark:border-slate-800",
           state === "collapsed" && "w-[--sidebar-width-icon] overflow-hidden",
           className,
         )}

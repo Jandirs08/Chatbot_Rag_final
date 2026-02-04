@@ -466,37 +466,37 @@ function AdminInboxContent() {
                     key={c.conversation_id}
                     onClick={() => handleSelectChat(c.conversation_id)}
                     className={cn(
-                      "group relative flex items-start gap-3 px-3 py-2.5 rounded-md cursor-pointer transition-all duration-150",
+                      "group relative flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer transition-all duration-200",
                       isActive
-                        ? "bg-black/[0.04] before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-5 before:w-[2px] before:rounded-full before:bg-foreground dark:bg-white/[0.06] dark:before:bg-white"
-                        : "hover:bg-black/[0.02] dark:hover:bg-white/[0.03]",
+                        ? "bg-blue-50 before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-8 before:w-[3px] before:rounded-r-full before:bg-blue-600 dark:bg-blue-950/40 dark:before:bg-blue-400"
+                        : "hover:bg-slate-50 dark:hover:bg-slate-800/50",
                     )}
                   >
                     {/* Avatar */}
                     <div
-                      className="flex-none w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-medium text-foreground/70"
+                      className="flex-none w-10 h-10 rounded-full flex items-center justify-center text-[11px] font-semibold text-slate-600 dark:text-slate-300 shadow-sm"
                       style={{ backgroundColor: colorFromId(c.conversation_id) }}
                     >
-                      <UserCircle2 className="w-4 h-4 opacity-60" />
+                      <UserCircle2 className="w-5 h-5 opacity-70" />
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-0.5">
+                      <div className="flex items-center justify-between mb-1">
                         <span
                           className={cn(
-                            "text-[12px] font-medium truncate",
-                            isActive ? "text-foreground" : "text-foreground/80",
+                            "text-sm font-medium truncate",
+                            isActive ? "text-blue-700 dark:text-blue-300" : "text-slate-900 dark:text-slate-100",
                           )}
                         >
                           {humanizeId(c.conversation_id)}
                         </span>
-                        <span className="text-[10px] text-muted-foreground/60 whitespace-nowrap ml-2">
+                        <span className="text-[11px] text-slate-400 dark:text-slate-500 whitespace-nowrap ml-2 font-medium">
                           {fmtDate(c.updated_at)}
                         </span>
                       </div>
-                      <p className="text-[12px] text-muted-foreground/70 truncate">
+                      <p className="text-[13px] text-slate-500 dark:text-slate-400 truncate">
                         {c.last_message_preview || (
-                          <span className="italic text-muted-foreground/50">
+                          <span className="italic text-slate-400 dark:text-slate-500">
                             Sin mensajes
                           </span>
                         )}
@@ -596,68 +596,68 @@ function AdminInboxContent() {
             </div>
           ) : (
             <>
-              {/* Chat Header */}
-              <div className="flex items-center justify-between px-4 py-2.5 bg-background border-b border-border/40 sticky top-0 z-20 dark:border-slate-800">
-                <div className="flex items-center gap-2.5">
+              {/* Chat Header - with shadow for depth */}
+              <div className="flex items-center justify-between px-5 py-3 bg-white border-b border-slate-100 shadow-sm sticky top-0 z-20 dark:bg-slate-900 dark:border-slate-800">
+                <div className="flex items-center gap-3">
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="md:hidden h-7 w-7"
+                    className="md:hidden h-8 w-8"
                     onClick={clearSelectedChat}
                     aria-label="Volver"
                   >
-                    <ChevronLeft className="w-4 h-4" />
+                    <ChevronLeft className="w-5 h-5" />
                   </Button>
                   <div
-                    className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-medium"
+                    className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-semibold shadow-sm"
                     style={{ backgroundColor: colorFromId(chatIdFromUrl) }}
                   >
                     VT
                   </div>
                   <div>
-                    <div className="text-[13px] font-medium text-foreground flex items-center gap-2">
+                    <div className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
                       {humanizeId(chatIdFromUrl)}
-                      <span className="px-1.5 py-0.5 rounded bg-muted/50 text-[9px] font-mono text-muted-foreground/70 dark:bg-slate-800">
-                        {chatIdFromUrl.slice(0, 6)}…
+                      <span className="px-2 py-0.5 rounded-md bg-slate-100 text-[10px] font-mono text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                        {chatIdFromUrl.slice(0, 8)}…
                       </span>
                     </div>
-                    <div className="text-[10px] text-muted-foreground/60 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mt-0.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                       En vivo
                     </div>
                   </div>
                 </div>
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  className="h-7 text-[11px] gap-1.5"
+                  className="h-8 text-xs gap-1.5"
                   onClick={() => navigator.clipboard.writeText(chatIdFromUrl)}
                 >
-                  <Copy className="w-3 h-3" />
+                  <Copy className="w-3.5 h-3.5" />
                   Copiar ID
                 </Button>
               </div>
 
-              {/* Chat Body */}
+              {/* Chat Body - with generous spacing */}
               <div
-                className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-background dark:bg-slate-900"
+                className="flex-1 overflow-y-auto px-6 py-6 space-y-6 bg-slate-50 dark:bg-slate-900"
                 ref={scrollRef}
               >
                 {loadingHistory && messages.length === 0 ? (
                   // Skeletons Chat
-                  <div className="space-y-6 opacity-50">
+                  <div className="space-y-6 opacity-60">
                     <div className="flex justify-end">
-                      <Skeleton className="h-10 w-2/3 rounded-xl rounded-tr-none" />
+                      <Skeleton className="h-12 w-2/3 rounded-2xl rounded-tr-none" />
                     </div>
                     <div className="flex justify-start">
-                      <Skeleton className="h-16 w-3/4 rounded-xl rounded-tl-none" />
+                      <Skeleton className="h-20 w-3/4 rounded-2xl rounded-tl-none" />
                     </div>
                     <div className="flex justify-end">
-                      <Skeleton className="h-8 w-1/2 rounded-xl rounded-tr-none" />
+                      <Skeleton className="h-10 w-1/2 rounded-2xl rounded-tr-none" />
                     </div>
                   </div>
                 ) : messages.length === 0 ? (
-                  <div className="text-center py-10 text-sm text-muted-foreground italic">
+                  <div className="text-center py-16 text-sm text-slate-400 italic">
                     Esta conversación no tiene mensajes visibles.
                   </div>
                 ) : (
@@ -681,7 +681,7 @@ function AdminInboxContent() {
                       >
                         <div
                           className={cn(
-                            "max-w-[85%] md:max-w-[75%]",
+                            "max-w-[85%] md:max-w-[70%]",
                             isUser ? "items-end" : "items-start",
                           )}
                         >
@@ -692,19 +692,6 @@ function AdminInboxContent() {
                             aiEmoji="🤖"
                             botName="Asistente IA"
                           />
-                          {m.timestamp && (
-                            <div
-                              className={cn(
-                                "text-[10px] text-muted-foreground mt-1 px-1",
-                                isUser ? "text-right" : "text-left",
-                              )}
-                            >
-                              {new Date(m.timestamp).toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </div>
-                          )}
                         </div>
                       </div>
                     );
