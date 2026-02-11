@@ -2,7 +2,6 @@
 import logging
 from typing import List, Optional, Dict, Any, Tuple, Union
 import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
 import asyncio
 import uuid
 import hashlib
@@ -327,7 +326,7 @@ class VectorStore:
             return np.zeros(dim, dtype=np.float32)
 
     # =====================================================================
-    #   RETRIEVE (CORREGIDO: MMR VECTORS)
+    #   RETRIEVE
     # =====================================================================
 
     async def retrieve(
@@ -335,30 +334,16 @@ class VectorStore:
         query: str,
         k: int = 4,
         filter: Optional[Dict] = None,
-        use_mmr: bool = True,
-        fetch_k: Optional[int] = None,
-        lambda_mult: float = 0.5,
         score_threshold: float = 0.0,
         with_vectors: bool = False,
     ) -> List[Document]:
-        """
-        Recupera documentos relevantes.
-        FIX: Si usa MMR, fuerza la recuperación de vectores internamente.
-        """
+        """Recupera documentos relevantes mediante búsqueda por similitud."""
         try:
             query_embedding = await self._get_document_embedding(query)
 
-            vectors_needed = with_vectors or use_mmr
-
-            if use_mmr:
-                actual_fetch_k = fetch_k or (k * 3)
-                docs = await self._mmr_search(
-                    query_embedding, k, actual_fetch_k, lambda_mult, filter, with_vectors=True
-                )
-            else:
-                docs = await self._similarity_search(
-                    query_embedding, k, filter, with_vectors=vectors_needed
-                )
+            docs = await self._similarity_search(
+                query_embedding, k, filter, with_vectors=with_vectors
+            )
 
             final_docs = []
             kept = 0
@@ -371,86 +356,14 @@ class VectorStore:
                     final_docs.append(d)
 
             logger.debug(
-                "retrieve() | use_mmr=%s | k=%s | fetched=%s | kept=%s | threshold=%s",
-                use_mmr, k, len(docs), kept, score_threshold
+                "retrieve() | k=%s | fetched=%s | kept=%s | threshold=%s",
+                k, len(docs), kept, score_threshold
             )
             return final_docs
 
         except Exception as e:
             logger.error("Error en retrieve(): %s", e, exc_info=True)
             return []
-
-    # =====================================================================
-    #   MMR (MAXIMAL MARGINAL RELEVANCE)
-    # =====================================================================
-
-    async def _mmr_search(self, query_embedding, k, fetch_k, lambda_mult, filter, with_vectors):
-        try:
-            candidates = await self._similarity_search(
-                query_embedding, fetch_k, filter, with_vectors=True
-            )
-            if not candidates:
-                return []
-
-            docs: List[Tuple[Document, float]] = []
-            emb_list: List[np.ndarray] = []
-
-            for (doc, score) in candidates:
-                vec = doc.metadata.get("vector")
-                if vec is None:
-                    continue
-
-                # vec puede ser list o ya np.array; si fuera otra cosa, lo descartamos
-                if isinstance(vec, list):
-                    vec = np.array(vec)
-                elif isinstance(vec, np.ndarray):
-                    pass
-                else:
-                    # Si llegó dict u otro tipo aquí, es un problema de normalización upstream
-                    continue
-
-                docs.append((doc, score))
-                emb_list.append(vec)
-
-            if not emb_list:
-                logger.warning("MMR sin vectores válidos; fallback a top-k simple.")
-                return candidates[:k]
-
-            doc_embeds = np.vstack(emb_list)
-
-            query_vec = query_embedding.reshape(1, -1) if getattr(query_embedding, "ndim", 1) == 1 else query_embedding
-
-            selected: List[int] = []
-            remaining = list(range(len(emb_list)))
-
-            for _ in range(min(k, len(emb_list))):
-                mmr_scores = []
-                for idx in remaining:
-                    relevance = cosine_similarity(query_vec, doc_embeds[idx].reshape(1, -1))[0][0]
-                    if selected:
-                        sim_to_selected = cosine_similarity(
-                            doc_embeds[idx].reshape(1, -1),
-                            doc_embeds[selected]
-                        )
-                        diversity = 1 - np.max(sim_to_selected)
-                    else:
-                        diversity = 1.0
-
-                    score = lambda_mult * relevance + (1 - lambda_mult) * diversity
-                    mmr_scores.append((idx, score))
-
-                if not mmr_scores:
-                    break
-
-                best_idx = max(mmr_scores, key=lambda x: x[1])[0]
-                selected.append(best_idx)
-                remaining.remove(best_idx)
-
-            return [docs[local_idx] for local_idx in selected]
-
-        except Exception as e:
-            logger.error("Error en MMR: %s", e, exc_info=True)
-            return await self._similarity_search(query_embedding, k, filter, with_vectors=False)
 
     # =====================================================================
     #   SIMILARITY SEARCH (CORE)

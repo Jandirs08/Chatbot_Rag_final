@@ -14,6 +14,7 @@ from common.constants import USER_ROLE, ASSISTANT_ROLE
 from common.objects import Message as BotMessage
 from api.schemas import DebugInfo, RetrievedDocument
 from core.bot import Bot
+from core.request_context import new_request_context, get_request_context
 from models.model_types import ModelTypes, MODEL_TO_CLASS
 
 logger = get_logger(__name__)
@@ -78,6 +79,7 @@ class ChatManager:
     async def generate_response(self, input_text: str, conversation_id: str, source: str | None = None, debug_mode: bool = False):
         """Genera la respuesta usando el Bot (LCEL maneja el RAG automáticamente)."""
         try:
+            req_ctx = new_request_context()
             if getattr(settings, "enable_rag_lcel", False):
                 logger.info("ENABLE_RAG_LCEL activo: contexto RAG será inyectado automáticamente.")
             else:
@@ -98,7 +100,7 @@ class ChatManager:
                 t_llm_start = None
                 t_llm_end = None
                 if debug_mode:
-                    self._last_debug_info = await self._build_debug_info(
+                    req_ctx.debug_info = await self._build_debug_info(
                         conversation_id=conversation_id,
                         input_text=input_text,
                         final_text=response_content,
@@ -142,8 +144,9 @@ class ChatManager:
                 await self.db.add_message(conversation_id, USER_ROLE, input_text, source)
                 await self.db.add_message(conversation_id, ASSISTANT_ROLE, response_content, source)
                 self._last_debug_info = None
+                req_ctx.debug_info = None
             else:
-                self._last_debug_info = await self._build_debug_info(
+                req_ctx.debug_info = await self._build_debug_info(
                     conversation_id=conversation_id,
                     input_text=input_text,
                     final_text=response_content,
@@ -152,6 +155,7 @@ class ChatManager:
                     verification=None,
                     is_cached=False,
                 )
+                self._last_debug_info = req_ctx.debug_info
             logger.info(f"Respuesta generada{' y guardada' if not debug_mode else ''} para conversación {conversation_id}")
             return response_content
 
@@ -241,7 +245,8 @@ class ChatManager:
         Maneja errores internamente y retorna un DebugInfo mínimo si algo falla.
         """
         try:
-            docs = getattr(self.bot, "_last_retrieved_docs", []) or []
+            req_ctx = get_request_context()
+            docs = req_ctx.retrieved_docs or []
             items: List[RetrievedDocument] = []
             for d in docs:
                 meta = getattr(d, "metadata", {}) or {}
@@ -259,7 +264,7 @@ class ChatManager:
             model_params = getattr(self.bot.chain_manager, "model_kwargs", {}) or {}
             hist = await self.bot.memory.get_history(conversation_id)
             formatted_hist = self.bot._format_history(hist)
-            ctx = getattr(self.bot, "_last_context", "") or ""
+            ctx = req_ctx.context or ""
 
             try:
                 pv = getattr(self.bot.chain_manager, "prompt_vars", {}) or {}
@@ -282,7 +287,7 @@ class ChatManager:
                 + _get_token_count(str(input_text))
             )
             output_tokens = _get_token_count(str(final_text))
-            rag_time = getattr(self.bot, "_last_rag_time", None)
+            rag_time = req_ctx.rag_time
 
             llm_time = None
             try:
@@ -291,7 +296,7 @@ class ChatManager:
             except Exception:
                 llm_time = None
 
-            gating_reason = getattr(self.bot, "_last_gating_reason", None)
+            gating_reason = req_ctx.gating_reason
             return DebugInfo(
                 retrieved_documents=items,
                 system_prompt_used=str(hydrated),
@@ -305,7 +310,7 @@ class ChatManager:
                 is_cached=bool(is_cached),
             )
         except Exception:
-            gating_reason = getattr(self.bot, "_last_gating_reason", None)
+            gating_reason = req_ctx.gating_reason
             return DebugInfo(
                 retrieved_documents=[],
                 system_prompt_used="",
@@ -317,6 +322,7 @@ class ChatManager:
     async def generate_streaming_response(self, input_text: str, conversation_id: str, source: str | None = None, debug_mode: bool = False, enable_verification: bool = False):
         try:
             logger.debug(f"[CHAT] Streaming start | conv={conversation_id}")
+            req_ctx = new_request_context()
             if not debug_mode:
                 await self.db.add_message(conversation_id, USER_ROLE, input_text, source)
 
@@ -335,9 +341,10 @@ class ChatManager:
                     await self.db.add_message(conversation_id, ASSISTANT_ROLE, final_text, source)
                     await self.bot.add_to_memory(human=input_text, ai=final_text, conversation_id=conversation_id)
                     self._last_debug_info = None
+                    req_ctx.debug_info = None
                 else:
                     # Construye debug info incluso en cache hit para mantener métricas en UI
-                    self._last_debug_info = await self._build_debug_info(
+                    req_ctx.debug_info = await self._build_debug_info(
                         conversation_id=conversation_id,
                         input_text=input_text,
                         final_text=final_text,
@@ -346,6 +353,7 @@ class ChatManager:
                         verification=None,
                         is_cached=True,
                     )
+                    self._last_debug_info = req_ctx.debug_info
                 return
 
             bot_input = {"input": input_text, "conversation_id": conversation_id}
@@ -388,11 +396,11 @@ class ChatManager:
                 verification = None
                 try:
                     if enable_verification:
-                        ctx = getattr(self.bot, "_last_context", "") or ""
+                        ctx = req_ctx.context or ""
                         verification = await self._verify_response(input_text, ctx, final_text)
                 except Exception:
                     verification = None
-                self._last_debug_info = await self._build_debug_info(
+                req_ctx.debug_info = await self._build_debug_info(
                     conversation_id=conversation_id,
                     input_text=input_text,
                     final_text=final_text,
@@ -401,8 +409,10 @@ class ChatManager:
                     verification=verification,
                     is_cached=False,
                 )
+                self._last_debug_info = req_ctx.debug_info
             else:
                 self._last_debug_info = None
+                req_ctx.debug_info = None
             logger.debug(f"[CHAT] Streaming end | conv={conversation_id} len={len(final_text)}")
         except Exception as e:
             logger.error(f"Error generando respuesta streaming en ChatManager: {e}", exc_info=True)

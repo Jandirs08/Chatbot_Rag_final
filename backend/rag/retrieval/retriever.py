@@ -10,6 +10,7 @@ import asyncio
 from langchain_core.documents import Document
 
 from ..vector_store.vector_store import VectorStore
+from .gating import is_trivial_query, evaluate_gating_logic
 from cache.manager import cache
 from config import settings
 
@@ -121,12 +122,6 @@ class RAGRetriever:
     _TOP_DOCS_LOG_N = 5
     _PREVIEW_CHARS = 180
     _MAX_QUERY_LOG_CHARS = 160
-
-    # --- Constantes de Gating (evitar magic numbers) ---
-    _MIN_TOKENS_FOR_INTENT = 3          # Mínimo de tokens para considerar que hay intención real
-    _SMALL_CORPUS_THRESHOLD = 20        # Corpus pequeño: relajar criterios
-    _MEDIUM_CORPUS_THRESHOLD = 50       # Corpus mediano: fallback conservador
-    _MIN_TOKENS_FOR_FALLBACK = 4        # Tokens mínimos para usar RAG en caso de duda
 
     def __init__(
         self,
@@ -389,44 +384,12 @@ class RAGRetriever:
             return None
 
     # ============================================================
-    #   TRIVIAL QUERY
+    #   GATING DELEGATION  (lógica pura vive en gating.py)
     # ============================================================
 
     def _is_trivial_query(self, q: str) -> Tuple[bool, str]:
-        """Detecta queries triviales que no requieren RAG.
-        
-        Incluye: saludos, despedidas, agradecimientos, confirmaciones,
-        y variantes comunes en español.
-        """
-        s = (q or "").strip().lower()
-        
-        # Set expandido con variantes comunes y errores tipográficos frecuentes
-        small_talk = {
-            # Saludos
-            "hola", "hla", "ola", "hi", "hey", "buenos días", "buen dia", "buen día",
-            "buenas tardes", "buenas noches", "buenas", "saludos",
-            # Estado
-            "como estás", "cómo estás", "como estas", "qué tal", "que tal",
-            "todo bien", "bien y tú", "bien y tu",
-            # Agradecimientos
-            "gracias", "gracia", "grcias", "muchas gracias", "te agradezco",
-            "thanks", "thx", "genial", "perfecto", "excelente",
-            # Despedidas
-            "adios", "adiós", "chao", "chau", "bye", "hasta luego",
-            "hasta pronto", "nos vemos", "cuídate",
-            # Confirmaciones
-            "ok", "okey", "okay", "vale", "sí", "si", "no", "entendido",
-            "de acuerdo", "claro", "listo",
-            # Meta-preguntas
-            "ayuda", "help", "quien eres", "quién eres", "como te llamas",
-            "cómo te llamas", "qué puedes hacer", "que puedes hacer",
-        }
-        
-        if s in small_talk:
-            return (True, "small_talk")
-        if len(s) < 3:
-            return (True, "too_short")
-        return (False, "")
+        """Delegación a gating.is_trivial_query (mantiene interfaz para tests existentes)."""
+        return is_trivial_query(q)
 
     # ============================================================
     #   DOCUMENT RETRIEVAL
@@ -504,9 +467,8 @@ class RAGRetriever:
                         query,
                         k=initial_k,
                         filter=filter_criteria,
-                        use_mmr=False,           # (tu pipeline aplica mmr/rerank aquí, no en VectorStore)
                         with_vectors=need_vectors,
-                        score_threshold=sim_threshold,  # Filtrar documentos con score bajo
+                        score_threshold=sim_threshold,
                     ),
                     timeout=5.0
                 )
@@ -894,12 +856,16 @@ class RAGRetriever:
         """
         try:
             q = (query or "").strip()
-            self.ensure_centroid()  # intenta cache + schedule si hay loop
+            self.ensure_centroid()
 
-            corpus_size = self._last_total_points_count
-            q_vec = None  # legacy sync: no embebemos para no bloquear
-
-            return self._evaluate_gating_logic(q, q_vec, corpus_size)
+            return evaluate_gating_logic(
+                query=q,
+                query_vec=None,
+                corpus_size=self._last_total_points_count,
+                centroid_vec=self._centroid_embedding,
+                has_embedder=bool(self.embedding_manager),
+                gating_threshold=self._gating_threshold,
+            )
         except Exception as e:
             logger.warning(f"Error gating: {e}")
             return ("error", True)
@@ -951,7 +917,14 @@ class RAGRetriever:
             except Exception:
                 pass
 
-            reason, use = self._evaluate_gating_logic(q, q_vec, current_total_points)
+            reason, use = evaluate_gating_logic(
+                query=q,
+                query_vec=q_vec,
+                corpus_size=current_total_points,
+                centroid_vec=self._centroid_embedding,
+                has_embedder=bool(self.embedding_manager),
+                gating_threshold=self._gating_threshold,
+            )
             return (reason, use)
 
         except Exception as e:
@@ -959,53 +932,15 @@ class RAGRetriever:
             return ("error", True)
 
     def _evaluate_gating_logic(self, query: str, query_vec: Optional[np.ndarray], corpus_size: Optional[int]) -> Tuple[str, bool]:
-        """
-        Lógica pura de gating sin I/O.
-        """
-        try:
-            q = (query or "").strip()
-
-            is_trivial, trivial_reason = self._is_trivial_query(q)
-            if is_trivial:
-                return (trivial_reason, False)
-
-            interrogatives = ("qué", "como", "cómo", "donde", "dónde", "cuando", "cuándo", "por qué", "para qué", "puedo", "quiero", "necesito")
-            has_interrogative = any(w in q.lower() for w in interrogatives) or ("?" in q)
-            tokens = [t for t in q.lower().split() if t]
-
-            if not has_interrogative and len(tokens) <= self._MIN_TOKENS_FOR_INTENT:
-                return ("low_intent", False)
-
-            if corpus_size is not None and corpus_size < self._SMALL_CORPUS_THRESHOLD:
-                use_small = bool(has_interrogative or len(tokens) >= self._MIN_TOKENS_FOR_FALLBACK)
-                return ("small_corpus", use_small)
-
-            if not self.embedding_manager:
-                return ("no_embedder_fail_open", True)
-
-            c_vec = self._centroid_embedding
-            if not isinstance(c_vec, np.ndarray) or c_vec.size == 0:
-                return ("no_centroid", True)
-
-            if query_vec is None:
-                if corpus_size is None:
-                    use_unknown = bool(has_interrogative or len(tokens) >= self._MIN_TOKENS_FOR_FALLBACK)
-                    return ("no_vector_unknown_corpus", use_unknown)
-
-                if 0 <= corpus_size < self._MEDIUM_CORPUS_THRESHOLD:
-                    return ("no_vector_small_corpus", True)
-
-                return ("no_vector_fail_closed", False)
-
-            sim = float(np.dot(query_vec, c_vec))
-            use = bool(sim >= self._gating_threshold)
-            reason = "semantic_match" if use else "low_similarity"
-            logger.info(f"Gating: similitud={sim:.4f}, threshold={self._gating_threshold:.4f}, reason={reason}")
-            return (reason, use)
-
-        except Exception as e:
-            logger.warning(f"Error _evaluate_gating_logic: {e}")
-            return ("error", True)
+        """Delegación a gating.evaluate_gating_logic (mantiene interfaz para tests)."""
+        return evaluate_gating_logic(
+            query=query,
+            query_vec=query_vec,
+            corpus_size=corpus_size,
+            centroid_vec=self._centroid_embedding,
+            has_embedder=bool(self.embedding_manager),
+            gating_threshold=self._gating_threshold,
+        )
 
     # ============================================================
     #   CACHE
