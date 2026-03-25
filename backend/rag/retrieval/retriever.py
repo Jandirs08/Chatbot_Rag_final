@@ -10,7 +10,7 @@ import asyncio
 from langchain_core.documents import Document
 
 from ..vector_store.vector_store import VectorStore
-from .gating import is_trivial_query, evaluate_gating_logic
+from .gating import is_trivial_query, evaluate_gating_logic, GatingDecision
 from cache.manager import cache
 from config import settings
 
@@ -408,13 +408,22 @@ class RAGRetriever:
         query = query.strip() if query else ""
 
         # --- gating: calcula el embedding UNA SOLA VEZ y lo retorna ---
-        gating_reason, use_rag, query_embedding = await self.gating_async(query)
-        self._last_gating_reason = gating_reason
-        action = "usando RAG" if use_rag else "omitido"
-        logger.info(f"[RAG] Gating: {action} | reason={gating_reason} q='{self._safe_query_for_log(query)}'")
+        decision = await self.gating_async(query)
+        self._last_gating_reason = decision.reason
+        action = "usando RAG" if decision.use_rag else "omitido"
+        logger.info(f"[RAG] Gating: {action} | reason={decision.reason} q='{self._safe_query_for_log(query)}'")
 
-        if not use_rag:
+        if not decision.use_rag:
             return []
+
+        # Modo degradado: gating aprobado pero sin vector de query.
+        # Reranking semántico y MMR no funcionan sin él — logueamos para observabilidad.
+        if decision.is_degraded:
+            logger.warning(
+                f"[RAG][DEGRADED] Retrieval sin vector de query (embedding falló en gating). "
+                f"Reranking semántico DESACTIVADO. reason={decision.reason} "
+                f"q='{self._safe_query_for_log(query)}'"
+            )
 
         # ====== Cache =======
         cache_start = time.perf_counter()
@@ -459,7 +468,7 @@ class RAGRetriever:
                         filter=filter_criteria,
                         with_vectors=need_vectors,
                         score_threshold=sim_threshold,
-                        query_embedding=query_embedding,  # reutilizado del gating
+                        query_embedding=decision.query_vec,  # reutilizado del gating
                     ),
                     timeout=5.0
                 )
@@ -476,7 +485,7 @@ class RAGRetriever:
                 logger.info(
                     f"[RAG] 0 docs recuperados desde VectorStore | "
                     f"similarity_threshold={sim_threshold:.2f} "
-                    f"(gating_threshold={self._gating_threshold:.2f}, gating=PASSED reason={gating_reason}) | "
+                    f"(gating_threshold={self._gating_threshold:.2f}, gating=PASSED reason={decision.reason}) | "
                     f"q='{self._safe_query_for_log(query)}'"
                 )
                 return []
@@ -495,10 +504,11 @@ class RAGRetriever:
                 return relevant_docs
 
             # ====== Post-processing (reranking / MMR) =======
-            # query_embedding ya está disponible del gating; no se vuelve a calcular.
+            # query_vec pre-calculado en gating_async. Si decision.is_degraded,
+            # ambos métodos ya manejan query_embedding=None retornando sin reranking.
             if use_semantic_ranking:
                 rerank_start = time.perf_counter()
-                reranked = await self._semantic_reranking(relevant_docs, query_embedding=query_embedding)
+                reranked = await self._semantic_reranking(relevant_docs, query_embedding=decision.query_vec)
                 self.performance_metrics.add_metric('semantic_reranking', time.perf_counter() - rerank_start)
                 final_docs = reranked[:k]
                 self._log_score_distribution(reranked, stage="post_rerank", query=query)
@@ -506,7 +516,7 @@ class RAGRetriever:
 
             elif use_mmr:
                 mmr_start = time.perf_counter()
-                final_docs = await self._apply_mmr(relevant_docs, k, query_embedding=query_embedding)
+                final_docs = await self._apply_mmr(relevant_docs, k, query_embedding=decision.query_vec)
                 self.performance_metrics.add_metric('mmr_application', time.perf_counter() - mmr_start)
                 final_docs = final_docs[:k]
                 self._log_top_docs(final_docs, stage="final", query=query, k=k)
@@ -872,20 +882,21 @@ class RAGRetriever:
                 logger.warning("should_use_rag() llamado dentro de un event loop; usar gating_async().")
                 return True
             except RuntimeError:
-                return self.gating(query)[1]
+                return self.gating(query).use_rag
         except Exception:
-            return True
+            return False  # Fail-closed: en caso de error, no ejecutar RAG
 
-    def gating(self, query: str) -> Tuple[str, bool]:
+    def gating(self, query: str) -> GatingDecision:
         """
         Sistema de gating Ruta B (Síncrono/Legacy).
         NO hace llamadas de red. Usa memoria local.
+        Retorna GatingDecision con fail-closed en caso de error inesperado.
         """
         try:
             q = (query or "").strip()
             self.ensure_centroid()
 
-            return evaluate_gating_logic(
+            reason, use = evaluate_gating_logic(
                 query=q,
                 query_vec=None,
                 corpus_size=self._last_total_points_count,
@@ -893,17 +904,24 @@ class RAGRetriever:
                 has_embedder=bool(self.embedding_manager),
                 gating_threshold=self._gating_threshold,
             )
+            return GatingDecision(reason=reason, use_rag=use)
         except Exception as e:
-            logger.warning(f"Error gating: {e}")
-            return ("error", True)
+            logger.warning(f"Error en gating síncrono: {e}")
+            return GatingDecision(reason="error_fail_closed", use_rag=False)
 
-    async def gating_async(self, query: str) -> Tuple[str, bool, Optional[np.ndarray]]:
+    async def gating_async(self, query: str) -> GatingDecision:
         """
-        Versión async de gating. Orquestador principal de recálculos.
+        Versión async del sistema de gating. Orquestador principal de recalcs.
 
-        Returns:
-            (reason, use_rag, query_vec) — query_vec reutilizable por retrieve_documents
-            para evitar un segundo embedding del mismo query.
+        Calcula el embedding del query UNA SOLA VEZ y lo encapsula en
+        GatingDecision para reutilizarlo en vector search + reranking/MMR,
+        evitando llamadas duplicadas a la API de OpenAI.
+
+        Garantías de error:
+          - Error inesperado: fail-closed (use_rag=False). El sistema NO ejecuta
+            un RAG ciego sin vector; prefiere no contestar con contexto contaminado.
+          - Embedding falla pero gating por otra razón aprueba RAG: is_degraded=True,
+            retrieval procede sin reranking semántico (caller debe loguearlo).
         """
         try:
             q = (query or "").strip()
@@ -939,8 +957,7 @@ class RAGRetriever:
             if self._centroid_embedding is None:
                 self._schedule_centroid_recalc("missing_centroid_async")
 
-            # 4) Embedding query — se calcula UNA SOLA VEZ aquí y se retorna
-            #    para reutilizar en retrieve_documents (vector search + reranking/MMR).
+            # 4) Embedding query — calculado UNA SOLA VEZ, encapsulado en GatingDecision.
             q_vec: Optional[np.ndarray] = None
             try:
                 if self.embedding_manager:
@@ -956,15 +973,24 @@ class RAGRetriever:
                 has_embedder=bool(self.embedding_manager),
                 gating_threshold=self._gating_threshold,
             )
-            return (reason, use, q_vec)
+
+            # is_degraded: RAG aprobado pero sin vector -> reranking semántico no funcionará.
+            is_degraded = use and q_vec is None
+            return GatingDecision(reason=reason, use_rag=use, query_vec=q_vec, is_degraded=is_degraded)
 
         except Exception as e:
-            logger.warning(f"Error gating_async: {e}")
-            return ("error", True, None)
+            # Error inesperado — fail-closed: no ejecutar RAG sin estado válido.
+            # Preferimos no dar contexto a un LLM que devolver resultados ruidosos.
+            logger.error(
+                f"[RAG][GATING] Error inesperado en gating_async: {type(e).__name__}: {e}. "
+                f"Aplicando fail-closed (use_rag=False).",
+                exc_info=True,
+            )
+            return GatingDecision(reason="error_fail_closed", use_rag=False)
 
-    def _evaluate_gating_logic(self, query: str, query_vec: Optional[np.ndarray], corpus_size: Optional[int]) -> Tuple[str, bool]:
+    def _evaluate_gating_logic(self, query: str, query_vec: Optional[np.ndarray], corpus_size: Optional[int]) -> GatingDecision:
         """Delegación a gating.evaluate_gating_logic (mantiene interfaz para tests)."""
-        return evaluate_gating_logic(
+        reason, use = evaluate_gating_logic(
             query=query,
             query_vec=query_vec,
             corpus_size=corpus_size,
@@ -972,6 +998,7 @@ class RAGRetriever:
             has_embedder=bool(self.embedding_manager),
             gating_threshold=self._gating_threshold,
         )
+        return GatingDecision(reason=reason, use_rag=use, query_vec=query_vec, is_degraded=(use and query_vec is None))
 
     # ============================================================
     #   CACHE

@@ -7,12 +7,46 @@ Contiene lógica pura (sin I/O) extraída de RAGRetriever para:
 - Reducir el tamaño del retriever monolítico
 """
 
+import dataclasses
 import logging
 from typing import Optional, Tuple
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================
+#   GATING DECISION — Contrato de retorno del sistema de gating
+# ============================================================
+
+@dataclasses.dataclass(frozen=True, eq=False)
+class GatingDecision:
+    """Resultado determinísta e inmutable del sistema de gating.
+
+    Encapsula todo el estado de la decisión en un objeto explícito,
+    eliminando tuplas annónimas amb iguas como (reason, True, None).
+
+    Atributos:
+        reason:       Motivo de la decisión (para logs y trazabilidad).
+        use_rag:      Si se debe ejecutar el pipeline RAG.
+        query_vec:    Embedding del query, pre-calculado una sola vez en
+                      gating_async para reutilizar en búsqueda + reranking.
+                      None si el embedding falló o no se intentó calcular.
+        is_degraded:  True cuando use_rag=True pero query_vec=None.
+                      Indica que el retrieval procederá sin reranking semántico.
+                      El caller debe loguearlo explícitamente.
+    """
+    reason: str
+    use_rag: bool
+    query_vec: Optional[np.ndarray] = None
+    is_degraded: bool = False
+
+    @property
+    def has_vector(self) -> bool:
+        """Indica si hay un vector de query disponible para reranking."""
+        return self.query_vec is not None
+
 
 
 # ============================================================
@@ -146,5 +180,12 @@ def evaluate_gating_logic(
         return (reason, use)
 
     except Exception as e:
-        logger.warning(f"Error evaluate_gating_logic: {e}")
-        return ("error", True)
+        # Fail-closed: cualquier error matemático (NaN, dimensión incorrecta en np.dot,
+        # etc.) no debe forzar un RAG ciego. El caller (gating_async) ya envuelve esta
+        # función en su propio try/except y también aplica fail-closed.
+        logger.error(
+            f"[GATING] Error inesperado en evaluate_gating_logic: {type(e).__name__}: {e}. "
+            "Aplicando fail-closed.",
+            exc_info=True,
+        )
+        return ("error_fail_closed", False)
