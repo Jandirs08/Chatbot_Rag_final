@@ -7,15 +7,15 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Load environment variables from the correct location
-env_path = Path(__file__).parent / '.env'
-load_dotenv(env_path)
+# Carga el .env con ruta absoluta (más fiable que env_file relativo al CWD).
+# pydantic-settings no necesita env_file porque las vars ya están en os.environ.
+load_dotenv(Path(__file__).parent / '.env')
 
 class Settings(BaseSettings):
     """Configuraciones de la aplicación."""
-    # Pydantic v2 / pydantic-settings config
+    # pydantic-settings: no se usa env_file porque load_dotenv() ya cargó el .env
+    # a os.environ con ruta absoluta (más confiable en Docker y distintos CWD).
     model_config = SettingsConfigDict(
-        env_file=".env",
         case_sensitive=False,
         extra="ignore"
     )

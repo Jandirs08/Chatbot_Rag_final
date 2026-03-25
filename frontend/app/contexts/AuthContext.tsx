@@ -163,6 +163,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const checkAuthStatus = async () => {
     try {
       dispatch({ type: "SET_LOADING", payload: true });
+      // Restore access token from httpOnly cookie after a page reload.
+      // No-ops if the token is already in memory (e.g. right after login).
+      await authService.initFromCookie();
       const user = await authService.getCurrentUser();
       dispatch({
         type: "AUTH_SUCCESS",

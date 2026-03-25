@@ -1,7 +1,7 @@
 """API routes for PDF management."""
 import logging
 import datetime
-from fastapi import APIRouter, HTTPException, UploadFile, File, Request, BackgroundTasks, Response
+from fastapi import APIRouter, HTTPException, UploadFile, File, Request, BackgroundTasks, Response, Depends
 from pathlib import Path
 from starlette.responses import FileResponse
 
@@ -11,6 +11,8 @@ from api.schemas import (
     PDFDeleteResponse,
     PDFListItem
 )
+from auth.dependencies import get_current_active_user
+from models.user import User
 from utils.rate_limiter import conditional_limit
 from config import settings
 
@@ -24,13 +26,16 @@ async def upload_pdf(
     request: Request,
     response: Response,
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_active_user),
 ):
     """
     Subida de PDF con detección de duplicados por hash.
     Si el PDF ya existe:
         → se borra el PDF recién guardado
         → se retorna 409
+    Requiere: usuario autenticado y activo.
+    Para restringir a admins en el futuro: cambiar a Depends(require_admin).
     """
     pdf_file_manager = request.app.state.pdf_file_manager
     rag_ingestor = request.app.state.rag_ingestor
@@ -92,7 +97,10 @@ async def upload_pdf(
 
 
 @router.get("/list", response_model=PDFListResponse)
-async def list_pdfs(request: Request):
+async def list_pdfs(
+    request: Request,
+    _: User = Depends(get_current_active_user),
+):
     pdf_file_manager = request.app.state.pdf_file_manager
     try:
         pdfs_raw = await pdf_file_manager.list_pdfs()
@@ -114,7 +122,17 @@ async def list_pdfs(request: Request):
 
 
 @router.delete("/{filename}", response_model=PDFDeleteResponse)
-async def delete_pdf(request: Request, background_tasks: BackgroundTasks, filename: str):
+async def delete_pdf(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    filename: str,
+    _: User = Depends(get_current_active_user),
+):
+    """
+    Elimina un PDF y sus embeddings.
+    Requiere: usuario autenticado y activo.
+    Para restringir a admins: cambiar a Depends(require_admin).
+    """
     pdf_file_manager = request.app.state.pdf_file_manager
     rag_ingestor = request.app.state.rag_ingestor
     rag_retriever = request.app.state.rag_retriever
@@ -138,7 +156,6 @@ async def delete_pdf(request: Request, background_tasks: BackgroundTasks, filena
             if rag_retriever and hasattr(rag_retriever, "reset_centroid"):
                 rag_retriever.reset_centroid()
                 logger.info("Centroide del retriever reiniciado tras eliminar PDF")
-                # Programar recálculo en segundo plano
                 try:
                     background_tasks.add_task(rag_retriever.trigger_centroid_update)
                 except Exception:
@@ -167,7 +184,11 @@ async def delete_pdf(request: Request, background_tasks: BackgroundTasks, filena
 
 
 @router.get("/download/{filename}")
-async def download_pdf(request: Request, filename: str):
+async def download_pdf(
+    request: Request,
+    filename: str,
+    _: User = Depends(get_current_active_user),
+):
     pdf_file_manager = request.app.state.pdf_file_manager
     try:
         file_path = pdf_file_manager.pdf_dir / Path(filename).name
@@ -182,7 +203,11 @@ async def download_pdf(request: Request, filename: str):
 
 
 @router.get("/view/{filename}")
-async def view_pdf(request: Request, filename: str):
+async def view_pdf(
+    request: Request,
+    filename: str,
+    _: User = Depends(get_current_active_user),
+):
     pdf_file_manager = request.app.state.pdf_file_manager
     try:
         file_path = pdf_file_manager.pdf_dir / Path(filename).name

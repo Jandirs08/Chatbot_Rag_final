@@ -1,7 +1,10 @@
 """API routes for RAG management."""
 import logging
-import datetime # Para convertir timestamp
-from fastapi import APIRouter, HTTPException, Request
+import datetime
+from fastapi import APIRouter, HTTPException, Request, Depends
+
+from auth.dependencies import get_current_active_user
+from models.user import User
 
 # Importar modelos Pydantic desde el módulo centralizado
 from api.schemas import (
@@ -23,7 +26,10 @@ router = APIRouter()
 # Solo usuarios admin autenticados pueden acceder a estos endpoints
 
 @router.get("/rag-status", response_model=RAGStatusResponse)
-async def rag_status(request: Request):
+async def rag_status(
+    request: Request,
+    _: User = Depends(get_current_active_user),
+):
     """Endpoint para obtener el estado actual del RAG."""
     pdf_processor = request.app.state.pdf_processor
     try:
@@ -55,7 +61,10 @@ async def rag_status(request: Request):
         raise HTTPException(status_code=500, detail=f"Error interno del servidor al obtener estado RAG: {str(e)}")
 
 @router.post("/clear-rag", response_model=ClearRAGResponse)
-async def clear_rag(request: Request):
+async def clear_rag(
+    request: Request,
+    _: User = Depends(get_current_active_user),
+):
     """Endpoint para limpiar el RAG."""
     pdf_processor = request.app.state.pdf_processor
     rag_retriever = request.app.state.rag_retriever
@@ -123,7 +132,11 @@ async def clear_rag(request: Request):
 
 
 @router.post("/retrieve-debug", response_model=RetrieveDebugResponse)
-async def retrieve_debug(request: Request, payload: RetrieveDebugRequest):
+async def retrieve_debug(
+    request: Request,
+    payload: RetrieveDebugRequest,
+    _: User = Depends(get_current_active_user),
+):
     """Endpoint para auditar la recuperación RAG con detalles por chunk.
 
     Protegido por autenticación (solo admin). No altera el estado del sistema.
@@ -157,7 +170,11 @@ async def retrieve_debug(request: Request, payload: RetrieveDebugRequest):
         raise HTTPException(status_code=500, detail=f"Error interno del servidor en retrieve-debug: {str(e)}")
 
 @router.post("/reindex-pdf", response_model=ReindexPDFResponse)
-async def reindex_pdf(request: Request, payload: ReindexPDFRequest):
+async def reindex_pdf(
+    request: Request,
+    payload: ReindexPDFRequest,
+    _: User = Depends(get_current_active_user),
+):
     """Endpoint para forzar la reindexación de un PDF específico.
 
     Protegido por autenticación (solo admin). Ejecuta la ingesta de forma síncrona

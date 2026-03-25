@@ -407,10 +407,9 @@ class RAGRetriever:
         start_time = time.perf_counter()
         query = query.strip() if query else ""
 
-        # --- gating ---
-        gating_reason, use_rag = await self.gating_async(query)
-        self._last_gating_reason = gating_reason  # Exponer para debug info del Bot
-        # Log consolidado de gating
+        # --- gating: calcula el embedding UNA SOLA VEZ y lo retorna ---
+        gating_reason, use_rag, query_embedding = await self.gating_async(query)
+        self._last_gating_reason = gating_reason
         action = "usando RAG" if use_rag else "omitido"
         logger.info(f"[RAG] Gating: {action} | reason={gating_reason} q='{self._safe_query_for_log(query)}'")
 
@@ -429,7 +428,6 @@ class RAGRetriever:
                         f"k={k} sr={int(bool(use_semantic_ranking))} mmr={int(bool(use_mmr))} "
                         f"docs={len(cached_results)}"
                     )
-                    # log de top docs (ya vienen con score si estaban serializados con metadata)
                     self._log_top_docs(cached_results, stage="cache", query=query, k=k)
                     return cached_results
                 else:
@@ -445,23 +443,15 @@ class RAGRetriever:
             vector_start = time.perf_counter()
 
             # Traer más candidatos que k (para reranking / mmr)
-            # Mantengo tu lógica original con cap a 20.
             initial_k = min(max(1, k) * int(getattr(settings, "retrieval_k_multiplier", 3)), 20)
-
-            # OPTIMIZATION: Generar query embedding UNA sola vez para reutilizar en reranking/MMR
-            # Esto evita llamadas duplicadas a la API de OpenAI Embeddings
-            query_embedding: Optional[np.ndarray] = None
             need_vectors = bool(use_semantic_ranking or use_mmr)
-            if need_vectors and self.embedding_manager:
-                try:
-                    query_embedding = await self._embed_query_async(query)
-                except Exception as e:
-                    logger.warning(f"[RAG] Failed to pre-compute query embedding: {e}")
+            sim_threshold = float(getattr(settings, "similarity_threshold", 0.3))
 
+            # query_embedding viene del gating (ya calculado). Se pasa al VectorStore
+            # para evitar un segundo API call. Si por alguna razón fuera None
+            # (error en embedding durante gating), vector_store.retrieve() lo detecta
+            # y lo genera internamente como fallback.
             try:
-                # Obtener threshold de settings (default 0.3)
-                sim_threshold = float(getattr(settings, "similarity_threshold", 0.3))
-                
                 relevant_docs = await asyncio.wait_for(
                     self.vector_store.retrieve(
                         query,
@@ -469,6 +459,7 @@ class RAGRetriever:
                         filter=filter_criteria,
                         with_vectors=need_vectors,
                         score_threshold=sim_threshold,
+                        query_embedding=query_embedding,  # reutilizado del gating
                     ),
                     timeout=5.0
                 )
@@ -482,7 +473,12 @@ class RAGRetriever:
             self.performance_metrics.add_metric('vector_retrieval', time.perf_counter() - vector_start)
 
             if not relevant_docs:
-                logger.info(f"[RAG] 0 docs recuperados desde VectorStore | q='{self._safe_query_for_log(query)}'")
+                logger.info(
+                    f"[RAG] 0 docs recuperados desde VectorStore | "
+                    f"similarity_threshold={sim_threshold:.2f} "
+                    f"(gating_threshold={self._gating_threshold:.2f}, gating=PASSED reason={gating_reason}) | "
+                    f"q='{self._safe_query_for_log(query)}'"
+                )
                 return []
 
             # Logs de observabilidad (raw vector results)
@@ -495,20 +491,16 @@ class RAGRetriever:
             self._log_top_docs(relevant_docs, stage="raw_vector", query=query, k=initial_k)
 
             if len(relevant_docs) <= k:
-                # Aún así logueamos final
                 self._log_top_docs(relevant_docs, stage="final", query=query, k=k)
                 return relevant_docs
 
-            # ====== Post-processing =======
-            # OPTIMIZATION: Pasar query_embedding precalculado para evitar doble API call
+            # ====== Post-processing (reranking / MMR) =======
+            # query_embedding ya está disponible del gating; no se vuelve a calcular.
             if use_semantic_ranking:
                 rerank_start = time.perf_counter()
                 reranked = await self._semantic_reranking(relevant_docs, query_embedding=query_embedding)
                 self.performance_metrics.add_metric('semantic_reranking', time.perf_counter() - rerank_start)
-
                 final_docs = reranked[:k]
-
-                # Logs post-rerank
                 self._log_score_distribution(reranked, stage="post_rerank", query=query)
                 self._log_top_docs(final_docs, stage="final", query=query, k=k)
 
@@ -516,7 +508,6 @@ class RAGRetriever:
                 mmr_start = time.perf_counter()
                 final_docs = await self._apply_mmr(relevant_docs, k, query_embedding=query_embedding)
                 self.performance_metrics.add_metric('mmr_application', time.perf_counter() - mmr_start)
-
                 final_docs = final_docs[:k]
                 self._log_top_docs(final_docs, stage="final", query=query, k=k)
 
@@ -870,13 +861,16 @@ class RAGRetriever:
             logger.warning(f"Error gating: {e}")
             return ("error", True)
 
-    async def gating_async(self, query: str) -> Tuple[str, bool]:
+    async def gating_async(self, query: str) -> Tuple[str, bool, Optional[np.ndarray]]:
         """
         Versión async de gating. Orquestador principal de recálculos.
+
+        Returns:
+            (reason, use_rag, query_vec) — query_vec reutilizable por retrieve_documents
+            para evitar un segundo embedding del mismo query.
         """
         try:
             q = (query or "").strip()
-            # Log de inicio removido - consolidado en FINAL
 
             # 1) Carga rápida (sin spawnear)
             self._try_load_centroid_from_cache(spawn_if_missing=False)
@@ -909,8 +903,9 @@ class RAGRetriever:
             if self._centroid_embedding is None:
                 self._schedule_centroid_recalc("missing_centroid_async")
 
-            # 4) Embedding query
-            q_vec = None
+            # 4) Embedding query — se calcula UNA SOLA VEZ aquí y se retorna
+            #    para reutilizar en retrieve_documents (vector search + reranking/MMR).
+            q_vec: Optional[np.ndarray] = None
             try:
                 if self.embedding_manager:
                     q_vec = await self._embed_query_async(q)
@@ -925,11 +920,11 @@ class RAGRetriever:
                 has_embedder=bool(self.embedding_manager),
                 gating_threshold=self._gating_threshold,
             )
-            return (reason, use)
+            return (reason, use, q_vec)
 
         except Exception as e:
             logger.warning(f"Error gating_async: {e}")
-            return ("error", True)
+            return ("error", True, None)
 
     def _evaluate_gating_logic(self, query: str, query_vec: Optional[np.ndarray], corpus_size: Optional[int]) -> Tuple[str, bool]:
         """Delegación a gating.evaluate_gating_logic (mantiene interfaz para tests)."""

@@ -336,10 +336,21 @@ class VectorStore:
         filter: Optional[Dict] = None,
         score_threshold: float = 0.0,
         with_vectors: bool = False,
+        query_embedding: Optional[np.ndarray] = None,
     ) -> List[Document]:
-        """Recupera documentos relevantes mediante búsqueda por similitud."""
+        """Recupera documentos relevantes mediante búsqueda por similitud.
+
+        Args:
+            query_embedding: Embedding pre-computado del query. Si se provee,
+                             evita una llamada extra a la API de OpenAI.
+                             Si es None, se computa internamente (legacy).
+        """
         try:
-            query_embedding = await self._get_document_embedding(query)
+            # Usar el embedding pre-computado si viene del RAGRetriever;
+            # solo re-embeder si no se proveyó (llamada directa legacy).
+            if query_embedding is None:
+                query_embedding = await self._get_document_embedding(query)
+                logger.debug("retrieve() | embedding generado internamente (sin pre-compute)")
 
             docs = await self._similarity_search(
                 query_embedding, k, filter, with_vectors=with_vectors

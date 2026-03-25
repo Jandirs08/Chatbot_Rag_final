@@ -243,6 +243,21 @@ export const authService = {
 
   isAuthenticated: () => TokenManager.isTokenValid(),
   getAuthToken: () => TokenManager.getAccessToken(),
+
+  /**
+   * Restore the access token from the httpOnly cookie after a page reload.
+   * Calls the Next.js /api/auth/refresh route which reads the cookie server-side
+   * and returns a fresh access token. Safe to call on every mount: no-ops if token
+   * is already in memory.
+   */
+  async initFromCookie(): Promise<void> {
+    if (TokenManager.getAccessToken()) return; // Already have a token in memory
+    try {
+      await authService.refreshToken();
+    } catch {
+      // No active session or cookie expired — leave tokens empty (user will be redirected to login)
+    }
+  },
 };
 
 // --- Helper Fetch Autenticado (Interceptor) ---

@@ -16,7 +16,8 @@ from api.schemas import (
 )
 from utils.rate_limiter import conditional_limit
 from config import settings
-from auth.dependencies import require_admin
+from auth.dependencies import require_admin, get_current_active_user
+from models.user import User
 
 
 logger = get_logger(__name__)
@@ -291,7 +292,13 @@ def _process_export(messages, format: str, current_time: str) -> tuple[bytes, st
 
 
 @router.get("/export-conversations")
-async def export_conversations(request: Request, format: str = 'xlsx', sep: str = 'comma', pretty: bool = False):
+async def export_conversations(
+    request: Request,
+    format: str = 'xlsx',
+    sep: str = 'comma',
+    pretty: bool = False,
+    _: User = Depends(get_current_active_user),
+):
     """Exporta conversaciones en XLSX (por defecto), CSV o JSON."""
     try:
         chat_manager = request.app.state.chat_manager
@@ -320,7 +327,10 @@ async def export_conversations(request: Request, format: str = 'xlsx', sep: str 
         raise HTTPException(status_code=500, detail=f"Error al exportar conversaciones: {str(e)}")
 
 @router.get("/stats")
-async def get_stats(request: Request):
+async def get_stats(
+    request: Request,
+    _: User = Depends(get_current_active_user),
+):
     """
     Obtiene estadísticas de consultas, usuarios activos y PDFs cargados.
     """
@@ -352,7 +362,11 @@ async def get_stats(request: Request):
 
 
 @router.get("/stats/history")
-async def get_stats_history(request: Request, days: int = 7):
+async def get_stats_history(
+    request: Request,
+    days: int = 7,
+    _: User = Depends(get_current_active_user),
+):
     """
     Estadísticas históricas agrupadas por día.
 

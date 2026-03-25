@@ -1,8 +1,11 @@
 """API routes for bot state management."""
 from utils.logging_utils import get_logger
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
 from datetime import datetime, timezone
+
+from auth.dependencies import get_current_active_user
+from models.user import User
 
 logger = get_logger(__name__)
 router = APIRouter(tags=["bot"])
@@ -29,7 +32,10 @@ class BotRuntimeResponse(BaseModel):
     effective_personality_len: int = 0
 
 @router.get("/state", response_model=BotStateResponse)
-async def get_bot_state(request: Request):
+async def get_bot_state(
+    request: Request,
+    _: User = Depends(get_current_active_user),
+):
     """Obtener el estado actual del bot."""
     try:
         is_active = request.app.state.bot_instance.is_active
@@ -68,7 +74,10 @@ async def get_bot_state(request: Request):
         )
 
 @router.post("/toggle", response_model=BotStateResponse)
-async def toggle_bot_state(request: Request):
+async def toggle_bot_state(
+    request: Request,
+    _: User = Depends(get_current_active_user),
+):
     """Activar o desactivar el bot."""
     try:
         bot = request.app.state.bot_instance
@@ -86,7 +95,10 @@ async def toggle_bot_state(request: Request):
 
 
 @router.get("/runtime", response_model=BotRuntimeResponse)
-async def get_bot_runtime(request: Request):
+async def get_bot_runtime(
+    request: Request,
+    _: User = Depends(get_current_active_user),
+):
     """Inspeccionar configuración runtime actual del bot (modelo, temperatura, prompt efectivo)."""
     try:
         bot = request.app.state.bot_instance
