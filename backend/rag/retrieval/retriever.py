@@ -715,12 +715,25 @@ class RAGRetriever:
     #   PREMIUM GATING: CENTROID RECALC (FIXED + LOCKED)
     # ============================================================
 
+    # Timeouts para el recálculo del centroide:
+    # - Por página: protege el thread pool ante una respuesta lenta de Qdrant.
+    # - Global deadline: protege ante loops infinitos si Qdrant devuelve
+    #   offsets corruptos indefinidamente.
+    _CENTROID_SCROLL_PAGE_TIMEOUT: float = 10.0   # segundos por página
+    _CENTROID_SCROLL_GLOBAL_TIMEOUT: float = 60.0  # segundos totales
+
     async def _recalculate_centroid_logic(self) -> bool:
         """
-        Calcula el centroide usando Streaming Mean.
-        FIXES:
-        - Protegido con Lock async (evita 2 recalcs simultáneos incluso si llaman trigger/warmup a la vez).
-        - Actualiza _last_total_points_count con COUNT real de Qdrant al final (alineado con gating_async).
+        Calcula el centroide usando Streaming Mean con doble protección de timeout.
+
+        Arquitectura de timeouts:
+        - `_CENTROID_SCROLL_PAGE_TIMEOUT` por cada scroll page → libera el thread pool
+          si Qdrant tarda en responder una página individual.
+        - `_CENTROID_SCROLL_GLOBAL_TIMEOUT` sobre el loop completo → evita que el
+          recálculo cuelgue indefinidamente ante offsets corruptos o corpus muy grande.
+
+        Protegido con Lock async: garantiza que warmup + trigger concurrentes no
+        lancen dos recálculos simultáneos.
         """
         lock = self._get_centroid_lock()
         async with lock:
@@ -733,16 +746,32 @@ class RAGRetriever:
                 next_offset = None
                 sum_vector: Optional[np.ndarray] = None
                 valid_vectors_count: int = 0
+                deadline = asyncio.get_event_loop().time() + self._CENTROID_SCROLL_GLOBAL_TIMEOUT
 
                 while True:
+                    # Defensa global: abortar si superamos el deadline acumulado.
+                    remaining = deadline - asyncio.get_event_loop().time()
+                    if remaining <= 0:
+                        logger.warning(
+                            "[RAG][CENTROID] Deadline global alcanzado "
+                            f"({self._CENTROID_SCROLL_GLOBAL_TIMEOUT}s). "
+                            f"Centroide parcial con {valid_vectors_count} vectores."
+                        )
+                        break
+
                     try:
-                        res = await asyncio.to_thread(
-                            client.scroll,
-                            collection_name=self.vector_store.collection_name,
-                            limit=limit,
-                            offset=next_offset,
-                            with_payload=True,
-                            with_vectors=True,
+                        # Timeout por página: min entre el restante global y el límite por página.
+                        page_timeout = min(self._CENTROID_SCROLL_PAGE_TIMEOUT, remaining)
+                        res = await asyncio.wait_for(
+                            asyncio.to_thread(
+                                client.scroll,
+                                collection_name=self.vector_store.collection_name,
+                                limit=limit,
+                                offset=next_offset,
+                                with_payload=True,
+                                with_vectors=True,
+                            ),
+                            timeout=page_timeout,
                         )
 
                         points = getattr(res, "points", None)
@@ -781,8 +810,15 @@ class RAGRetriever:
                         if not next_offset:
                             break
 
+                    except asyncio.TimeoutError:
+                        logger.warning(
+                            "[RAG][CENTROID] Timeout en scroll page "
+                            f"(page_timeout={self._CENTROID_SCROLL_PAGE_TIMEOUT}s, "
+                            f"offset={next_offset}). Qdrant no respondió a tiempo."
+                        )
+                        break
                     except Exception as e:
-                        logger.warning(f"Error scroll streaming centroide: {e}")
+                        logger.warning(f"[RAG][CENTROID] Error en scroll page: {e}")
                         break
 
                 if sum_vector is None or valid_vectors_count == 0:

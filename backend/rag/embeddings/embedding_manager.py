@@ -1,4 +1,5 @@
 from typing import List, Optional
+import asyncio
 import numpy as np
 import time
 from utils.logging_utils import get_logger
@@ -289,19 +290,25 @@ class EmbeddingManager:
         
         Útil para ingesta de PDFs donde el proceso puede tardar varios segundos.
         """
-        import asyncio
         return await asyncio.to_thread(self.embed_documents, texts)
 
     # ----------------------------------------------------------------------
     async def embed_text(self, text: str) -> List[float]:
-        """Genera embedding para un texto individual de forma asíncrona."""
-        vector_dim = getattr(settings, "default_embedding_dimension", 1536)
+        """Genera embedding para un texto individual de forma asíncrona.
 
-        if not text or len(text) < 3:
-            return [0.0] * vector_dim
+        Alias correcto de `embed_query` para contextos async.
+        Propaga `EmbeddingError` si el texto es inválido o el proveedor falla;
+        el caller es responsable de decidir qué hacer.
 
-        try:
-            return self.embed_query(text)
-        except Exception as e:
-            self.logger.warning(f"Error al generar embedding para texto: {e}")
-            return [0.0] * vector_dim
+        No retorna vectores de ceros: un zero vector silencioso corrompe
+        scores de similitud downstream sin ninguna señal de error.
+        """
+        cleaned = (text or "").strip()
+        if len(cleaned) < 3:
+            raise EmbeddingError(
+                f"Texto demasiado corto para generar embedding (len={len(cleaned)}, mínimo=3)."
+            )
+
+        # embed_query es síncrono (llama a OpenAI SDK); usar to_thread
+        # para no bloquear el event loop de FastAPI/Uvicorn.
+        return await asyncio.to_thread(self.embed_query, cleaned)
