@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import hashlib
 import aiofiles
@@ -96,10 +97,13 @@ class RAGIngestor:
             if not pdf_path.exists():
                 return {"filename": filename, "status": "error", "error": "Archivo no encontrado"}
 
-            # Cargar documentos para hash global de contenido (procesado mínimo)
+            # Cargar documentos en thread separado: PyMuPDFLoader.load() es I/O bloqueante.
+            # Ejecutarlo en asyncio.to_thread evita congelar el event loop de Uvicorn
+            # durante la lectura completa del PDF (puede tardar segundos en archivos grandes).
             try:
-                loader = PyMuPDFLoader(str(pdf_path))
-                documents = loader.load()
+                documents = await asyncio.to_thread(
+                    lambda: PyMuPDFLoader(str(pdf_path)).load()
+                )
             except Exception as e:
                 logger.error(f"Error leyendo PDF para content_hash_global {pdf_path.name}: {e}", exc_info=True)
                 documents = []

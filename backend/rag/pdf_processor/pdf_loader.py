@@ -1,5 +1,6 @@
 """Módulo para cargar y procesar contenido de PDFs (versión estable, segura y no destructiva)."""
 
+import asyncio
 import re
 
 from utils.hashing import hash_content_for_dedup
@@ -72,13 +73,24 @@ class PDFContentLoader:
     # 1) CARGA Y SPLIT PRINCIPAL
     # ============================================================
 
-    def load_and_split_pdf(self, pdf_path: Path) -> List[Document]:
-        """Carga y divide el PDF sin modificar su estructura."""
+    async def load_and_split_pdf(self, pdf_path: Path) -> List[Document]:
+        """Carga y divide el PDF de forma asíncrona.
+
+        El I/O de PyMuPDF es bloqueante; se ejecuta en `asyncio.to_thread`
+        para no congelar el event loop de FastAPI/Uvicorn durante la ingesta.
+
+        Usa este método únicamente cuando NO tengas los documentos ya en memoria.
+        Si el ingestor ya los cargó (para calcular hashes), llama directamente
+        a `split_documents_direct(documents, pdf_path)` para evitar una segunda
+        lectura de disco.
+        """
         logger.info(f"Procesando PDF: {pdf_path.name}")
 
         try:
-            pdf_loader = PyMuPDFLoader(str(pdf_path))
-            documents = pdf_loader.load()
+            def _load() -> List[Document]:
+                return PyMuPDFLoader(str(pdf_path)).load()
+
+            documents = await asyncio.to_thread(_load)
             logger.info(f"PDF cargado: {len(documents)} páginas")
         except Exception as e:
             logger.error(f"Error leyendo PDF {pdf_path.name}: {e}", exc_info=True)
