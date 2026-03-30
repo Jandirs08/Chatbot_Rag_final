@@ -18,6 +18,7 @@ from api.schemas import (
     ReindexPDFRequest,
     ReindexPDFResponse,
 )
+from api.routes.rag.corpus_state import refresh_rag_corpus_state
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -79,22 +80,8 @@ async def clear_rag(
         # 2) Limpiar vector store completamente (sin residuos)
         await rag_retriever.vector_store.delete_collection()
         logger.info("Vector store limpiado y reinicializado")
-        # Invalidar caché RAG por prefijo para evitar resultados obsoletos
-        try:
-            if hasattr(rag_retriever, "invalidate_rag_cache"):
-                rag_retriever.invalidate_rag_cache()
-                logger.info("Caché RAG invalidado por prefijo")
-            if hasattr(rag_retriever, "reset_centroid"):
-                rag_retriever.reset_centroid()
-                logger.info("Centroide del retriever reiniciado tras limpieza")
-        except Exception as e:
-            logger.warning(f"No se pudo invalidar caché RAG: {e}")
-        try:
-            from cache.manager import cache
-            cache.invalidate_prefix("resp:")
-            cache.invalidate_prefix("vs:")
-        except Exception:
-            pass
+        refresh_rag_corpus_state(request.app.state)
+        logger.info("Estado derivado del corpus invalidado tras limpieza")
         # Consultar estado después de limpiar
         pdfs_after_clear = await pdf_processor.list_pdfs()
         vector_store_info_after_clear = pdf_processor.get_vector_store_info()
@@ -198,15 +185,7 @@ async def reindex_pdf(
             detail = result.get("error", result)
             raise HTTPException(status_code=500, detail=f"Fallo en reindexación: {detail}")
 
-        try:
-            if payload.force_update:
-                retriever = request.app.state.rag_retriever
-                if hasattr(retriever, "reset_centroid"):
-                    retriever.reset_centroid()
-                if hasattr(retriever, "invalidate_rag_cache"):
-                    retriever.invalidate_rag_cache()
-        except Exception:
-            pass
+        refresh_rag_corpus_state(request.app.state)
 
         return ReindexPDFResponse(
             status="success",

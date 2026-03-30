@@ -143,7 +143,6 @@ class ChatManager:
             if not debug_mode:
                 await self.db.add_message(conversation_id, USER_ROLE, input_text, source)
                 await self.db.add_message(conversation_id, ASSISTANT_ROLE, response_content, source)
-                self._last_debug_info = None
                 req_ctx.debug_info = None
             else:
                 req_ctx.debug_info = await self._build_debug_info(
@@ -155,7 +154,6 @@ class ChatManager:
                     verification=None,
                     is_cached=False,
                 )
-                self._last_debug_info = req_ctx.debug_info
             logger.info(f"Respuesta generada{' y guardada' if not debug_mode else ''} para conversación {conversation_id}")
             return response_content
 
@@ -340,7 +338,6 @@ class ChatManager:
                 if not debug_mode:
                     await self.db.add_message(conversation_id, ASSISTANT_ROLE, final_text, source)
                     await self.bot.add_to_memory(human=input_text, ai=final_text, conversation_id=conversation_id)
-                    self._last_debug_info = None
                     req_ctx.debug_info = None
                 else:
                     # Construye debug info incluso en cache hit para mantener métricas en UI
@@ -353,7 +350,6 @@ class ChatManager:
                         verification=None,
                         is_cached=True,
                     )
-                    self._last_debug_info = req_ctx.debug_info
                 return
 
             bot_input = {"input": input_text, "conversation_id": conversation_id}
@@ -409,9 +405,7 @@ class ChatManager:
                     verification=verification,
                     is_cached=False,
                 )
-                self._last_debug_info = req_ctx.debug_info
             else:
-                self._last_debug_info = None
                 req_ctx.debug_info = None
             logger.debug(f"[CHAT] Streaming end | conv={conversation_id} len={len(final_text)}")
         except Exception as e:

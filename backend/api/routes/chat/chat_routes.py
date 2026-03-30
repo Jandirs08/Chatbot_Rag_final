@@ -18,6 +18,7 @@ from utils.rate_limiter import conditional_limit
 from config import settings
 from auth.dependencies import require_admin, get_current_active_user
 from models.user import User
+from core.request_context import get_request_context
 
 
 logger = get_logger(__name__)
@@ -83,7 +84,7 @@ async def chat_stream_log(request: Request):
                 logger.debug(f"[CHAT] Streaming finalizado | conv={conversation_id}")
                 if debug_mode:
                     try:
-                        dbg = getattr(chat_manager, "_last_debug_info", None)
+                        dbg = get_request_context().debug_info
                         if dbg is not None:
                             dct = dbg.model_dump() if hasattr(dbg, "model_dump") else dbg.dict() if hasattr(dbg, "dict") else None
                             if dct is not None:
