@@ -7,10 +7,9 @@ Cubre:
 """
 import pytest
 import numpy as np
-from unittest.mock import patch
 from langchain_core.documents import Document
 
-from tests.conftest import make_doc
+pytestmark = pytest.mark.anyio
 
 
 def _make_unit_vector(seed: int, dim: int = 1536) -> np.ndarray:
@@ -42,7 +41,6 @@ def _make_doc_with_vector(content, seed, chunk_type="text", source="test.pdf", q
 class TestSemanticReranking:
     """Tests para _semantic_reranking."""
 
-    @pytest.mark.asyncio
     async def test_sin_query_embedding_retorna_sin_cambios(self, retriever):
         """Sin query_embedding → retorna docs sin reranking."""
         docs = [
@@ -55,7 +53,6 @@ class TestSemanticReranking:
         assert result[0].page_content == "Doc A"
         assert result[1].page_content == "Doc B"
 
-    @pytest.mark.asyncio
     async def test_sin_embedding_manager_retorna_sin_cambios(self, retriever):
         """Sin embedding_manager → retorna docs sin procesamiento."""
         retriever.embedding_manager = None
@@ -63,7 +60,6 @@ class TestSemanticReranking:
         result = await retriever._semantic_reranking(docs, query_embedding=_make_unit_vector(10))
         assert len(result) == 1
 
-    @pytest.mark.asyncio
     async def test_reranking_ordena_por_score_compuesto(self, retriever):
         """El reranking ordena docs por score compuesto (semántico + quality + length + type)."""
         query_vec = _make_unit_vector(42)
@@ -79,7 +75,6 @@ class TestSemanticReranking:
         assert result[0].page_content.startswith("Doc bueno")
         assert result[1].page_content == "Doc malo"
 
-    @pytest.mark.asyncio
     async def test_pdf_priority_boost(self, retriever):
         """Documentos de PDF reciben un boost de 1.5x en el score."""
         query_vec = _make_unit_vector(42)
@@ -92,7 +87,6 @@ class TestSemanticReranking:
         # PDF debería tener score mayor por el multiplicador 1.5x
         assert result[0].metadata["source"] == "manual.pdf"
 
-    @pytest.mark.asyncio
     async def test_docs_sin_vector_obtienen_score_cero_semantico(self, retriever):
         """Docs sin vector en metadata solo puntúan por quality/length/type."""
         query_vec = _make_unit_vector(42)
@@ -116,7 +110,6 @@ class TestSemanticReranking:
 class TestApplyMMR:
     """Tests para _apply_mmr."""
 
-    @pytest.mark.asyncio
     async def test_selecciona_k_documentos(self, retriever):
         """MMR selecciona exactamente k documentos."""
         docs = [_make_doc_with_vector(f"Doc {i}", seed=i) for i in range(6)]
@@ -125,7 +118,6 @@ class TestApplyMMR:
         result = await retriever._apply_mmr(docs, k=3, query_embedding=query_vec)
         assert len(result) == 3
 
-    @pytest.mark.asyncio
     async def test_sin_query_embedding_retorna_top_k(self, retriever):
         """Sin query_embedding → retorna los primeros k docs (fallback)."""
         docs = [_make_doc_with_vector(f"Doc {i}", seed=i) for i in range(5)]
@@ -135,7 +127,6 @@ class TestApplyMMR:
         assert result[0].page_content == "Doc 0"
         assert result[1].page_content == "Doc 1"
 
-    @pytest.mark.asyncio
     async def test_diversidad_penaliza_duplicados(self, retriever):
         """Docs con vectores idénticos → MMR prefiere diversidad."""
         # 3 docs con el mismo vector (seed=1)
@@ -152,7 +143,6 @@ class TestApplyMMR:
         contents = [d.page_content for d in result]
         assert "Diferente" in contents, "MMR debería seleccionar el documento diverso"
 
-    @pytest.mark.asyncio
     async def test_k_mayor_que_docs(self, retriever):
         """Si k > len(docs), retorna todos los docs disponibles."""
         docs = [_make_doc_with_vector(f"Doc {i}", seed=i) for i in range(3)]
@@ -161,7 +151,6 @@ class TestApplyMMR:
         result = await retriever._apply_mmr(docs, k=10, query_embedding=query_vec)
         assert len(result) == 3
 
-    @pytest.mark.asyncio
     async def test_docs_sin_vector_excluidos(self, retriever):
         """Docs sin vector en metadata son excluidos de MMR."""
         doc_with_vec = _make_doc_with_vector("Con vector", seed=1)
@@ -175,7 +164,6 @@ class TestApplyMMR:
         assert len(result) >= 1
         assert any(d.page_content == "Con vector" for d in result)
 
-    @pytest.mark.asyncio
     async def test_sin_embedding_manager_retorna_top_k(self, retriever):
         """Sin embedding_manager → fallback a top-k simple."""
         retriever.embedding_manager = None

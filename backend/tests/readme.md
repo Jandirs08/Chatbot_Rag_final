@@ -1,42 +1,32 @@
-Walkthrough: Unit Tests del Backend
-Resultado Final
-======================== 91 passed in 3.55s ========================
-91/91 tests pasaron dentro de Docker. Exit code 0. ✅
+Backend tests
+=============
 
-Archivos Creados / Modificados
-Archivo	Descripción
-pyproject.toml
-Config pytest + asyncio auto mode
-conftest.py
-Fixtures + fix de import circular
-test_gating.py
-27 tests — trivial query + gating logic
-test_retriever_utils.py
-19 tests — vectors, content type, formatting
-test_reranking.py
-11 tests — semantic reranking + MMR
-test_hashing.py
-15 tests — dedup hash + cache key hash
-test_memory_profile.py
-14 tests — regex profile extraction
-Cómo Ejecutar
-bash
-docker exec chatbot-backend python -m pytest tests/ -v --tb=short
-Hallazgos Durante la Implementación
-WARNING
+Objetivo
+--------
+- Mantener una suite unitaria rápida y estable.
+- Probar lógica pura y orquestación local sin depender de Qdrant, Redis, MongoDB u OpenAI.
+- Dejar la integración real para otro nivel de pruebas.
 
-Import circular descubierto: cache.manager → utils.logging_utils → utils/__init__ → chain_cache → cache.manager. Se resolvió en 
-conftest.py
- con pre-import via importlib, pero es un bug latente del codebase a corregir en una futura refactorización.
+Estructura
+----------
+- `conftest.py`: stubs de entorno e infraestructura, fixtures compartidas.
+- `test_hashing.py`: hashing y utilidades puras.
+- `test_memory_profile.py`: extracción de perfil por regex.
+- `test_gating.py`: lógica de gating.
+- `test_retriever_utils.py`: helpers puros del retriever.
+- `test_reranking.py`: reranking y MMR.
+- `test_corpus_state.py`: invalidación de estado derivado del corpus.
 
-NOTE
+Cómo ejecutar
+-------------
+Desde `backend/`:
 
-Gating pipeline order: El test 
-test_small_corpus_sin_pregunta_pocos_tokens
- reveló que el filtro 
-low_intent
- se evalúa antes que 
-small_corpus
-. Queries con ≤3 tokens sin interrogativo siempre resultan en 
-low_intent
-, independientemente del tamaño del corpus.
+```bash
+python -m pytest
+```
+
+Principios
+----------
+- Un test unitario no debe requerir servicios externos.
+- Si una dependencia de infraestructura rompe imports en unit tests, se stubbea en `conftest.py`.
+- Los tests async usan `pytest-anyio`, no configuración específica de `pytest-asyncio`.

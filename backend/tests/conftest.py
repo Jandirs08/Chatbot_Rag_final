@@ -1,59 +1,95 @@
-"""
-Fixtures compartidas para tests unitarios del backend.
+"""Shared test fixtures for backend unit tests."""
 
-Ejecutar dentro del contenedor Docker:
-  docker exec chatbot-backend python -m pytest tests/ -v
-
-Ningún fixture conecta a servicios reales (Redis, MongoDB, Qdrant, OpenAI).
-Todos los componentes que hacen I/O se mockean.
-"""
-import pytest
-import numpy as np
-from unittest.mock import MagicMock
-from types import SimpleNamespace
-
-
-# ============================================================
-#   PRE-IMPORT: Romper dependencia circular del codebase.
-#   Cadena: cache.manager → utils.logging_utils → utils/__init__
-#           → chain_cache → cache.manager (circular!)
-#
-#   Solución: Registrar 'utils' como paquete con el path correcto
-#   pero SIN ejecutar __init__.py. Luego cargar cache.manager
-#   completo. Finalmente recargar utils para que __init__ pueda
-#   importar chain_cache sin ciclo.
-# ============================================================
+from __future__ import annotations
 
 import importlib
-import sys
 import os
+import sys
+import types
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
-# 1. Registrar 'utils' como paquete stub (sin ejecutar __init__)
-if "utils" not in sys.modules:
-    import types as _types
-    _utils_pkg = _types.ModuleType("utils")
-    # __path__ debe apuntar al directorio real de utils
-    _backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    _utils_pkg.__path__ = [os.path.join(_backend_dir, "utils")]
-    _utils_pkg.__package__ = "utils"
-    sys.modules["utils"] = _utils_pkg
-
-# 2. Cargar logging_utils directamente (sin pasar por __init__)
-importlib.import_module("utils.logging_utils")
-
-# 3. Ahora cache.manager carga completo (ya no hay ciclo)
-importlib.import_module("cache.manager")
-
-# 4. Recargar utils/__init__ real para que chain_cache funcione
-importlib.reload(sys.modules["utils"])
+import numpy as np
+import pytest
 
 
-# ============================================================
-#   MOCK SETTINGS (evitar dependencia de .env real)
-# ============================================================
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+
+
+def _seed_required_env() -> None:
+    os.environ.setdefault("ENVIRONMENT", "testing")
+    os.environ.setdefault("OPENAI_API_KEY", "test-openai-key")
+    os.environ.setdefault("JWT_SECRET", "test-jwt-secret")
+
+
+def _install_qdrant_stubs() -> None:
+    if "qdrant_client" in sys.modules:
+        return
+
+    class _ModelBase:
+        def __init__(self, *args, **kwargs):
+            self.args = args
+            for key, value in kwargs.items():
+                setattr(self, key, value)
+
+    class QdrantClient:
+        def __init__(self, *args, **kwargs):
+            self.args = args
+            self.kwargs = kwargs
+
+        def get_collections(self):
+            return SimpleNamespace(collections=[])
+
+        def create_collection(self, *args, **kwargs):
+            return None
+
+        def create_payload_index(self, *args, **kwargs):
+            return None
+
+    class Distance:
+        COSINE = "cosine"
+
+    qdrant_module = types.ModuleType("qdrant_client")
+    qdrant_http_module = types.ModuleType("qdrant_client.http")
+    qdrant_models_module = types.ModuleType("qdrant_client.http.models")
+
+    qdrant_module.QdrantClient = QdrantClient
+
+    qdrant_models_module.Distance = Distance
+    qdrant_models_module.VectorParams = type("VectorParams", (_ModelBase,), {})
+    qdrant_models_module.PointStruct = type("PointStruct", (_ModelBase,), {})
+    qdrant_models_module.Filter = type("Filter", (_ModelBase,), {})
+    qdrant_models_module.FieldCondition = type("FieldCondition", (_ModelBase,), {})
+    qdrant_models_module.MatchValue = type("MatchValue", (_ModelBase,), {})
+    qdrant_models_module.FilterSelector = type("FilterSelector", (_ModelBase,), {})
+    qdrant_models_module.HnswConfigDiff = type("HnswConfigDiff", (_ModelBase,), {})
+    qdrant_models_module.OptimizersConfigDiff = type("OptimizersConfigDiff", (_ModelBase,), {})
+    qdrant_models_module.NearestQuery = type("NearestQuery", (_ModelBase,), {})
+
+    sys.modules["qdrant_client"] = qdrant_module
+    sys.modules["qdrant_client.http"] = qdrant_http_module
+    sys.modules["qdrant_client.http.models"] = qdrant_models_module
+
+
+def _bootstrap_imports() -> None:
+    if "utils" not in sys.modules:
+        utils_pkg = types.ModuleType("utils")
+        utils_pkg.__path__ = [str(BACKEND_DIR / "utils")]
+        utils_pkg.__package__ = "utils"
+        sys.modules["utils"] = utils_pkg
+
+    importlib.import_module("utils.logging_utils")
+    importlib.import_module("cache.manager")
+    importlib.reload(sys.modules["utils"])
+
+
+_seed_required_env()
+_install_qdrant_stubs()
+_bootstrap_imports()
+
 
 def _make_mock_settings(**overrides):
-    """Crea un objeto settings mockeado con defaults razonables."""
     defaults = {
         "default_embedding_dimension": 1536,
         "enable_cache": False,
@@ -61,6 +97,8 @@ def _make_mock_settings(**overrides):
         "rag_gating_similarity_threshold": 0.20,
         "retrieval_k": 4,
         "retrieval_k_multiplier": 3,
+        "embedding_batch_size": 32,
+        "mock_mode": False,
         "log_level": "WARNING",
         "environment": "testing",
         "qdrant_collection_name": "test_collection",
@@ -78,17 +116,11 @@ def _make_mock_settings(**overrides):
 
 @pytest.fixture
 def mock_settings():
-    """Settings mockeadas sin dependencia de .env."""
     return _make_mock_settings()
 
 
-# ============================================================
-#   MOCK VECTOR STORE
-# ============================================================
-
 @pytest.fixture
 def mock_vector_store():
-    """VectorStore stub — no conecta a Qdrant."""
     vs = MagicMock()
     vs.collection_name = "test_collection"
     vs.client = MagicMock()
@@ -96,63 +128,54 @@ def mock_vector_store():
     return vs
 
 
-# ============================================================
-#   MOCK EMBEDDING MANAGER
-# ============================================================
-
 @pytest.fixture
 def mock_embedding_manager():
-    """EmbeddingManager stub — no conecta a OpenAI."""
     em = MagicMock()
+
     def fake_embed(text):
         vec = np.random.randn(1536).astype(np.float32)
         return (vec / np.linalg.norm(vec)).tolist()
+
     em.embed_query = fake_embed
     return em
 
 
-# ============================================================
-#   RAG RETRIEVER (con mocks inyectados)
-# ============================================================
-
 @pytest.fixture
-def retriever(mock_vector_store, mock_embedding_manager, mock_settings):
-    """
-    RAGRetriever construido con mocks.
-    Parchea settings y cache para evitar I/O real.
-    """
+def retriever(mock_vector_store, mock_embedding_manager, mock_settings, monkeypatch):
     import rag.retrieval.retriever as retriever_mod
 
     mock_cache = MagicMock()
     mock_cache.get.return_value = None
     mock_cache.set = MagicMock()
+    mock_cache.invalidate_prefix = MagicMock()
 
-    original_settings = retriever_mod.settings
-    original_cache = retriever_mod.cache
-    retriever_mod.settings = mock_settings
-    retriever_mod.cache = mock_cache
+    monkeypatch.setattr(retriever_mod, "settings", mock_settings)
+    monkeypatch.setattr(retriever_mod, "cache", mock_cache)
 
-    try:
-        r = retriever_mod.RAGRetriever(
-            vector_store=mock_vector_store,
-            embedding_manager=mock_embedding_manager,
-            cache_enabled=False,
-        )
-        centroid = np.random.randn(1536).astype(np.float32)
-        r._centroid_embedding = centroid / np.linalg.norm(centroid)
-        yield r
-    finally:
-        retriever_mod.settings = original_settings
-        retriever_mod.cache = original_cache
+    instance = retriever_mod.RAGRetriever(
+        vector_store=mock_vector_store,
+        embedding_manager=mock_embedding_manager,
+        cache_enabled=False,
+    )
+    centroid = np.random.randn(1536).astype(np.float32)
+    instance._centroid_embedding = centroid / np.linalg.norm(centroid)
+    return instance
 
 
-# ============================================================
-#   HELPER: GENERAR DOCUMENTS MOCK
-# ============================================================
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"
 
-def make_doc(content="Texto de ejemplo", chunk_type="text", source="test.pdf",
-             score=0.5, quality_score=0.5, vector=None, page_number=1):
-    """Crea un langchain Document con metadata configurable."""
+
+def make_doc(
+    content="Texto de ejemplo",
+    chunk_type="text",
+    source="test.pdf",
+    score=0.5,
+    quality_score=0.5,
+    vector=None,
+    page_number=1,
+):
     from langchain_core.documents import Document
 
     metadata = {

@@ -7,7 +7,11 @@ Cubre:
 """
 import pytest
 import numpy as np
-from unittest.mock import patch
+
+
+def _evaluate(retriever, query, query_vec, corpus_size):
+    decision = retriever._evaluate_gating_logic(query, query_vec, corpus_size)
+    return decision.reason, decision.use_rag
 
 
 # ============================================================
@@ -86,48 +90,48 @@ class TestEvaluateGatingLogic:
     """Tests para la lógica pura de decisión de gating (sin I/O)."""
 
     def test_trivial_query_no_usa_rag(self, retriever):
-        reason, use_rag = retriever._evaluate_gating_logic("hola", None, 100)
+        reason, use_rag = _evaluate(retriever, "hola", None, 100)
         assert use_rag is False
         assert reason == "small_talk"
 
     def test_low_intent_pocos_tokens_sin_interrogativo(self, retriever):
         """Query con <= 3 tokens y sin palabras interrogativas → low_intent."""
-        reason, use_rag = retriever._evaluate_gating_logic("ver lista", None, 100)
+        reason, use_rag = _evaluate(retriever, "ver lista", None, 100)
         assert use_rag is False
         assert reason == "low_intent"
 
     def test_low_intent_tres_tokens_sin_interrogativo(self, retriever):
-        reason, use_rag = retriever._evaluate_gating_logic("ver mi nota", None, 100)
+        reason, use_rag = _evaluate(retriever, "ver mi nota", None, 100)
         assert use_rag is False
         assert reason == "low_intent"
 
     def test_con_interrogativo_pasa_intent(self, retriever):
         """Con palabra interrogativa, pasa el filtro de intent."""
-        reason, use_rag = retriever._evaluate_gating_logic(
-            "¿cómo funciona?", None, 100
+        reason, use_rag = _evaluate(
+            retriever, "¿cómo funciona?", None, 100
         )
         # Debería llegar al gating semántico (no rechazado por intent)
         assert reason != "low_intent"
 
     def test_con_signo_pregunta_pasa_intent(self, retriever):
         """El signo ? también cuenta como interrogativo."""
-        reason, use_rag = retriever._evaluate_gating_logic(
-            "proceso de matrícula?", None, 100
+        reason, use_rag = _evaluate(
+            retriever, "proceso de matrícula?", None, 100
         )
         assert reason != "low_intent"
 
     def test_small_corpus_con_pregunta(self, retriever):
         """Corpus pequeño (<20) + pregunta → usa RAG."""
-        reason, use_rag = retriever._evaluate_gating_logic(
-            "¿cómo me inscribo?", None, 10
+        reason, use_rag = _evaluate(
+            retriever, "¿cómo me inscribo?", None, 10
         )
         assert reason == "small_corpus"
         assert use_rag is True
 
     def test_small_corpus_sin_pregunta_tokens_suficientes(self, retriever):
         """Corpus pequeño + sin interrogativo pero 4+ tokens → usa RAG."""
-        reason, use_rag = retriever._evaluate_gating_logic(
-            "necesito los documentos del semestre pasado", None, 10
+        reason, use_rag = _evaluate(
+            retriever, "necesito los documentos del semestre pasado", None, 10
         )
         assert reason == "small_corpus"
         assert use_rag is True
@@ -135,8 +139,8 @@ class TestEvaluateGatingLogic:
     def test_small_corpus_sin_pregunta_pocos_tokens(self, retriever):
         """Corpus pequeño + sin interrogativo + <4 tokens → low_intent
         (el filtro de intent se evalúa ANTES que el de corpus)."""
-        reason, use_rag = retriever._evaluate_gating_logic(
-            "los documentos", None, 10
+        reason, use_rag = _evaluate(
+            retriever, "los documentos", None, 10
         )
         assert reason == "low_intent"
         assert use_rag is False
@@ -144,8 +148,8 @@ class TestEvaluateGatingLogic:
     def test_no_embedder_fail_open(self, retriever):
         """Sin embedding manager → fail open (usar RAG por seguridad)."""
         retriever.embedding_manager = None
-        reason, use_rag = retriever._evaluate_gating_logic(
-            "¿Qué es machine learning?", None, 100
+        reason, use_rag = _evaluate(
+            retriever, "¿Qué es machine learning?", None, 100
         )
         assert reason == "no_embedder_fail_open"
         assert use_rag is True
@@ -153,7 +157,8 @@ class TestEvaluateGatingLogic:
     def test_no_centroid_fail_open(self, retriever):
         """Sin centroide calculado → fail open."""
         retriever._centroid_embedding = None
-        reason, use_rag = retriever._evaluate_gating_logic(
+        reason, use_rag = _evaluate(
+            retriever,
             "¿Qué es machine learning?",
             np.random.randn(1536).astype(np.float32),
             100
@@ -165,8 +170,8 @@ class TestEvaluateGatingLogic:
         """Vector de query muy similar al centroide → semantic_match."""
         # Usar el mismo centroide como query vector (similitud ~1.0)
         query_vec = retriever._centroid_embedding.copy()
-        reason, use_rag = retriever._evaluate_gating_logic(
-            "¿Qué es machine learning?", query_vec, 100
+        reason, use_rag = _evaluate(
+            retriever, "¿Qué es machine learning?", query_vec, 100
         )
         assert reason == "semantic_match"
         assert use_rag is True
@@ -185,32 +190,32 @@ class TestEvaluateGatingLogic:
         if norm > 0:
             query_vec = query_vec / norm
 
-        reason, use_rag = retriever._evaluate_gating_logic(
-            "¿Qué es machine learning?", query_vec, 100
+        reason, use_rag = _evaluate(
+            retriever, "¿Qué es machine learning?", query_vec, 100
         )
         assert reason == "low_similarity"
         assert use_rag is False
 
     def test_no_vector_unknown_corpus_con_interrogativo(self, retriever):
         """Sin query vector + corpus desconocido + interrogativo → usa RAG."""
-        reason, use_rag = retriever._evaluate_gating_logic(
-            "¿cómo funciona?", None, None
+        reason, use_rag = _evaluate(
+            retriever, "¿cómo funciona?", None, None
         )
         assert reason == "no_vector_unknown_corpus"
         assert use_rag is True
 
     def test_no_vector_small_corpus(self, retriever):
         """Sin query vector + corpus < 50 → fail open."""
-        reason, use_rag = retriever._evaluate_gating_logic(
-            "¿qué es la inteligencia artificial?", None, 30
+        reason, use_rag = _evaluate(
+            retriever, "¿qué es la inteligencia artificial?", None, 30
         )
         assert reason == "no_vector_small_corpus"
         assert use_rag is True
 
     def test_no_vector_large_corpus_fail_closed(self, retriever):
         """Sin query vector + corpus >= 50 → fail closed."""
-        reason, use_rag = retriever._evaluate_gating_logic(
-            "¿qué es la inteligencia artificial?", None, 200
+        reason, use_rag = _evaluate(
+            retriever, "¿qué es la inteligencia artificial?", None, 200
         )
         assert reason == "no_vector_fail_closed"
         assert use_rag is False
