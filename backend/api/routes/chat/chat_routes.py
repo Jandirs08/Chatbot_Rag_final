@@ -479,6 +479,9 @@ async def clear_history(request: Request, current_user=Depends(require_admin)):
         chat_manager = request.app.state.chat_manager
         db = chat_manager.db
         deleted_count = await db.clear_all_messages()
+        memory = chat_manager.bot.memory
+        if hasattr(memory, "profiles_col"):
+            await memory.profiles_col.delete_many({})
         return JSONResponse(content={
             "status": "success",
             "deleted_count": int(deleted_count),

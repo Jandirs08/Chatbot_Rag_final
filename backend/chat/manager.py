@@ -321,10 +321,8 @@ class ChatManager:
         try:
             logger.debug(f"[CHAT] Streaming start | conv={conversation_id}")
             req_ctx = new_request_context()
-            if not debug_mode:
-                await self.db.add_message(conversation_id, USER_ROLE, input_text, source)
-
             cache_key = f"resp:{conversation_id}:{hash_for_cache_key(input_text)}"
+            chunk_timeout = getattr(settings, "llm_timeout", 25)
             cached_response = None
             try:
                 if bool(getattr(settings, "enable_cache", True)):
@@ -336,6 +334,7 @@ class ChatManager:
                 final_text = cached_response
                 yield final_text
                 if not debug_mode:
+                    await self.db.add_message(conversation_id, USER_ROLE, input_text, source)
                     await self.db.add_message(conversation_id, ASSISTANT_ROLE, final_text, source)
                     await self.bot.add_to_memory(human=input_text, ai=final_text, conversation_id=conversation_id)
                     req_ctx.debug_info = None
@@ -356,29 +355,19 @@ class ChatManager:
             stream = self.bot.astream_chunked(bot_input)
 
             final_text = ""
+            t_llm_start = time.perf_counter()
             try:
-                t_llm_start = time.perf_counter()
-                first = await asyncio.wait_for(stream.__anext__(), timeout=getattr(settings, "llm_timeout", 25))
-                final_text += first
-                yield first
+                while True:
+                    chunk = await asyncio.wait_for(stream.__anext__(), timeout=chunk_timeout)
+                    final_text += chunk
+                    yield chunk
             except asyncio.TimeoutError:
                 raise
             except StopAsyncIteration:
-                if not debug_mode:
-                    await self.db.add_message(conversation_id, ASSISTANT_ROLE, final_text, source)
-                    await self.bot.add_to_memory(human=input_text, ai=final_text, conversation_id=conversation_id)
-                try:
-                    if bool(getattr(settings, "enable_cache", True)):
-                        cache.set(cache_key, final_text, cache.ttl)
-                except Exception:
-                    pass
-                return
-
-            async for chunk in stream:
-                final_text += chunk
-                yield chunk
+                pass
 
             if not debug_mode:
+                await self.db.add_message(conversation_id, USER_ROLE, input_text, source)
                 await self.db.add_message(conversation_id, ASSISTANT_ROLE, final_text, source)
                 await self.bot.add_to_memory(human=input_text, ai=final_text, conversation_id=conversation_id)
 

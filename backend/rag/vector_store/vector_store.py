@@ -321,9 +321,8 @@ class VectorStore:
             return np.array(emb)
 
         except Exception as e:
-            dim = int(getattr(settings, "default_embedding_dimension", 1536))
-            logger.error("Fallo obteniendo embedding single; devolviendo vector cero | err=%s", e, exc_info=True)
-            return np.zeros(dim, dtype=np.float32)
+            logger.error("Fallo obteniendo embedding single | err=%s", e, exc_info=True)
+            raise
 
     # =====================================================================
     #   RETRIEVE
@@ -345,6 +344,7 @@ class VectorStore:
                              evita una llamada extra a la API de OpenAI.
                              Si es None, se computa internamente (legacy).
         """
+        logger.info("retrieve() called")
         try:
             # Usar el embedding pre-computado si viene del RAGRetriever;
             # solo re-embeder si no se proveyó (llamada directa legacy).
@@ -358,6 +358,11 @@ class VectorStore:
 
             final_docs = []
             kept = 0
+            logger.info(
+                "retrieve() | raw_qdrant_scores=%s | threshold=%s",
+                [float(score) for _, score in docs],
+                score_threshold,
+            )
             for d, score in docs:
                 if score >= score_threshold:
                     kept += 1
@@ -429,6 +434,12 @@ class VectorStore:
                 with_payload=True,
                 with_vectors=with_vectors,
             )
+            raw_points = results.points if hasattr(results, "points") else results if isinstance(results, (list, tuple)) else []
+            logger.info(
+                "_similarity_search() | raw_qdrant_result_count=%s | raw_qdrant_scores=%s",
+                len(raw_points),
+                [float(getattr(point, "score", 0.0) or 0.0) for point in raw_points],
+            )
 
             if hasattr(results, "points"):
                 points = results.points
@@ -457,6 +468,7 @@ class VectorStore:
             return output
 
         except Exception as e:
+            logger.info("_similarity_search() exception: %s", e)
             logger.error("Error en _similarity_search: %s", e, exc_info=True)
             return []
 

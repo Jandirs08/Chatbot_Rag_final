@@ -13,6 +13,7 @@ import {
   LogOut,
   Sun,
   Moon,
+  FlaskConical,
   type LucideIcon,
 } from "lucide-react";
 import React from "react";
@@ -237,6 +238,7 @@ export function AppSidebar() {
                 [
                   ...(isAdmin ? [{ title: "Usuarios", url: "/users", icon: Users }] : []),
                   ...(isAdmin ? [{ title: "Configuración", url: "/admin/settings", icon: Settings }] : []),
+                  ...(isAdmin ? [{ title: "Debug Chat", url: "/dashboard/playground", icon: FlaskConical }] : []),
                 ] as MenuItem[]
               ).map((item) => (
                 <SidebarMenuItem key={item.title}>

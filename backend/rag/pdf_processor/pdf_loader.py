@@ -58,11 +58,13 @@ class PDFContentLoader:
             ""             # Character boundary (last resort)
         ]
         
+        self.encoding_name = "cl100k_base"
+        self.separators = improved_separators
         self.text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
-            encoding_name="cl100k_base",
+            encoding_name=self.encoding_name,
             chunk_size=self.chunk_size,
             chunk_overlap=self.chunk_overlap,
-            separators=improved_separators
+            separators=self.separators
         )
 
         logger.debug(
@@ -111,7 +113,21 @@ class PDFContentLoader:
         processed_docs = self._preprocess_documents(documents)
 
         # Dividir en chunks
-        chunks = self.text_splitter.split_documents(processed_docs)
+        total_tokens = sum(self.text_splitter._length_function(doc.page_content or "") for doc in processed_docs)
+        logger.debug(f"[PDF-TOKENS] {source_path.name}: total_tokens={total_tokens}")
+        if total_tokens < 2000:
+            chunk_size, chunk_overlap = 300, 50
+        elif total_tokens <= 10000:
+            chunk_size, chunk_overlap = 600, 100
+        else:
+            chunk_size, chunk_overlap = 1200, 200
+        text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+            encoding_name=self.encoding_name,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            separators=self.separators
+        )
+        chunks = text_splitter.split_documents(processed_docs)
         logger.info(f"{len(chunks)} chunks generados")
 
         # Post-procesado seguro (sin filtrado destructivo)
@@ -213,10 +229,6 @@ class PDFContentLoader:
             content = chunk.page_content.strip()
             if not content:
                 continue  # solo descarta si realmente está vacío
-            # Filtro mínimo para evitar basura: respeta configuración existente
-            if len(content) < self.min_chunk_length:
-                continue
-
             # Validate and potentially adjust for sentence boundaries
             adjusted_content, has_complete_sentences, boundary_score = self._validate_sentence_boundaries(content)
             

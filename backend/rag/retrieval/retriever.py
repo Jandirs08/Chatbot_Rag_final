@@ -16,6 +16,12 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
+SMALL_CORPUS_THRESHOLD = 20
+MEDIUM_CORPUS_THRESHOLD = 200
+SMALL_CORPUS_SIMILARITY_THRESHOLD = 0.15
+MEDIUM_CORPUS_SIMILARITY_THRESHOLD = 0.25
+LARGE_CORPUS_SIMILARITY_THRESHOLD = 0.30
+
 
 # ============================================================
 #   WRAPPER: MEASURE TIME
@@ -335,6 +341,7 @@ class RAGRetriever:
                 "text": 0.75,
                 "list": 0.7,
                 "bullet": 0.7,
+                "numbered_list": 0.7,
                 "table": 0.6,
                 "code": 0.5,
             }
@@ -454,7 +461,16 @@ class RAGRetriever:
             # Traer más candidatos que k (para reranking / mmr)
             initial_k = min(max(1, k) * int(getattr(settings, "retrieval_k_multiplier", 3)), 20)
             need_vectors = bool(use_semantic_ranking or use_mmr)
-            sim_threshold = float(getattr(settings, "similarity_threshold", 0.3))
+            corpus_size = self._last_total_points_count
+            if corpus_size is None:
+                sim_threshold = float(settings.similarity_threshold)
+            elif corpus_size < SMALL_CORPUS_THRESHOLD:
+                sim_threshold = SMALL_CORPUS_SIMILARITY_THRESHOLD
+            elif corpus_size <= MEDIUM_CORPUS_THRESHOLD:
+                sim_threshold = MEDIUM_CORPUS_SIMILARITY_THRESHOLD
+            else:
+                sim_threshold = LARGE_CORPUS_SIMILARITY_THRESHOLD
+            logger.info(f"[RAG] similarity_threshold selected={sim_threshold:.2f} corpus_size={corpus_size}")
 
             # query_embedding viene del gating (ya calculado). Se pasa al VectorStore
             # para evitar un segundo API call. Si por alguna razón fuera None
