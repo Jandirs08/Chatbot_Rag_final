@@ -16,6 +16,7 @@ from api.schemas import DebugInfo, RetrievedDocument
 from core.bot import Bot
 from core.request_context import new_request_context, get_request_context
 from models.model_types import ModelTypes, MODEL_TO_CLASS
+from rag.retrieval.retriever import RetrievalBackendUnavailableError
 
 logger = get_logger(__name__)
 
@@ -157,6 +158,9 @@ class ChatManager:
             logger.info(f"Respuesta generada{' y guardada' if not debug_mode else ''} para conversación {conversation_id}")
             return response_content
 
+        except RetrievalBackendUnavailableError as e:
+            logger.warning(f"Error de retrieval en ChatManager: {e}")
+            return str(e)
         except Exception as e:
             logger.error(f"Error generando respuesta en ChatManager: {e}", exc_info=True)
             return f"Lo siento, hubo un error al procesar tu solicitud: {str(e)}"

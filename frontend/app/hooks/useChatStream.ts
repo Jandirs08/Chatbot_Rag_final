@@ -58,6 +58,31 @@ export function useChatStream(
 
       setMessages((prevMessages) => [...prevMessages, userMessage]);
       setIsLoading(true);
+      let handledErrorMessage: string | null = null;
+
+      const appendAssistantError = (content: string) => {
+        if (handledErrorMessage) {
+          return;
+        }
+        handledErrorMessage = content;
+        setMessages((prevMessages) => {
+          const last = prevMessages[prevMessages.length - 1];
+          if (last?.role === "assistant" && last?.content === content) {
+            return prevMessages;
+          }
+          return [
+            ...prevMessages,
+            {
+              id: crypto?.randomUUID
+                ? crypto.randomUUID()
+                : `${Date.now()}-${Math.random()}`,
+              content,
+              role: "assistant",
+              createdAt: new Date(),
+            },
+          ];
+        });
+      };
 
       try {
         // Carga dinámica de fetchEventSource para reducir el bundle inicial
@@ -104,38 +129,8 @@ export function useChatStream(
           onerror(err) {
             logger.error("Error en la conexión SSE:", err);
             setIsLoading(false);
-
-            // Add error message to chat
-            setMessages((prev) => {
-              // Only add error if we don't already have an error message as last
-              // We check for specific error content or generic error indicators
-              const last = prev[prev.length - 1];
-              const isLastError = last?.role === "assistant" && (
-                last?.content?.includes("error") ||
-                last?.content?.includes("conexión") ||
-                last?.content?.includes("intentarlo")
-              );
-
-              if (isLastError) {
-                return prev;
-              }
-
-              return [
-                ...prev,
-                {
-                  id: crypto?.randomUUID
-                    ? crypto.randomUUID()
-                    : `${Date.now()}-${Math.random()}`,
-                  content:
-                    "Se perdió la conexión con el servidor. Por favor, verifica tu conexión o intenta más tarde.",
-                  role: "assistant" as const,
-                  createdAt: new Date(),
-                },
-              ];
-            });
-
             // Re-throw to stop infinite retries by fetchEventSource
-            // This prevents the "multiple bubbles" issue when backend is down
+            // El mensaje al usuario se agrega en catch para no duplicarlo.
             throw err;
           },
           async onmessage(msg) {
@@ -188,36 +183,27 @@ export function useChatStream(
             } else if (msg.event === "error") {
               logger.warn("Evento error recibido", msg.data);
               setIsLoading(false);
-              // Mostrar mensaje de error amigable
-              const errorMessage: Message = {
-                id: crypto?.randomUUID
-                  ? crypto.randomUUID()
-                  : `${Date.now()}-${Math.random()}`,
-                content:
-                  "Lo siento, ocurrió un error procesando tu mensaje. Por favor, inténtalo nuevamente.",
-                role: "assistant",
-                createdAt: new Date(),
-              };
-              setMessages((prev) => [...prev, errorMessage]);
+              let errorContent =
+                "Lo siento, ocurrió un error procesando tu mensaje. Por favor, inténtalo nuevamente.";
+              try {
+                const errorPayload = JSON.parse(msg.data ?? "{}");
+                if (
+                  typeof errorPayload?.message === "string" &&
+                  errorPayload.message.trim()
+                ) {
+                  errorContent = errorPayload.message;
+                }
+              } catch (_error) { }
+              appendAssistantError(errorContent);
             }
           },
         });
       } catch (error) {
         logger.error("Error general:", error);
         setIsLoading(false);
-
-        // Agregar mensaje de error
-        const errorMessage: Message = {
-          id: crypto?.randomUUID
-            ? crypto.randomUUID()
-            : `${Date.now()}-${Math.random()}`,
-          content:
-            "Lo siento, ocurrió un error al procesar tu mensaje. Por favor, inténtalo de nuevo.",
-          role: "assistant",
-          createdAt: new Date(),
-        };
-
-        setMessages((prevMessages) => [...prevMessages, errorMessage]);
+        appendAssistantError(
+          "Se perdió la conexión con el servidor. Por favor, verifica tu conexión o intenta más tarde.",
+        );
       }
     },
     [conversationId, isLoading],

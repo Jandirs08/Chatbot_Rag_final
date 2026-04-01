@@ -17,7 +17,7 @@ from utils.logging_utils import get_logger
 from config import Settings, settings as app_settings
 from .chain import ChainManager
 from .request_context import get_request_context
-from rag.retrieval.retriever import RAGRetriever
+from rag.retrieval.retriever import RAGRetriever, RetrievalBackendUnavailableError
 
 
 class Bot:
@@ -162,6 +162,12 @@ class Bot:
                 req_ctx.rag_time = time.perf_counter() - t_start
                 return req_ctx.context
 
+            except RetrievalBackendUnavailableError:
+                try:
+                    req_ctx.rag_time = time.perf_counter() - t_start
+                except Exception:
+                    req_ctx.rag_time = None
+                raise
             except Exception as e:
                 self.logger.warning(f"Context RAG failed: {e}")
                 try:

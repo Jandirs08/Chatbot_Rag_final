@@ -27,6 +27,10 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
+
+class VectorStoreUnavailableError(RuntimeError):
+    pass
+
 # =====================================================================
 #   VECTOR STORE (GOLDEN MASTER)
 # =====================================================================
@@ -351,7 +355,11 @@ class VectorStore:
             if query_embedding is None:
                 query_embedding = await self._get_document_embedding(query)
                 logger.debug("retrieve() | embedding generado internamente (sin pre-compute)")
+        except Exception as e:
+            logger.error("Error generando embedding en retrieve(): %s", e, exc_info=True)
+            return []
 
+        try:
             docs = await self._similarity_search(
                 query_embedding, k, filter, with_vectors=with_vectors
             )
@@ -376,7 +384,8 @@ class VectorStore:
                 k, len(docs), kept, score_threshold
             )
             return final_docs
-
+        except VectorStoreUnavailableError:
+            raise
         except Exception as e:
             logger.error("Error en retrieve(): %s", e, exc_info=True)
             return []
@@ -470,7 +479,7 @@ class VectorStore:
         except Exception as e:
             logger.info("_similarity_search() exception: %s", e)
             logger.error("Error en _similarity_search: %s", e, exc_info=True)
-            return []
+            raise VectorStoreUnavailableError("Qdrant query failed") from e
 
     # =====================================================================
     #   DELETION METHODS (COMPATIBILIDAD RAGINGESTOR)

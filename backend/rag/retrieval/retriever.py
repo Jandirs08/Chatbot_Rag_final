@@ -9,7 +9,7 @@ import asyncio
 
 from langchain_core.documents import Document
 
-from ..vector_store.vector_store import VectorStore
+from ..vector_store.vector_store import VectorStore, VectorStoreUnavailableError
 from .gating import is_trivial_query, evaluate_gating_logic, GatingDecision
 from cache.manager import cache
 from config import settings
@@ -21,6 +21,11 @@ MEDIUM_CORPUS_THRESHOLD = 200
 SMALL_CORPUS_SIMILARITY_THRESHOLD = 0.15
 MEDIUM_CORPUS_SIMILARITY_THRESHOLD = 0.25
 LARGE_CORPUS_SIMILARITY_THRESHOLD = 0.30
+RETRIEVAL_UNAVAILABLE_MESSAGE = "La base documental no está disponible en este momento. Por favor, inténtalo nuevamente más tarde."
+
+
+class RetrievalBackendUnavailableError(RuntimeError):
+    pass
 
 
 # ============================================================
@@ -488,12 +493,12 @@ class RAGRetriever:
                     ),
                     timeout=5.0
                 )
-            except asyncio.TimeoutError:
-                relevant_docs = []
+            except asyncio.TimeoutError as e:
                 logger.warning(f"[RAG][VECTOR] Timeout Qdrant retrieve (timeout=5s) q='{self._safe_query_for_log(query)}'")
-            except Exception as e:
-                relevant_docs = []
+                raise RetrievalBackendUnavailableError(RETRIEVAL_UNAVAILABLE_MESSAGE) from e
+            except VectorStoreUnavailableError as e:
                 logger.warning(f"[RAG][VECTOR] Error Qdrant retrieve: {e}")
+                raise RetrievalBackendUnavailableError(RETRIEVAL_UNAVAILABLE_MESSAGE) from e
 
             self.performance_metrics.add_metric('vector_retrieval', time.perf_counter() - vector_start)
 
@@ -562,7 +567,8 @@ class RAGRetriever:
                 self.performance_metrics.log_statistics()
 
             return final_docs
-
+        except RetrievalBackendUnavailableError:
+            raise
         except Exception as e:
             logger.error(f"Error retrieve_documents: {e}", exc_info=True)
             return []
@@ -723,10 +729,29 @@ class RAGRetriever:
             return "No se encontró información relevante para esta pregunta."
 
         grouped = self._group_documents_by_type(documents)
+        known_types = ["header", "paragraph", "numbered_list", "bullet_list", "text"]
+
+        def _format_chunk(doc: Document) -> str:
+            content = doc.page_content.strip()
+            source = doc.metadata.get("source")
+            page_number = doc.metadata.get("page_number")
+            source_parts = []
+            if source:
+                source_parts.append(str(source))
+            if page_number is not None and str(page_number).strip():
+                source_parts.append(f"página {page_number}")
+            if source_parts:
+                return f"[Fuente: {', '.join(source_parts)}]\n{content}"
+            return content
+
         parts = ["Información relevante encontrada:"]
-        for t in ["header", "paragraph", "numbered_list", "bullet_list", "text"]:
+        for t in known_types:
             if t in grouped:
-                parts.extend([d.page_content.strip() for d in grouped[t]])
+                parts.extend([_format_chunk(d) for d in grouped[t]])
+                parts.append("")
+        for t, docs in grouped.items():
+            if t not in known_types:
+                parts.extend([_format_chunk(d) for d in docs])
                 parts.append("")
         return "\n\n".join(filter(None, parts))
 

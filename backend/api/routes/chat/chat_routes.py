@@ -19,6 +19,7 @@ from config import settings
 from auth.dependencies import require_admin, get_current_active_user
 from models.user import User
 from core.request_context import get_request_context
+from rag.retrieval.retriever import RetrievalBackendUnavailableError
 
 
 logger = get_logger(__name__)
@@ -93,12 +94,20 @@ async def chat_stream_log(request: Request):
                         pass
                 yield "event: end\ndata: {}\n\n"
             except asyncio.TimeoutError:
-                err_payload = json.dumps({"message": "timeout"})
+                err_payload = json.dumps({
+                    "message": "Lo siento, la respuesta está tardando más de lo esperado. Por favor, inténtalo nuevamente en unos segundos."
+                })
+                yield f"event: error\ndata: {err_payload}\n\n"
+                yield "event: end\ndata: {}\n\n"
+            except RetrievalBackendUnavailableError as e_stream:
+                err_payload = json.dumps({"message": str(e_stream)})
                 yield f"event: error\ndata: {err_payload}\n\n"
                 yield "event: end\ndata: {}\n\n"
             except Exception as e_stream:
                 logger.error(f"Error en streaming: {str(e_stream)}", exc_info=True)
-                err_payload = json.dumps({"message": "Error interno"})
+                err_payload = json.dumps({
+                    "message": "Lo siento, ocurrió un error al procesar tu mensaje. Por favor, inténtalo nuevamente."
+                })
                 yield f"event: error\ndata: {err_payload}\n\n"
                 yield "event: end\ndata: {}\n\n"
         

@@ -7,6 +7,7 @@ from utils.hashing import hash_content_for_dedup
 from typing import List, Optional
 from pathlib import Path
 import logging
+import tiktoken
 
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
@@ -59,6 +60,7 @@ class PDFContentLoader:
         ]
         
         self.encoding_name = "cl100k_base"
+        self.encoding = tiktoken.get_encoding(self.encoding_name)
         self.separators = improved_separators
         self.text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
             encoding_name=self.encoding_name,
@@ -121,13 +123,20 @@ class PDFContentLoader:
             chunk_size, chunk_overlap = 600, 100
         else:
             chunk_size, chunk_overlap = 1200, 200
-        text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+        adaptive_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
             encoding_name=self.encoding_name,
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
             separators=self.separators
         )
-        chunks = text_splitter.split_documents(processed_docs)
+        sections = self._extract_sections(processed_docs)
+        chunks = []
+        for section in sections:
+            token_count = len(self.encoding.encode(section.page_content or ""))
+            if token_count <= chunk_size:
+                chunks.append(section)
+            else:
+                chunks.extend(adaptive_splitter.split_documents([section]))
         logger.info(f"{len(chunks)} chunks generados")
 
         # Post-procesado seguro (sin filtrado destructivo)
@@ -170,6 +179,63 @@ class PDFContentLoader:
         cleaned = [line.rstrip() for line in lines]
 
         return "\n".join(cleaned).strip()
+
+    def _extract_sections(self, documents: List[Document]) -> List[Document]:
+        sections = []
+
+        def _is_section_header(lines: List[str], index: int) -> bool:
+            line = lines[index].strip()
+            if not line:
+                return False
+            if len(line) <= 60 and any(char.isalpha() for char in line) and line == line.upper():
+                return True
+            if line.endswith(":"):
+                return True
+            if re.match(r"^#{1,2}\s+\S", line):
+                return True
+            if index + 1 < len(lines) and not lines[index + 1].strip():
+                content_lines = 0
+                for candidate in lines[index + 2:]:
+                    if candidate.strip():
+                        content_lines += 1
+                    if content_lines >= 2:
+                        return True
+            return False
+
+        for doc in documents:
+            try:
+                text = doc.page_content or ""
+                lines = text.split("\n")
+                header_indexes = [idx for idx in range(len(lines)) if _is_section_header(lines, idx)]
+                if not header_indexes:
+                    metadata = dict(doc.metadata)
+                    metadata["section_title"] = None
+                    sections.append(Document(page_content=text, metadata=metadata))
+                    continue
+
+                current_title = None
+                current_lines: List[str] = []
+                for idx, line in enumerate(lines):
+                    if idx in header_indexes:
+                        if any(existing_line.strip() for existing_line in current_lines):
+                            metadata = dict(doc.metadata)
+                            metadata["section_title"] = current_title
+                            sections.append(Document(page_content="\n".join(current_lines).strip(), metadata=metadata))
+                        current_title = line.strip()
+                        current_lines = [line]
+                    else:
+                        current_lines.append(line)
+
+                if any(existing_line.strip() for existing_line in current_lines):
+                    metadata = dict(doc.metadata)
+                    metadata["section_title"] = current_title
+                    sections.append(Document(page_content="\n".join(current_lines).strip(), metadata=metadata))
+            except Exception:
+                metadata = dict(getattr(doc, "metadata", {}) or {})
+                metadata["section_title"] = None
+                sections.append(Document(page_content=getattr(doc, "page_content", "") or "", metadata=metadata))
+
+        return sections
 
     def _validate_sentence_boundaries(self, text: str) -> tuple:
         """
