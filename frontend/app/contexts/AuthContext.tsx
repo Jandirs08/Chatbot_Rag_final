@@ -2,16 +2,21 @@
 
 import React, {
   createContext,
+  useCallback,
   useContext,
-  useReducer,
   useEffect,
-  ReactNode,
+  useReducer,
+  type ReactNode,
 } from "react";
 import { logger } from "@/app/lib/logger";
-import { authService } from "@/lib/services/authService";
+import type { AuthSessionSnapshot } from "@/app/lib/auth/session";
+import {
+  AUTH_SESSION_EXPIRED_EVENT,
+  AUTH_STATE_INVALIDATED_EVENT,
+  authService,
+  TokenManager,
+} from "@/lib/services/authService";
 import type { User } from "@/lib/services/authService";
-
-// Types
 
 export interface AuthState {
   user: User | null;
@@ -24,13 +29,12 @@ export interface AuthState {
 
 export interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshAuth: () => Promise<void>;
   clearError: () => void;
   checkAuthStatus: () => Promise<void>;
 }
 
-// Action types
 type AuthAction =
   | { type: "AUTH_START" }
   | {
@@ -43,25 +47,33 @@ type AuthAction =
     }
   | { type: "AUTH_FAILURE"; payload: string }
   | { type: "AUTH_LOGOUT" }
-  | {
-      type: "AUTH_REFRESH_SUCCESS";
-      payload: { token: string | null; refreshToken: string | null };
-    }
-  | { type: "SET_USER"; payload: User }
   | { type: "CLEAR_ERROR" }
   | { type: "SET_LOADING"; payload: boolean };
 
-// Initial state
-const initialState: AuthState = {
-  user: null,
-  token: null,
-  refreshToken: null,
-  isAuthenticated: false,
-  isLoading: true, // Señal para guards: esperar verificación antes de redirigir
-  error: null,
-};
+function createAuthState(
+  initialSession: AuthSessionSnapshot | null | undefined,
+): AuthState {
+  if (!initialSession) {
+    return {
+      user: null,
+      token: null,
+      refreshToken: null,
+      isAuthenticated: false,
+      isLoading: false,
+      error: null,
+    };
+  }
 
-// Reducer
+  return {
+    user: initialSession.user,
+    token: initialSession.accessToken,
+    refreshToken: initialSession.refreshToken,
+    isAuthenticated: true,
+    isLoading: false,
+    error: null,
+  };
+}
+
 function authReducer(state: AuthState, action: AuthAction): AuthState {
   switch (action.type) {
     case "AUTH_START":
@@ -95,22 +107,12 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
 
     case "AUTH_LOGOUT":
       return {
-        ...initialState,
+        user: null,
+        token: null,
+        refreshToken: null,
+        isAuthenticated: false,
         isLoading: false,
-      };
-
-    case "AUTH_REFRESH_SUCCESS":
-      return {
-        ...state,
-        token: action.payload.token,
-        refreshToken: action.payload.refreshToken,
         error: null,
-      };
-
-    case "SET_USER":
-      return {
-        ...state,
-        user: action.payload,
       };
 
     case "CLEAR_ERROR":
@@ -130,46 +132,73 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
   }
 }
 
-// Create context
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Provider props
 interface AuthProviderProps {
   children: ReactNode;
+  initialSession?: AuthSessionSnapshot | null;
 }
 
-// Provider component
-export function AuthProvider({ children }: AuthProviderProps) {
-  const [state, dispatch] = useReducer(authReducer, initialState);
+export function AuthProvider({
+  children,
+  initialSession = null,
+}: AuthProviderProps) {
+  const [state, dispatch] = useReducer(
+    authReducer,
+    initialSession,
+    createAuthState,
+  );
 
-  // Check authentication status on mount
   useEffect(() => {
-    checkAuthStatus();
-  }, []);
-
-  // Auto-refresh token before expiration
-  useEffect(() => {
-    if (state.isAuthenticated) {
-      const refreshInterval = setInterval(
-        () => {
-          refreshAuth();
-        },
-        25 * 60 * 1000,
-      );
-      return () => clearInterval(refreshInterval);
+    if (!initialSession) {
+      return;
     }
-  }, [state.isAuthenticated]);
 
-  const checkAuthStatus = async () => {
+    TokenManager.setSession({
+      accessToken: initialSession.accessToken,
+      refreshToken: initialSession.refreshToken,
+      expiresAt: initialSession.expiresAt,
+    });
+
+    const isSameSession =
+      state.isAuthenticated &&
+      state.user?.id === initialSession.user.id &&
+      state.token === initialSession.accessToken &&
+      state.refreshToken === initialSession.refreshToken;
+
+    if (isSameSession) {
+      return;
+    }
+
+    dispatch({
+      type: "AUTH_SUCCESS",
+      payload: {
+        user: initialSession.user,
+        token: initialSession.accessToken,
+        refreshToken: initialSession.refreshToken,
+      },
+    });
+  }, [
+    initialSession,
+    state.isAuthenticated,
+    state.refreshToken,
+    state.token,
+    state.user,
+  ]);
+
+  const checkAuthStatus = useCallback(async () => {
+    dispatch({ type: "SET_LOADING", payload: true });
+
     try {
-      dispatch({ type: "SET_LOADING", payload: true });
-      // Restore access token from httpOnly cookie after a page reload.
-      // No-ops if the token is already in memory (e.g. right after login).
       await authService.initFromCookie();
       const user = await authService.getCurrentUser();
       dispatch({
         type: "AUTH_SUCCESS",
-        payload: { user, token: null, refreshToken: null },
+        payload: {
+          user,
+          token: TokenManager.getAccessToken(),
+          refreshToken: TokenManager.getRefreshToken(),
+        },
       });
     } catch (error) {
       logger.error("Auth check failed:", error);
@@ -177,7 +206,71 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       dispatch({ type: "SET_LOADING", payload: false });
     }
-  };
+  }, []);
+
+  const refreshAuth = useCallback(async () => {
+    try {
+      const response = await authService.refreshToken();
+      const user = await authService.getCurrentUser();
+      dispatch({
+        type: "AUTH_SUCCESS",
+        payload: {
+          user,
+          token: response.access_token,
+          refreshToken: response.refresh_token,
+        },
+      });
+    } catch (error) {
+      logger.error("Failed to refresh auth:", error);
+      dispatch({ type: "AUTH_LOGOUT" });
+      throw error;
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      dispatch({ type: "AUTH_LOGOUT" });
+    };
+
+    const handleStateInvalidated = () => {
+      void checkAuthStatus();
+    };
+
+    window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, handleSessionExpired);
+    window.addEventListener(
+      AUTH_STATE_INVALIDATED_EVENT,
+      handleStateInvalidated,
+    );
+
+    return () => {
+      window.removeEventListener(
+        AUTH_SESSION_EXPIRED_EVENT,
+        handleSessionExpired,
+      );
+      window.removeEventListener(
+        AUTH_STATE_INVALIDATED_EVENT,
+        handleStateInvalidated,
+      );
+    };
+  }, [checkAuthStatus]);
+
+  useEffect(() => {
+    if (!state.isAuthenticated) {
+      return;
+    }
+
+    const expiryTime = TokenManager.getExpiryTime();
+    if (!expiryTime) {
+      return;
+    }
+
+    const refreshDelayMs = Math.max(1000, expiryTime - Date.now() - 60_000);
+    const refreshTimeout = window.setTimeout(() => {
+      void refreshAuth();
+    }, refreshDelayMs);
+
+    return () => window.clearTimeout(refreshTimeout);
+  }, [refreshAuth, state.isAuthenticated, state.token]);
 
   const login = async (email: string, password: string) => {
     try {
@@ -202,27 +295,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  const logout = () => {
-    authService.logout();
-    dispatch({ type: "AUTH_LOGOUT" });
-  };
-
-  const refreshAuth = async () => {
+  const logout = useCallback(async () => {
     try {
-      const response = await authService.refreshToken();
-      dispatch({
-        type: "AUTH_REFRESH_SUCCESS",
-        payload: {
-          token: response.access_token,
-          refreshToken: null,
-        },
-      });
-    } catch (error) {
-      logger.error("Failed to refresh auth:", error);
+      await authService.logout();
+    } finally {
       dispatch({ type: "AUTH_LOGOUT" });
-      throw error;
     }
-  };
+  }, []);
 
   const clearError = () => {
     dispatch({ type: "CLEAR_ERROR" });
@@ -242,12 +321,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
   );
 }
 
-// Hook to use auth context
 export function useAuthContext(): AuthContextType {
   const context = useContext(AuthContext);
+
   if (context === undefined) {
     throw new Error("useAuthContext must be used within an AuthProvider");
   }
+
   return context;
 }
 

@@ -1,11 +1,12 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
 import { AppSidebar } from "./AppSidebar";
 import { SidebarProvider, SidebarTrigger } from "./ui/sidebar";
-import { usePathname } from "next/navigation";
-import { useEffect } from "react";
 import { useBrandColor } from "@/app/hooks/useBrandColor";
 import { useAuth } from "@/app/hooks/useAuth";
+import { isProtectedPath } from "@/app/lib/auth/routeAccess";
 
 export function RootLayoutClient({ children }: { children: React.ReactNode }) {
   return (
@@ -15,31 +16,28 @@ export function RootLayoutClient({ children }: { children: React.ReactNode }) {
   );
 }
 
-/**
- * Renders a full-screen skeleton while the auth context is restoring the
- * session from the httpOnly cookie (initFromCookie). This is the single,
- * authoritative place to gate rendering — no component ever needs to check
- * authLoading individually.
- *
- * Only applied to sidebar pages (authenticated admin routes). The /chat and
- * /auth pages bypass this component and are always visible.
- */
-function AuthLoadingGate({ children }: { children: React.ReactNode }) {
-  const { isLoading } = useAuth();
+function AuthRouteGuard({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuth();
   const pathname = usePathname();
+  const isCurrentRouteProtected = isProtectedPath(pathname);
+  const hasRedirectedRef = useRef(false);
 
-  const isProtectedRoute =
-    !pathname.startsWith("/chat") && !pathname.startsWith("/auth");
+  useEffect(() => {
+    if (!isCurrentRouteProtected || isAuthenticated) {
+      hasRedirectedRef.current = false;
+      return;
+    }
 
-  if (isProtectedRoute && isLoading) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground">Cargando sesión…</p>
-        </div>
-      </div>
-    );
+    if (hasRedirectedRef.current) {
+      return;
+    }
+
+    hasRedirectedRef.current = true;
+    window.location.replace("/auth/login");
+  }, [isAuthenticated, isCurrentRouteProtected]);
+
+  if (isCurrentRouteProtected && !isAuthenticated) {
+    return null;
   }
 
   return <>{children}</>;
@@ -52,7 +50,6 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const saved = localStorage.getItem("theme");
     const isDarkSaved = saved === "dark";
-
     const forceLight = pathname.startsWith("/chat");
 
     if (forceLight) {
@@ -62,31 +59,31 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
     }
   }, [pathname]);
 
-  const shouldShowSidebar =
-    !pathname.startsWith("/chat") && !pathname.startsWith("/auth");
+  const shouldShowSidebar = isProtectedPath(pathname);
 
   return (
-    <AuthLoadingGate>
-      <div className="flex h-screen w-full overflow-hidden" style={{ background: 'hsl(var(--surface))' }}>
+    <AuthRouteGuard>
+      <div
+        className="flex h-screen w-full overflow-hidden"
+        style={{ background: "hsl(var(--surface))" }}
+      >
         {shouldShowSidebar && <AppSidebar />}
 
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <main className="flex-1 h-full overflow-y-auto overflow-x-hidden text-foreground">
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <main className="h-full flex-1 overflow-y-auto overflow-x-hidden text-foreground">
             {shouldShowSidebar && (
-              <div className="md:hidden fixed left-4 top-4 z-40">
+              <div className="fixed left-4 top-4 z-40 md:hidden">
                 <SidebarTrigger />
               </div>
             )}
             {shouldShowSidebar ? (
-              <div className="w-full p-8">
-                {children}
-              </div>
+              <div className="w-full p-8">{children}</div>
             ) : (
               children
             )}
           </main>
         </div>
       </div>
-    </AuthLoadingGate>
+    </AuthRouteGuard>
   );
 }

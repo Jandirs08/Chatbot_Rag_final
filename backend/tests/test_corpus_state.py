@@ -38,18 +38,16 @@ def test_refresh_rag_corpus_state_delega_en_hook_interno(monkeypatch):
 
 def test_refresh_rag_corpus_state_tolera_falta_de_retriever(monkeypatch):
     fake_refresh = MagicMock()
-    fake_cache = MagicMock()
     app_state = SimpleNamespace()
 
     monkeypatch.setattr(API_CORPUS_STATE_MODULE, "_refresh_rag_corpus_state", fake_refresh)
-    monkeypatch.setitem(__import__("sys").modules, "cache.manager", SimpleNamespace(cache=fake_cache))
 
     refresh_rag_corpus_state(app_state)
 
     fake_refresh.assert_called_once_with(rag_retriever=None, background_tasks=None)
 
 
-def test_internal_refresh_rag_corpus_state_incrementa_version_y_programa_recalculo(monkeypatch):
+def test_internal_refresh_rag_corpus_state_incrementa_version_e_invalida_cache(monkeypatch):
     fake_cache = MagicMock()
     fake_cache.increment.return_value = 7
     fake_retriever = MagicMock()
@@ -69,7 +67,7 @@ def test_internal_refresh_rag_corpus_state_incrementa_version_y_programa_recalcu
         initial=0,
     )
     fake_retriever.invalidate_rag_cache.assert_called_once()
-    assert len(background_tasks.tasks) == 1
+    assert len(background_tasks.tasks) == 0
 
 
 def test_get_corpus_cache_version_retorna_default_si_no_hay_valor(monkeypatch):

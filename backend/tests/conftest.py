@@ -157,8 +157,6 @@ def retriever(mock_vector_store, mock_embedding_manager, mock_settings, monkeypa
         embedding_manager=mock_embedding_manager,
         cache_enabled=False,
     )
-    centroid = np.random.randn(1536).astype(np.float32)
-    instance._centroid_embedding = centroid / np.linalg.norm(centroid)
     return instance
 
 

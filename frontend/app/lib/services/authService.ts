@@ -1,7 +1,6 @@
 import { API_URL } from "@/app/lib/config";
 import { fetchWithRetrySafe } from "@/app/lib/fetchUtils";
 
-// Interfaces
 export interface LoginCredentials {
   email: string;
   password: string;
@@ -37,24 +36,66 @@ export interface AuthError {
   detail: string;
 }
 
-// --- Token Manager Mejorado (Maneja Access y Refresh) ---
+export const AUTH_SESSION_EXPIRED_EVENT = "auth:session-expired";
+export const AUTH_STATE_INVALIDATED_EVENT = "auth:state-invalidated";
+
+let sessionExpirationInFlight: Promise<void> | null = null;
+
+function dispatchAuthEvent(eventName: string): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(eventName));
+}
+
+async function expireSession(): Promise<void> {
+  if (!sessionExpirationInFlight) {
+    sessionExpirationInFlight = (async () => {
+      try {
+        await fetch("/api/auth/logout", { method: "POST" });
+      } catch {
+        // Best-effort cookie cleanup only.
+      } finally {
+        TokenManager.clearTokens();
+        dispatchAuthEvent(AUTH_SESSION_EXPIRED_EVENT);
+        sessionExpirationInFlight = null;
+      }
+    })();
+  }
+
+  await sessionExpirationInFlight;
+}
+
 class TokenManager {
   private static accessToken: string | null = null;
-  private static refreshToken: string | null = null; // Nuevo campo
+  private static refreshToken: string | null = null;
   private static expiryTime: number | null = null;
 
   static setTokens(
     accessToken: string,
-    refreshToken: string,
+    refreshToken: string | null,
     expiresIn: number,
   ): void {
+    this.setSession({
+      accessToken,
+      refreshToken,
+      expiresAt: Date.now() + expiresIn * 1000,
+    });
+  }
+
+  static setSession({
+    accessToken,
+    refreshToken,
+    expiresAt,
+  }: {
+    accessToken: string;
+    refreshToken: string | null;
+    expiresAt: number | null;
+  }): void {
     this.accessToken = accessToken;
     this.refreshToken = refreshToken;
-    this.expiryTime = Date.now() + expiresIn * 1000;
+    this.expiryTime = expiresAt;
   }
 
   static getAccessToken(): string | null {
-    // 1. Memoria
     return this.accessToken;
   }
 
@@ -62,8 +103,11 @@ class TokenManager {
     return this.refreshToken;
   }
 
-  // Alias para compatibilidad
-  static getToken() {
+  static getExpiryTime(): number | null {
+    return this.expiryTime;
+  }
+
+  static getToken(): string | null {
     return this.getAccessToken();
   }
 
@@ -74,12 +118,14 @@ class TokenManager {
   }
 
   static isTokenValid(): boolean {
-    // Si tenemos access token, asumimos válido (el backend dirá 401 si no)
-    return !!this.getAccessToken();
+    if (!this.accessToken) {
+      return false;
+    }
+
+    return this.expiryTime === null || this.expiryTime > Date.now();
   }
 }
 
-// --- Servicio de Autenticación ---
 export const authService = {
   async register(userData: RegisterData): Promise<User> {
     try {
@@ -114,24 +160,26 @@ export const authService = {
       if (!response.ok) {
         const errorData = await response
           .json()
-          .catch(() => ({ detail: "Error de autenticación" }));
-        throw new Error(errorData.detail || "Error al iniciar sesión");
+          .catch(() => ({ detail: "Error de autenticacion" }));
+        throw new Error(errorData.detail || "Error al iniciar sesion");
       }
 
       const authData: AuthResponse = await response.json();
 
-      // Guardar tokens en cookie segura (Server Route Handler)
-      await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const cookieResponse = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           access_token: authData.access_token,
           refresh_token: authData.refresh_token,
-          expires_in: authData.expires_in
-        })
+          expires_in: authData.expires_in,
+        }),
       });
 
-      // CRÍTICO: Guardamos AMBOS tokens en memoria para uso inmediato
+      if (!cookieResponse.ok) {
+        throw new Error("No se pudo persistir la sesion");
+      }
+
       TokenManager.setTokens(
         authData.access_token,
         authData.refresh_token,
@@ -147,10 +195,8 @@ export const authService = {
 
   async logout(): Promise<void> {
     try {
-      // Limpiar cookies del servidor
-      await fetch('/api/auth/logout', { method: 'POST' });
+      await fetch("/api/auth/logout", { method: "POST" });
 
-      // Intento best-effort de avisar al backend
       const token = TokenManager.getAccessToken();
       if (token) {
         await fetch(`${API_URL}/auth/logout`, {
@@ -161,15 +207,14 @@ export const authService = {
           },
         });
       }
-    } catch (e) {
-      // Ignorar error de red al salir
+    } catch {
+      // Ignore network failures on logout.
     } finally {
       TokenManager.clearTokens();
     }
   },
 
   async getCurrentUser(): Promise<User> {
-    // Usamos authenticatedFetch para aprovechar la lógica de retry automática
     const response = await authenticatedFetch(`${API_URL}/auth/me`, {
       method: "GET",
     });
@@ -177,30 +222,36 @@ export const authService = {
     if (!response.ok) {
       throw new Error("No se pudo obtener el usuario");
     }
+
     return response.json();
   },
 
-  // CORREGIDO: Llama a la ruta interna de Next.js que maneja la cookie
-  async refreshToken(): Promise<AuthResponse> {
+  async refreshToken(
+    { silent = false }: { silent?: boolean } = {},
+  ): Promise<AuthResponse> {
     try {
-      const response = await fetch('/api/auth/refresh', {
+      const response = await fetch("/api/auth/refresh", {
         method: "POST",
       });
 
       if (!response.ok) {
-        throw new Error("Token inválido");
+        throw new Error("Token invalido");
       }
 
       const authData: AuthResponse = await response.json();
-      // Actualizamos tokens en memoria
       TokenManager.setTokens(
         authData.access_token,
         authData.refresh_token,
         authData.expires_in,
       );
+
       return authData;
     } catch (error) {
-      TokenManager.clearTokens();
+      if (silent) {
+        TokenManager.clearTokens();
+      } else {
+        await expireSession();
+      }
       throw error;
     }
   },
@@ -212,6 +263,7 @@ export const authService = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
+
       if (!response.ok) {
         const e = await response.json().catch(() => ({}) as any);
         const err: any = new Error(e?.detail || `Error ${response.status}`);
@@ -230,6 +282,7 @@ export const authService = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, new_password: newPassword }),
       });
+
       if (!response.ok) {
         const e = await response.json().catch(() => ({}) as any);
         const err: any = new Error(e?.detail || `Error ${response.status}`);
@@ -244,86 +297,84 @@ export const authService = {
   isAuthenticated: () => TokenManager.isTokenValid(),
   getAuthToken: () => TokenManager.getAccessToken(),
 
-  /**
-   * Restore the access token from the httpOnly cookie after a page reload.
-   * Calls the Next.js /api/auth/refresh route which reads the cookie server-side
-   * and returns a fresh access token. Safe to call on every mount: no-ops if token
-   * is already in memory.
-   */
   async initFromCookie(): Promise<void> {
-    if (TokenManager.getAccessToken()) return; // Already have a token in memory
+    if (TokenManager.isTokenValid()) {
+      return;
+    }
+
+    TokenManager.clearTokens();
+
     try {
-      await authService.refreshToken();
+      await authService.refreshToken({ silent: true });
     } catch {
-      // No active session or cookie expired — leave tokens empty (user will be redirected to login)
+      // No active session or expired refresh cookie.
     }
   },
 };
 
-// --- Helper Fetch Autenticado (Interceptor) ---
-// Usa fetchWithRetrySafe para reintentar errores de red en métodos GET
 export const authenticatedFetch = async (
   url: string,
   options: RequestInit = {},
 ): Promise<Response> => {
   let token = TokenManager.getAccessToken();
 
-  const getHeaders = (t: string | null) => {
-    const h = new Headers(options.headers);
-    h.set("Content-Type", "application/json");
-    if (t) h.set("Authorization", `Bearer ${t}`);
-    return h;
+  const getHeaders = (currentToken: string | null) => {
+    const headers = new Headers(options.headers);
+    headers.set("Content-Type", "application/json");
+    if (currentToken) {
+      headers.set("Authorization", `Bearer ${currentToken}`);
+    }
+    return headers;
   };
 
-  // 1. Intento inicial (con retry para errores de red en GET)
   let response = await fetchWithRetrySafe(url, {
     ...options,
-    credentials: 'include', // Importante para enviar cookies
+    credentials: "include",
     headers: getHeaders(token),
   });
 
-  // 2. Si falla por token vencido (401), intentamos refrescar UNA vez
   if (response.status === 401) {
     try {
       await authService.refreshToken();
-      token = TokenManager.getAccessToken(); // Token nuevo
-
-      // Reintentar petición original
+      token = TokenManager.getAccessToken();
       response = await fetchWithRetrySafe(url, {
         ...options,
-        credentials: 'include',
+        credentials: "include",
         headers: getHeaders(token),
       });
-    } catch (refreshError) {
-      // Si falla el refresh, estamos deslogueados oficialmente
-      TokenManager.clearTokens();
-      // Opcional: Redirigir a login aquí o dejar que el componente maneje el error
+
+      if (response.status === 401) {
+        await expireSession();
+      }
+    } catch {
+      return response;
     }
+  }
+
+  if (response.status === 403 && !url.endsWith("/auth/me")) {
+    dispatchAuthEvent(AUTH_STATE_INVALIDATED_EVENT);
   }
 
   return response;
 };
 
-/**
- * Helper para uploads autenticados (FormData).
- * No fuerza Content-Type para permitir que el navegador establezca multipart/form-data.
- */
 export const authenticatedUpload = async (
   url: string,
   options: RequestInit = {},
 ): Promise<Response> => {
   let token = TokenManager.getAccessToken();
 
-  const getHeaders = (t: string | null) => {
-    const h = new Headers(options.headers);
-    // No establecer Content-Type para FormData - el navegador lo maneja
-    if (t) h.set("Authorization", `Bearer ${t}`);
-    return h;
+  const getHeaders = (currentToken: string | null) => {
+    const headers = new Headers(options.headers);
+    if (currentToken) {
+      headers.set("Authorization", `Bearer ${currentToken}`);
+    }
+    return headers;
   };
 
   let response = await fetch(url, {
     ...options,
-    credentials: 'include',
+    credentials: "include",
     headers: getHeaders(token),
   });
 
@@ -333,12 +384,20 @@ export const authenticatedUpload = async (
       token = TokenManager.getAccessToken();
       response = await fetch(url, {
         ...options,
-        credentials: 'include',
+        credentials: "include",
         headers: getHeaders(token),
       });
+
+      if (response.status === 401) {
+        await expireSession();
+      }
     } catch {
-      TokenManager.clearTokens();
+      return response;
     }
+  }
+
+  if (response.status === 403 && !url.endsWith("/auth/me")) {
+    dispatchAuthEvent(AUTH_STATE_INVALIDATED_EVENT);
   }
 
   return response;

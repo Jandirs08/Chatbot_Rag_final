@@ -6,14 +6,7 @@ import { logger } from "@/app/lib/logger";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "../ui/card";
+import { Card, CardContent, CardFooter } from "../ui/card";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
@@ -38,6 +31,10 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
     password: "",
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
+
+  const isBusy = isLoading || isSubmitting || isRedirecting;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -45,14 +42,19 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
       ...prev,
       [name]: value,
     }));
-    // Limpiar error cuando el usuario empiece a escribir
-    if (error) clearError();
+
+    if (error) {
+      clearError();
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validaciones básicas
+    if (isBusy) {
+      return;
+    }
+
     if (!formData.email.trim()) {
       return;
     }
@@ -64,30 +66,33 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
     const toastId = toast.loading("Iniciando sesión...");
 
     try {
+      setIsSubmitting(true);
       await login(formData.email, formData.password);
-
+      setIsSubmitting(false);
       toast.dismiss(toastId);
-      toast.success("¡Bienvenido!");
 
-      // Login exitoso
       if (onSuccess) {
         onSuccess();
-      } else {
-        router.push(redirectTo);
+        return;
       }
+
+      setIsRedirecting(true);
+      router.replace(redirectTo);
+      router.refresh();
     } catch (err) {
       toast.dismiss(toastId);
-      // El error ya se maneja en el contexto
+      setIsSubmitting(false);
+      setIsRedirecting(false);
       logger.error("Error en login:", err);
     }
   };
 
   const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
+    setShowPassword((current) => !current);
   };
 
   return (
-    <Card className="w-full max-w-md mx-auto">
+    <Card className="mx-auto w-full max-w-md">
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
           {error && (
@@ -105,7 +110,7 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
               placeholder="Ingresa tu email"
               value={formData.email}
               onChange={handleInputChange}
-              disabled={isLoading}
+              disabled={isBusy}
               required
               autoComplete="email"
               className="h-12 rounded-lg"
@@ -122,10 +127,10 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
                 placeholder="Ingresa tu contraseña"
                 value={formData.password}
                 onChange={handleInputChange}
-                disabled={isLoading}
+                disabled={isBusy}
                 required
                 autoComplete="current-password"
-                className="pr-10 h-12 rounded-lg"
+                className="h-12 rounded-lg pr-10"
               />
               <Button
                 type="button"
@@ -133,7 +138,7 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
                 size="sm"
                 className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                 onClick={togglePasswordVisibility}
-                disabled={isLoading}
+                disabled={isBusy}
               >
                 {showPassword ? (
                   <EyeOff className="h-4 w-4" />
@@ -145,7 +150,6 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
                 </span>
               </Button>
             </div>
-            {/* hint removed to relocate link above submit */}
           </div>
         </CardContent>
 
@@ -153,28 +157,26 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
           <div className="flex justify-end">
             <a
               href="/auth/forgot-password"
-              className="text-sm text-orange-600 hover:text-orange-700 font-medium"
+              className="text-sm font-medium text-orange-600 hover:text-orange-700"
             >
               ¿Olvidaste tu contraseña?
             </a>
           </div>
           <Button
             type="submit"
-            className="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold shadow-md"
-            disabled={isLoading}
-            aria-busy={isLoading}
+            className="w-full bg-orange-600 font-semibold text-white shadow-md hover:bg-orange-700"
+            disabled={isBusy}
+            aria-busy={isBusy}
           >
-            {isLoading ? (
+            {isBusy ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Iniciando sesión...
+                {isRedirecting ? "Redirigiendo..." : "Iniciando sesión..."}
               </>
             ) : (
               "Iniciar Sesión"
             )}
           </Button>
-
-          {/* Registro deshabilitado: la creación de usuarios se hace en /users */}
         </CardFooter>
       </form>
     </Card>
