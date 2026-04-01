@@ -4,7 +4,7 @@ Para el Bug 2 y 6 (chunks cortos y listas):
 "¿Cuál es el puerto principal?"
 "¿Qué significa el error 404?"
 "Lista los errores comunes"
-"¿Cuántos reintentos máximos hay?"
+"**¿Cuántos reintentos máximos hay?**"
 
 Para validar que no alucina:
 

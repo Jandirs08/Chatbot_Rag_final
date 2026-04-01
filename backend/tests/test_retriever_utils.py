@@ -149,3 +149,21 @@ class TestFormatContextFromDocuments:
         docs = [Document(page_content="  texto con espacios  ", metadata={"chunk_type": "text"})]
         result = retriever.format_context_from_documents(docs)
         assert "texto con espacios" in result
+
+
+class TestRetrievalCacheKeys:
+    def test_build_retrieval_cache_key_incluye_corpus_version(self, retriever, monkeypatch):
+        import rag.retrieval.retriever as retriever_mod
+
+        monkeypatch.setattr(retriever_mod, "get_corpus_cache_version", lambda: "42")
+
+        key = retriever._build_retrieval_cache_key(
+            query="Consulta de prueba",
+            k=4,
+            filter_criteria={"source": "manual.pdf"},
+            use_semantic_ranking=True,
+            use_mmr=False,
+        )
+
+        assert key.startswith("rag:v=42:")
+        assert "manual.pdf" in key

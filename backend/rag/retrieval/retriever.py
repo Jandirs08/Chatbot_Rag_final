@@ -9,6 +9,7 @@ import asyncio
 
 from langchain_core.documents import Document
 
+from ..corpus_state import get_corpus_cache_version
 from ..vector_store.vector_store import VectorStore, VectorStoreUnavailableError
 from .gating import is_trivial_query, evaluate_gating_logic, GatingDecision
 from cache.manager import cache
@@ -1045,6 +1046,26 @@ class RAGRetriever:
     #   CACHE
     # ============================================================
 
+    def _build_retrieval_cache_key(
+        self,
+        query: str,
+        k: int,
+        filter_criteria: Optional[Dict[str, Any]],
+        use_semantic_ranking: bool,
+        use_mmr: bool,
+    ) -> str:
+        try:
+            filter_key = json.dumps(filter_criteria, sort_keys=True) if filter_criteria else ""
+        except Exception:
+            filter_key = str(filter_criteria or "")
+
+        query_norm = query.strip().lower()
+        corpus_version = get_corpus_cache_version()
+        return (
+            f"rag:v={corpus_version}:{query_norm}:"
+            f"sr={int(bool(use_semantic_ranking))}:mmr={int(bool(use_mmr))}:{k}:{filter_key}"
+        )
+
     def _get_from_cache(
         self,
         query: str,
@@ -1057,13 +1078,13 @@ class RAGRetriever:
             if not bool(getattr(settings, "enable_cache", True)) or not self.cache_enabled:
                 return None
 
-            try:
-                filter_key = json.dumps(filter_criteria, sort_keys=True) if filter_criteria else ""
-            except Exception:
-                filter_key = str(filter_criteria or "")
-
-            query_norm = query.strip().lower()
-            cache_key = f"rag:{query_norm}:sr={int(bool(use_semantic_ranking))}:mmr={int(bool(use_mmr))}:{k}:{filter_key}"
+            cache_key = self._build_retrieval_cache_key(
+                query=query,
+                k=k,
+                filter_criteria=filter_criteria,
+                use_semantic_ranking=use_semantic_ranking,
+                use_mmr=use_mmr,
+            )
             cached = cache.get(cache_key)
             if not cached:
                 return None
@@ -1091,13 +1112,13 @@ class RAGRetriever:
             if not bool(getattr(settings, "enable_cache", True)) or not self.cache_enabled:
                 return
 
-            try:
-                filter_key = json.dumps(filter_criteria, sort_keys=True) if filter_criteria else ""
-            except Exception:
-                filter_key = str(filter_criteria or "")
-
-            query_norm = query.strip().lower()
-            cache_key = f"rag:{query_norm}:sr={int(bool(use_semantic_ranking))}:mmr={int(bool(use_mmr))}:{k}:{filter_key}"
+            cache_key = self._build_retrieval_cache_key(
+                query=query,
+                k=k,
+                filter_criteria=filter_criteria,
+                use_semantic_ranking=use_semantic_ranking,
+                use_mmr=use_mmr,
+            )
 
             serialized_docs = []
             for d in docs:
@@ -1113,8 +1134,6 @@ class RAGRetriever:
 
     def invalidate_rag_cache(self) -> None:
         try:
-            if bool(getattr(settings, "enable_cache", True)):
-                cache.invalidate_prefix("rag:")
             self.reset_centroid()
         except Exception:
             pass

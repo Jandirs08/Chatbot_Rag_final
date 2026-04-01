@@ -16,6 +16,7 @@ from api.schemas import DebugInfo, RetrievedDocument
 from core.bot import Bot
 from core.request_context import new_request_context, get_request_context
 from models.model_types import ModelTypes, MODEL_TO_CLASS
+from rag.corpus_state import get_corpus_cache_version
 from rag.retrieval.retriever import RetrievalBackendUnavailableError
 
 logger = get_logger(__name__)
@@ -77,6 +78,10 @@ class ChatManager:
 
         logger.debug(f"[DB] ChatManager inicializado | client_id={id(self.db)}")
 
+    def _build_response_cache_key(self, conversation_id: str, input_text: str) -> str:
+        corpus_version = get_corpus_cache_version()
+        return f"resp:v={corpus_version}:{conversation_id}:{hash_for_cache_key(input_text)}"
+
     async def generate_response(self, input_text: str, conversation_id: str, source: str | None = None, debug_mode: bool = False):
         """Genera la respuesta usando el Bot (LCEL maneja el RAG automáticamente)."""
         try:
@@ -87,7 +92,7 @@ class ChatManager:
                 logger.warning("ENABLE_RAG_LCEL desactivado: la recuperación contextual no se aplicará.")
 
             # Intentar obtener respuesta cacheada por (conversation_id + input_text)
-            cache_key = f"resp:{conversation_id}:{hash_for_cache_key(input_text)}"
+            cache_key = self._build_response_cache_key(conversation_id, input_text)
             cached_response = None
             try:
                 if bool(getattr(settings, "enable_cache", True)):
@@ -325,7 +330,7 @@ class ChatManager:
         try:
             logger.debug(f"[CHAT] Streaming start | conv={conversation_id}")
             req_ctx = new_request_context()
-            cache_key = f"resp:{conversation_id}:{hash_for_cache_key(input_text)}"
+            cache_key = self._build_response_cache_key(conversation_id, input_text)
             chunk_timeout = getattr(settings, "llm_timeout", 25)
             cached_response = None
             try:

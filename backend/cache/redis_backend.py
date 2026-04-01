@@ -99,3 +99,17 @@ class RedisCache:
                     pass
         except Exception:
             pass
+
+    def increment(self, key: str, delta: int = 1, initial: int = 0) -> int:
+        if key is None:
+            return int(initial)
+
+        try:
+            self.client.setnx(key, int(initial))
+            return int(self.client.incrby(key, int(delta)))
+        except Exception:
+            current = self.get(key)
+            base = int(current) if current is not None else int(initial)
+            new_value = base + int(delta)
+            self.set(key, new_value, ttl=0)
+            return new_value

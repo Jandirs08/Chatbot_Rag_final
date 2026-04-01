@@ -458,7 +458,14 @@ def create_app() -> FastAPI:
             except Exception:
                 pass
             retry_after = retry_after_for_path(request.url.path)
-            return JSONResponse(status_code=429, content={"detail": "Demasiadas peticiones. Calma, cowboy.", "retry_after": retry_after})
+            headers = {}
+            if retry_after is not None:
+                headers["Retry-After"] = str(int(retry_after))
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Demasiadas peticiones. Calma, cowboy.", "retry_after": retry_after},
+                headers=headers,
+            )
 
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):

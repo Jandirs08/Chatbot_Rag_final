@@ -94,37 +94,6 @@ export function DocumentManagement() {
     loadDocuments();
   }, [loadDocuments]);
 
-  // Cargar rate limit info de localStorage al montar
-  useEffect(() => {
-    const saved = localStorage.getItem("pdf_upload_ratelimit");
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.resetTime) {
-          const resetDate = new Date(parsed.resetTime);
-          // Solo cargar si no ha expirado
-          if (resetDate.getTime() > new Date().getTime()) {
-            setRateLimitInfo({
-              ...parsed,
-              resetTime: resetDate
-            });
-          } else {
-            localStorage.removeItem("pdf_upload_ratelimit");
-          }
-        }
-      } catch (e) {
-        console.error("Error parsing saved rate limit:", e);
-      }
-    }
-  }, []);
-
-  // Guardar rate limit info en localStorage cuando cambie
-  useEffect(() => {
-    if (rateLimitInfo) {
-      localStorage.setItem("pdf_upload_ratelimit", JSON.stringify(rateLimitInfo));
-    }
-  }, [rateLimitInfo]);
-
   // Efecto para el countdown del rate limit
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -137,7 +106,6 @@ export function DocumentManagement() {
 
         // Si el tiempo se acabó, limpiar
         if (diff <= 0) {
-          localStorage.removeItem("pdf_upload_ratelimit");
           setRateLimitInfo(null);
         }
         return diff;
@@ -175,13 +143,19 @@ export function DocumentManagement() {
 
       // Actualizar rate limit info desde headers
       if (response.rateLimit) {
-        setRateLimitInfo({
-          limit: response.rateLimit.limit,
-          remaining: response.rateLimit.remaining,
-          resetTime: response.rateLimit.retryAfter
-            ? new Date(Date.now() + response.rateLimit.retryAfter * 1000)
-            : undefined
-        });
+        if (response.rateLimit.remaining > 0) {
+          setRateLimitInfo(null);
+        } else {
+          setRateLimitInfo({
+            limit: response.rateLimit.limit,
+            remaining: response.rateLimit.remaining,
+            resetTime: response.rateLimit.retryAfter
+              ? new Date(Date.now() + response.rateLimit.retryAfter * 1000)
+              : undefined
+          });
+        }
+      } else {
+        setRateLimitInfo(null);
       }
 
       toast({
@@ -211,8 +185,8 @@ export function DocumentManagement() {
 
         // Actualizar rate limit info
         setRateLimitInfo({
-          limit: 5,
-          remaining: 0,
+          limit: error.limit ?? 0,
+          remaining: typeof error.remaining === "number" ? error.remaining : 0,
           resetTime: new Date(Date.now() + (error.retryAfter || 3600) * 1000)
         });
       } else if (message.toLowerCase().includes("contenido duplicado")) {

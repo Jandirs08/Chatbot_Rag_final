@@ -1,6 +1,7 @@
 import time
 import collections
 from typing import Any, Optional
+from threading import Lock
 
 
 class InMemoryCache:
@@ -9,6 +10,7 @@ class InMemoryCache:
     def __init__(self, max_size: int = 1000):
         self._store = collections.OrderedDict()
         self.max_size = int(max_size) if max_size is not None else 1000
+        self._lock = Lock()
 
     def _evict_if_needed(self) -> None:
         try:
@@ -73,3 +75,21 @@ class InMemoryCache:
                         pass
         except Exception:
             pass
+
+    def increment(self, key: str, delta: int = 1, initial: int = 0) -> int:
+        if key is None:
+            return int(initial)
+
+        k = str(key)
+        with self._lock:
+            current = self.get(k)
+            if current is None:
+                new_value = int(initial) + int(delta)
+            else:
+                try:
+                    new_value = int(current) + int(delta)
+                except Exception:
+                    new_value = int(initial) + int(delta)
+
+            self.set(k, new_value, ttl=0)
+            return new_value

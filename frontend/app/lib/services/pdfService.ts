@@ -97,9 +97,28 @@ export class PDFService {
             }
           } else if (status === 429) {
             // Rate limit exceeded - error especial con tipo identificable
+            let bodyRetryAfter: number | undefined;
+            let bodyDetail: string | undefined;
+            try {
+              const errJson = JSON.parse(xhr.responseText);
+              if (typeof errJson?.retry_after === "number") {
+                bodyRetryAfter = errJson.retry_after;
+              }
+              if (typeof errJson?.detail === "string") {
+                bodyDetail = errJson.detail;
+              }
+            } catch (_e) {
+              // ignorar si no es JSON
+            }
+
             const errorObj: any = new Error("Límite de uploads alcanzado");
             errorObj.type = 'RATE_LIMIT_EXCEEDED';
-            errorObj.retryAfter = retryAfter ? parseInt(retryAfter) : 3600;
+            errorObj.retryAfter = retryAfter
+              ? parseInt(retryAfter)
+              : bodyRetryAfter ?? 3600;
+            errorObj.limit = rateLimitLimit ? parseInt(rateLimitLimit) : undefined;
+            errorObj.remaining = rateLimitRemaining ? parseInt(rateLimitRemaining) : 0;
+            errorObj.serverMessage = bodyDetail;
             reject(errorObj);
           } else {
             try {
