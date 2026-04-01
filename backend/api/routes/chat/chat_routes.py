@@ -3,6 +3,7 @@ from utils.logging_utils import get_logger
 import uuid
 import json
 import asyncio
+from typing import Optional
 from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import StreamingResponse, JSONResponse, Response
 from io import BytesIO
@@ -16,7 +17,7 @@ from api.schemas import (
 )
 from utils.rate_limiter import conditional_limit
 from config import settings
-from auth.dependencies import require_admin, get_current_active_user
+from auth.dependencies import require_admin, get_current_active_user, get_optional_current_user
 from models.user import User
 from core.request_context import get_request_context
 from rag.retrieval.retriever import RetrievalBackendUnavailableError
@@ -30,7 +31,10 @@ router = APIRouter()
 
 @router.post("/")
 @conditional_limit(settings.chat_rate_limit)
-async def chat_stream_log(request: Request):
+async def chat_stream_log(
+    request: Request,
+    current_user: Optional[User] = Depends(get_optional_current_user),
+):
     """Endpoint para chat con streaming y logging."""
     chat_manager = request.app.state.chat_manager
     bot = request.app.state.bot_instance
@@ -57,6 +61,8 @@ async def chat_stream_log(request: Request):
         conversation_id = chat_input.conversation_id or str(uuid.uuid4())
         source = getattr(chat_input, "source", None) or "embed-default"
         debug_mode = bool(getattr(chat_input, "debug_mode", False))
+        if debug_mode and not (current_user and current_user.is_admin):
+            debug_mode = False
         enable_verification = bool(getattr(chat_input, "enable_verification", False))
         
         if not input_text:

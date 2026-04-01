@@ -11,9 +11,112 @@ from api.schemas.config import BotConfigDTO, UpdateBotConfigRequest
 from database.config_repository import ConfigRepository
 from auth.dependencies import get_current_active_user
 from models.user import User
+from cache.manager import cache
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["bot"])
+
+BOT_CONFIG_CACHE_KEY = "bot:config"
+BOT_CONFIG_CACHE_FIELDS = (
+    "temperature",
+    "bot_name",
+    "ui_prompt_extra",
+    "theme_color",
+    "starters",
+    "input_placeholder",
+    "twilio_account_sid",
+    "twilio_auth_token",
+    "twilio_whatsapp_from",
+)
+
+
+def redis_coordination_available() -> bool:
+    try:
+        return bool(cache.get_health_status().get("redis_connected"))
+    except Exception:
+        return False
+
+
+def normalize_runtime_config_payload(payload: object) -> dict | None:
+    if not isinstance(payload, dict):
+        return None
+
+    normalized = {field: payload.get(field) for field in BOT_CONFIG_CACHE_FIELDS}
+
+    try:
+        if normalized["temperature"] is not None:
+            normalized["temperature"] = float(normalized["temperature"])
+    except Exception:
+        normalized["temperature"] = None
+
+    starters = normalized.get("starters")
+    if starters is None:
+        normalized["starters"] = []
+    elif isinstance(starters, list):
+        normalized["starters"] = [str(item).strip() for item in starters if str(item).strip()]
+    else:
+        starter = str(starters).strip()
+        normalized["starters"] = [starter] if starter else []
+
+    for field in (
+        "bot_name",
+        "ui_prompt_extra",
+        "theme_color",
+        "input_placeholder",
+        "twilio_account_sid",
+        "twilio_auth_token",
+        "twilio_whatsapp_from",
+    ):
+        value = normalized.get(field)
+        if value is None:
+            continue
+        normalized[field] = str(value)
+
+    return normalized
+
+
+def build_runtime_config_payload(config_obj: object) -> dict:
+    payload = {field: getattr(config_obj, field, None) for field in BOT_CONFIG_CACHE_FIELDS}
+    return normalize_runtime_config_payload(payload) or {}
+
+
+def read_runtime_config_from_cache() -> dict | None:
+    if not redis_coordination_available():
+        return None
+
+    try:
+        return normalize_runtime_config_payload(cache.get(BOT_CONFIG_CACHE_KEY))
+    except Exception:
+        return None
+
+
+def write_runtime_config_to_cache(config_obj: object) -> None:
+    if not redis_coordination_available():
+        return
+
+    payload = config_obj if isinstance(config_obj, dict) else build_runtime_config_payload(config_obj)
+    normalized = normalize_runtime_config_payload(payload)
+    if normalized is None:
+        return
+
+    try:
+        cache.set(BOT_CONFIG_CACHE_KEY, normalized, ttl=0)
+    except Exception:
+        pass
+
+
+def apply_runtime_config(settings_obj: object, payload: object) -> bool:
+    normalized = normalize_runtime_config_payload(payload)
+    if settings_obj is None or normalized is None:
+        return False
+
+    changed = False
+    for field, value in normalized.items():
+        if getattr(settings_obj, field, None) != value:
+            setattr(settings_obj, field, value)
+            changed = True
+
+    return changed
 
 
 def _get_config_repo(request: Request) -> ConfigRepository:
@@ -62,30 +165,12 @@ async def update_bot_config(
             starters=payload.starters,
             input_placeholder=payload.input_placeholder,
         )
+        runtime_payload = build_runtime_config_payload(updated)
         # Aplicar en runtime
         if hasattr(request.app.state, "settings") and request.app.state.settings:
             if updated.system_prompt is not None:
                 request.app.state.settings.system_prompt = updated.system_prompt
-            if updated.temperature is not None:
-                request.app.state.settings.temperature = updated.temperature
-            try:
-                request.app.state.settings.bot_name = updated.bot_name
-                request.app.state.settings.ui_prompt_extra = updated.ui_prompt_extra
-            except Exception:
-                pass
-            try:
-                request.app.state.settings.twilio_account_sid = updated.twilio_account_sid
-                request.app.state.settings.twilio_auth_token = updated.twilio_auth_token
-                request.app.state.settings.twilio_whatsapp_from = updated.twilio_whatsapp_from
-            except Exception:
-                pass
-            try:
-                request.app.state.settings.theme_color = updated.theme_color
-                request.app.state.settings.starters = updated.starters
-                request.app.state.settings.welcome_message = updated.welcome_message
-                request.app.state.settings.input_placeholder = updated.input_placeholder
-            except Exception:
-                pass
+            apply_runtime_config(request.app.state.settings, runtime_payload)
 
         if hasattr(request.app.state, "bot_instance") and request.app.state.bot_instance:
             try:
@@ -95,6 +180,8 @@ async def update_bot_config(
                     f"Error recargando chain del bot, se mantiene la chain anterior: {reload_error}",
                     exc_info=True,
                 )
+        write_runtime_config_to_cache(runtime_payload)
+        request.app.state.last_synced_bot_config = runtime_payload
 
         return BotConfigDTO(**updated.model_dump())
     except HTTPException:
@@ -113,13 +200,10 @@ async def reset_bot_config(
     try:
         repo = _get_config_repo(request)
         updated = await repo.reset_ui()
+        runtime_payload = build_runtime_config_payload(updated)
 
         if hasattr(request.app.state, "settings") and request.app.state.settings:
-            try:
-                request.app.state.settings.bot_name = None
-                request.app.state.settings.ui_prompt_extra = None
-            except Exception:
-                pass
+            apply_runtime_config(request.app.state.settings, runtime_payload)
 
         if hasattr(request.app.state, "bot_instance") and request.app.state.bot_instance:
             try:
@@ -129,6 +213,8 @@ async def reset_bot_config(
                     f"Error recargando chain tras reset, se mantiene la chain anterior: {reload_error}",
                     exc_info=True,
                 )
+        write_runtime_config_to_cache(runtime_payload)
+        request.app.state.last_synced_bot_config = runtime_payload
         return BotConfigDTO(**updated.model_dump())
     except Exception as e:
         logger.error(f"Error resetting bot config: {e}", exc_info=True)

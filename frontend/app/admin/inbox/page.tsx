@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, Suspense } from "react";
-import useSWR, { mutate } from "swr";
+import useSWR from "swr";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useRequireAdmin } from "@/app/hooks/useAuthGuard";
 import { API_URL } from "@/app/lib/config";
@@ -19,6 +19,7 @@ import {
   UserCircle2,
   ListFilter,
   ChevronLeft,
+  CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/app/components/ui/input";
@@ -29,15 +30,8 @@ import {
   PopoverContent,
 } from "@/app/components/ui/popover";
 import { Switch } from "@/app/components/ui/switch";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationEllipsis,
-  PaginationPrevious,
-  PaginationNext,
-} from "@/app/components/ui/pagination";
+const previewClampClass =
+  "overflow-hidden [display:-webkit-box] [-webkit-line-clamp:2] [-webkit-box-orient:vertical]";
 
 // --- Tipos ---
 type ConversationItem = {
@@ -58,6 +52,9 @@ type HistoryItem = {
   timestamp?: string;
   source?: string | null;
 };
+
+const EMPTY_CONVERSATIONS: ConversationItem[] = [];
+const EMPTY_HISTORY: HistoryItem[] = [];
 
 // --- Fetcher para SWR (Usa tu servicio autenticado) ---
 const fetcher = async (url: string) => {
@@ -81,20 +78,69 @@ const humanizeId = (id?: string | null) => {
   return `Visitante #${tag || "0000"}`;
 };
 
+const isSameDay = (left: Date, right: Date) =>
+  left.getFullYear() === right.getFullYear() &&
+  left.getMonth() === right.getMonth() &&
+  left.getDate() === right.getDate();
+
 const fmtDate = (iso?: string) => {
   if (!iso) return "";
   try {
     const d = new Date(iso);
-    // Formato corto: "14:30" o "Ayer"
     const now = new Date();
-    const isToday =
-      d.getDate() === now.getDate() && d.getMonth() === now.getMonth();
-    return isToday
-      ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-      : d.toLocaleDateString();
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+
+    if (isSameDay(d, now)) {
+      return d.toLocaleTimeString("es-PE", {
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    }
+
+    if (isSameDay(d, yesterday)) {
+      return "Ayer";
+    }
+
+    return d.toLocaleDateString("es-PE", {
+      day: "2-digit",
+      month: "short",
+    });
   } catch {
     return "";
   }
+};
+
+const fmtConversationMeta = (iso?: string) => {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleString("es-PE", {
+      day: "2-digit",
+      month: "short",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+};
+
+const getConversationSection = (iso?: string) => {
+  if (!iso) return "Sin fecha";
+
+  const d = new Date(iso);
+  const now = new Date();
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const diffInDays =
+    (new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() -
+      new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()) /
+    (1000 * 60 * 60 * 24);
+
+  if (isSameDay(d, now)) return "Hoy";
+  if (isSameDay(d, yesterday)) return "Ayer";
+  if (diffInDays < 7) return "Esta semana";
+  return "Anteriores";
 };
 
 function AdminInboxContent() {
@@ -132,13 +178,13 @@ function AdminInboxContent() {
     { refreshInterval: 10000, revalidateOnFocus: true },
   );
 
-  const conversations = conversationData?.items || [];
+  const conversations = conversationData?.items ?? EMPTY_CONVERSATIONS;
   const totalConversations = conversationData?.total || 0;
   const totalPages = Math.max(1, Math.ceil(totalConversations / LIMIT));
 
   // 2. SWR para el HISTORIAL del chat seleccionado (Polling más rápido: 5s)
   // Esto hace que los mensajes aparezcan solos sin refrescar
-  const { data: messages = [], isLoading: loadingHistory } = useSWR<
+  const { data: messages = EMPTY_HISTORY, isLoading: loadingHistory } = useSWR<
     HistoryItem[]
   >(
     isAuthorized && chatIdFromUrl
@@ -184,19 +230,58 @@ function AdminInboxContent() {
     const start = hasStart ? toStart(filterConfig.startDate) : null;
     const end = hasEnd ? toEnd(filterConfig.endDate) : null;
 
-    return list.filter((c) => {
-      const updated = new Date(c.updated_at);
-      if (start && updated < start) return false;
-      if (end && updated > end) return false;
-      if (filterConfig.hideTrivial && !(c.total_messages > 2)) return false;
-      if (text) {
-        const hay =
-          `${c.conversation_id} ${c.last_message_preview}`.toLowerCase();
-        if (!hay.includes(text)) return false;
-      }
-      return true;
-    });
+    return [...list]
+      .sort(
+        (left, right) =>
+          new Date(right.updated_at).getTime() -
+          new Date(left.updated_at).getTime(),
+      )
+      .filter((c) => {
+        const updated = new Date(c.updated_at);
+        if (start && updated < start) return false;
+        if (end && updated > end) return false;
+        if (filterConfig.hideTrivial && !(c.total_messages > 2)) return false;
+        if (text) {
+          const hay =
+            `${c.conversation_id} ${c.last_message_preview}`.toLowerCase();
+          if (!hay.includes(text)) return false;
+        }
+        return true;
+      });
   }, [conversations, filterConfig]);
+
+  const groupedConversations = React.useMemo(() => {
+    return filteredConversations.reduce<
+      { label: string; items: ConversationItem[] }[]
+    >((sections, conversation) => {
+      const label = getConversationSection(conversation.updated_at);
+      const lastSection = sections[sections.length - 1];
+
+      if (!lastSection || lastSection.label !== label) {
+        sections.push({ label, items: [conversation] });
+      } else {
+        lastSection.items.push(conversation);
+      }
+
+      return sections;
+    }, []);
+  }, [filteredConversations]);
+
+  const selectedConversation = React.useMemo(
+    () =>
+      conversations.find(
+        (conversation: ConversationItem) =>
+          conversation.conversation_id === chatIdFromUrl,
+      ),
+    [chatIdFromUrl, conversations],
+  );
+
+  const hasActiveFilters = Boolean(
+    filterConfig.search ||
+      filterConfig.startDate ||
+      filterConfig.endDate ||
+      filterConfig.hideTrivial,
+  );
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -225,20 +310,40 @@ function AdminInboxContent() {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-background">
-      <div className="px-5 py-3 border-b border-border/40 bg-background">
-        <div className="flex items-center justify-between">
-          <div>
+    <div className="flex h-[calc(100vh-4rem)] min-h-[640px] flex-col overflow-hidden rounded-[28px] border border-border/60 bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04),0_18px_48px_rgba(15,23,42,0.08)]">
+      <div className="border-b border-border/60 bg-card/95 px-6 py-4 supports-[backdrop-filter]:bg-card/85">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-wrap items-center gap-2 [&_h1]:hidden [&_p]:hidden">
+            <div className="flex items-center gap-2">
+              <Badge
+                variant="secondary"
+                className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]"
+              >
+                Inbox
+              </Badge>
+              <span className="text-sm font-medium text-foreground">
+                {totalConversations} conversaciones
+              </span>
+            </div>
             <h1 className="text-base font-semibold text-foreground">Buzón</h1>
-            <p className="text-[12px] text-muted-foreground/70">Conversaciones activas</p>
+            <p className="m-0 text-sm text-muted-foreground">
+              Lista compacta, estados claros y lectura enfocada.
+            </p>
           </div>
           <div className="flex items-center gap-2">
-            <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-50 text-emerald-600 text-[11px] font-medium dark:bg-emerald-950/30 dark:text-emerald-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-400">
+              <span className="h-2 w-2 rounded-full bg-current animate-pulse" />
               En vivo
             </div>
-            <Button variant="ghost" size="sm" onClick={() => refreshList()} className="h-8 gap-1.5 text-[12px]">
-              <RefreshCw className={cn("w-3.5 h-3.5", loadingList && "animate-spin")} />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refreshList()}
+              className="h-9 rounded-xl border-border/60 px-3"
+            >
+              <RefreshCw
+                className={cn("mr-2 h-4 w-4", loadingList && "animate-spin")}
+              />
               Actualizar
             </Button>
           </div>
@@ -248,26 +353,38 @@ function AdminInboxContent() {
         <div
           className={cn(
             hasChat ? "hidden md:flex" : "flex",
-            "w-[380px] flex-none border-r border-border/40 flex flex-col min-h-0 bg-background dark:border-slate-800",
+            "w-full md:w-[400px] flex-none border-r border-border/60 flex flex-col min-h-0 bg-surface",
           )}
         >
-          <div className="px-3 py-2.5 border-b border-border/40 bg-background flex-none space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wider">Conversaciones</span>
-                <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-normal">
-                  {totalConversations}
-                </Badge>
+          <div className="space-y-3 border-b border-border/60 bg-card/80 px-4 py-3.5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2 [&_p]:hidden">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-foreground">
+                    Conversaciones
+                  </span>
+                  <Badge
+                    variant="outline"
+                    className="h-5 rounded-full px-2 text-[10px] font-medium"
+                  >
+                    {filteredConversations.length}
+                  </Badge>
+                </div>
+                <p className="m-0 text-xs text-muted-foreground">
+                  {hasActiveFilters
+                    ? `Filtradas sobre ${totalConversations}`
+                    : "Actualizadas automÃ¡ticamente"}
+                </p>
               </div>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                className="h-9 w-9 rounded-xl text-muted-foreground hover:text-foreground"
                 onClick={() => refreshList()}
                 title="Actualizar lista"
               >
                 <RefreshCw
-                  className={cn("w-3.5 h-3.5", loadingList && "animate-spin")}
+                  className={cn("h-4 w-4", loadingList && "animate-spin")}
                 />
               </Button>
             </div>
@@ -278,19 +395,28 @@ function AdminInboxContent() {
                 onChange={(e) =>
                   setFilterConfig((f) => ({ ...f, search: e.target.value }))
                 }
+                className="h-10 rounded-xl border-border/60 bg-background shadow-none placeholder:text-muted-foreground/60"
               />
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" size="icon" aria-label="Filtros">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    aria-label="Filtros"
+                    className="h-10 w-10 rounded-xl border-border/60 bg-background text-muted-foreground hover:bg-muted"
+                  >
                     <ListFilter className="w-4 h-4" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent align="end" className="w-80 shadow-lg">
-                  <div className="space-y-3">
-                    <div className="text-xs font-semibold text-slate-700">
+                <PopoverContent
+                  align="end"
+                  className="w-80 rounded-2xl border-border/60 p-4 shadow-xl"
+                >
+                  <div className="space-y-4">
+                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                       Fechas
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <Button
                         variant={
                           !filterConfig.startDate && !filterConfig.endDate
@@ -437,231 +563,285 @@ function AdminInboxContent() {
                 </PopoverContent>
               </Popover>
             </div>
+            <div className="flex min-h-6 items-center justify-end gap-2 [&>div]:hidden">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge
+                  variant="secondary"
+                  className="h-5 rounded-full px-2 text-[10px] font-medium"
+                >
+                  {totalConversations}
+                </Badge>
+                {filterConfig.hideTrivial && (
+                  <Badge
+                    variant="outline"
+                    className="h-5 rounded-full px-2 text-[10px] font-medium"
+                  >
+                    sin triviales
+                  </Badge>
+                )}
+              </div>
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 rounded-lg px-2 text-xs"
+                  onClick={() =>
+                    setFilterConfig({
+                      search: "",
+                      startDate: "",
+                      endDate: "",
+                      hideTrivial: false,
+                    })
+                  }
+                >
+                  Limpiar
+                </Button>
+              )}
+            </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-2 py-1.5 space-y-0.5">
+          <div className="flex-1 overflow-y-auto px-3 py-3">
             {loadingList && conversations.length === 0 ? (
               // Skeletons
               Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="p-3 rounded-lg border border-transparent">
+                <div
+                  key={i}
+                  className="rounded-2xl border border-border/50 bg-background px-4 py-3"
+                >
                   <div className="flex gap-3">
-                    <Skeleton className="h-10 w-10 rounded-full" />
+                    <Skeleton className="h-11 w-11 rounded-2xl" />
                     <div className="space-y-2 flex-1">
-                      <Skeleton className="h-4 w-3/4" />
-                      <Skeleton className="h-3 w-1/2" />
+                      <div className="flex items-center justify-between gap-3">
+                        <Skeleton className="h-4 w-28" />
+                        <Skeleton className="h-3 w-10" />
+                      </div>
+                      <Skeleton className="h-3 w-2/3" />
+                      <Skeleton className="h-5 w-24 rounded-full" />
                     </div>
                   </div>
                 </div>
               ))
             ) : filteredConversations.length === 0 ? (
-              <div className="h-32 flex items-center justify-center text-xs text-slate-400">
-                No hay conversaciones recientes
+              <div className="flex h-40 flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 bg-background px-6 text-center">
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-muted/50 text-muted-foreground">
+                  <MessageSquare className="h-5 w-5" />
+                </div>
+                <p className="m-0 text-sm font-medium text-foreground">
+                  No hay conversaciones recientes
+                </p>
+                <p className="m-1 text-xs text-muted-foreground">
+                  Ajusta los filtros o vuelve a cargar la lista.
+                </p>
               </div>
             ) : (
-              // Lista Real
-              filteredConversations.map((c) => {
-                const isActive = chatIdFromUrl === c.conversation_id;
-                return (
-                  <div
-                    key={c.conversation_id}
-                    onClick={() => handleSelectChat(c.conversation_id)}
-                    className={cn(
-                      "group relative flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer transition-all duration-200",
-                      isActive
-                        ? "bg-blue-50 before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-8 before:w-[3px] before:rounded-r-full before:bg-blue-600 dark:bg-blue-950/40 dark:before:bg-blue-400"
-                        : "hover:bg-slate-50 dark:hover:bg-slate-800/50",
-                    )}
-                  >
-                    {/* Avatar */}
-                    <div
-                      className="flex-none w-10 h-10 rounded-full flex items-center justify-center text-[11px] font-semibold text-slate-600 dark:text-slate-300 shadow-sm"
-                      style={{ backgroundColor: colorFromId(c.conversation_id) }}
-                    >
-                      <UserCircle2 className="w-5 h-5 opacity-70" />
+              <div className="space-y-4">
+                {groupedConversations.map((section) => (
+                  <div key={section.label} className="space-y-2">
+                    <div className="px-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                      {section.label}
                     </div>
+                    <div className="space-y-2">
+                      {section.items.map((c) => {
+                        const isActive = chatIdFromUrl === c.conversation_id;
+                        return (
+                          <button
+                            key={c.conversation_id}
+                            type="button"
+                            onClick={() => handleSelectChat(c.conversation_id)}
+                            className={cn(
+                              "group w-full rounded-2xl border px-4 py-3 text-left transition-all duration-200",
+                              isActive
+                                ? "border-primary/20 bg-primary/10 shadow-sm"
+                                : "border-transparent bg-background hover:border-border/70 hover:bg-muted/60",
+                            )}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div
+                                className="flex h-11 w-11 flex-none items-center justify-center rounded-2xl border border-white/50 text-slate-700 shadow-sm"
+                                style={{
+                                  backgroundColor: colorFromId(c.conversation_id),
+                                }}
+                              >
+                                <UserCircle2 className="h-5 w-5 opacity-80" />
+                              </div>
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <span
-                          className={cn(
-                            "text-sm font-medium truncate",
-                            isActive ? "text-blue-700 dark:text-blue-300" : "text-slate-900 dark:text-slate-100",
-                          )}
-                        >
-                          {humanizeId(c.conversation_id)}
-                        </span>
-                        <span className="text-[11px] text-slate-400 dark:text-slate-500 whitespace-nowrap ml-2 font-medium">
-                          {fmtDate(c.updated_at)}
-                        </span>
-                      </div>
-                      <p className="text-[13px] text-slate-500 dark:text-slate-400 truncate">
-                        {c.last_message_preview || (
-                          <span className="italic text-slate-400 dark:text-slate-500">
-                            Sin mensajes
-                          </span>
-                        )}
-                      </p>
+                              <div className="min-w-0 flex-1">
+                                <div className="mb-1 flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <span
+                                      className={cn(
+                                        "block truncate text-sm font-semibold",
+                                        isActive ? "text-primary" : "text-foreground",
+                                      )}
+                                    >
+                                      {humanizeId(c.conversation_id)}
+                                    </span>
+                                    <span className="block truncate font-mono text-[11px] text-muted-foreground/70">
+                                      {c.conversation_id.slice(0, 10)}...
+                                    </span>
+                                  </div>
+                                  <span className="ml-2 whitespace-nowrap text-[11px] font-medium text-muted-foreground">
+                                    {fmtDate(c.updated_at)}
+                                  </span>
+                                </div>
+                                <p
+                                  className={cn(
+                                    "text-[13px] leading-5 text-muted-foreground",
+                                    previewClampClass,
+                                  )}
+                                >
+                                  {c.last_message_preview || (
+                                    <span className="italic text-muted-foreground/70">
+                                      Sin mensajes
+                                    </span>
+                                  )}
+                                </p>
+                                <div className="mt-3 flex flex-wrap items-center gap-2">
+                                  <Badge
+                                    variant={isActive ? "default" : "secondary"}
+                                    className="h-5 rounded-full px-2 text-[10px] font-medium"
+                                  >
+                                    {c.total_messages} mensajes
+                                  </Badge>
+                                  <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                                    <CalendarDays className="h-3.5 w-3.5" />
+                                    {fmtConversationMeta(c.updated_at)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
-                );
-              })
+                ))}
+              </div>
             )}
           </div>
 
           {/* Paginación */}
-          <div className="px-3 py-2 border-t border-border/40 bg-background flex-none">
-            <Pagination>
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    className={
-                      page === 1
-                        ? "pointer-events-none opacity-50"
-                        : "cursor-pointer"
-                    }
-                  />
-                </PaginationItem>
-
-                {(() => {
-                  const range = [];
-                  const delta = 1;
-                  for (let i = 1; i <= totalPages; i++) {
-                    if (
-                      i === 1 ||
-                      i === totalPages ||
-                      (i >= page - delta && i <= page + delta)
-                    ) {
-                      range.push(i);
-                    }
-                  }
-
-                  const rangeWithDots = [];
-                  let l;
-                  for (let i of range) {
-                    if (l) {
-                      if (i - l === 2) {
-                        rangeWithDots.push(l + 1);
-                      } else if (i - l !== 1) {
-                        rangeWithDots.push("...");
-                      }
-                    }
-                    rangeWithDots.push(i);
-                    l = i;
-                  }
-
-                  return rangeWithDots.map((pageNum, idx) => (
-                    <PaginationItem key={idx}>
-                      {pageNum === "..." ? (
-                        <PaginationEllipsis />
-                      ) : (
-                        <PaginationLink
-                          isActive={page === pageNum}
-                          onClick={() => setPage(Number(pageNum))}
-                          className="cursor-pointer"
-                        >
-                          {pageNum}
-                        </PaginationLink>
-                      )}
-                    </PaginationItem>
-                  ));
-                })()}
-
-                <PaginationItem>
-                  <PaginationNext
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    className={
-                      page === totalPages
-                        ? "pointer-events-none opacity-50"
-                        : "cursor-pointer"
-                    }
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
+          <div className="flex items-center justify-between border-t border-border/60 bg-card/80 px-4 py-3">
+            <div className="text-xs text-muted-foreground">
+              Pagina {page} de {totalPages}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 rounded-lg border-border/60 px-3"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+              >
+                Anterior
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 rounded-lg border-border/60 px-3"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+              >
+                Siguiente
+              </Button>
+            </div>
           </div>
         </div>
 
         <div className={cn(
           hasChat ? "flex w-full" : "hidden md:flex",
-          "flex-1 flex flex-col min-h-0 bg-background dark:bg-slate-900",
+          "flex-1 flex flex-col min-h-0 bg-card",
         )}>
           {!chatIdFromUrl ? (
-            <div className="hidden md:flex flex-1 flex-col items-center justify-center text-muted-foreground/60">
-              <div className="w-12 h-12 rounded-lg bg-muted/50 flex items-center justify-center mb-3">
+            <div className="hidden md:flex flex-1 flex-col items-center justify-center px-6 text-center text-muted-foreground/60">
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-border/60 bg-muted/40">
                 <MessageSquare className="w-5 h-5" />
               </div>
               <p className="text-[13px] font-medium">Selecciona una conversación</p>
-              <p className="text-[11px] text-muted-foreground/50 mt-1">Elige un chat de la lista para ver los mensajes</p>
+              <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+                La lista mantiene contexto y estados; el detalle aparece aquÃ­ sin competir con el resto de la interfaz.
+              </p>
             </div>
           ) : (
             <>
               {/* Chat Header - with shadow for depth */}
-              <div className="flex items-center justify-between px-5 py-3 bg-white border-b border-slate-100 shadow-sm sticky top-0 z-20 dark:bg-slate-900 dark:border-slate-800">
-                <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/60 bg-card/95 px-5 py-4 supports-[backdrop-filter]:bg-card/85">
+                <div className="flex min-w-0 items-center gap-3">
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="md:hidden h-8 w-8"
+                    className="md:hidden h-9 w-9 rounded-xl"
                     onClick={clearSelectedChat}
                     aria-label="Volver"
                   >
                     <ChevronLeft className="w-5 h-5" />
                   </Button>
                   <div
-                    className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-semibold shadow-sm"
+                    className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/60 text-sm font-semibold text-slate-700 shadow-sm"
                     style={{ backgroundColor: colorFromId(chatIdFromUrl) }}
                   >
                     VT
                   </div>
-                  <div>
-                    <div className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-foreground">
                       {humanizeId(chatIdFromUrl)}
-                      <span className="px-2 py-0.5 rounded-md bg-slate-100 text-[10px] font-mono text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                      <Badge
+                        variant="secondary"
+                        className="h-5 rounded-full px-2 text-[10px] font-medium"
+                      >
+                        {selectedConversation?.total_messages ?? messages.length} mensajes
+                      </Badge>
+                      <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] font-mono text-muted-foreground">
                         {chatIdFromUrl.slice(0, 8)}…
                       </span>
                     </div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mt-0.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                      En vivo
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                        En vivo
+                      </span>
+                      {selectedConversation?.updated_at && (
+                        <span>Actualizado {fmtConversationMeta(selectedConversation.updated_at)}</span>
+                      )}
                     </div>
                   </div>
                 </div>
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 text-xs gap-1.5"
+                  className="h-9 rounded-xl border-border/60 px-3"
                   onClick={() => navigator.clipboard.writeText(chatIdFromUrl)}
                 >
-                  <Copy className="w-3.5 h-3.5" />
+                  <Copy className="mr-2 h-4 w-4" />
                   Copiar ID
                 </Button>
               </div>
 
               {/* Chat Body - with generous spacing */}
               <div
-                className="flex-1 overflow-y-auto px-6 py-6 space-y-6 bg-slate-50 dark:bg-slate-900"
+                className="flex-1 overflow-y-auto bg-surface px-4 py-5 md:px-6"
                 ref={scrollRef}
               >
                 {loadingHistory && messages.length === 0 ? (
                   // Skeletons Chat
-                  <div className="space-y-6 opacity-60">
+                  <div className="mx-auto max-w-4xl space-y-6 opacity-60">
                     <div className="flex justify-end">
-                      <Skeleton className="h-12 w-2/3 rounded-2xl rounded-tr-none" />
+                      <Skeleton className="h-12 w-[min(70%,420px)] rounded-2xl rounded-tr-none" />
                     </div>
                     <div className="flex justify-start">
-                      <Skeleton className="h-20 w-3/4 rounded-2xl rounded-tl-none" />
+                      <Skeleton className="h-20 w-[min(78%,520px)] rounded-2xl rounded-tl-none" />
                     </div>
                     <div className="flex justify-end">
-                      <Skeleton className="h-10 w-1/2 rounded-2xl rounded-tr-none" />
+                      <Skeleton className="h-10 w-[min(52%,320px)] rounded-2xl rounded-tr-none" />
                     </div>
                   </div>
                 ) : messages.length === 0 ? (
-                  <div className="text-center py-16 text-sm text-slate-400 italic">
+                  <div className="flex h-full min-h-[260px] flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 bg-background px-6 text-center">
                     Esta conversación no tiene mensajes visibles.
                   </div>
                 ) : (
-                  messages.map((m, idx) => {
+                  <div className="mx-auto max-w-4xl space-y-5">
+                    {messages.map((m: HistoryItem, idx: number) => {
                     const isUser = m.role === "user";
                     const stableKey = getMessageKey(m, idx);
                     const bubbleData: BubbleMessage = {
@@ -695,14 +875,13 @@ function AdminInboxContent() {
                         </div>
                       </div>
                     );
-                  })
+                    })}
+                  </div>
                 )}
-                {/* Espaciador final */}
-                <div className="h-4" />
               </div>
 
-              <div className="px-4 py-2 bg-muted/30 border-t border-border/40 text-center dark:bg-slate-900 dark:border-slate-800">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted/50 text-muted-foreground/70 text-[11px] font-medium">
+              <div className="border-t border-border/60 bg-card/90 px-5 py-3">
+                <div className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-3 py-1.5 text-[11px] font-medium text-muted-foreground">
                   🔒 Solo lectura
                 </div>
               </div>

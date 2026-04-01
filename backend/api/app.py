@@ -140,7 +140,13 @@ from .routes.rag.rag_routes import router as rag_router
 from .routes.chat.chat_routes import router as chat_router
 from .routes.whatsapp.webhook_routes import router as whatsapp_router
 from .routes.bot.bot_routes import router as bot_router
-from .routes.bot.config_routes import router as bot_config_router
+from .routes.bot.config_routes import (
+    router as bot_config_router,
+    apply_runtime_config,
+    build_runtime_config_payload,
+    read_runtime_config_from_cache,
+    write_runtime_config_to_cache,
+)
 from .routes.assets.assets_routes import router as assets_router
 from .routes.users.users_routes import router as users_router
 from .auth import router as auth_router
@@ -155,6 +161,131 @@ from rag.vector_store.vector_store import VectorStore
 from rag.ingestion.ingestor import RAGIngestor
 from utils.deploy_log import build_full_startup_summary
 from storage.pdf_processor_adapter import PDFProcessorAdapter
+from cache.manager import cache
+
+BOT_CONFIG_COLLECTION = "bot_config"
+BOT_CONFIG_DOC_ID = "default"
+BOT_IS_ACTIVE_CACHE_KEY = "bot:is_active"
+RUNTIME_SYNC_PATH_PREFIXES = ("/api/v1/bot", "/api/v1/chat", "/api/v1/whatsapp")
+
+
+def _redis_coordination_available() -> bool:
+    try:
+        return bool(cache.get_health_status().get("redis_connected"))
+    except Exception:
+        return False
+
+
+def _normalize_is_active(value: object) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    return None
+
+
+def _read_bot_is_active_from_cache() -> bool | None:
+    if not _redis_coordination_available():
+        return None
+
+    try:
+        return _normalize_is_active(cache.get(BOT_IS_ACTIVE_CACHE_KEY))
+    except Exception:
+        return None
+
+
+def _write_bot_is_active_to_cache(value: bool) -> None:
+    if not _redis_coordination_available():
+        return
+
+    try:
+        cache.set(BOT_IS_ACTIVE_CACHE_KEY, bool(value), ttl=0)
+    except Exception:
+        pass
+
+
+async def _read_bot_is_active_from_mongo(mongo_client) -> bool | None:
+    try:
+        if mongo_client is None:
+            return None
+
+        doc = await mongo_client.db.get_collection(BOT_CONFIG_COLLECTION).find_one(
+            {"_id": BOT_CONFIG_DOC_ID},
+            {"is_active": 1},
+        )
+        if not doc:
+            return None
+
+        return _normalize_is_active(doc.get("is_active"))
+    except Exception:
+        return None
+
+
+async def _read_runtime_config_from_mongo(mongo_client) -> dict | None:
+    try:
+        if mongo_client is None:
+            return None
+
+        repo = ConfigRepository(mongo=mongo_client)
+        config = await repo.get_config()
+        return build_runtime_config_payload(config)
+    except Exception:
+        return None
+
+
+async def _load_shared_runtime_snapshot(mongo_client) -> tuple[dict | None, bool | None]:
+    runtime_config = read_runtime_config_from_cache()
+    if runtime_config is None:
+        runtime_config = await _read_runtime_config_from_mongo(mongo_client)
+        if runtime_config is not None:
+            write_runtime_config_to_cache(runtime_config)
+
+    is_active = _read_bot_is_active_from_cache()
+    if is_active is None:
+        is_active = await _read_bot_is_active_from_mongo(mongo_client)
+        if is_active is not None:
+            _write_bot_is_active_to_cache(is_active)
+
+    return runtime_config, is_active
+
+
+def _apply_shared_runtime_snapshot(app: FastAPI, runtime_config: dict | None, is_active: bool | None, *, reload_chain: bool) -> None:
+    config_changed = False
+
+    if runtime_config is not None and getattr(app.state, "settings", None) is not None:
+        current_config = getattr(app.state, "last_synced_bot_config", None)
+        if current_config != runtime_config:
+            config_changed = apply_runtime_config(app.state.settings, runtime_config)
+            app.state.last_synced_bot_config = runtime_config
+
+    bot = getattr(app.state, "bot_instance", None)
+    if bot is not None and is_active is not None and bot.is_active != is_active:
+        bot.is_active = is_active
+
+    if is_active is not None:
+        app.state.last_synced_bot_is_active = is_active
+
+    if reload_chain and config_changed and bot is not None:
+        try:
+            bot.reload_chain(app.state.settings)
+        except Exception as e:
+            get_logger(__name__).error(f"Error recargando chain desde estado compartido: {e}", exc_info=True)
+
+
+async def _sync_worker_runtime_state(app: FastAPI, *, reload_chain: bool) -> None:
+    mongo_client = getattr(app.state, "mongodb_client", None)
+    runtime_config, is_active = await _load_shared_runtime_snapshot(mongo_client)
+    _apply_shared_runtime_snapshot(app, runtime_config, is_active, reload_chain=reload_chain)
+
+
+def _should_sync_runtime_state(path: str) -> bool:
+    return path.startswith(RUNTIME_SYNC_PATH_PREFIXES)
 
 # ---- Lifespan ----
 @asynccontextmanager
@@ -167,10 +298,10 @@ async def lifespan(app: FastAPI):
         s = settings
         app.state.settings = s
         logger.info(f"SIMILARITY_THRESHOLD={s.similarity_threshold}")
+        app.state.startup_bot_is_active = None
 
         # Visibilidad del backend de caché activo al inicio
         try:
-            from cache.manager import cache
             logger.info(
                 f"Cache activo: backend={type(cache.backend).__name__}, ttl={cache.ttl}, max_size={cache.max_size}"
             )
@@ -179,16 +310,23 @@ async def lifespan(app: FastAPI):
 
         # Cargar configuración dinámica del bot desde Mongo (si disponible)
         try:
-            config_repo = ConfigRepository()
-            bot_config = await config_repo.get_config()
+            from database.mongodb import get_mongodb_client
+            try:
+                app.state.mongodb_client = get_mongodb_client()
+            except Exception as mongo_error:
+                app.state.mongodb_client = None
+                logger.warning(f"No se pudo inicializar MongoDB para configuración dinámica inicial: {mongo_error}")
+
+            runtime_config, startup_is_active = await _load_shared_runtime_snapshot(
+                getattr(app.state, "mongodb_client", None)
+            )
             # Sincronizar settings antes de crear el Bot (evitar system_prompt legado)
             # En modo complemento seguro, ignoramos system_prompt persistido y usamos la base del módulo.
             s.system_prompt = None
-            if bot_config.temperature is not None:
-                s.temperature = bot_config.temperature
-            # Asignar nombre y prompt extra para composición en ChainManager
-            s.bot_name = bot_config.bot_name
-            s.ui_prompt_extra = bot_config.ui_prompt_extra
+            if runtime_config is not None:
+                apply_runtime_config(s, runtime_config)
+                app.state.last_synced_bot_config = runtime_config
+            app.state.startup_bot_is_active = startup_is_active
             logger.info(f"Config dinámica aplicada: temperature={s.temperature} system_prompt_len={len(s.system_prompt or '')}")
         except Exception as e:
             logger.warning(f"No se pudo cargar configuración dinámica inicial: {e}")
@@ -251,6 +389,10 @@ async def lifespan(app: FastAPI):
             model_type=None,
             rag_retriever=app.state.rag_retriever
         )
+        if app.state.startup_bot_is_active is not None:
+            app.state.bot_instance.is_active = app.state.startup_bot_is_active
+        app.state.last_synced_bot_config = build_runtime_config_payload(app.state.settings)
+        app.state.last_synced_bot_is_active = app.state.bot_instance.is_active
         logger.info(f"Instancia de Bot creada con tipo de memoria: {bot_memory_type}")
 
         app.state.chat_manager = ChatManager(bot_instance=app.state.bot_instance)
@@ -261,7 +403,8 @@ async def lifespan(app: FastAPI):
         try:
             from database.mongodb import get_mongodb_client
             logger.info("Initializing persistent MongoDB client for application lifespan...")
-            app.state.mongodb_client = get_mongodb_client()
+            if not getattr(app.state, "mongodb_client", None):
+                app.state.mongodb_client = get_mongodb_client()
             await app.state.mongodb_client.ensure_indexes()
             logger.debug(f"[DB] MongoDB client id={id(app.state.mongodb_client)}")
             # Asegurar índices de usuarios (únicos y de estado)
@@ -359,6 +502,12 @@ def create_app() -> FastAPI:
     main_logger.info(enterprise_banner())
 
     app.state.limiter = limiter
+
+    @app.middleware("http")
+    async def sync_runtime_state(request: Request, call_next):
+        if _should_sync_runtime_state(request.url.path):
+            await _sync_worker_runtime_state(request.app, reload_chain=True)
+        return await call_next(request)
 
     @app.middleware("http")
     async def log_requests(request: Request, call_next):
