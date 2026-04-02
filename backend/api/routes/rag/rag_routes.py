@@ -15,6 +15,10 @@ from api.schemas import (
     RetrieveDebugRequest,
     RetrieveDebugResponse,
     RetrieveDebugItem,
+    HierarchicalRetrieveDebugRequest,
+    HierarchicalRetrieveDebugResponse,
+    HierarchicalRetrieveDebugItem,
+    HierarchicalChildHitItem,
     ReindexPDFRequest,
     ReindexPDFResponse,
 )
@@ -69,6 +73,9 @@ async def clear_rag(
     """Endpoint para limpiar el RAG."""
     pdf_processor = request.app.state.pdf_processor
     rag_retriever = request.app.state.rag_retriever
+    rag_child_vector_store = getattr(request.app.state, "rag_child_vector_store", None)
+    rag_parent_repository = getattr(request.app.state, "rag_parent_repository", None)
+    rag_child_lexical_repository = getattr(request.app.state, "rag_child_lexical_repository", None)
     try:
         logger.info("Iniciando limpieza del RAG...")
         pdfs_before = await pdf_processor.list_pdfs()
@@ -77,6 +84,15 @@ async def clear_rag(
         # 1) Limpiar vector store primero. Si Qdrant falla, no tocar filesystem.
         await rag_retriever.vector_store.delete_collection()
         logger.info("Vector store limpiado y reinicializado")
+        if rag_child_vector_store is not None:
+            await rag_child_vector_store.delete_collection()
+            logger.info("Child vector store limpiado y reinicializado")
+        if rag_parent_repository is not None:
+            await rag_parent_repository.clear()
+            logger.info("Parent repository limpiado")
+        if rag_child_lexical_repository is not None:
+            await rag_child_lexical_repository.clear()
+            logger.info("Lexical repository limpiado")
 
         # 2) Limpiar PDFs del filesystem después de Qdrant
         result = await pdf_processor.clear_pdfs()
@@ -173,6 +189,51 @@ async def retrieve_debug(
         logger.error(f"Error en retrieve-debug: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error interno del servidor en retrieve-debug: {str(e)}")
 
+
+@router.post("/hierarchical-retrieve-debug", response_model=HierarchicalRetrieveDebugResponse)
+async def hierarchical_retrieve_debug(
+    request: Request,
+    payload: HierarchicalRetrieveDebugRequest,
+    _: User = Depends(get_current_active_user),
+):
+    """Endpoint para auditar el retrieval jerárquico parent-child sin tocar /chat."""
+    hierarchical_rag_retriever = getattr(request.app.state, "hierarchical_rag_retriever", None)
+    if hierarchical_rag_retriever is None:
+        raise HTTPException(status_code=500, detail="HierarchicalRetriever no está inicializado en la aplicación")
+
+    try:
+        requested_k = int(payload.k) if isinstance(payload.k, int) else 4
+        safe_k = max(1, min(requested_k, 10))
+        trace = await hierarchical_rag_retriever.retrieve_with_trace(
+            query=payload.query,
+            k=safe_k,
+            filter_criteria=payload.filter_criteria,
+            include_context=payload.include_context,
+        )
+        items = [
+            HierarchicalRetrieveDebugItem(
+                **{
+                    **item,
+                    "child_hits": [HierarchicalChildHitItem(**child) for child in item.get("child_hits", [])],
+                }
+            )
+            for item in trace.get("retrieved", [])
+        ]
+        return HierarchicalRetrieveDebugResponse(
+            query=trace.get("query", payload.query),
+            k=trace.get("k", safe_k),
+            child_k=trace.get("child_k", safe_k),
+            retrieved=items,
+            context=trace.get("context"),
+            timings=trace.get("timings", {}),
+        )
+    except Exception as e:
+        logger.error(f"Error en hierarchical-retrieve-debug: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error interno del servidor en hierarchical-retrieve-debug: {str(e)}",
+        )
+
 @router.post("/reindex-pdf", response_model=ReindexPDFResponse)
 async def reindex_pdf(
     request: Request,
@@ -187,6 +248,7 @@ async def reindex_pdf(
     try:
         pdf_manager = request.app.state.pdf_file_manager
         rag_ingestor = request.app.state.rag_ingestor
+        hierarchical_ingestion_service = getattr(request.app.state, "hierarchical_ingestion_service", None)
 
         # Resolver ruta del PDF dentro del directorio administrado
         from pathlib import Path
@@ -201,6 +263,12 @@ async def reindex_pdf(
             # Propagar detalle del error si está disponible
             detail = result.get("error", result)
             raise HTTPException(status_code=500, detail=f"Fallo en reindexación: {detail}")
+
+        if (
+            request.app.state.settings.enable_hierarchical_rag_ingestion
+            and hierarchical_ingestion_service is not None
+        ):
+            await hierarchical_ingestion_service.ingest_pdf(pdf_path, replace_existing=True)
 
         refresh_rag_corpus_state(request.app.state)
 

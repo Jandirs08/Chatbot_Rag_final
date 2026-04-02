@@ -44,14 +44,15 @@ class VectorStore:
         distance_strategy: str = "cosine",
         cache_enabled: bool = True,
         cache_ttl: int = 3600,
-        batch_size: int = 100
+        batch_size: int = 100,
+        collection_name: Optional[str] = None,
     ):
         self.embedding_function = embedding_function
         self.distance_strategy = distance_strategy
         self.cache_enabled = cache_enabled
         self.cache_ttl = cache_ttl
         self.batch_size = batch_size
-        self.collection_name = getattr(settings, "qdrant_collection_name", "rag_collection")
+        self.collection_name = collection_name or getattr(settings, "qdrant_collection_name", "rag_collection")
         self.client = None
         self.is_available = False
 
@@ -159,7 +160,10 @@ class VectorStore:
                 "pdf_hash": "keyword",
                 "content_hash": "keyword",
                 "content_hash_global": "keyword",
-                "chunk_type": "keyword"
+                "chunk_type": "keyword",
+                "doc_id": "keyword",
+                "parent_id": "keyword",
+                "child_id": "keyword",
             }
 
             for field, idx_type in required_indexes.items():
@@ -259,6 +263,13 @@ class VectorStore:
                         deterministic_id = str(uuid.UUID(bytes=hashlib.md5(content_hash.encode("utf-8")).digest()))
 
                     payload = {**doc.metadata, "text": doc.page_content}
+                    explicit_point_id = (
+                        doc.metadata.get("point_id")
+                        or doc.metadata.get("child_id")
+                        or doc.metadata.get("id")
+                    )
+                    if explicit_point_id:
+                        deterministic_id = str(explicit_point_id)
                     points.append(PointStruct(id=deterministic_id, vector=vec_list, payload=payload))
 
                 if not points:

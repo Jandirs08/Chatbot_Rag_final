@@ -20,9 +20,11 @@ from utils.logging_utils import get_logger, suppress_cl100k_warnings
 from config import settings
 from utils.rate_limiter import limiter, retry_after_for_path
 from chat.manager import ChatManager
-from rag.retrieval.retriever import RAGRetriever
+from rag.retrieval import HierarchicalRetriever, RAGRetriever
+from rag.retrieval.reranker import build_parent_reranker
 from storage.documents import PDFManager
 from database.config_repository import ConfigRepository
+from database import RAGChildLexicalRepository, RAGParentDocumentRepository
 from database.whatsapp_session_repository import WhatsAppSessionRepository
 
 # ---- Logging Setup ----
@@ -159,6 +161,8 @@ from memory import MemoryTypes
 from rag.pdf_processor.pdf_loader import PDFContentLoader
 from rag.embeddings.embedding_manager import EmbeddingManager
 from rag.vector_store.vector_store import VectorStore
+from rag.ingestion.hierarchical_chunker import HierarchicalChunker
+from rag.ingestion.hierarchical_ingestion_service import HierarchicalIngestionService
 from rag.ingestion.ingestor import RAGIngestor
 from utils.deploy_log import build_full_startup_summary
 from storage.pdf_processor_adapter import PDFProcessorAdapter
@@ -401,6 +405,15 @@ async def lifespan(app: FastAPI):
         else:
             logger.critical("Qdrant no disponible al arranque. La aplicación continuará sin contexto RAG.")
 
+        app.state.rag_child_vector_store = VectorStore(
+            embedding_function=app.state.embedding_manager,
+            distance_strategy=s.distance_strategy,
+            cache_enabled=s.enable_cache,
+            cache_ttl=s.cache_ttl,
+            batch_size=s.batch_size,
+            collection_name=s.rag_child_collection_name,
+        )
+
         app.state.rag_ingestor = RAGIngestor(
             pdf_file_manager=app.state.pdf_file_manager,
             pdf_content_loader=app.state.pdf_content_loader,
@@ -412,6 +425,11 @@ async def lifespan(app: FastAPI):
             vector_store=app.state.vector_store,
             embedding_manager=app.state.embedding_manager
         )
+        app.state.hierarchical_rag_retriever = None
+        app.state.hierarchical_ingestion_service = None
+        app.state.rag_parent_repository = None
+        app.state.rag_child_lexical_repository = None
+        app.state.hierarchical_chunker = None
 
         # Ping ligero de embeddings para visibilidad (sin bloquear arranque si falla)
         try:
@@ -464,6 +482,45 @@ async def lifespan(app: FastAPI):
                 await wa_repo.ensure_indexes()
             except Exception as e_idx:
                 logger.warning(f"No se pudieron aplicar índices de whatsapp_sessions al arranque: {e_idx}")
+            try:
+                app.state.rag_parent_repository = RAGParentDocumentRepository(
+                    mongodb_client=app.state.mongodb_client,
+                    collection_name=s.rag_parent_collection_name,
+                )
+                await app.state.rag_parent_repository.ensure_indexes()
+                app.state.rag_child_lexical_repository = RAGChildLexicalRepository(
+                    mongodb_client=app.state.mongodb_client,
+                    documents_collection_name=s.rag_child_lexical_collection_name,
+                    postings_collection_name=s.rag_child_lexical_postings_collection_name,
+                )
+                await app.state.rag_child_lexical_repository.ensure_indexes()
+                app.state.hierarchical_chunker = HierarchicalChunker()
+                app.state.hierarchical_ingestion_service = HierarchicalIngestionService(
+                    chunker=app.state.hierarchical_chunker,
+                    parent_repository=app.state.rag_parent_repository,
+                    embedding_manager=app.state.embedding_manager,
+                    vector_store=app.state.rag_child_vector_store,
+                    lexical_repository=app.state.rag_child_lexical_repository,
+                )
+                app.state.hierarchical_rag_retriever = HierarchicalRetriever(
+                    child_vector_store=app.state.rag_child_vector_store,
+                    parent_repository=app.state.rag_parent_repository,
+                    embedding_manager=app.state.embedding_manager,
+                    lexical_repository=app.state.rag_child_lexical_repository,
+                    reranker=build_parent_reranker(),
+                    child_fetch_multiplier=getattr(s, "retrieval_k_multiplier", 3),
+                    cache_enabled=s.enable_cache,
+                )
+            except Exception as e_idx:
+                app.state.rag_parent_repository = None
+                app.state.rag_child_lexical_repository = None
+                app.state.hierarchical_chunker = None
+                app.state.hierarchical_ingestion_service = None
+                app.state.hierarchical_rag_retriever = None
+                logger.warning(f"No se pudo inicializar HierarchicalRetriever al arranque: {e_idx}")
+            if getattr(s, "enable_advanced_rag_retrieval", False) and app.state.hierarchical_rag_retriever is not None:
+                app.state.bot_instance.rag_retriever = app.state.hierarchical_rag_retriever
+                logger.info("Advanced hierarchical RAG retriever activado para el bot.")
             logger.info("🚀 Persistent MongoDB client initialized and indexes created successfully")
         except Exception as e:
             logger.error(f"⚠️ Error initializing persistent MongoDB client: {e}", exc_info=True)
@@ -507,6 +564,11 @@ async def lifespan(app: FastAPI):
             if hasattr(app.state.vector_store, 'close'):
                 await app.state.vector_store.close()
             logger.info("VectorStore cerrado.")
+
+        if hasattr(app.state, 'rag_child_vector_store'):
+            if hasattr(app.state.rag_child_vector_store, 'close'):
+                await app.state.rag_child_vector_store.close()
+            logger.info("Child VectorStore cerrado.")
 
         # Cerrar EmbeddingManager
         if hasattr(app.state, 'embedding_manager'):

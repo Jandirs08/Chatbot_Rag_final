@@ -27,6 +27,10 @@ from .rag import (
     RetrieveDebugRequest,
     RetrieveDebugItem,
     RetrieveDebugResponse,
+    HierarchicalRetrieveDebugRequest,
+    HierarchicalChildHitItem,
+    HierarchicalRetrieveDebugItem,
+    HierarchicalRetrieveDebugResponse,
     ReindexPDFRequest,
     ReindexPDFResponse,
 )
@@ -58,6 +62,10 @@ __all__ = [
     "RetrieveDebugRequest",
     "RetrieveDebugItem",
     "RetrieveDebugResponse",
+    "HierarchicalRetrieveDebugRequest",
+    "HierarchicalChildHitItem",
+    "HierarchicalRetrieveDebugItem",
+    "HierarchicalRetrieveDebugResponse",
     "ReindexPDFRequest",
     "ReindexPDFResponse",
     

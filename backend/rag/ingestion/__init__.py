@@ -1,1 +1,14 @@
-# This file makes 'ingestion' a package 
+from .hierarchical_chunker import HierarchicalChunker
+from .hierarchical_ingestion_service import HierarchicalIngestionService
+from .ingestor import RAGIngestor
+from .models import ChildChunk, HierarchicalChunkingResult, PageSpan, ParentDocument
+
+__all__ = [
+    "ChildChunk",
+    "HierarchicalChunker",
+    "HierarchicalChunkingResult",
+    "HierarchicalIngestionService",
+    "PageSpan",
+    "ParentDocument",
+    "RAGIngestor",
+]
