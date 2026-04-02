@@ -4,6 +4,7 @@ import re
 from typing import Any, Dict, List, Optional
 from utils.logging_utils import get_logger
 import time
+from fastapi import HTTPException
 from cache.manager import cache
 from utils.hashing import hash_for_cache_key
 import asyncio
@@ -75,16 +76,123 @@ class ChatManager:
     def __init__(self, bot_instance: Bot):
         self.bot = bot_instance
         self.db = get_mongodb_client()
+        self._conversation_locks: Dict[str, asyncio.Lock] = {}
+        self._conversation_lock_refs: Dict[str, int] = {}
+        self._conversation_lock_last_used: Dict[str, float] = {}
+        self._conversation_locks_guard = asyncio.Lock()
+        self._lock_cleanup_interval_seconds = 60.0
+        self._lock_idle_ttl_seconds = 300.0
+        self._last_lock_cleanup_at = time.monotonic()
 
         logger.debug(f"[DB] ChatManager inicializado | client_id={id(self.db)}")
 
     def _build_response_cache_key(self, conversation_id: str, input_text: str) -> str:
         corpus_version = get_corpus_cache_version()
-        return f"resp:v={corpus_version}:{conversation_id}:{hash_for_cache_key(input_text)}"
+        chain_settings = getattr(getattr(self.bot, "chain_manager", None), "settings", None)
+        bot_settings = getattr(self.bot, "settings", None)
+        effective_settings = chain_settings or bot_settings
+
+        config_payload = {
+            "base_model_name": getattr(effective_settings, "base_model_name", ""),
+            "temperature": getattr(effective_settings, "temperature", ""),
+            "main_prompt_name": getattr(effective_settings, "main_prompt_name", ""),
+            "ui_prompt_extra": getattr(effective_settings, "ui_prompt_extra", ""),
+            "enable_rag_lcel": bool(getattr(effective_settings, "enable_rag_lcel", False)),
+        }
+        config_hash = hash_for_cache_key(
+            json.dumps(config_payload, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+        )
+        input_hash = hash_for_cache_key(input_text)
+        return f"resp:v={corpus_version}:{conversation_id}:{config_hash}:{input_hash}"
+
+    async def _acquire_conversation_lock(self, conversation_id: str) -> tuple[Optional[asyncio.Lock], bool]:
+        now = time.monotonic()
+        async with self._conversation_locks_guard:
+            lock = self._conversation_locks.get(conversation_id)
+            if lock is None:
+                lock = asyncio.Lock()
+                self._conversation_locks[conversation_id] = lock
+                self._conversation_lock_refs[conversation_id] = 0
+
+            self._conversation_lock_refs[conversation_id] = (
+                self._conversation_lock_refs.get(conversation_id, 0) + 1
+            )
+            self._conversation_lock_last_used[conversation_id] = now
+
+        try:
+            await asyncio.wait_for(lock.acquire(), timeout=10.0)
+            return lock, True
+        except asyncio.TimeoutError:
+            logger.warning(
+                "[CHAT] Timeout adquiriendo lock de conversaciÃ³n | conv=%s. Continuando sin lock.",
+                conversation_id,
+            )
+            await self._release_conversation_lock(conversation_id, lock, acquired=False)
+            return lock, False
+
+    async def _release_conversation_lock(
+        self,
+        conversation_id: str,
+        lock: Optional[asyncio.Lock],
+        *,
+        acquired: bool,
+    ) -> None:
+        now = time.monotonic()
+        async with self._conversation_locks_guard:
+            if acquired and lock is not None and lock.locked():
+                lock.release()
+
+            current_refs = self._conversation_lock_refs.get(conversation_id, 0)
+            if current_refs > 1:
+                self._conversation_lock_refs[conversation_id] = current_refs - 1
+                self._conversation_lock_last_used[conversation_id] = now
+            else:
+                self._conversation_lock_refs[conversation_id] = 0
+                self._conversation_lock_last_used[conversation_id] = now
+
+            if (now - self._last_lock_cleanup_at) >= self._lock_cleanup_interval_seconds:
+                self._cleanup_conversation_locks_locked(now)
+                self._last_lock_cleanup_at = now
+
+    def _cleanup_conversation_locks_locked(self, now: float) -> None:
+        stale_ids = []
+        for conversation_id, lock in self._conversation_locks.items():
+            refs = self._conversation_lock_refs.get(conversation_id, 0)
+            last_used = self._conversation_lock_last_used.get(conversation_id, now)
+            if refs <= 0 and not lock.locked() and (now - last_used) >= self._lock_idle_ttl_seconds:
+                stale_ids.append(conversation_id)
+
+        for conversation_id in stale_ids:
+            self._conversation_locks.pop(conversation_id, None)
+            self._conversation_lock_refs.pop(conversation_id, None)
+            self._conversation_lock_last_used.pop(conversation_id, None)
+
+    async def _persist_messages_safely(
+        self,
+        conversation_id: str,
+        input_text: str,
+        response_content: str,
+        source: str | None,
+    ) -> None:
+        try:
+            await self.db.add_message(conversation_id, USER_ROLE, input_text, source)
+            await self.db.add_message(conversation_id, ASSISTANT_ROLE, response_content, source)
+        except Exception as exc:
+            logger.error(
+                "No se pudo persistir la conversación en Mongo para conv=%s: %s",
+                conversation_id,
+                exc,
+                exc_info=True,
+            )
 
     async def generate_response(self, input_text: str, conversation_id: str, source: str | None = None, debug_mode: bool = False):
         """Genera la respuesta usando el Bot (LCEL maneja el RAG automáticamente)."""
+        conversation_lock: Optional[asyncio.Lock] = None
+        lock_acquired = False
         try:
+            conversation_lock, lock_acquired = await self._acquire_conversation_lock(conversation_id)
+            if not lock_acquired:
+                raise HTTPException(status_code=429, detail="Conversation busy, try again")
             req_ctx = new_request_context()
             if getattr(settings, "enable_rag_lcel", False):
                 logger.info("ENABLE_RAG_LCEL activo: contexto RAG será inyectado automáticamente.")
@@ -147,8 +255,7 @@ class ChatManager:
                     pass
 
             if not debug_mode:
-                await self.db.add_message(conversation_id, USER_ROLE, input_text, source)
-                await self.db.add_message(conversation_id, ASSISTANT_ROLE, response_content, source)
+                await self._persist_messages_safely(conversation_id, input_text, response_content, source)
                 req_ctx.debug_info = None
             else:
                 req_ctx.debug_info = await self._build_debug_info(
@@ -168,7 +275,13 @@ class ChatManager:
             return str(e)
         except Exception as e:
             logger.error(f"Error generando respuesta en ChatManager: {e}", exc_info=True)
-            return f"Lo siento, hubo un error al procesar tu solicitud: {str(e)}"
+            return "Lo siento, hubo un error al procesar tu solicitud."
+        finally:
+            await self._release_conversation_lock(
+                conversation_id,
+                conversation_lock,
+                acquired=lock_acquired,
+            )
 
     async def close(self) -> None:
         """Cierra la conexión de MongoDB."""
@@ -306,7 +419,7 @@ class ChatManager:
             gating_reason = req_ctx.gating_reason
             return DebugInfo(
                 retrieved_documents=items,
-                system_prompt_used=str(hydrated),
+                prompt_used=str(hydrated),
                 model_params=dict(model_params),
                 rag_time=rag_time,
                 llm_time=llm_time,
@@ -320,14 +433,19 @@ class ChatManager:
             gating_reason = req_ctx.gating_reason
             return DebugInfo(
                 retrieved_documents=[],
-                system_prompt_used="",
+                prompt_used="",
                 model_params={},
                 gating_reason=gating_reason,
                 is_cached=bool(is_cached),
             )
 
     async def generate_streaming_response(self, input_text: str, conversation_id: str, source: str | None = None, debug_mode: bool = False, enable_verification: bool = False):
+        conversation_lock: Optional[asyncio.Lock] = None
+        lock_acquired = False
         try:
+            conversation_lock, lock_acquired = await self._acquire_conversation_lock(conversation_id)
+            if not lock_acquired:
+                raise HTTPException(status_code=429, detail="Conversation busy, try again")
             logger.debug(f"[CHAT] Streaming start | conv={conversation_id}")
             req_ctx = new_request_context()
             cache_key = self._build_response_cache_key(conversation_id, input_text)
@@ -343,8 +461,7 @@ class ChatManager:
                 final_text = cached_response
                 yield final_text
                 if not debug_mode:
-                    await self.db.add_message(conversation_id, USER_ROLE, input_text, source)
-                    await self.db.add_message(conversation_id, ASSISTANT_ROLE, final_text, source)
+                    await self._persist_messages_safely(conversation_id, input_text, final_text, source)
                     await self.bot.add_to_memory(human=input_text, ai=final_text, conversation_id=conversation_id)
                     req_ctx.debug_info = None
                 else:
@@ -376,8 +493,7 @@ class ChatManager:
                 pass
 
             if not debug_mode:
-                await self.db.add_message(conversation_id, USER_ROLE, input_text, source)
-                await self.db.add_message(conversation_id, ASSISTANT_ROLE, final_text, source)
+                await self._persist_messages_safely(conversation_id, input_text, final_text, source)
                 await self.bot.add_to_memory(human=input_text, ai=final_text, conversation_id=conversation_id)
 
             try:
@@ -409,3 +525,9 @@ class ChatManager:
         except Exception as e:
             logger.error(f"Error generando respuesta streaming en ChatManager: {e}", exc_info=True)
             raise
+        finally:
+            await self._release_conversation_lock(
+                conversation_id,
+                conversation_lock,
+                acquired=lock_acquired,
+            )

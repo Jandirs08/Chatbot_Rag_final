@@ -1,6 +1,7 @@
 """FastAPI application for the chatbot."""
 
 # ---- Builtins ----
+import asyncio
 import logging
 import time
 from contextlib import asynccontextmanager
@@ -287,6 +288,35 @@ async def _sync_worker_runtime_state(app: FastAPI, *, reload_chain: bool) -> Non
 def _should_sync_runtime_state(path: str) -> bool:
     return path.startswith(RUNTIME_SYNC_PATH_PREFIXES)
 
+
+def _refresh_rag_availability_state(app: FastAPI) -> bool:
+    vector_store = getattr(app.state, "vector_store", None)
+    rag_available = bool(vector_store is not None and getattr(vector_store, "is_available", False))
+    app.state.rag_available = rag_available
+    return rag_available
+
+
+async def _ensure_rag_runtime_available(app: FastAPI) -> bool:
+    vector_store = getattr(app.state, "vector_store", None)
+    if vector_store is None:
+        app.state.rag_available = False
+        return False
+
+    if getattr(vector_store, "is_available", False):
+        app.state.rag_available = True
+        return True
+
+    try:
+        reconnected = await asyncio.to_thread(vector_store.ensure_connected)
+    except Exception as exc:
+        get_logger(__name__).warning("Intento de reconexión a Qdrant falló: %s", exc, exc_info=True)
+        reconnected = False
+
+    app.state.rag_available = bool(reconnected)
+    if reconnected:
+        get_logger(__name__).warning("Qdrant volvió a estar disponible. RAG reactivado en runtime.")
+    return bool(reconnected)
+
 # ---- Lifespan ----
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -308,6 +338,22 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning(f"No se pudo determinar el estado del cache en arranque: {e}")
 
+        try:
+            cache_health = cache.get_health_status()
+        except Exception as cache_error:
+            cache_health = {
+                "backend_type": "unknown",
+                "is_degraded": True,
+                "redis_connected": False,
+                "message": f"Cache health unavailable: {cache_error}",
+            }
+
+        if s.environment.lower() == "production" and not bool(cache_health.get("redis_connected")):
+            raise RuntimeError(
+                "Redis es obligatorio en producción. El backend detectó que CacheManager está en modo degradado "
+                f"({cache_health.get('backend_type')}). Configure REDIS_URL y restaure la conectividad antes de iniciar."
+            )
+
         # Cargar configuración dinámica del bot desde Mongo (si disponible)
         try:
             from database.mongodb import get_mongodb_client
@@ -320,14 +366,11 @@ async def lifespan(app: FastAPI):
             runtime_config, startup_is_active = await _load_shared_runtime_snapshot(
                 getattr(app.state, "mongodb_client", None)
             )
-            # Sincronizar settings antes de crear el Bot (evitar system_prompt legado)
-            # En modo complemento seguro, ignoramos system_prompt persistido y usamos la base del módulo.
-            s.system_prompt = None
             if runtime_config is not None:
                 apply_runtime_config(s, runtime_config)
                 app.state.last_synced_bot_config = runtime_config
             app.state.startup_bot_is_active = startup_is_active
-            logger.info(f"Config dinámica aplicada: temperature={s.temperature} system_prompt_len={len(s.system_prompt or '')}")
+            logger.info(f"Config dinámica aplicada: temperature={s.temperature}")
         except Exception as e:
             logger.warning(f"No se pudo cargar configuración dinámica inicial: {e}")
 
@@ -352,7 +395,11 @@ async def lifespan(app: FastAPI):
             cache_ttl=s.cache_ttl,
             batch_size=s.batch_size
         )
-        logger.debug("VectorStore inicializado (Qdrant)")
+        app.state.rag_available = bool(getattr(app.state.vector_store, "is_available", False))
+        if app.state.rag_available:
+            logger.debug("VectorStore inicializado (Qdrant)")
+        else:
+            logger.critical("Qdrant no disponible al arranque. La aplicación continuará sin contexto RAG.")
 
         app.state.rag_ingestor = RAGIngestor(
             pdf_file_manager=app.state.pdf_file_manager,
@@ -505,6 +552,8 @@ def create_app() -> FastAPI:
 
     @app.middleware("http")
     async def sync_runtime_state(request: Request, call_next):
+        if not _refresh_rag_availability_state(request.app):
+            await _ensure_rag_runtime_available(request.app)
         if _should_sync_runtime_state(request.url.path):
             await _sync_worker_runtime_state(request.app, reload_chain=True)
         return await call_next(request)

@@ -2,7 +2,6 @@ import { API_URL } from "../config";
 import { authenticatedFetch } from "./authService";
 
 export interface BotConfigDTO {
-  system_prompt: string;
   temperature: number;
   updated_at: string;
   bot_name?: string;
@@ -16,7 +15,6 @@ export interface BotConfigDTO {
 }
 
 export interface UpdateBotConfigRequest {
-  system_prompt?: string;
   temperature?: number;
   bot_name?: string;
   ui_prompt_extra?: string;

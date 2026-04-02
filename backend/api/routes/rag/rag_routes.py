@@ -71,15 +71,25 @@ async def clear_rag(
     rag_retriever = request.app.state.rag_retriever
     try:
         logger.info("Iniciando limpieza del RAG...")
-        # 1) Limpiar PDFs primero (borrado físico)
         pdfs_before = await pdf_processor.list_pdfs()
         total_pdfs = len(pdfs_before)
-        result = await pdf_processor.clear_pdfs()
-        logger.info(f"Directorio de PDFs limpiado. Eliminados: {result.get('deleted_count', 0)} de {total_pdfs}.")
 
-        # 2) Limpiar vector store completamente (sin residuos)
+        # 1) Limpiar vector store primero. Si Qdrant falla, no tocar filesystem.
         await rag_retriever.vector_store.delete_collection()
         logger.info("Vector store limpiado y reinicializado")
+
+        # 2) Limpiar PDFs del filesystem después de Qdrant
+        result = await pdf_processor.clear_pdfs()
+        if int(result.get("errors_count", 0) or 0) > 0:
+            logger.error(
+                "Limpieza parcial del filesystem durante clear-rag después de vaciar Qdrant: %s",
+                result,
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="No se pudo limpiar completamente el directorio de PDFs después de vaciar el vector store."
+            )
+        logger.info(f"Directorio de PDFs limpiado. Eliminados: {result.get('deleted_count', 0)} de {total_pdfs}.")
         refresh_rag_corpus_state(request.app.state)
         logger.info("Estado derivado del corpus invalidado tras limpieza")
         # Consultar estado después de limpiar
@@ -113,6 +123,13 @@ async def clear_rag(
             remaining_pdfs=remaining_pdfs_count,
             count=count_after_clear
         )
+    except HTTPException as exc:
+        if exc.status_code >= 500:
+            logger.error(
+                "clear-rag terminó con error y posible estado parcial entre filesystem y vector store.",
+                exc_info=True,
+            )
+        raise
     except Exception as e:
         logger.error(f"Error al limpiar RAG: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error interno del servidor al limpiar RAG: {str(e)}")

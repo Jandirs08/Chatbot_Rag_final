@@ -43,7 +43,7 @@ class VerificationResult(BaseModel):
 
 class DebugInfo(BaseModel):
     retrieved_documents: List[RetrievedDocument]
-    system_prompt_used: str
+    prompt_used: str
     model_params: Dict[str, Any]
     rag_time: float | None = None
     llm_time: float | None = None

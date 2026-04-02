@@ -1,0 +1,13 @@
+services:
+  mongodb:
+    ports:
+      - "27018:27017"
+
+  qdrant:
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+
+  redis:
+    ports:
+      - "6379:6379"

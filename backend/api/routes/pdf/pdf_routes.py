@@ -140,11 +140,11 @@ async def delete_pdf(
     pdf_file_manager = request.app.state.pdf_file_manager
     rag_ingestor = request.app.state.rag_ingestor
     try:
-        await pdf_file_manager.delete_pdf(filename)
-        logger.info(f"PDF eliminado físicamente: {filename}")
-
         await rag_ingestor.vector_store.delete_documents(filter={"source": filename})
         logger.info(f"Embeddings asociados borrados para: {filename}")
+
+        await pdf_file_manager.delete_pdf(filename)
+        logger.info(f"PDF eliminado físicamente: {filename}")
 
         refresh_rag_corpus_state(request.app.state, background_tasks=background_tasks)
         logger.info("Estado derivado del corpus invalidado tras eliminar PDF")
@@ -159,7 +159,7 @@ async def delete_pdf(
         logger.error(f"Error al eliminar PDF '{filename}': {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Error interno del servidor al eliminar PDF: {str(e)}"
+            detail="Error interno del servidor al eliminar PDF. Revise el estado del vector store."
         )
 
 

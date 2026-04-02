@@ -6,9 +6,21 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
+import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
-import { FileText, Upload, Trash2, Search, Download, Clock } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Clock,
+  Download,
+  FileText,
+  Loader2,
+  Search,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
 import {
   Table,
   TableBody,
@@ -20,7 +32,7 @@ import {
 import { useToast } from "@/app/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
 import { useUnsavedChanges } from "@/app/hooks/useUnsavedChanges";
-import { PDFService } from "@/app/lib/services/pdfService";
+import { PDFService, type PDFUploadStatus } from "@/app/lib/services/pdfService";
 import { ragService } from "@/app/lib/services/ragService";
 import { Progress } from "@/app/components/ui/progress";
 import { Skeleton } from "@/app/components/ui/skeleton";
@@ -33,6 +45,7 @@ import {
 } from "@/app/components/ui/dialog";
 import PdfViewerModal from "@/app/components/modals/PdfViewerModal";
 import { Toaster } from "@/app/components/ui/toaster";
+import { cn } from "@/lib/utils";
 
 interface PDFDocument {
   filename: string;
@@ -41,18 +54,287 @@ interface PDFDocument {
   last_modified: string;
 }
 
+type UploadState =
+  | {
+      phase: "idle";
+    }
+  | {
+      phase: "uploading";
+      fileName: string;
+      progress: number;
+    }
+  | {
+      phase: "processing";
+      fileName: string;
+    }
+  | {
+      phase: "success";
+      fileName: string;
+    }
+  | {
+      phase: "error";
+      fileName: string;
+      message: string;
+      failedPhase: "uploading" | "processing";
+    };
+
+const uploadSteps = [
+  {
+    key: "uploading",
+    label: "Subiendo archivo",
+    description: "Transferencia segura al servidor.",
+  },
+  {
+    key: "processing",
+    label: "Procesando e indexando",
+    description: "Extraccion, embeddings y registro en Qdrant.",
+  },
+] as const;
+
+function UploadStatusPanel({
+  state,
+  onDismiss,
+}: {
+  state: UploadState;
+  onDismiss: () => void;
+}) {
+  if (state.phase === "idle") {
+    return null;
+  }
+
+  const isUploading = state.phase === "uploading";
+  const isProcessing = state.phase === "processing";
+  const isSuccess = state.phase === "success";
+  const isError = state.phase === "error";
+  const isBusy = isUploading || isProcessing;
+  const failedPhase = isError ? state.failedPhase : null;
+  const activeStep = isUploading ? "uploading" : "processing";
+
+  const header = isUploading
+    ? "Subiendo documento"
+    : isProcessing
+      ? "Procesando e indexando..."
+      : isSuccess
+        ? "Documento listo para usarse"
+        : "No se pudo completar la ingesta";
+
+  const description = isUploading
+    ? "El archivo aun no esta disponible. La indexacion comenzara cuando termine la transferencia."
+    : isProcessing
+      ? "El archivo ya llego al backend. Ahora se extrae el contenido, se generan embeddings y se envia a Qdrant."
+      : isSuccess
+        ? "La respuesta final del servidor confirmo que el documento quedo listo en el sistema."
+        : state.message;
+
+  const statusBadgeVariant: "info" | "warning" | "success" | "error" =
+    isUploading
+      ? "info"
+      : isProcessing
+        ? "warning"
+        : isSuccess
+          ? "success"
+          : "error";
+
+  const StatusIcon = isUploading
+    ? Upload
+    : isProcessing
+      ? Loader2
+      : isSuccess
+        ? CheckCircle2
+        : AlertCircle;
+
+  const statusPill = isUploading
+    ? "Subiendo"
+    : isProcessing
+      ? "Indexando"
+      : isSuccess
+        ? "Completado"
+        : "Con error";
+
+  return (
+    <div
+      aria-live="polite"
+      className="w-full rounded-3xl border border-border/60 bg-gradient-to-br from-background via-background to-muted/30 p-4 shadow-sm"
+    >
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex items-start gap-3">
+          <div
+            className={cn(
+              "mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border",
+              isSuccess
+                ? "border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300"
+                : isError
+                  ? "border-red-200 bg-red-50 text-red-600 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300"
+                  : "border-primary/15 bg-primary/5 text-primary",
+            )}
+          >
+            <StatusIcon
+              className={cn(
+                "h-5 w-5",
+                isProcessing && "animate-spin",
+              )}
+            />
+          </div>
+
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={statusBadgeVariant}>{statusPill}</Badge>
+                {isUploading && (
+                  <span className="text-sm font-medium text-foreground/80">
+                    {state.progress}% transferido
+                  </span>
+                )}
+              </div>
+
+              <div>
+                <p className="text-base font-semibold text-foreground">
+                  {header}
+                </p>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  {description}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              {uploadSteps.map((step, index) => {
+                const isCurrent =
+                  (isBusy && activeStep === step.key) ||
+                  (isError && failedPhase === step.key);
+                const isDone =
+                  isSuccess ||
+                  (step.key === "uploading" &&
+                    (isProcessing || (isError && failedPhase === "processing")));
+
+                return (
+                  <div
+                    key={step.key}
+                    className={cn(
+                      "rounded-2xl border px-3 py-3 transition-colors",
+                      isDone
+                        ? "border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/50 dark:bg-emerald-950/20"
+                        : isCurrent
+                          ? isError
+                            ? "border-red-200 bg-red-50/80 dark:border-red-900/50 dark:bg-red-950/20"
+                            : "border-primary/30 bg-primary/5"
+                          : "border-border/60 bg-background/70",
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          "flex h-6 w-6 items-center justify-center rounded-full border text-xs font-semibold",
+                          isDone
+                            ? "border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300"
+                            : isCurrent
+                              ? isError
+                                ? "border-red-200 bg-red-100 text-red-700 dark:border-red-800 dark:bg-red-900/50 dark:text-red-300"
+                                : "border-primary/20 bg-primary/10 text-primary"
+                              : "border-border/70 bg-muted/40 text-muted-foreground",
+                        )}
+                      >
+                        {index + 1}
+                      </span>
+                      <p className="text-sm font-medium text-foreground">
+                        {step.label}
+                      </p>
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                      {step.description}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-start gap-3">
+          <div className="rounded-2xl border border-border/60 bg-background/80 px-4 py-3 backdrop-blur">
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              Archivo actual
+            </p>
+            <p className="mt-2 max-w-xs truncate text-sm font-medium text-foreground">
+              {state.fileName}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {isBusy
+                ? "El estado final solo se confirma cuando responde el servidor."
+                : "Estado final confirmado por la respuesta HTTP."}
+            </p>
+          </div>
+
+          {!isBusy && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={onDismiss}
+              className="h-9 w-9 shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label="Cerrar estado de subida"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-4">
+        {isUploading ? (
+          <div className="space-y-2">
+            <Progress
+              value={state.progress}
+              className="h-2.5 bg-primary/10"
+            />
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>Transferencia del archivo en curso</span>
+              <span>{state.progress}%</span>
+            </div>
+          </div>
+        ) : isProcessing ? (
+          <div className="space-y-2">
+            <div className="h-2.5 overflow-hidden rounded-full bg-primary/10">
+              <div className="h-full w-1/3 rounded-full bg-gradient-to-r from-primary/30 via-primary to-primary/30 animate-pulse" />
+            </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+              <span>Procesando e indexando...</span>
+            </div>
+          </div>
+        ) : (
+          <div
+            className={cn(
+              "rounded-2xl border px-3 py-2 text-sm",
+              isSuccess
+                ? "border-emerald-200 bg-emerald-50/80 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-300"
+                : "border-red-200 bg-red-50/80 text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300",
+            )}
+          >
+            {isSuccess
+              ? "El documento ya quedo disponible para consultas."
+              : "La carga termino con error. Revisa el mensaje mostrado para intentar de nuevo."}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function DocumentManagement() {
   const [documents, setDocuments] = useState<PDFDocument[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoadingList, setIsLoadingList] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadState, setUploadState] = useState<UploadState>({
+    phase: "idle",
+  });
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [previewFilename, setPreviewFilename] = useState<string | null>(null);
+  const [, setPreviewFilename] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [, setPreviewLoading] = useState(false);
+  const [, setPreviewError] = useState<string | null>(null);
   const [isClearOpen, setIsClearOpen] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
   const [clearResult, setClearResult] = useState<{
@@ -70,6 +352,7 @@ export function DocumentManagement() {
   } | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadPhaseRef = useRef<"uploading" | "processing">("uploading");
   const { toast } = useToast();
 
   useUnsavedChanges(isDownloading);
@@ -132,14 +415,42 @@ export function DocumentManagement() {
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
+  const handleUploadStatusChange = useCallback(
+    (fileName: string, status: PDFUploadStatus) => {
+      uploadPhaseRef.current = status.phase;
+
+      if (status.phase === "uploading") {
+        setUploadState({
+          phase: "uploading",
+          fileName,
+          progress: status.progress,
+        });
+        return;
+      }
+
+      setUploadState({
+        phase: "processing",
+        fileName,
+      });
+    },
+    [],
+  );
+
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     try {
       setIsUploading(true);
-      setUploadProgress(0);
-      const response = await PDFService.uploadPDF(file, (p) => setUploadProgress(p));
+      uploadPhaseRef.current = "uploading";
+      setUploadState({
+        phase: "uploading",
+        fileName: file.name,
+        progress: 0,
+      });
+      const response = await PDFService.uploadPDF(file, (status) =>
+        handleUploadStatusChange(file.name, status),
+      );
 
       // Actualizar rate limit info desde headers
       if (response.rateLimit) {
@@ -161,6 +472,10 @@ export function DocumentManagement() {
       toast({
         title: "Éxito",
         description: "PDF subido correctamente",
+      });
+      setUploadState({
+        phase: "success",
+        fileName: file.name,
       });
       loadDocuments();
     } catch (error: any) {
@@ -205,21 +520,21 @@ export function DocumentManagement() {
           variant: "destructive",
         });
       }
+
+      setUploadState({
+        phase: "error",
+        fileName: file.name,
+        message,
+        failedPhase: uploadPhaseRef.current,
+      });
     } finally {
-      // Pequeña pausa para que el 100% sea visible antes de resetear
-      await new Promise((r) => setTimeout(r, 300));
       setIsUploading(false);
-      setUploadProgress(0);
+      uploadPhaseRef.current = "uploading";
       // 👈 Esto permite volver a seleccionar el MISMO archivo
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
     }
-  };
-
-  const handleView = (filename: string) => {
-    const url = PDFService.getPDFViewUrl(filename);
-    window.open(url, "_blank");
   };
 
   const handleDelete = async (filename: string) => {
@@ -331,6 +646,10 @@ export function DocumentManagement() {
     fileInputRef.current?.click();
   };
 
+  const handleDismissUploadState = useCallback(() => {
+    setUploadState({ phase: "idle" });
+  }, []);
+
   const handleOpenClear = () => {
     setClearResult(null);
     setClearError(null);
@@ -372,61 +691,73 @@ export function DocumentManagement() {
 
       {/* Banner de duplicado eliminado; se usa toast en su lugar */}
 
-      {/* Controles superiores */}
-      <div className="flex flex-col sm:flex-row gap-4 justify-between">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar documentos..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        <div className="relative flex gap-2 items-center">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf"
-            onChange={handleUpload}
-            className="hidden"
-            disabled={isUploading || isLoadingList || (rateLimitInfo?.remaining === 0)}
-          />
-          <Button
-            onClick={handleButtonClick}
-            className="gradient-primary hover:opacity-90 cursor-pointer"
-            disabled={isUploading || isLoadingList || (rateLimitInfo?.remaining === 0)}
-          >
-            <Upload className="w-4 h-4 mr-2" />
-            {isUploading ? "Subiendo..." : "Subir PDF"}
-          </Button>
+      <div className="space-y-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:justify-between">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar documentos..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <div className="relative flex flex-wrap items-center gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf"
+              onChange={handleUpload}
+              className="hidden"
+              disabled={
+                isUploading ||
+                isLoadingList ||
+                rateLimitInfo?.remaining === 0
+              }
+            />
+            <Button
+              onClick={handleButtonClick}
+              className="gradient-primary cursor-pointer hover:opacity-90"
+              disabled={
+                isUploading ||
+                isLoadingList ||
+                rateLimitInfo?.remaining === 0
+              }
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              {uploadState.phase === "processing"
+                ? "Indexando..."
+                : isUploading
+                  ? "Subiendo..."
+                  : "Subir PDF"}
+            </Button>
 
-          {/* Indicador de Rate Limit - Solo cuando se agota la cuota */}
-          {rateLimitInfo && rateLimitInfo.remaining === 0 && countdown !== null && countdown > 0 && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-medium">
-              <Clock className="w-3 h-3" />
-              <span>Disponible en {formatCountdown(countdown)}</span>
-            </div>
-          )}
+            {rateLimitInfo &&
+              rateLimitInfo.remaining === 0 &&
+              countdown !== null &&
+              countdown > 0 && (
+                <div className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                  <Clock className="h-3 w-3" />
+                  <span>Disponible en {formatCountdown(countdown)}</span>
+                </div>
+              )}
 
-          <Button
-            variant="outline"
-            className="text-destructive border-destructive hover:bg-destructive/10"
-            onClick={handleOpenClear}
-            disabled={isUploading || isLoadingList}
-            title="Limpiar RAG"
-          >
-            Limpiar RAG
-          </Button>
-          {isUploading && (
-            <div className="mt-2 w-64">
-              <Progress value={uploadProgress} />
-              <p className="text-xs text-muted-foreground mt-1">
-                {uploadProgress}%
-              </p>
-            </div>
-          )}
+            <Button
+              variant="outline"
+              className="border-destructive text-destructive hover:bg-destructive/10"
+              onClick={handleOpenClear}
+              disabled={isUploading || isLoadingList}
+              title="Limpiar RAG"
+            >
+              Limpiar RAG
+            </Button>
+          </div>
         </div>
+
+        <UploadStatusPanel
+          state={uploadState}
+          onDismiss={handleDismissUploadState}
+        />
       </div>
 
       {/* Estadísticas */}

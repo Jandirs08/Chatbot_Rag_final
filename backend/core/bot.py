@@ -118,7 +118,16 @@ class Bot:
 
         async def get_history_async(x):
             conversation_id = x.get("conversation_id")
-            hist = await self.memory.get_history(conversation_id)
+            try:
+                hist = await self.memory.get_history(conversation_id)
+            except Exception as exc:
+                self.logger.error(
+                    "[HISTORY] Error cargando historial para conv=%s. Continuando sin historial: %s",
+                    conversation_id,
+                    exc,
+                    exc_info=True,
+                )
+                hist = []
 
             formatted = self._format_history(hist)
 
@@ -163,11 +172,14 @@ class Bot:
                 return req_ctx.context
 
             except RetrievalBackendUnavailableError:
+                self.logger.warning("RAG backend unavailable; continuando sin contexto recuperado.")
+                req_ctx.gating_reason = "retrieval_backend_unavailable"
                 try:
                     req_ctx.rag_time = time.perf_counter() - t_start
                 except Exception:
                     req_ctx.rag_time = None
-                raise
+                req_ctx.context = fallback_ctx
+                return fallback_ctx
             except Exception as e:
                 self.logger.warning(f"Context RAG failed: {e}")
                 try:
@@ -206,7 +218,7 @@ class Bot:
             return BaseChatbotMemory(
                 settings=self.settings,
                 session_id="fallback_session",
-                window_size=self.settings.max_memory_entries
+                window_size=self.settings.memory_window_size
             )
 
     async def __call__(self, x: Dict[str, Any]):
@@ -298,12 +310,20 @@ class Bot:
         if isinstance(ai, str):
             ai = Message(message=ai, role=self.settings.ai_prefix)
 
-        await self.memory.add_message(
-            session_id=conversation_id, role="human", content=human.message
-        )
-        await self.memory.add_message(
-            session_id=conversation_id, role="ai", content=ai.message
-        )
+        try:
+            await self.memory.add_message(
+                session_id=conversation_id, role="human", content=human.message
+            )
+            await self.memory.add_message(
+                session_id=conversation_id, role="ai", content=ai.message
+            )
+        except Exception as exc:
+            self.logger.error(
+                "No se pudo persistir la memoria conversacional para conv=%s: %s",
+                conversation_id,
+                exc,
+                exc_info=True,
+            )
 
     def _format_history(self, hist_list):
         out = []

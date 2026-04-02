@@ -6,6 +6,7 @@ from typing import List, Optional, Dict
 from fastapi import UploadFile, HTTPException
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from uuid import uuid4
 
 logger = logging.getLogger(__name__)
 
@@ -30,13 +31,24 @@ class PDFManager:
         """Asegura que el directorio de PDFs exista."""
         self.pdf_dir.mkdir(parents=True, exist_ok=True)
 
+    def _build_unique_pdf_path(self, filename: str) -> Path:
+        """Genera una ruta única para evitar sobrescribir PDFs existentes."""
+        safe_name = Path(filename or "document.pdf").name
+        stem = Path(safe_name).stem or "document"
+        suffix = Path(safe_name).suffix or ".pdf"
+
+        while True:
+            candidate = self.pdf_dir / f"{stem}_{uuid4().hex}{suffix}"
+            if not candidate.exists():
+                return candidate
+
     async def save_pdf(self, file: UploadFile, chunk_size: int = 1024 * 1024) -> Path:
         """Guarda un archivo PDF de forma asíncrona y eficiente."""
-        if not file.filename.lower().endswith('.pdf'):
+        if not file.filename or not file.filename.lower().endswith('.pdf'):
             logger.warning(f"Intento de subir archivo no PDF: {file.filename}")
             raise HTTPException(status_code=400, detail="El archivo debe ser un PDF.")
 
-        file_path = self.pdf_dir / Path(file.filename).name
+        file_path = self._build_unique_pdf_path(file.filename)
 
         try:
             async with aiofiles.open(file_path, 'wb') as out_file:

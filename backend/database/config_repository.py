@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 
 class BotConfig(BaseModel):
     """Configuration for the chatbot behavior."""
-    system_prompt: str = Field(default="", description="System instructions/personality for the bot")
     temperature: float = Field(default=0.7, ge=0.0, le=1.0, description="Model temperature for creativity vs precision")
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     bot_name: Optional[str] = Field(default=None, description="Display name of the bot")
@@ -38,10 +37,7 @@ class ConfigRepository:
         doc = await self._collection.find_one({"_id": "default"})
         if not doc:
             logger.info("No existing bot config found, creating default configuration.")
-            # Seed default from Settings
-            default_personality = prompt_module.BOT_PERSONALITY.format(nombre=prompt_module.BOT_NAME)
             config = BotConfig(
-                system_prompt=default_personality,
                 temperature=getattr(app_settings, "temperature", 0.7),
                 bot_name=prompt_module.BOT_NAME,
                 ui_prompt_extra=None,
@@ -61,16 +57,12 @@ class ConfigRepository:
             return config
 
         merged = {k: v for k, v in doc.items() if k != "_id"}
-        effective_bot_name = merged.get("bot_name") or prompt_module.BOT_NAME
-        merged["system_prompt"] = prompt_module.BOT_PERSONALITY.format(nombre=effective_bot_name)
         return BotConfig(**merged)
 
 
-    async def update_config(self, system_prompt: Optional[str] = None, temperature: Optional[float] = None, bot_name: Optional[str] = None, ui_prompt_extra: Optional[str] = None, twilio_account_sid: Optional[str] = None, twilio_auth_token: Optional[str] = None, twilio_whatsapp_from: Optional[str] = None, theme_color: Optional[str] = None, starters: Optional[list[str]] = None, input_placeholder: Optional[str] = None) -> BotConfig:
+    async def update_config(self, temperature: Optional[float] = None, bot_name: Optional[str] = None, ui_prompt_extra: Optional[str] = None, twilio_account_sid: Optional[str] = None, twilio_auth_token: Optional[str] = None, twilio_whatsapp_from: Optional[str] = None, theme_color: Optional[str] = None, starters: Optional[list[str]] = None, input_placeholder: Optional[str] = None) -> BotConfig:
         """Update bot configuration fields and return the new config."""
         update_data = {"updated_at": datetime.now(timezone.utc)}
-        if system_prompt is not None:
-            update_data["system_prompt"] = system_prompt
         if temperature is not None:
             update_data["temperature"] = float(temperature)
         if bot_name is not None:

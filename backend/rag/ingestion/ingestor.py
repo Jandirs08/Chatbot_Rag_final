@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import hashlib
 import aiofiles
@@ -7,7 +6,6 @@ from typing import Dict, List, Set
 
 from langchain_core.documents import Document
 from qdrant_client.http.models import Filter as QFilter, FieldCondition, MatchValue
-from langchain_community.document_loaders import PyMuPDFLoader
 
 logger = logging.getLogger(__name__)
 
@@ -49,13 +47,13 @@ class RAGIngestor:
     # ----------------------
     # HASH GLOBAL DE CONTENIDO
     # ----------------------
-    def _get_content_hash_global(self, documents: List[Document]) -> str:
-        """Genera hash MD5 del contenido concatenado (normalizado mínimamente).
+    def _get_content_hash_global(self, chunks: List[Document]) -> str:
+        """Genera hash MD5 del contenido concatenado de los chunks.
         Normalización mínima: lower, strip, colapsar espacios.
         """
         try:
             from utils.hashing import hash_content_for_dedup
-            texts = [doc.page_content or "" for doc in documents]
+            texts = [chunk.page_content or "" for chunk in chunks]
             concat = "\n".join(texts)
             return hash_content_for_dedup(concat)
         except Exception as e:
@@ -97,21 +95,12 @@ class RAGIngestor:
             if not pdf_path.exists():
                 return {"filename": filename, "status": "error", "error": "Archivo no encontrado"}
 
-            # Cargar documentos en thread separado: PyMuPDFLoader.load() es I/O bloqueante.
-            # Ejecutarlo en asyncio.to_thread evita congelar el event loop de Uvicorn
-            # durante la lectura completa del PDF (puede tardar segundos en archivos grandes).
-            try:
-                documents = await asyncio.to_thread(
-                    lambda: PyMuPDFLoader(str(pdf_path)).load()
-                )
-            except Exception as e:
-                logger.error(f"Error leyendo PDF para content_hash_global {pdf_path.name}: {e}", exc_info=True)
-                documents = []
-
-            if not documents:
+            # Procesar PDF → chunks reales usando el extractor estructurado del loader.
+            chunks = await self.pdf_content_loader.load_and_split_pdf(pdf_path)
+            if not chunks:
                 return {"filename": filename, "status": "error", "error": "PDF sin contenido útil"}
 
-            content_hash_global = self._get_content_hash_global(documents)
+            content_hash_global = self._get_content_hash_global(chunks)
             if not content_hash_global:
                 return {"filename": filename, "status": "error", "error": "No se pudo generar content_hash_global"}
 
@@ -137,12 +126,6 @@ class RAGIngestor:
                 except Exception as e:
                     return {"filename": filename, "status": "error", "error": f"No se pudo limpiar previo: {e}"}
 
-            # Procesar PDF → chunks
-            # Optimización: Usar los documentos ya cargados en memoria
-            chunks = self.pdf_content_loader.split_documents_direct(documents, pdf_path)
-            if not chunks:
-                return {"filename": filename, "status": "error", "error": "PDF sin contenido útil"}
-
             for c in chunks:
                 c.metadata["pdf_hash"] = pdf_hash
                 # Añadir content_hash_global a cada chunk para indexación y compatibilidad
@@ -154,12 +137,27 @@ class RAGIngestor:
 
             # UPLOAD por lotes
             total_added = 0
-            for i in range(0, len(chunks), self.batch_size):
-                batch = chunks[i:i + self.batch_size]
-                batch_embeddings = embeddings[i:i + self.batch_size]
+            started_upsert = False
+            try:
+                for i in range(0, len(chunks), self.batch_size):
+                    batch = chunks[i:i + self.batch_size]
+                    batch_embeddings = embeddings[i:i + self.batch_size]
 
-                await self.vector_store.add_documents(batch, embeddings=batch_embeddings)
-                total_added += len(batch)
+                    started_upsert = True
+                    await self.vector_store.add_documents(batch, embeddings=batch_embeddings)
+                    total_added += len(batch)
+            except Exception:
+                if started_upsert:
+                    try:
+                        await self.vector_store.delete_by_pdf_hash(pdf_hash)
+                    except Exception as rollback_error:
+                        logger.error(
+                            "Rollback de Qdrant falló para pdf_hash=%s: %s",
+                            pdf_hash,
+                            rollback_error,
+                            exc_info=True,
+                        )
+                raise
 
             logger.info(f"✨ Finalizado {filename}: {total_added} fragmentos agregados")
 

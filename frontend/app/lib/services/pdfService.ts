@@ -1,6 +1,15 @@
 import { API_URL } from "../constants";
 import { authService, authenticatedFetch } from "./authService";
 
+export type PDFUploadStatus =
+  | {
+      phase: "uploading";
+      progress: number;
+    }
+  | {
+      phase: "processing";
+    };
+
 // Normaliza el base URL y evita duplicar el prefijo "/api/v1" al construir endpoints
 function buildApiUrl(base: string, path: string): string {
   // Limpia barras finales y colapsa múltiples "/api/v1" en el base
@@ -19,7 +28,7 @@ function buildApiUrl(base: string, path: string): string {
 export class PDFService {
   static async uploadPDF(
     file: File,
-    onProgress?: (percent: number) => void,
+    onProgress?: (status: PDFUploadStatus) => void,
     isRetry: boolean = false
   ): Promise<{
     message: string;
@@ -44,13 +53,16 @@ export class PDFService {
       // Reportar progreso si es posible
       xhr.upload.onprogress = (event: ProgressEvent) => {
         if (event.lengthComputable && onProgress) {
-          const percent = Math.round((event.loaded / event.total) * 100);
-          onProgress(percent);
+          const percent = Math.min(
+            Math.round((event.loaded / event.total) * 100),
+            99
+          );
+          onProgress({ phase: "uploading", progress: percent });
         }
       };
       xhr.upload.onload = () => {
         if (onProgress) {
-          onProgress(100);
+          onProgress({ phase: "processing" });
         }
       };
 

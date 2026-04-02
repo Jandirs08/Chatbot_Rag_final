@@ -52,9 +52,17 @@ class VectorStore:
         self.cache_ttl = cache_ttl
         self.batch_size = batch_size
         self.collection_name = getattr(settings, "qdrant_collection_name", "rag_collection")
+        self.client = None
+        self.is_available = False
 
         # Inicialización de conexión
-        self._initialize_store()
+        try:
+            self._initialize_store()
+        except VectorStoreUnavailableError as exc:
+            logger.critical(
+                "Qdrant no disponible durante el arranque del VectorStore. El servicio continuará sin RAG hasta reconectar: %s",
+                exc,
+            )
 
         logger.info(
             "VectorStore inicializado | strategy=%s | cache_enabled=%s | similarity_threshold=%s",
@@ -113,10 +121,31 @@ class VectorStore:
                 logger.info("Colección '%s' ya existe.", self.collection_name)
                 # Asegurar índices de todas formas por si hubo cambios de esquema
                 self._ensure_payload_indexes()
+            self.is_available = True
 
         except Exception as e:
+            self.client = None
+            self.is_available = False
             logger.error("Error inicializando Qdrant: %s", str(e), exc_info=True)
-            raise
+            raise VectorStoreUnavailableError("Qdrant no está disponible") from e
+
+    def ensure_connected(self) -> bool:
+        """Intenta (re)conectar con Qdrant de forma acotada."""
+        if self.client is not None and self.is_available:
+            return True
+
+        try:
+            self._initialize_store()
+            logger.warning("Conexión a Qdrant restablecida; RAG vuelve a estar disponible.")
+            return True
+        except VectorStoreUnavailableError:
+            return False
+
+    def _require_connection(self) -> None:
+        if self.client is not None and self.is_available:
+            return
+        if not self.ensure_connected():
+            raise VectorStoreUnavailableError("Qdrant backend unavailable")
 
     # =====================================================================
     #   ASEGURAR ÍNDICES PAYLOAD
@@ -161,6 +190,7 @@ class VectorStore:
         if not documents:
             logger.info("add_documents: lista vacía, no se hace nada.")
             return
+        self._require_connection()
 
         dim = int(getattr(settings, "default_embedding_dimension", 1536))
         use_uuid5 = bool(getattr(settings, "use_uuid5_deterministic_ids", False))
@@ -252,6 +282,7 @@ class VectorStore:
                         len(points), len(batch_docs), total_inserted
                     )
                 except Exception as e:
+                    self.is_available = False
                     logger.error("Error insertando lote en Qdrant: %s", e, exc_info=True)
                     raise RuntimeError("Fallo crítico en upsert Qdrant") from e
 
@@ -349,6 +380,7 @@ class VectorStore:
                              Si es None, se computa internamente (legacy).
         """
         logger.info("retrieve() called")
+        self._require_connection()
         try:
             # Usar el embedding pre-computado si viene del RAGRetriever;
             # solo re-embeder si no se proveyó (llamada directa legacy).
@@ -427,6 +459,7 @@ class VectorStore:
     ) -> List[Tuple[Document, float]]:
         """Ejecuta la búsqueda pura en Qdrant."""
         try:
+            self._require_connection()
             vector = query_embedding.tolist()
 
             qfilter = None
@@ -477,6 +510,7 @@ class VectorStore:
             return output
 
         except Exception as e:
+            self.is_available = False
             logger.info("_similarity_search() exception: %s", e)
             logger.error("Error en _similarity_search: %s", e, exc_info=True)
             raise VectorStoreUnavailableError("Qdrant query failed") from e
@@ -488,6 +522,7 @@ class VectorStore:
     async def delete_documents(self, filter: Optional[Dict[str, Any]] = None) -> None:
         """Elimina documentos basados en un filtro de metadatos."""
         try:
+            self._require_connection()
             if filter:
                 must = [FieldCondition(key=str(k), match=MatchValue(value=v)) for k, v in filter.items()]
                 qfilter = QFilter(must=must)
@@ -504,6 +539,7 @@ class VectorStore:
             await self._invalidate_cache()
 
         except Exception as e:
+            self.is_available = False
             logger.error("Error eliminando documentos: %s", e, exc_info=True)
             raise
 
@@ -516,9 +552,11 @@ class VectorStore:
     async def delete_collection(self) -> None:
         """Elimina y recrea la colección completa."""
         try:
+            self._require_connection()
             try:
                 await asyncio.to_thread(self.client.delete_collection, self.collection_name)
             except Exception:
+                self.is_available = False
                 pass
 
             self._initialize_store()

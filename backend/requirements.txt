@@ -23,6 +23,7 @@ redis>=5.0.1
 # Perfil sin OCR: usar PyPDFLoader que depende de pypdf
 pypdf>=3.0.0
 pymupdf
+pymupdf4llm
 
 # Database & Cache
 motor>=3.3.0,<4.0.0

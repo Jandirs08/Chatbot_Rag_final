@@ -4,14 +4,13 @@ import asyncio
 import re
 
 from utils.hashing import hash_content_for_dedup
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from pathlib import Path
 import logging
 import tiktoken
 
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
-from langchain_community.document_loaders import PyMuPDFLoader
 
 logger = logging.getLogger(__name__)
 
@@ -91,10 +90,7 @@ class PDFContentLoader:
         logger.info(f"Procesando PDF: {pdf_path.name}")
 
         try:
-            def _load() -> List[Document]:
-                return PyMuPDFLoader(str(pdf_path)).load()
-
-            documents = await asyncio.to_thread(_load)
+            documents = await asyncio.to_thread(self._load_markdown_documents, pdf_path)
             logger.info(f"PDF cargado: {len(documents)} páginas")
         except Exception as e:
             logger.error(f"Error leyendo PDF {pdf_path.name}: {e}", exc_info=True)
@@ -107,12 +103,22 @@ class PDFContentLoader:
         Procesa documentos ya cargados en memoria.
         Optimización para evitar doble I/O cuando el ingestor ya cargó el PDF.
         """
-        if not documents:
+        source_documents = documents
+        if not source_documents or any(
+            (doc.metadata or {}).get("extraction_method") != "pymupdf4llm" for doc in source_documents
+        ):
+            try:
+                source_documents = self._load_markdown_documents(source_path)
+            except Exception as e:
+                logger.error(f"Error leyendo PDF {source_path.name}: {e}", exc_info=True)
+                return []
+
+        if not source_documents:
             logger.warning(f"PDF vacío o lista de documentos vacía: {source_path.name}")
             return []
 
         # Preprocesado seguro
-        processed_docs = self._preprocess_documents(documents)
+        processed_docs = self._preprocess_documents(source_documents)
 
         # Dividir en chunks
         total_tokens = sum(self.text_splitter._length_function(doc.page_content or "") for doc in processed_docs)
@@ -180,6 +186,55 @@ class PDFContentLoader:
 
         return "\n".join(cleaned).strip()
 
+    def _load_markdown_documents(self, pdf_path: Path) -> List[Document]:
+        logger.info("[PDF_LOADER] Using pymupdf4llm for extraction | file=%s", pdf_path)
+        try:
+            import pymupdf4llm
+        except ImportError as exc:
+            raise RuntimeError(
+                "pymupdf4llm is required for structured PDF extraction but is not installed."
+            ) from exc
+
+        page_chunks = pymupdf4llm.to_markdown(str(pdf_path), page_chunks=True)
+        if not isinstance(page_chunks, list):
+            raise RuntimeError(
+                f"Unexpected pymupdf4llm.to_markdown() result type: {type(page_chunks).__name__}"
+            )
+
+        documents: List[Document] = []
+        for index, page_chunk in enumerate(page_chunks):
+            if not isinstance(page_chunk, dict):
+                logger.warning(
+                    "Skipping pymupdf4llm page chunk with unexpected type %s for %s",
+                    type(page_chunk).__name__,
+                    pdf_path.name,
+                )
+                continue
+
+            metadata = self._build_page_metadata(page_chunk, pdf_path, index)
+            page_text = page_chunk.get("text") or ""
+            documents.append(Document(page_content=str(page_text), metadata=metadata))
+
+        return documents
+
+    def _build_page_metadata(self, page_chunk: Dict[str, Any], pdf_path: Path, index: int) -> Dict[str, Any]:
+        raw_metadata = page_chunk.get("metadata") or {}
+        metadata = dict(raw_metadata) if isinstance(raw_metadata, dict) else {}
+
+        raw_page_number = metadata.get("page_number", index + 1)
+        try:
+            page_number = int(raw_page_number)
+        except (TypeError, ValueError):
+            page_number = index + 1
+
+        metadata["source"] = str(pdf_path)
+        metadata["file_path"] = str(Path(metadata.get("file_path") or pdf_path).resolve())
+        metadata["page"] = max(page_number - 1, 0)
+        metadata["page_number"] = page_number
+        metadata["extraction_method"] = "pymupdf4llm"
+
+        return metadata
+
     def _extract_sections(self, documents: List[Document]) -> List[Document]:
         sections = []
 
@@ -187,11 +242,11 @@ class PDFContentLoader:
             line = lines[index].strip()
             if not line:
                 return False
+            if re.match(r"^#{1,6}\s+\S", line):
+                return True
             if len(line) <= 60 and any(char.isalpha() for char in line) and line == line.upper():
                 return True
             if line.endswith(":"):
-                return True
-            if re.match(r"^#{1,2}\s+\S", line):
                 return True
             if index + 1 < len(lines) and not lines[index + 1].strip():
                 content_lines = 0

@@ -41,8 +41,7 @@ type RetrievedDoc = {
 type DebugData = {
   retrieved_documents?: RetrievedDoc[];
   retrieved?: RetrievedDoc[];
-  system_prompt_used?: string;
-  system_prompt?: string;
+  prompt_used?: string;
   model_params?: Record<string, any>;
   rag_time?: number | null;
   llm_time?: number | null;
@@ -88,9 +87,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
   }, [pdfUrl]);
   const SEGMENTS = ["context", "history", "instructions"] as const;
   const ORDERED_SEGMENTS = ["instructions", "context", "history"] as const;
-  const sysPrompt = (data?.system_prompt_used ?? data?.system_prompt ?? "") as string;
-
-  const promptText = sysPrompt;
+  const promptText = (data?.prompt_used ?? "") as string;
   const segRegex = (name: string) => new RegExp(`<${name}>[\s\S]*?<\/${name}>`);
   const extractInner = (name: string) => {
     const regex = new RegExp(`<${name}>[\\s\\S]*?<\/${name}>`, "i");
@@ -1003,7 +1000,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                   <MessageSquare className="w-4 h-4 text-muted-foreground" />
                 </span>
                 <span className="text-sm font-semibold text-foreground">
-                  Prompt del Sistema
+                  Prompt Efectivo
                 </span>
               </div>
               <button

@@ -72,7 +72,6 @@ class Settings(BaseSettings):
     max_tokens: int = Field(default=2000, env="MAX_TOKENS")
     temperature: float = Field(default=0.7, env="TEMPERATURE")
     
-    system_prompt: Optional[str] = Field(default=None, env="SYSTEM_PROMPT")
     # Dynamic UI-driven config (complemento seguro)
     bot_name: Optional[str] = Field(default=None, env="BOT_NAME")
     ui_prompt_extra: Optional[str] = Field(default=None)
@@ -100,6 +99,7 @@ class Settings(BaseSettings):
     
     # Configuraciones de Memoria
     memory_type: str = Field(default="BASE_MEMORY", env="MEMORY_TYPE")
+    memory_window_size: int = Field(default=20, env="MEMORY_WINDOW_SIZE")
     max_memory_entries: int = Field(default=1000, env="MAX_MEMORY_ENTRIES")
     
     # Configuraciones de RAG - Procesamiento de PDFs
