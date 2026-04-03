@@ -36,71 +36,44 @@ class RetrieveDebugRequest(BaseModel):
     include_context: bool = True
 
 
-class RetrieveDebugItem(BaseModel):
-    """Item describing one retrieved chunk for audit."""
-    score: float
-    source: str | None = None
-    file_path: str | None = None
-    content_hash: str | None = None
-    chunk_type: str | None = None
-    word_count: int | None = None
-    preview: str
-    page_number: int | None = None
-
-
-class RetrieveDebugResponse(BaseModel):
-    """Response model for retrieve-debug endpoint."""
-    query: str
-    k: int
-    retrieved: List[RetrieveDebugItem]
-    context: str | None = None
-    timings: dict
-
-
-class HierarchicalRetrieveDebugRequest(BaseModel):
-    """Request model for hierarchical-retrieve-debug endpoint."""
-    query: str
-    k: int = 4
-    filter_criteria: dict | None = None
-    include_context: bool = True
-
-
-class HierarchicalChildHitItem(BaseModel):
-    """Evidence child chunk returned by the hierarchical retriever."""
+class RetrieveDebugChildHitItem(BaseModel):
+    """Evidence child chunk returned by the advanced retriever."""
     child_id: str | None = None
     score: float
+    dense_score: float = 0.0
+    lexical_score: float = 0.0
     page_start: int | None = None
     page_end: int | None = None
     preview: str
 
 
-class HierarchicalRetrieveDebugItem(BaseModel):
+class RetrieveDebugItem(BaseModel):
     """Item describing one hydrated parent document for audit."""
     parent_id: str
     doc_id: str
-    source: str | None = None
-    file_path: str | None = None
     score: float
     dense_score: float = 0.0
     lexical_score: float = 0.0
     fused_score: float = 0.0
     rerank_score: float = 0.0
+    source: str | None = None
+    file_path: str | None = None
     page_start: int | None = None
     page_end: int | None = None
     section_title: str | None = None
     contains_table: bool = False
     contains_numeric: bool = False
     contains_date_like: bool = False
-    child_hits: List[HierarchicalChildHitItem]
+    child_hits: List[RetrieveDebugChildHitItem]
     preview: str
 
 
-class HierarchicalRetrieveDebugResponse(BaseModel):
-    """Response model for hierarchical-retrieve-debug endpoint."""
+class RetrieveDebugResponse(BaseModel):
+    """Response model for retrieve-debug endpoint."""
     query: str
     k: int
     child_k: int
-    retrieved: List[HierarchicalRetrieveDebugItem]
+    retrieved: List[RetrieveDebugItem]
     context: str | None = None
     timings: dict
 

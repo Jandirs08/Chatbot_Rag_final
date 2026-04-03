@@ -62,19 +62,31 @@ class _FakeParentRepository:
     def __init__(self):
         self.collection_name = "rag_parent_documents"
         self.deleted_doc_ids = []
+        self.deleted_sources = []
         self.upserted = []
         self.ensure_calls = 0
+        self.doc_counts: dict[str, int] = {}
 
     async def ensure_indexes(self):
         self.ensure_calls += 1
 
     async def delete_by_doc_id(self, doc_id: str):
         self.deleted_doc_ids.append(doc_id)
+        self.doc_counts.pop(doc_id, None)
+        return 0
+
+    async def delete_by_source(self, source: str):
+        self.deleted_sources.append(source)
         return 0
 
     async def upsert_documents(self, parents):
         self.upserted.extend(parents)
+        for parent in parents:
+            self.doc_counts[parent.doc_id] = self.doc_counts.get(parent.doc_id, 0) + 1
         return len(parents)
+
+    async def count_by_doc_id(self, doc_id: str):
+        return self.doc_counts.get(doc_id, 0)
 
 
 class _FakeEmbeddingManager:
@@ -103,6 +115,7 @@ class _FakeLexicalRepository:
     def __init__(self):
         self.documents_collection_name = "rag_child_lexical_documents"
         self.deleted_doc_ids = []
+        self.deleted_sources = []
         self.upserted = []
         self.ensure_calls = 0
 
@@ -113,15 +126,25 @@ class _FakeLexicalRepository:
         self.deleted_doc_ids.append(doc_id)
         return 0
 
+    async def delete_by_source(self, source: str):
+        self.deleted_sources.append(source)
+        return 0
+
     async def upsert_children(self, children):
         self.upserted.extend(children)
         return len(children)
 
 
+def _make_local_tmp_dir() -> Path:
+    base_dir = Path(__file__).resolve().parent / "_tmp_hier"
+    run_dir = base_dir / uuid4().hex
+    run_dir.mkdir(parents=True, exist_ok=True)
+    return run_dir
+
+
 @pytest.mark.asyncio
 async def test_hierarchical_ingestion_service_persists_parents_and_children():
-    tmp_dir = Path(__file__).resolve().parent / "_tmp_hier"
-    tmp_dir.mkdir(exist_ok=True)
+    tmp_dir = _make_local_tmp_dir()
     pdf_path = tmp_dir / f"sample-{uuid4().hex}.pdf"
     pdf_path.write_bytes(b"%PDF-1.4 sample")
 
@@ -147,8 +170,9 @@ async def test_hierarchical_ingestion_service_persists_parents_and_children():
         assert len(parent_repo.upserted) == 1
         assert len(lexical_repo.upserted) == 1
         assert embedding_manager.calls == [["Child content"]]
-        assert vector_store.deleted_filters == [{"doc_id": result["doc_id"]}]
-        assert lexical_repo.deleted_doc_ids == [result["doc_id"]]
+        assert vector_store.deleted_filters == [{"source": pdf_path.name}]
+        assert parent_repo.deleted_sources == [pdf_path.name]
+        assert lexical_repo.deleted_sources == [pdf_path.name]
         assert len(vector_store.add_calls) == 1
         stored_documents, stored_embeddings = vector_store.add_calls[0]
         assert stored_embeddings == [[0.1, 0.2]]
@@ -161,3 +185,41 @@ async def test_hierarchical_ingestion_service_persists_parents_and_children():
                 pdf_path.unlink()
             except PermissionError:
                 pass
+        try:
+            tmp_dir.rmdir()
+        except OSError:
+            pass
+
+
+@pytest.mark.asyncio
+async def test_hierarchical_ingestion_service_skips_duplicate_pdf_when_force_update_is_false():
+    tmp_dir = _make_local_tmp_dir()
+    pdf_path = tmp_dir / "sample.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 sample")
+
+    try:
+        parent_repo = _FakeParentRepository()
+        service = HierarchicalIngestionService(
+            chunker=_FakeChunker(),
+            parent_repository=parent_repo,
+            embedding_manager=_FakeEmbeddingManager(),
+            vector_store=_FakeVectorStore(),
+        )
+
+        first = await service.ingest_single_pdf(pdf_path)
+        second = await service.ingest_single_pdf(pdf_path)
+
+        assert first["status"] == "success"
+        assert second["status"] == "skipped"
+        assert second["doc_id"] == first["doc_id"]
+        assert second["parent_count"] == 1
+    finally:
+        if pdf_path.exists():
+            try:
+                pdf_path.unlink()
+            except PermissionError:
+                pass
+        try:
+            tmp_dir.rmdir()
+        except OSError:
+            pass

@@ -1,6 +1,5 @@
 from .hierarchical_chunker import HierarchicalChunker
 from .hierarchical_ingestion_service import HierarchicalIngestionService
-from .ingestor import RAGIngestor
 from .models import ChildChunk, HierarchicalChunkingResult, PageSpan, ParentDocument
 
 __all__ = [
@@ -10,5 +9,4 @@ __all__ = [
     "HierarchicalIngestionService",
     "PageSpan",
     "ParentDocument",
-    "RAGIngestor",
 ]

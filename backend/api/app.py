@@ -20,7 +20,7 @@ from utils.logging_utils import get_logger, suppress_cl100k_warnings
 from config import settings
 from utils.rate_limiter import limiter, retry_after_for_path
 from chat.manager import ChatManager
-from rag.retrieval import HierarchicalRetriever, RAGRetriever
+from rag.retrieval import HierarchicalRetriever
 from rag.retrieval.reranker import build_parent_reranker
 from storage.documents import PDFManager
 from database.config_repository import ConfigRepository
@@ -158,12 +158,10 @@ from auth.middleware import AuthenticationMiddleware
 # Dependencias para inicializar managers
 from core.bot import Bot
 from memory import MemoryTypes
-from rag.pdf_processor.pdf_loader import PDFContentLoader
 from rag.embeddings.embedding_manager import EmbeddingManager
 from rag.vector_store.vector_store import VectorStore
 from rag.ingestion.hierarchical_chunker import HierarchicalChunker
 from rag.ingestion.hierarchical_ingestion_service import HierarchicalIngestionService
-from rag.ingestion.ingestor import RAGIngestor
 from utils.deploy_log import build_full_startup_summary
 from storage.pdf_processor_adapter import PDFProcessorAdapter
 from cache.manager import cache
@@ -295,14 +293,23 @@ def _should_sync_runtime_state(path: str) -> bool:
 
 def _refresh_rag_availability_state(app: FastAPI) -> bool:
     vector_store = getattr(app.state, "vector_store", None)
-    rag_available = bool(vector_store is not None and getattr(vector_store, "is_available", False))
+    rag_retriever = getattr(app.state, "rag_retriever", None)
+    rag_ingestor = getattr(app.state, "rag_ingestor", None)
+    rag_available = bool(
+        vector_store is not None
+        and getattr(vector_store, "is_available", False)
+        and rag_retriever is not None
+        and rag_ingestor is not None
+    )
     app.state.rag_available = rag_available
     return rag_available
 
 
 async def _ensure_rag_runtime_available(app: FastAPI) -> bool:
     vector_store = getattr(app.state, "vector_store", None)
-    if vector_store is None:
+    rag_retriever = getattr(app.state, "rag_retriever", None)
+    rag_ingestor = getattr(app.state, "rag_ingestor", None)
+    if vector_store is None or rag_retriever is None or rag_ingestor is None:
         app.state.rag_available = False
         return False
 
@@ -381,15 +388,6 @@ async def lifespan(app: FastAPI):
         # Inicializar componentes
         app.state.pdf_file_manager = PDFManager(base_dir=Path(s.pdfs_dir).resolve() if s.pdfs_dir else None)
 
-        app.state.pdf_content_loader = PDFContentLoader(
-            chunk_size=s.chunk_size,
-            chunk_overlap=s.chunk_overlap,
-            min_chunk_length=s.min_chunk_length,
-        )
-        logger.info(
-            f"PDFContentLoader inicializado con chunk_size={s.chunk_size}, overlap={s.chunk_overlap}, min_chunk_length={s.min_chunk_length}"
-        )
-
         app.state.embedding_manager = EmbeddingManager(model_name=s.embedding_model)
 
         app.state.vector_store = VectorStore(
@@ -397,7 +395,8 @@ async def lifespan(app: FastAPI):
             distance_strategy=s.distance_strategy,
             cache_enabled=s.enable_cache,
             cache_ttl=s.cache_ttl,
-            batch_size=s.batch_size
+            batch_size=s.batch_size,
+            collection_name=s.rag_child_collection_name,
         )
         app.state.rag_available = bool(getattr(app.state.vector_store, "is_available", False))
         if app.state.rag_available:
@@ -405,28 +404,8 @@ async def lifespan(app: FastAPI):
         else:
             logger.critical("Qdrant no disponible al arranque. La aplicación continuará sin contexto RAG.")
 
-        app.state.rag_child_vector_store = VectorStore(
-            embedding_function=app.state.embedding_manager,
-            distance_strategy=s.distance_strategy,
-            cache_enabled=s.enable_cache,
-            cache_ttl=s.cache_ttl,
-            batch_size=s.batch_size,
-            collection_name=s.rag_child_collection_name,
-        )
-
-        app.state.rag_ingestor = RAGIngestor(
-            pdf_file_manager=app.state.pdf_file_manager,
-            pdf_content_loader=app.state.pdf_content_loader,
-            embedding_manager=app.state.embedding_manager,
-            vector_store=app.state.vector_store
-        )
-
-        app.state.rag_retriever = RAGRetriever(
-            vector_store=app.state.vector_store,
-            embedding_manager=app.state.embedding_manager
-        )
-        app.state.hierarchical_rag_retriever = None
-        app.state.hierarchical_ingestion_service = None
+        app.state.rag_ingestor = None
+        app.state.rag_retriever = None
         app.state.rag_parent_repository = None
         app.state.rag_child_lexical_repository = None
         app.state.hierarchical_chunker = None
@@ -495,15 +474,15 @@ async def lifespan(app: FastAPI):
                 )
                 await app.state.rag_child_lexical_repository.ensure_indexes()
                 app.state.hierarchical_chunker = HierarchicalChunker()
-                app.state.hierarchical_ingestion_service = HierarchicalIngestionService(
+                app.state.rag_ingestor = HierarchicalIngestionService(
                     chunker=app.state.hierarchical_chunker,
                     parent_repository=app.state.rag_parent_repository,
                     embedding_manager=app.state.embedding_manager,
-                    vector_store=app.state.rag_child_vector_store,
+                    vector_store=app.state.vector_store,
                     lexical_repository=app.state.rag_child_lexical_repository,
                 )
-                app.state.hierarchical_rag_retriever = HierarchicalRetriever(
-                    child_vector_store=app.state.rag_child_vector_store,
+                app.state.rag_retriever = HierarchicalRetriever(
+                    child_vector_store=app.state.vector_store,
                     parent_repository=app.state.rag_parent_repository,
                     embedding_manager=app.state.embedding_manager,
                     lexical_repository=app.state.rag_child_lexical_repository,
@@ -511,16 +490,14 @@ async def lifespan(app: FastAPI):
                     child_fetch_multiplier=getattr(s, "retrieval_k_multiplier", 3),
                     cache_enabled=s.enable_cache,
                 )
+                app.state.bot_instance.rag_retriever = app.state.rag_retriever
             except Exception as e_idx:
                 app.state.rag_parent_repository = None
                 app.state.rag_child_lexical_repository = None
                 app.state.hierarchical_chunker = None
-                app.state.hierarchical_ingestion_service = None
-                app.state.hierarchical_rag_retriever = None
-                logger.warning(f"No se pudo inicializar HierarchicalRetriever al arranque: {e_idx}")
-            if getattr(s, "enable_advanced_rag_retrieval", False) and app.state.hierarchical_rag_retriever is not None:
-                app.state.bot_instance.rag_retriever = app.state.hierarchical_rag_retriever
-                logger.info("Advanced hierarchical RAG retriever activado para el bot.")
+                app.state.rag_ingestor = None
+                app.state.rag_retriever = None
+                logger.warning(f"No se pudo inicializar el pipeline RAG jerarquico al arranque: {e_idx}")
             logger.info("🚀 Persistent MongoDB client initialized and indexes created successfully")
         except Exception as e:
             logger.error(f"⚠️ Error initializing persistent MongoDB client: {e}", exc_info=True)
@@ -564,11 +541,6 @@ async def lifespan(app: FastAPI):
             if hasattr(app.state.vector_store, 'close'):
                 await app.state.vector_store.close()
             logger.info("VectorStore cerrado.")
-
-        if hasattr(app.state, 'rag_child_vector_store'):
-            if hasattr(app.state.rag_child_vector_store, 'close'):
-                await app.state.rag_child_vector_store.close()
-            logger.info("Child VectorStore cerrado.")
 
         # Cerrar EmbeddingManager
         if hasattr(app.state, 'embedding_manager'):

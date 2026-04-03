@@ -21,6 +21,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["pdfs"])
 
 
+def _require_rag_ingestor(request: Request):
+    rag_ingestor = getattr(request.app.state, "rag_ingestor", None)
+    if rag_ingestor is None:
+        raise HTTPException(
+            status_code=503,
+            detail="El pipeline RAG no esta disponible actualmente.",
+        )
+    return rag_ingestor
+
+
 @router.post("/upload", response_model=PDFUploadResponse)
 @conditional_limit(settings.pdf_upload_rate_limit)
 async def upload_pdf(
@@ -39,8 +49,7 @@ async def upload_pdf(
     Para restringir a admins en el futuro: cambiar a Depends(require_admin).
     """
     pdf_file_manager = request.app.state.pdf_file_manager
-    rag_ingestor = request.app.state.rag_ingestor
-    hierarchical_ingestion_service = getattr(request.app.state, "hierarchical_ingestion_service", None)
+    rag_ingestor = _require_rag_ingestor(request)
 
     try:
         # Validar tamaño del archivo
@@ -81,31 +90,6 @@ async def upload_pdf(
             raise HTTPException(status_code=500, detail=f"Error durante la ingesta del PDF: {detail}")
 
         # Éxito → devolver lista actualizada
-        if (
-            request.app.state.settings.enable_hierarchical_rag_ingestion
-            and hierarchical_ingestion_service is not None
-        ):
-            try:
-                await hierarchical_ingestion_service.ingest_pdf(file_path, replace_existing=True)
-            except Exception as hierarchical_error:
-                logger.error("Error en ingesta jerarquica para '%s': %s", file_path.name, hierarchical_error, exc_info=True)
-                try:
-                    await rag_ingestor.vector_store.delete_documents(filter={"source": file_path.name})
-                except Exception:
-                    logger.warning("No se pudo revertir el indice legacy tras fallo jerarquico: %s", file_path.name)
-                try:
-                    await hierarchical_ingestion_service.delete_by_source(file_path.name)
-                except Exception:
-                    logger.warning("No se pudo revertir el indice jerarquico tras fallo: %s", file_path.name)
-                try:
-                    await pdf_file_manager.delete_pdf(file_path.name)
-                except Exception:
-                    logger.warning("No se pudo eliminar el PDF tras rollback jerarquico: %s", file_path.name)
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Error durante la ingesta jerarquica del PDF: {hierarchical_error}",
-                )
-
         pdfs = await pdf_file_manager.list_pdfs()
 
         refresh_rag_corpus_state(request.app.state, background_tasks=background_tasks)
@@ -164,14 +148,10 @@ async def delete_pdf(
     Para restringir a admins: cambiar a Depends(require_admin).
     """
     pdf_file_manager = request.app.state.pdf_file_manager
-    rag_ingestor = request.app.state.rag_ingestor
-    hierarchical_ingestion_service = getattr(request.app.state, "hierarchical_ingestion_service", None)
+    rag_ingestor = _require_rag_ingestor(request)
     try:
-        await rag_ingestor.vector_store.delete_documents(filter={"source": filename})
-        logger.info(f"Embeddings asociados borrados para: {filename}")
-        if hierarchical_ingestion_service is not None:
-            await hierarchical_ingestion_service.delete_by_source(filename)
-            logger.info(f"Indices jerarquicos eliminados para: {filename}")
+        await rag_ingestor.delete_by_source(filename)
+        logger.info(f"Indices RAG eliminados para: {filename}")
 
         await pdf_file_manager.delete_pdf(filename)
         logger.info(f"PDF eliminado físicamente: {filename}")

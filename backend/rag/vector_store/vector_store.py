@@ -527,7 +527,7 @@ class VectorStore:
             raise VectorStoreUnavailableError("Qdrant query failed") from e
 
     # =====================================================================
-    #   DELETION METHODS (COMPATIBILIDAD RAGINGESTOR)
+    #   DELETION METHODS
     # =====================================================================
 
     async def delete_documents(self, filter: Optional[Dict[str, Any]] = None) -> None:

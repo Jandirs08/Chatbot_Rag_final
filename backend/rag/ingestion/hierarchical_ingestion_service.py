@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -8,6 +9,8 @@ import aiofiles
 from langchain_core.documents import Document
 
 from rag.ingestion.models import ChildChunk
+
+logger = logging.getLogger(__name__)
 
 
 class HierarchicalIngestionService:
@@ -26,12 +29,57 @@ class HierarchicalIngestionService:
         self.vector_store = vector_store
         self.lexical_repository = lexical_repository
 
-    async def ingest_pdf(self, pdf_path: Path, *, replace_existing: bool = True) -> dict[str, Any]:
+    async def ingest_single_pdf(self, pdf_path: Path, force_update: bool = False) -> dict[str, Any]:
         if not pdf_path.exists() or not pdf_path.is_file():
             raise FileNotFoundError(f"PDF not found: {pdf_path}")
 
         doc_id = await self._build_doc_id(pdf_path)
-        result = await self.chunker.chunk_pdf(pdf_path, doc_id=doc_id)
+        source = pdf_path.name
+
+        if not force_update:
+            existing_count = await self.parent_repository.count_by_doc_id(doc_id)
+            if existing_count > 0:
+                logger.info("PDF duplicado detectado por hash; se omite la ingesta jerarquica: %s", source)
+                return {
+                    "status": "skipped",
+                    "filename": source,
+                    "doc_id": doc_id,
+                    "chunks_original": 0,
+                    "chunks_unique": 0,
+                    "chunks_added": 0,
+                    "parent_count": existing_count,
+                    "child_count": 0,
+                }
+
+        result = await self.ingest_pdf(
+            pdf_path,
+            replace_existing=True,
+            doc_id=doc_id,
+        )
+        child_count = int(result.get("child_count", 0) or 0)
+        return {
+            "status": "success",
+            "filename": source,
+            "doc_id": doc_id,
+            "chunks_original": child_count,
+            "chunks_unique": child_count,
+            "chunks_added": child_count,
+            "parent_count": int(result.get("parent_count", 0) or 0),
+            "child_count": child_count,
+        }
+
+    async def ingest_pdf(
+        self,
+        pdf_path: Path,
+        *,
+        replace_existing: bool = True,
+        doc_id: str | None = None,
+    ) -> dict[str, Any]:
+        if not pdf_path.exists() or not pdf_path.is_file():
+            raise FileNotFoundError(f"PDF not found: {pdf_path}")
+
+        resolved_doc_id = doc_id or await self._build_doc_id(pdf_path)
+        result = await self.chunker.chunk_pdf(pdf_path, doc_id=resolved_doc_id)
         if not result.parents or not result.children:
             raise RuntimeError("Hierarchical chunking produced no parents or children")
 
@@ -40,10 +88,10 @@ class HierarchicalIngestionService:
             await self.lexical_repository.ensure_indexes()
 
         if replace_existing:
-            await self.parent_repository.delete_by_doc_id(doc_id)
-            await self.vector_store.delete_documents(filter={"doc_id": doc_id})
+            await self.parent_repository.delete_by_source(result.source)
+            await self.vector_store.delete_documents(filter={"source": result.source})
             if self.lexical_repository is not None:
-                await self.lexical_repository.delete_by_doc_id(doc_id)
+                await self.lexical_repository.delete_by_source(result.source)
 
         await self.parent_repository.upsert_documents(result.parents)
         if self.lexical_repository is not None:
@@ -56,7 +104,7 @@ class HierarchicalIngestionService:
         await self.vector_store.add_documents(child_documents, embeddings=child_embeddings)
 
         return {
-            "doc_id": doc_id,
+            "doc_id": resolved_doc_id,
             "source": result.source,
             "page_count": result.page_count,
             "parent_count": len(result.parents),

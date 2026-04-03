@@ -17,7 +17,7 @@ from utils.logging_utils import get_logger
 from config import Settings, settings as app_settings
 from .chain import ChainManager
 from .request_context import get_request_context
-from rag.retrieval.retriever import RAGRetriever, RetrievalBackendUnavailableError
+from rag.retrieval import RAGRetriever, RetrievalBackendUnavailableError
 
 
 class Bot:

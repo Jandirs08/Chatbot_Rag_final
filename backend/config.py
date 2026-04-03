@@ -114,8 +114,6 @@ class Settings(BaseSettings):
     mmr_lambda_mult: float = Field(default=0.5, env="MMR_LAMBDA_MULT")
     similarity_threshold: float = Field(default=0.3, env="SIMILARITY_THRESHOLD")
     rag_gating_similarity_threshold: float = Field(default=0.20, env="RAG_GATING_SIMILARITY_THRESHOLD")
-    enable_hierarchical_rag_ingestion: bool = Field(default=True, env="ENABLE_HIERARCHICAL_RAG_INGESTION")
-    enable_advanced_rag_retrieval: bool = Field(default=False, env="ENABLE_ADVANCED_RAG_RETRIEVAL")
     enable_hybrid_search: bool = Field(default=True, env="ENABLE_HYBRID_SEARCH")
     enable_llm_reranker: bool = Field(default=True, env="ENABLE_LLM_RERANKER")
     hybrid_rrf_k: int = Field(default=60, env="HYBRID_RRF_K")
