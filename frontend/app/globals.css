@@ -2,8 +2,8 @@
   --background: 0 0% 100%;
   --foreground: 222 47% 11%;
 
-  /* Surface tokens for depth - warmer, premium feel */
-  --surface: 40 20% 97%;
+  /* Surface tokens for depth - clean SaaS feel */
+  --surface: 210 40% 98%;  /* slate-50 (#F8FAFC) */
   --surface-elevated: 0 0% 100%;
 
   /* Layout tokens */

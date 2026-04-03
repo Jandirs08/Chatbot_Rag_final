@@ -2,7 +2,6 @@
 import logging
 from typing import List, Optional, Dict, Any, Tuple, Union
 import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
 import asyncio
 import uuid
 import hashlib
@@ -28,6 +27,10 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
+
+class VectorStoreUnavailableError(RuntimeError):
+    pass
+
 # =====================================================================
 #   VECTOR STORE (GOLDEN MASTER)
 # =====================================================================
@@ -41,17 +44,26 @@ class VectorStore:
         distance_strategy: str = "cosine",
         cache_enabled: bool = True,
         cache_ttl: int = 3600,
-        batch_size: int = 100
+        batch_size: int = 100,
+        collection_name: Optional[str] = None,
     ):
         self.embedding_function = embedding_function
         self.distance_strategy = distance_strategy
         self.cache_enabled = cache_enabled
         self.cache_ttl = cache_ttl
         self.batch_size = batch_size
-        self.collection_name = getattr(settings, "qdrant_collection_name", "rag_collection")
+        self.collection_name = collection_name or getattr(settings, "qdrant_collection_name", "rag_collection")
+        self.client = None
+        self.is_available = False
 
         # Inicialización de conexión
-        self._initialize_store()
+        try:
+            self._initialize_store()
+        except VectorStoreUnavailableError as exc:
+            logger.critical(
+                "Qdrant no disponible durante el arranque del VectorStore. El servicio continuará sin RAG hasta reconectar: %s",
+                exc,
+            )
 
         logger.info(
             "VectorStore inicializado | strategy=%s | cache_enabled=%s | similarity_threshold=%s",
@@ -110,10 +122,31 @@ class VectorStore:
                 logger.info("Colección '%s' ya existe.", self.collection_name)
                 # Asegurar índices de todas formas por si hubo cambios de esquema
                 self._ensure_payload_indexes()
+            self.is_available = True
 
         except Exception as e:
+            self.client = None
+            self.is_available = False
             logger.error("Error inicializando Qdrant: %s", str(e), exc_info=True)
-            raise
+            raise VectorStoreUnavailableError("Qdrant no está disponible") from e
+
+    def ensure_connected(self) -> bool:
+        """Intenta (re)conectar con Qdrant de forma acotada."""
+        if self.client is not None and self.is_available:
+            return True
+
+        try:
+            self._initialize_store()
+            logger.warning("Conexión a Qdrant restablecida; RAG vuelve a estar disponible.")
+            return True
+        except VectorStoreUnavailableError:
+            return False
+
+    def _require_connection(self) -> None:
+        if self.client is not None and self.is_available:
+            return
+        if not self.ensure_connected():
+            raise VectorStoreUnavailableError("Qdrant backend unavailable")
 
     # =====================================================================
     #   ASEGURAR ÍNDICES PAYLOAD
@@ -127,7 +160,10 @@ class VectorStore:
                 "pdf_hash": "keyword",
                 "content_hash": "keyword",
                 "content_hash_global": "keyword",
-                "chunk_type": "keyword"
+                "chunk_type": "keyword",
+                "doc_id": "keyword",
+                "parent_id": "keyword",
+                "child_id": "keyword",
             }
 
             for field, idx_type in required_indexes.items():
@@ -158,6 +194,7 @@ class VectorStore:
         if not documents:
             logger.info("add_documents: lista vacía, no se hace nada.")
             return
+        self._require_connection()
 
         dim = int(getattr(settings, "default_embedding_dimension", 1536))
         use_uuid5 = bool(getattr(settings, "use_uuid5_deterministic_ids", False))
@@ -226,6 +263,13 @@ class VectorStore:
                         deterministic_id = str(uuid.UUID(bytes=hashlib.md5(content_hash.encode("utf-8")).digest()))
 
                     payload = {**doc.metadata, "text": doc.page_content}
+                    explicit_point_id = (
+                        doc.metadata.get("point_id")
+                        or doc.metadata.get("child_id")
+                        or doc.metadata.get("id")
+                    )
+                    if explicit_point_id:
+                        deterministic_id = str(explicit_point_id)
                     points.append(PointStruct(id=deterministic_id, vector=vec_list, payload=payload))
 
                 if not points:
@@ -249,6 +293,7 @@ class VectorStore:
                         len(points), len(batch_docs), total_inserted
                     )
                 except Exception as e:
+                    self.is_available = False
                     logger.error("Error insertando lote en Qdrant: %s", e, exc_info=True)
                     raise RuntimeError("Fallo crítico en upsert Qdrant") from e
 
@@ -322,12 +367,11 @@ class VectorStore:
             return np.array(emb)
 
         except Exception as e:
-            dim = int(getattr(settings, "default_embedding_dimension", 1536))
-            logger.error("Fallo obteniendo embedding single; devolviendo vector cero | err=%s", e, exc_info=True)
-            return np.zeros(dim, dtype=np.float32)
+            logger.error("Fallo obteniendo embedding single | err=%s", e, exc_info=True)
+            raise
 
     # =====================================================================
-    #   RETRIEVE (CORREGIDO: MMR VECTORS)
+    #   RETRIEVE
     # =====================================================================
 
     async def retrieve(
@@ -335,33 +379,41 @@ class VectorStore:
         query: str,
         k: int = 4,
         filter: Optional[Dict] = None,
-        use_mmr: bool = True,
-        fetch_k: Optional[int] = None,
-        lambda_mult: float = 0.5,
         score_threshold: float = 0.0,
         with_vectors: bool = False,
+        query_embedding: Optional[np.ndarray] = None,
     ) -> List[Document]:
+        """Recupera documentos relevantes mediante búsqueda por similitud.
+
+        Args:
+            query_embedding: Embedding pre-computado del query. Si se provee,
+                             evita una llamada extra a la API de OpenAI.
+                             Si es None, se computa internamente (legacy).
         """
-        Recupera documentos relevantes.
-        FIX: Si usa MMR, fuerza la recuperación de vectores internamente.
-        """
+        logger.info("retrieve() called")
+        self._require_connection()
         try:
-            query_embedding = await self._get_document_embedding(query)
+            # Usar el embedding pre-computado si viene del RAGRetriever;
+            # solo re-embeder si no se proveyó (llamada directa legacy).
+            if query_embedding is None:
+                query_embedding = await self._get_document_embedding(query)
+                logger.debug("retrieve() | embedding generado internamente (sin pre-compute)")
+        except Exception as e:
+            logger.error("Error generando embedding en retrieve(): %s", e, exc_info=True)
+            return []
 
-            vectors_needed = with_vectors or use_mmr
-
-            if use_mmr:
-                actual_fetch_k = fetch_k or (k * 3)
-                docs = await self._mmr_search(
-                    query_embedding, k, actual_fetch_k, lambda_mult, filter, with_vectors=True
-                )
-            else:
-                docs = await self._similarity_search(
-                    query_embedding, k, filter, with_vectors=vectors_needed
-                )
+        try:
+            docs = await self._similarity_search(
+                query_embedding, k, filter, with_vectors=with_vectors
+            )
 
             final_docs = []
             kept = 0
+            logger.info(
+                "retrieve() | raw_qdrant_scores=%s | threshold=%s",
+                [float(score) for _, score in docs],
+                score_threshold,
+            )
             for d, score in docs:
                 if score >= score_threshold:
                     kept += 1
@@ -371,86 +423,15 @@ class VectorStore:
                     final_docs.append(d)
 
             logger.debug(
-                "retrieve() | use_mmr=%s | k=%s | fetched=%s | kept=%s | threshold=%s",
-                use_mmr, k, len(docs), kept, score_threshold
+                "retrieve() | k=%s | fetched=%s | kept=%s | threshold=%s",
+                k, len(docs), kept, score_threshold
             )
             return final_docs
-
+        except VectorStoreUnavailableError:
+            raise
         except Exception as e:
             logger.error("Error en retrieve(): %s", e, exc_info=True)
             return []
-
-    # =====================================================================
-    #   MMR (MAXIMAL MARGINAL RELEVANCE)
-    # =====================================================================
-
-    async def _mmr_search(self, query_embedding, k, fetch_k, lambda_mult, filter, with_vectors):
-        try:
-            candidates = await self._similarity_search(
-                query_embedding, fetch_k, filter, with_vectors=True
-            )
-            if not candidates:
-                return []
-
-            docs: List[Tuple[Document, float]] = []
-            emb_list: List[np.ndarray] = []
-
-            for (doc, score) in candidates:
-                vec = doc.metadata.get("vector")
-                if vec is None:
-                    continue
-
-                # vec puede ser list o ya np.array; si fuera otra cosa, lo descartamos
-                if isinstance(vec, list):
-                    vec = np.array(vec)
-                elif isinstance(vec, np.ndarray):
-                    pass
-                else:
-                    # Si llegó dict u otro tipo aquí, es un problema de normalización upstream
-                    continue
-
-                docs.append((doc, score))
-                emb_list.append(vec)
-
-            if not emb_list:
-                logger.warning("MMR sin vectores válidos; fallback a top-k simple.")
-                return candidates[:k]
-
-            doc_embeds = np.vstack(emb_list)
-
-            query_vec = query_embedding.reshape(1, -1) if getattr(query_embedding, "ndim", 1) == 1 else query_embedding
-
-            selected: List[int] = []
-            remaining = list(range(len(emb_list)))
-
-            for _ in range(min(k, len(emb_list))):
-                mmr_scores = []
-                for idx in remaining:
-                    relevance = cosine_similarity(query_vec, doc_embeds[idx].reshape(1, -1))[0][0]
-                    if selected:
-                        sim_to_selected = cosine_similarity(
-                            doc_embeds[idx].reshape(1, -1),
-                            doc_embeds[selected]
-                        )
-                        diversity = 1 - np.max(sim_to_selected)
-                    else:
-                        diversity = 1.0
-
-                    score = lambda_mult * relevance + (1 - lambda_mult) * diversity
-                    mmr_scores.append((idx, score))
-
-                if not mmr_scores:
-                    break
-
-                best_idx = max(mmr_scores, key=lambda x: x[1])[0]
-                selected.append(best_idx)
-                remaining.remove(best_idx)
-
-            return [docs[local_idx] for local_idx in selected]
-
-        except Exception as e:
-            logger.error("Error en MMR: %s", e, exc_info=True)
-            return await self._similarity_search(query_embedding, k, filter, with_vectors=False)
 
     # =====================================================================
     #   SIMILARITY SEARCH (CORE)
@@ -489,6 +470,7 @@ class VectorStore:
     ) -> List[Tuple[Document, float]]:
         """Ejecuta la búsqueda pura en Qdrant."""
         try:
+            self._require_connection()
             vector = query_embedding.tolist()
 
             qfilter = None
@@ -504,6 +486,12 @@ class VectorStore:
                 query_filter=qfilter,
                 with_payload=True,
                 with_vectors=with_vectors,
+            )
+            raw_points = results.points if hasattr(results, "points") else results if isinstance(results, (list, tuple)) else []
+            logger.info(
+                "_similarity_search() | raw_qdrant_result_count=%s | raw_qdrant_scores=%s",
+                len(raw_points),
+                [float(getattr(point, "score", 0.0) or 0.0) for point in raw_points],
             )
 
             if hasattr(results, "points"):
@@ -533,16 +521,19 @@ class VectorStore:
             return output
 
         except Exception as e:
+            self.is_available = False
+            logger.info("_similarity_search() exception: %s", e)
             logger.error("Error en _similarity_search: %s", e, exc_info=True)
-            return []
+            raise VectorStoreUnavailableError("Qdrant query failed") from e
 
     # =====================================================================
-    #   DELETION METHODS (COMPATIBILIDAD RAGINGESTOR)
+    #   DELETION METHODS
     # =====================================================================
 
     async def delete_documents(self, filter: Optional[Dict[str, Any]] = None) -> None:
         """Elimina documentos basados en un filtro de metadatos."""
         try:
+            self._require_connection()
             if filter:
                 must = [FieldCondition(key=str(k), match=MatchValue(value=v)) for k, v in filter.items()]
                 qfilter = QFilter(must=must)
@@ -559,6 +550,7 @@ class VectorStore:
             await self._invalidate_cache()
 
         except Exception as e:
+            self.is_available = False
             logger.error("Error eliminando documentos: %s", e, exc_info=True)
             raise
 
@@ -571,9 +563,11 @@ class VectorStore:
     async def delete_collection(self) -> None:
         """Elimina y recrea la colección completa."""
         try:
+            self._require_connection()
             try:
                 await asyncio.to_thread(self.client.delete_collection, self.collection_name)
             except Exception:
+                self.is_available = False
                 pass
 
             self._initialize_store()

@@ -1,1 +1,8 @@
-# This file makes 'retrieval' a package 
+from .hierarchical_retriever import HierarchicalRetriever
+from .retriever import RAGRetriever, RetrievalBackendUnavailableError
+
+__all__ = [
+    "HierarchicalRetriever",
+    "RAGRetriever",
+    "RetrievalBackendUnavailableError",
+]

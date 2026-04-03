@@ -1,4 +1,5 @@
 from typing import List, Optional
+import asyncio
 import numpy as np
 import time
 from utils.logging_utils import get_logger
@@ -24,6 +25,14 @@ from tenacity import (
 import logging
 
 _retry_logger = logging.getLogger("embedding_retry")
+
+
+class EmbeddingError(RuntimeError):
+    """Error de embedding que debe abortar la ingesta/búsqueda limpiamente.
+    
+    No debe silenciarse ni reemplazarse con vectors de ceros.
+    El caller (ingestor/retriever) es responsable de manejarlo.
+    """
 
 
 class EmbeddingManager:
@@ -151,24 +160,25 @@ class EmbeddingManager:
                 )
 
                 # Usar método con retry robusto (tenacity)
-                batch_embs = None
                 try:
                     batch_embs = self._embed_batch_with_retry(batch_texts)
                 except Exception as e:
-                    self.logger.error(f"OpenAI embeddings falló para lote: {e}")
-                
-                # Si todos los reintentos fallaron, usar fallback
-                if batch_embs is None:
-                    self.logger.warning("Usando embeddings de fallback (zeros) para este lote")
-                    batch_embs = [[0.0] * vector_dim for _ in batch_texts]
+                    # No silenciar: propagar para que el ingestor aborte con status=error
+                    # Insertar zeros en Qdrant corrompe el índice silenciosamente.
+                    raise EmbeddingError(
+                        f"OpenAI embeddings falló para lote después de reintentos: {e}"
+                    ) from e
 
                 for idx, emb in zip(batch_indices, batch_embs):
-                    # FIX 1: Validación estricta de vectores
                     if isinstance(emb, np.ndarray):
                         emb = emb.tolist()
 
+                    # Vector con dimensión incorrecta: también es un error, no un zero silencioso
                     if not emb or not isinstance(emb, list) or len(emb) != vector_dim:
-                        emb = [0.0] * vector_dim
+                        raise EmbeddingError(
+                            f"OpenAI devolvió embedding con dimensión incorrecta: "
+                            f"esperado={vector_dim}, got={len(emb) if isinstance(emb, list) else type(emb).__name__}"
+                        )
 
                     index_to_embedding[idx] = emb
 
@@ -176,13 +186,16 @@ class EmbeddingManager:
             for i in miss_indices:
                 emb = index_to_embedding.get(i)
 
-                # FIX 1: fallback garantizado
+                # Si un índice no tiene embedding (no debería pasar, pero defensivo)
                 if not emb or len(emb) != vector_dim:
-                    emb = [0.0] * vector_dim
+                    raise EmbeddingError(
+                        f"Embedding faltante o con dimensión incorrecta para índice {i} "
+                        f"(expected={vector_dim})"
+                    )
 
                 results[i] = emb
 
-                # Guardar cache
+                # Guardar en cache solo embeddings válidos
                 try:
                     key = f"emb:doc:{self.model_name}:{self._hash_text(filtered_texts[i])}"
                     cache.set(key, emb, cache.ttl)
@@ -190,7 +203,7 @@ class EmbeddingManager:
                     pass
 
             # ------------------------------------------------------------------
-            # FINAL: asegurar uniformidad
+            # FINAL: validación y ensamblado
             # ------------------------------------------------------------------
             final_embeddings: List[List[float]] = []
 
@@ -200,14 +213,22 @@ class EmbeddingManager:
                 elif isinstance(emb, list) and len(emb) == vector_dim:
                     final_embeddings.append(emb)
                 else:
-                    final_embeddings.append([0.0] * vector_dim)
+                    # No debería llegar aquí si los pasos anteriores son correctos
+                    raise EmbeddingError(
+                        f"Embedding inválido en ensamblado final: "
+                        f"type={type(emb).__name__}, len={len(emb) if isinstance(emb, list) else 'N/A'}"
+                    )
 
-            self.logger.debug("Embeddings generados con FIX #1 aplicado")
+            self.logger.debug(f"Embeddings generados: {len(final_embeddings)} vectores válidos de dim={vector_dim}")
             return final_embeddings
 
+        except EmbeddingError:
+            # Propagar siempre: el caller decide cómo manejar (abortar ingesta, etc.)
+            raise
         except Exception as e:
-            self.logger.warning(f"Error al generar embeddings: {e}")
-            return [[0.0] * vector_dim for _ in range(len(texts))]
+            # Error inesperado: convertir a EmbeddingError para que el caller lo identifique
+            self.logger.error(f"Error inesperado al generar embeddings: {e}", exc_info=True)
+            raise EmbeddingError(f"Error inesperado en embed_documents: {e}") from e
 
     # ----------------------------------------------------------------------
     #   EMBED QUERY
@@ -240,9 +261,11 @@ class EmbeddingManager:
             if isinstance(embedding, np.ndarray):
                 embedding = embedding.tolist()
 
-            # FIX 1 — validar dimensión
             if not embedding or len(embedding) != vector_dim:
-                embedding = [0.0] * vector_dim
+                raise EmbeddingError(
+                    f"OpenAI devolvió embedding de query con dimensión incorrecta: "
+                    f"esperado={vector_dim}, got={len(embedding) if isinstance(embedding, list) else type(embedding).__name__}"
+                )
 
             try:
                 cache.set(key, embedding, cache.ttl)
@@ -251,9 +274,13 @@ class EmbeddingManager:
 
             return embedding
 
+        except EmbeddingError:
+            raise
         except Exception as e:
-            self.logger.warning(f"Error al generar embedding para consulta: {e}")
-            return [0.0] * vector_dim
+            # Propagar: el retriever (_embed_query_async) captura y devuelve None,
+            # lo que hace skip limpio de reranking/gating sin crashear la app.
+            self.logger.warning(f"Error al generar embedding para consulta: {type(e).__name__}: {e}")
+            raise EmbeddingError(f"Fallo generando embedding de query: {e}") from e
 
     # ----------------------------------------------------------------------
     #   EMBED DOCUMENTS ASYNC — Para no bloquear workers en ingesta
@@ -263,19 +290,25 @@ class EmbeddingManager:
         
         Útil para ingesta de PDFs donde el proceso puede tardar varios segundos.
         """
-        import asyncio
         return await asyncio.to_thread(self.embed_documents, texts)
 
     # ----------------------------------------------------------------------
     async def embed_text(self, text: str) -> List[float]:
-        """Genera embedding para un texto individual de forma asíncrona."""
-        vector_dim = getattr(settings, "default_embedding_dimension", 1536)
+        """Genera embedding para un texto individual de forma asíncrona.
 
-        if not text or len(text) < 3:
-            return [0.0] * vector_dim
+        Alias correcto de `embed_query` para contextos async.
+        Propaga `EmbeddingError` si el texto es inválido o el proveedor falla;
+        el caller es responsable de decidir qué hacer.
 
-        try:
-            return self.embed_query(text)
-        except Exception as e:
-            self.logger.warning(f"Error al generar embedding para texto: {e}")
-            return [0.0] * vector_dim
+        No retorna vectores de ceros: un zero vector silencioso corrompe
+        scores de similitud downstream sin ninguna señal de error.
+        """
+        cleaned = (text or "").strip()
+        if len(cleaned) < 3:
+            raise EmbeddingError(
+                f"Texto demasiado corto para generar embedding (len={len(cleaned)}, mínimo=3)."
+            )
+
+        # embed_query es síncrono (llama a OpenAI SDK); usar to_thread
+        # para no bloquear el event loop de FastAPI/Uvicorn.
+        return await asyncio.to_thread(self.embed_query, cleaned)

@@ -1,1 +1,3 @@
-# This file makes 'embeddings' a package 
+from .embedding_manager import EmbeddingManager, EmbeddingError
+
+__all__ = ["EmbeddingManager", "EmbeddingError"]

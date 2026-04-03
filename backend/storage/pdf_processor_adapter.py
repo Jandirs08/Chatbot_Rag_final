@@ -16,6 +16,8 @@ class PDFProcessorAdapter:
     def get_vector_store_info(self):
         """Obtiene información del vector store: URL, colección y count de puntos."""
         url = settings.qdrant_url
+        if self.vector_store is None:
+            return {"url": url, "collection": "unavailable", "count": 0}
         collection = self.vector_store.collection_name
         count = 0
         try:

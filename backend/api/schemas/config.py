@@ -6,13 +6,12 @@ from pydantic import BaseModel, Field, field_validator
 
 class BotConfigDTO(BaseModel):
     """Bot configuration data transfer object."""
-    system_prompt: str = Field(default="", description="System instructions/personality for the bot")
     temperature: float = Field(default=0.7, ge=0.0, le=1.0, description="Model temperature")
     updated_at: datetime = Field(description="Last update time (UTC)")
     bot_name: str | None = Field(default=None, description="Display name of the bot")
     ui_prompt_extra: str | None = Field(default=None, description="Additional instructions to complement base personality")
     twilio_account_sid: str | None = Field(default=None)
-    twilio_auth_token: str | None = Field(default=None)
+    twilio_configured: bool = Field(default=False, description="Whether Twilio credentials are configured")
     twilio_whatsapp_from: str | None = Field(default=None)
     theme_color: str = Field(default="#F97316", description="Primary theme color (hex)")
     starters: list[str] = Field(default_factory=list, description="Suggested starter questions")
@@ -21,7 +20,6 @@ class BotConfigDTO(BaseModel):
 
 class UpdateBotConfigRequest(BaseModel):
     """Request payload to update bot configuration."""
-    system_prompt: Optional[str] = Field(default=None, description="New system prompt")
     temperature: Optional[float] = Field(default=None, description="New temperature (0..1)")
     bot_name: Optional[str] = Field(default=None, description="New bot display name")
     ui_prompt_extra: Optional[str] = Field(default=None, description="Additional instructions (max 3000 chars)")

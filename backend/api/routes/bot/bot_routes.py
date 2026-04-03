@@ -1,11 +1,19 @@
 """API routes for bot state management."""
 from utils.logging_utils import get_logger
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
 from datetime import datetime, timezone
+from cache.manager import cache
+
+from auth.dependencies import get_current_active_user
+from models.user import User
 
 logger = get_logger(__name__)
 router = APIRouter(tags=["bot"])
+
+BOT_CONFIG_COLLECTION = "bot_config"
+BOT_CONFIG_DOC_ID = "default"
+BOT_IS_ACTIVE_CACHE_KEY = "bot:is_active"
 
 # 🔒 NOTA: Todas las rutas de este módulo están protegidas por AuthenticationMiddleware
 # Solo usuarios admin autenticados pueden acceder a estos endpoints
@@ -28,11 +36,104 @@ class BotRuntimeResponse(BaseModel):
     ui_prompt_extra_len: int = 0
     effective_personality_len: int = 0
 
+
+def _redis_coordination_available() -> bool:
+    try:
+        return bool(cache.get_health_status().get("redis_connected"))
+    except Exception:
+        return False
+
+
+def _normalize_is_active(value: object) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    return None
+
+
+def _read_bot_is_active_from_cache() -> bool | None:
+    if not _redis_coordination_available():
+        return None
+
+    try:
+        return _normalize_is_active(cache.get(BOT_IS_ACTIVE_CACHE_KEY))
+    except Exception:
+        return None
+
+
+def _write_bot_is_active_to_cache(value: bool) -> None:
+    if not _redis_coordination_available():
+        return
+
+    try:
+        cache.set(BOT_IS_ACTIVE_CACHE_KEY, bool(value), ttl=0)
+    except Exception:
+        pass
+
+
+async def _read_bot_is_active_from_mongo(request: Request) -> bool | None:
+    try:
+        mongo = getattr(request.app.state, "mongodb_client", None)
+        if mongo is None:
+            return None
+
+        doc = await mongo.db.get_collection(BOT_CONFIG_COLLECTION).find_one(
+            {"_id": BOT_CONFIG_DOC_ID},
+            {"is_active": 1},
+        )
+        if not doc:
+            return None
+
+        return _normalize_is_active(doc.get("is_active"))
+    except Exception:
+        return None
+
+
+async def _resolve_bot_is_active(request: Request) -> bool | None:
+    cached = _read_bot_is_active_from_cache()
+    if cached is not None:
+        return cached
+
+    return await _read_bot_is_active_from_mongo(request)
+
+
+async def _save_bot_is_active_to_mongo(request: Request, value: bool) -> None:
+    mongo = getattr(request.app.state, "mongodb_client", None)
+    if mongo is None:
+        raise RuntimeError("MongoDB client is not initialized")
+
+    await mongo.db.get_collection(BOT_CONFIG_COLLECTION).update_one(
+        {"_id": BOT_CONFIG_DOC_ID},
+        {
+            "$set": {
+                "is_active": bool(value),
+                "updated_at": datetime.now(timezone.utc),
+            }
+        },
+        upsert=True,
+    )
+
 @router.get("/state", response_model=BotStateResponse)
-async def get_bot_state(request: Request):
+async def get_bot_state(
+    request: Request,
+    _: User = Depends(get_current_active_user),
+):
     """Obtener el estado actual del bot."""
     try:
-        is_active = request.app.state.bot_instance.is_active
+        bot = request.app.state.bot_instance
+        is_active = await _resolve_bot_is_active(request)
+        if is_active is None:
+            is_active = bot.is_active
+        else:
+            bot.is_active = is_active
+            request.app.state.last_synced_bot_is_active = is_active
 
         last_activity_iso: str | None = None
         try:
@@ -68,11 +169,18 @@ async def get_bot_state(request: Request):
         )
 
 @router.post("/toggle", response_model=BotStateResponse)
-async def toggle_bot_state(request: Request):
+async def toggle_bot_state(
+    request: Request,
+    _: User = Depends(get_current_active_user),
+):
     """Activar o desactivar el bot."""
     try:
         bot = request.app.state.bot_instance
-        bot.is_active = not bot.is_active
+        new_state = not bot.is_active
+        await _save_bot_is_active_to_mongo(request, new_state)
+        bot.is_active = new_state
+        _write_bot_is_active_to_cache(new_state)
+        request.app.state.last_synced_bot_is_active = new_state
         return BotStateResponse(
             is_active=bot.is_active,
             message="Bot activado" if bot.is_active else "Bot desactivado"
@@ -86,7 +194,10 @@ async def toggle_bot_state(request: Request):
 
 
 @router.get("/runtime", response_model=BotRuntimeResponse)
-async def get_bot_runtime(request: Request):
+async def get_bot_runtime(
+    request: Request,
+    _: User = Depends(get_current_active_user),
+):
     """Inspeccionar configuración runtime actual del bot (modelo, temperatura, prompt efectivo)."""
     try:
         bot = request.app.state.bot_instance

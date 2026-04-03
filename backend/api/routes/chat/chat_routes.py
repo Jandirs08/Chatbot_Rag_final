@@ -3,6 +3,7 @@ from utils.logging_utils import get_logger
 import uuid
 import json
 import asyncio
+from typing import Optional
 from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import StreamingResponse, JSONResponse, Response
 from io import BytesIO
@@ -16,7 +17,10 @@ from api.schemas import (
 )
 from utils.rate_limiter import conditional_limit
 from config import settings
-from auth.dependencies import require_admin
+from auth.dependencies import require_admin, get_current_active_user, get_optional_current_user
+from models.user import User
+from core.request_context import get_request_context
+from rag.retrieval.retriever import RetrievalBackendUnavailableError
 
 
 logger = get_logger(__name__)
@@ -27,7 +31,10 @@ router = APIRouter()
 
 @router.post("/")
 @conditional_limit(settings.chat_rate_limit)
-async def chat_stream_log(request: Request):
+async def chat_stream_log(
+    request: Request,
+    current_user: Optional[User] = Depends(get_optional_current_user),
+):
     """Endpoint para chat con streaming y logging."""
     chat_manager = request.app.state.chat_manager
     bot = request.app.state.bot_instance
@@ -54,6 +61,8 @@ async def chat_stream_log(request: Request):
         conversation_id = chat_input.conversation_id or str(uuid.uuid4())
         source = getattr(chat_input, "source", None) or "embed-default"
         debug_mode = bool(getattr(chat_input, "debug_mode", False))
+        if debug_mode and not (current_user and current_user.is_admin):
+            debug_mode = False
         enable_verification = bool(getattr(chat_input, "enable_verification", False))
         
         if not input_text:
@@ -82,7 +91,7 @@ async def chat_stream_log(request: Request):
                 logger.debug(f"[CHAT] Streaming finalizado | conv={conversation_id}")
                 if debug_mode:
                     try:
-                        dbg = getattr(chat_manager, "_last_debug_info", None)
+                        dbg = get_request_context().debug_info
                         if dbg is not None:
                             dct = dbg.model_dump() if hasattr(dbg, "model_dump") else dbg.dict() if hasattr(dbg, "dict") else None
                             if dct is not None:
@@ -91,12 +100,20 @@ async def chat_stream_log(request: Request):
                         pass
                 yield "event: end\ndata: {}\n\n"
             except asyncio.TimeoutError:
-                err_payload = json.dumps({"message": "timeout"})
+                err_payload = json.dumps({
+                    "message": "Lo siento, la respuesta está tardando más de lo esperado. Por favor, inténtalo nuevamente en unos segundos."
+                })
+                yield f"event: error\ndata: {err_payload}\n\n"
+                yield "event: end\ndata: {}\n\n"
+            except RetrievalBackendUnavailableError as e_stream:
+                err_payload = json.dumps({"message": str(e_stream)})
                 yield f"event: error\ndata: {err_payload}\n\n"
                 yield "event: end\ndata: {}\n\n"
             except Exception as e_stream:
                 logger.error(f"Error en streaming: {str(e_stream)}", exc_info=True)
-                err_payload = json.dumps({"message": "Error interno"})
+                err_payload = json.dumps({
+                    "message": "Lo siento, ocurrió un error al procesar tu mensaje. Por favor, inténtalo nuevamente."
+                })
                 yield f"event: error\ndata: {err_payload}\n\n"
                 yield "event: end\ndata: {}\n\n"
         
@@ -291,7 +308,13 @@ def _process_export(messages, format: str, current_time: str) -> tuple[bytes, st
 
 
 @router.get("/export-conversations")
-async def export_conversations(request: Request, format: str = 'xlsx', sep: str = 'comma', pretty: bool = False):
+async def export_conversations(
+    request: Request,
+    format: str = 'xlsx',
+    sep: str = 'comma',
+    pretty: bool = False,
+    _: User = Depends(get_current_active_user),
+):
     """Exporta conversaciones en XLSX (por defecto), CSV o JSON."""
     try:
         chat_manager = request.app.state.chat_manager
@@ -320,7 +343,10 @@ async def export_conversations(request: Request, format: str = 'xlsx', sep: str 
         raise HTTPException(status_code=500, detail=f"Error al exportar conversaciones: {str(e)}")
 
 @router.get("/stats")
-async def get_stats(request: Request):
+async def get_stats(
+    request: Request,
+    _: User = Depends(get_current_active_user),
+):
     """
     Obtiene estadísticas de consultas, usuarios activos y PDFs cargados.
     """
@@ -352,7 +378,11 @@ async def get_stats(request: Request):
 
 
 @router.get("/stats/history")
-async def get_stats_history(request: Request, days: int = 7):
+async def get_stats_history(
+    request: Request,
+    days: int = 7,
+    _: User = Depends(get_current_active_user),
+):
     """
     Estadísticas históricas agrupadas por día.
 
@@ -464,6 +494,9 @@ async def clear_history(request: Request, current_user=Depends(require_admin)):
         chat_manager = request.app.state.chat_manager
         db = chat_manager.db
         deleted_count = await db.clear_all_messages()
+        memory = chat_manager.bot.memory
+        if hasattr(memory, "profiles_col"):
+            await memory.profiles_col.delete_many({})
         return JSONResponse(content={
             "status": "success",
             "deleted_count": int(deleted_count),

@@ -1,5 +1,5 @@
 import json
-import pickle
+import logging
 from typing import Any, Optional
 
 try:
@@ -11,6 +11,8 @@ except Exception:
 
 from config import settings
 
+logger = logging.getLogger(__name__)
+
 
 class RedisCache:
     """Capa de caché basada en Redis.
@@ -18,7 +20,8 @@ class RedisCache:
     - Usa redis.from_url(settings.redis_url)
     - Métodos: get, set, delete, invalidate_prefix
     - No usa flushdb/flushall; invalidación selectiva por prefijo con scan_iter
-    - Serializa valores con JSON y fallback a pickle, con prefijos 'JSON:' / 'PKL:'
+    - Serializa valores únicamente con JSON
+    - Si encuentra datos heredados no-JSON, los elimina y los trata como cache miss
     """
 
     def __init__(self, client: Optional["redis.Redis"] = None):
@@ -47,24 +50,33 @@ class RedisCache:
             if isinstance(raw, bytes) and raw.startswith(b"JSON:"):
                 return json.loads(raw[len(b"JSON:"):].decode("utf-8"))
             if isinstance(raw, bytes) and raw.startswith(b"PKL:"):
-                return pickle.loads(raw[len(b"PKL:"):])
+                self.delete(key)
+                return None
             # fallback: intentar json
             try:
-                return json.loads(raw.decode("utf-8"))
+                if isinstance(raw, bytes):
+                    return json.loads(raw.decode("utf-8"))
+                return json.loads(raw)
             except Exception:
-                return raw
+                self.delete(key)
+                return None
         except Exception:
+            self.delete(key)
             return None
 
     def set(self, key: str, value: Any, ttl: int) -> None:
         if key is None:
             return
         # Serialización con prefijo
-        payload: bytes
         try:
             payload = b"JSON:" + json.dumps(value).encode("utf-8")
-        except Exception:
-            payload = b"PKL:" + pickle.dumps(value)
+        except (TypeError, ValueError) as exc:
+            logger.warning(
+                "RedisCache: valor no serializable a JSON para key '%s'; se omite cache (%s)",
+                key,
+                exc,
+            )
+            return
         ttl_seconds = int(ttl) if ttl is not None else 0
         if ttl_seconds > 0:
             self.client.set(name=key, value=payload, ex=ttl_seconds)
@@ -99,3 +111,17 @@ class RedisCache:
                     pass
         except Exception:
             pass
+
+    def increment(self, key: str, delta: int = 1, initial: int = 0) -> int:
+        if key is None:
+            return int(initial)
+
+        try:
+            self.client.setnx(key, int(initial))
+            return int(self.client.incrby(key, int(delta)))
+        except Exception:
+            current = self.get(key)
+            base = int(current) if current is not None else int(initial)
+            new_value = base + int(delta)
+            self.set(key, new_value, ttl=0)
+            return new_value

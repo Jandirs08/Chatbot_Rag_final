@@ -1,0 +1,18 @@
+# Dockerfile para desarrollo local con hot-reload
+# Usado por docker-compose en modo desarrollo
+
+FROM node:18-alpine
+
+# Instalar dependencias del sistema necesarias para Next.js
+RUN apk add --no-cache libc6-compat
+
+WORKDIR /app
+
+# El código llega vía volume mount desde docker-compose
+# No se copian archivos aquí — eso es para producción (Dockerfile)
+
+EXPOSE 3000
+
+# En runtime, docker-compose monta ./frontend:/app
+# node_modules se preserva en volumen anónimo /app/node_modules
+CMD ["sh", "-c", "yarn install && yarn dev"]

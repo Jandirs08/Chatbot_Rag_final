@@ -7,15 +7,15 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Load environment variables from the correct location
-env_path = Path(__file__).parent / '.env'
-load_dotenv(env_path)
+# Carga el .env con ruta absoluta (más fiable que env_file relativo al CWD).
+# pydantic-settings no necesita env_file porque las vars ya están en os.environ.
+load_dotenv(Path(__file__).parent / '.env')
 
 class Settings(BaseSettings):
     """Configuraciones de la aplicación."""
-    # Pydantic v2 / pydantic-settings config
+    # pydantic-settings: no se usa env_file porque load_dotenv() ya cargó el .env
+    # a os.environ con ruta absoluta (más confiable en Docker y distintos CWD).
     model_config = SettingsConfigDict(
-        env_file=".env",
         case_sensitive=False,
         extra="ignore"
     )
@@ -72,7 +72,6 @@ class Settings(BaseSettings):
     max_tokens: int = Field(default=2000, env="MAX_TOKENS")
     temperature: float = Field(default=0.7, env="TEMPERATURE")
     
-    system_prompt: Optional[str] = Field(default=None, env="SYSTEM_PROMPT")
     # Dynamic UI-driven config (complemento seguro)
     bot_name: Optional[str] = Field(default=None, env="BOT_NAME")
     ui_prompt_extra: Optional[str] = Field(default=None)
@@ -100,6 +99,7 @@ class Settings(BaseSettings):
     
     # Configuraciones de Memoria
     memory_type: str = Field(default="BASE_MEMORY", env="MEMORY_TYPE")
+    memory_window_size: int = Field(default=20, env="MEMORY_WINDOW_SIZE")
     max_memory_entries: int = Field(default=1000, env="MAX_MEMORY_ENTRIES")
     
     # Configuraciones de RAG - Procesamiento de PDFs
@@ -114,6 +114,13 @@ class Settings(BaseSettings):
     mmr_lambda_mult: float = Field(default=0.5, env="MMR_LAMBDA_MULT")
     similarity_threshold: float = Field(default=0.3, env="SIMILARITY_THRESHOLD")
     rag_gating_similarity_threshold: float = Field(default=0.20, env="RAG_GATING_SIMILARITY_THRESHOLD")
+    enable_hybrid_search: bool = Field(default=True, env="ENABLE_HYBRID_SEARCH")
+    enable_llm_reranker: bool = Field(default=True, env="ENABLE_LLM_RERANKER")
+    hybrid_rrf_k: int = Field(default=60, env="HYBRID_RRF_K")
+    hybrid_child_candidate_limit: int = Field(default=12, env="HYBRID_CHILD_CANDIDATE_LIMIT")
+    hybrid_parent_candidate_limit: int = Field(default=6, env="HYBRID_PARENT_CANDIDATE_LIMIT")
+    rag_reranker_model_name: Optional[str] = Field(default=None, env="RAG_RERANKER_MODEL_NAME")
+    rag_reranker_timeout_seconds: float = Field(default=12.0, env="RAG_RERANKER_TIMEOUT_SECONDS")
     
     # Configuraciones de RAG - Ingesta
     batch_size: int = Field(default=100, env="BATCH_SIZE")
@@ -126,6 +133,9 @@ class Settings(BaseSettings):
     qdrant_url: str = Field(default="http://localhost:6333", env="QDRANT_URL")
     qdrant_api_key: Optional[SecretStr] = Field(default=None, env="QDRANT_API_KEY")
     qdrant_collection_name: str = Field(default="rag_collection", env="QDRANT_COLLECTION_NAME")
+    rag_child_collection_name: str = Field(default="rag_child_chunks", env="RAG_CHILD_COLLECTION_NAME")
+    rag_child_lexical_collection_name: str = Field(default="rag_child_lexical_documents", env="RAG_CHILD_LEXICAL_COLLECTION_NAME")
+    rag_child_lexical_postings_collection_name: str = Field(default="rag_child_lexical_postings", env="RAG_CHILD_LEXICAL_POSTINGS_COLLECTION_NAME")
     
     # Configuraciones de RAG - Embeddings
     embedding_model: str = Field(default="openai:text-embedding-3-small", env="EMBEDDING_MODEL")
@@ -144,6 +154,8 @@ class Settings(BaseSettings):
     
     # Feature Flag: Integración LCEL del RAG
     enable_rag_lcel: bool = Field(default=False, env="ENABLE_RAG_LCEL")
+
+    rag_parent_collection_name: str = Field(default="rag_parent_documents", env="RAG_PARENT_COLLECTION_NAME")
     
     # Configuraciones de Directorios
     storage_dir: str = Field(default="./backend/storage", env="STORAGE_DIR")

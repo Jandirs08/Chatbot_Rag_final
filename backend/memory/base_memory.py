@@ -9,16 +9,21 @@ class AbstractChatbotMemory(ABC):
     """Clase base abstracta para la memoria del chatbot"""
     def __init__(
         self,
-        window_size: int = 5,
+        window_size: Optional[int] = None,
         settings=None,
         session_id: str = "default_session",
         k: Optional[int] = None,
         **kwargs
     ):
-        self.window_size = window_size
+        resolved_window_size = (
+            window_size
+            if window_size is not None
+            else int(getattr(settings, "memory_window_size", 20))
+        )
+        self.window_size = resolved_window_size
         self.settings = settings
         self.session_id = session_id
-        self.k_history = k if k is not None else window_size
+        self.k_history = k if k is not None else resolved_window_size
         self.logger = logging.getLogger(self.__class__.__name__)
 
     @abstractmethod
@@ -39,7 +44,7 @@ class BaseChatbotMemory(AbstractChatbotMemory):
 
     def __init__(
         self,
-        window_size: int = 5,
+        window_size: Optional[int] = None,
         settings=None,
         session_id: str = "default_session",
         k: Optional[int] = None,
@@ -97,36 +102,57 @@ class BaseChatbotMemory(AbstractChatbotMemory):
         return profile
 
     async def add_message(self, session_id: str, role: str, content: str) -> None:
-        if role == "human":
-            extracted = self._extract_profile(content)
-            if extracted:
-                await self.profiles_col.update_one(
-                    {"session_id": session_id},
-                    {"$set": extracted, "$setOnInsert": {"session_id": session_id}},
-                    upsert=True,
-                )
+        if role != "human":
+            return
+
+        extracted = self._extract_profile(content)
+        if not extracted:
+            return
+
+        try:
+            await self.profiles_col.update_one(
+                {"session_id": session_id},
+                {"$set": extracted, "$setOnInsert": {"session_id": session_id}},
+                upsert=True,
+            )
+        except Exception as exc:
+            self.logger.error(
+                "No se pudo persistir el perfil de memoria para session_id=%s: %s",
+                session_id,
+                exc,
+                exc_info=True,
+            )
 
     async def get_history(self, session_id: str) -> List[Dict[str, Any]]:
-        messages: List[Dict[str, Any]] = []
-        profile_doc = await self.profiles_col.find_one({"session_id": session_id})
-        cursor = self.db_client.messages.find(
-            {"conversation_id": session_id},
-            {"role": 1, "content": 1, "_id": 0},
-        ).sort("timestamp", -1).limit(self.window_size)
-        fetched = await cursor.to_list(length=self.window_size)
-        messages.extend(list(reversed(fetched)))
-        if profile_doc:
-            lines = ["Perfil del usuario:"]
-            for key in ("nombre", "edad", "gustos", "metas", "trabajo"):
-                val = profile_doc.get(key)
-                if val:
-                    lines.append(f"- {key}: {val}")
-            messages.insert(0, {
-                "role": "system",
-                "content": "\n".join(lines),
-                "session_id": session_id,
-            })
-        return messages
+        try:
+            messages: List[Dict[str, Any]] = []
+            profile_doc = await self.profiles_col.find_one({"session_id": session_id})
+            cursor = self.db_client.messages.find(
+                {"conversation_id": session_id},
+                {"role": 1, "content": 1, "_id": 0},
+            ).sort("timestamp", -1).limit(self.window_size)
+            fetched = await cursor.to_list(length=self.window_size)
+            messages.extend(list(reversed(fetched)))
+            if profile_doc:
+                lines = ["Perfil del usuario:"]
+                for key in ("nombre", "edad", "gustos", "metas", "trabajo"):
+                    val = profile_doc.get(key)
+                    if val:
+                        lines.append(f"- {key}: {val}")
+                messages.insert(0, {
+                    "role": "system",
+                    "content": "\n".join(lines),
+                    "session_id": session_id,
+                })
+            return messages
+        except Exception as exc:
+            self.logger.error(
+                "No se pudo cargar el historial desde Mongo para session_id=%s. Continuando sin historial: %s",
+                session_id,
+                exc,
+                exc_info=True,
+            )
+            return []
 
     async def clear_history(self, session_id: str) -> None:
         await self.db_client.messages.delete_many({"conversation_id": session_id})

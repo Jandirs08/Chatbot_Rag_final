@@ -1,14 +1,22 @@
 import { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { LoginForm } from "../../components/auth/LoginForm";
 import { Bot } from "lucide-react";
 import Image from "next/image";
+import { resolveServerSession } from "@/app/lib/auth/serverSession";
 
 export const metadata: Metadata = {
   title: "Iniciar Sesión",
   description: "Inicia sesión en el panel de administración del chatbot",
 };
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const session = await resolveServerSession();
+
+  if (session) {
+    redirect("/");
+  }
+
   return (
     <div className="h-screen w-full flex overflow-hidden">
       <div className="relative w-full lg:w-1/2 flex items-center justify-center bg-white dark:bg-white p-6">

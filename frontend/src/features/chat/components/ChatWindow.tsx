@@ -13,6 +13,7 @@ import { botService } from "@/app/lib/services/botService";
 import { TokenManager } from "@/app/lib/services/authService";
 import { API_URL } from "@/app/lib/config";
 import { getPublicBotConfig } from "@/app/lib/services/botConfigService";
+import { cn } from "@/lib/utils";
 
 function isLightColor(hexColor: string) {
   const hex = hexColor.replace("#", "");
@@ -32,6 +33,7 @@ export function ChatWindow(props: {
   enableVerification?: boolean;
   onDebugData?: (data: any) => void;
   onNewChat?: () => void;
+  variant?: "default" | "playground";
 }) {
   const messageContainerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -48,11 +50,13 @@ export function ChatWindow(props: {
     enableVerification = false,
     onDebugData,
     onNewChat,
+    variant = "default",
   } = props;
   const [botName, setBotName] = React.useState<string | undefined>(undefined);
   const [isBotActive, setIsBotActive] = React.useState(true);
   const [inputPh, setInputPh] = React.useState<string>("Escribe tu mensaje...");
   const [logoUrl, setLogoUrl] = React.useState<string | undefined>(undefined);
+  const isPlayground = variant === "playground";
 
   const { messages, isLoading, debugData, sendMessage, clearMessages } =
     useChatStream(conversationId, initialMessages);
@@ -155,11 +159,23 @@ export function ChatWindow(props: {
   if (!cfg) return null;
 
   return (
-    <div className="flex flex-col h-full w-full bg-gradient-to-br from-gray-50 via-white to-gray-50 rounded-2xl shadow-2xl overflow-hidden animate-slide-in">
-      <div className="shadow-lg bg-brand">
-        <div className="px-6 py-4">
+    <div
+      className={cn(
+        "flex h-full w-full flex-col overflow-hidden",
+        isPlayground
+          ? "rounded-[22px] border border-border/60 bg-card shadow-none"
+          : "animate-slide-in rounded-2xl bg-gradient-to-br from-gray-50 via-white to-gray-50 shadow-2xl",
+      )}
+    >
+      <div className={cn(isPlayground ? "border-b border-border/60 bg-brand" : "shadow-lg bg-brand")}>
+        <div className={cn("px-6 py-4", isPlayground && "px-4 py-3")}>
           <div className="flex items-center gap-3">
-            <div className="relative w-10 h-10 bg-white/20 hover:bg-white/30 transition-colors rounded-xl flex items-center justify-center overflow-hidden">
+            <div
+              className={cn(
+                "relative flex items-center justify-center overflow-hidden rounded-xl bg-white/20 transition-colors hover:bg-white/30",
+                isPlayground ? "h-10 w-10 rounded-2xl" : "h-10 w-10",
+              )}
+            >
               {logoUrl ? (
                 <Image
                   src={logoUrl}
@@ -176,7 +192,10 @@ export function ChatWindow(props: {
               {showPulse && <span className="absolute inset-0 rounded-xl attention-pulse pointer-events-none" />}
             </div>
             <div className="flex-1">
-              <h1 className="text-xl font-bold text-white">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/70">
+                {titleText}
+              </div>
+              <h1 className={cn("text-white", isPlayground ? "text-base font-semibold" : "text-xl font-bold")}>
                 {botName ?? "Asistente"}
               </h1>
             </div>
@@ -207,7 +226,12 @@ export function ChatWindow(props: {
                   }
                   resetIdle();
                 }}
-                className="ml-3 p-2 rounded-lg bg-white/20 hover:bg-white/30 text-white transition-colors"
+                className={cn(
+                  "ml-1 p-2 text-white transition-colors",
+                  isPlayground
+                    ? "rounded-xl bg-white/16 hover:bg-white/24"
+                    : "rounded-lg bg-white/20 hover:bg-white/30",
+                )}
               >
                 <Trash className="w-4 h-4" />
               </button>
@@ -218,11 +242,14 @@ export function ChatWindow(props: {
       </div>
 
       <div
-        className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-4 flex flex-col space-y-5"
+        className={cn(
+          "flex flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-contain",
+          isPlayground ? "bg-surface/80 px-3 py-3 space-y-4" : "p-4 space-y-5",
+        )}
         ref={messageContainerRef}
       >
         {messages.length === 0 ? (
-          <EmptyState onSubmit={handleSendMessage} />
+          <EmptyState onSubmit={handleSendMessage} variant={variant} />
         ) : (
           messages.map((message, i) => {
             const isUser = message.role === "user";
@@ -258,7 +285,12 @@ export function ChatWindow(props: {
         })()}
       </div>
 
-      <div className="border-t bg-gradient-to-r from-gray-50 to-white p-4">
+      <div
+        className={cn(
+          "border-t p-4",
+          isPlayground ? "bg-card px-3 py-3" : "bg-gradient-to-r from-gray-50 to-white",
+        )}
+      >
         <div className="flex items-center gap-3 pb-2">
           <AutoResizeTextarea
             ref={inputRef}
@@ -279,7 +311,12 @@ export function ChatWindow(props: {
             onClick={() => handleSendMessage()}
             disabled={isLoading || input.trim() === ""}
             size="icon"
-            className="shrink-0 w-10 h-10 rounded-full text-white shadow-md transition-all duration-200 hover:scale-105 active:scale-95 bg-brand"
+            className={cn(
+              "shrink-0 text-white transition-all duration-200 hover:scale-105 active:scale-95 bg-brand",
+              isPlayground
+                ? "h-11 w-11 rounded-2xl shadow-sm"
+                : "h-10 w-10 rounded-full shadow-md",
+            )}
           >
             <ArrowUp className="h-5 w-5 text-white" />
           </Button>

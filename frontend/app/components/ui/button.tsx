@@ -4,22 +4,24 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[10px] text-[13px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
         default:
-          "bg-foreground text-background hover:bg-foreground/90 dark:bg-white dark:text-slate-900 dark:hover:bg-white/90",
+          "bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100",
+        primary:
+          "bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700",
         destructive:
           "bg-red-600 text-white hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800",
         outline:
-          "border border-border/60 bg-transparent text-foreground hover:bg-black/[0.04] dark:border-slate-700 dark:hover:bg-white/[0.06]",
+          "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-700 dark:bg-transparent dark:text-slate-300 dark:hover:bg-slate-800",
         secondary:
-          "bg-muted text-foreground hover:bg-muted/80 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700",
+          "bg-slate-100 text-slate-900 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700",
         ghost:
-          "text-foreground hover:bg-black/[0.04] dark:text-slate-300 dark:hover:bg-white/[0.06]",
+          "text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100",
         link:
-          "text-foreground underline-offset-4 hover:underline",
+          "text-blue-600 underline-offset-4 hover:underline dark:text-blue-400",
         success:
           "bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-800",
         warning:
@@ -31,7 +33,7 @@ const buttonVariants = cva(
         default: "h-9 px-4 py-2",
         sm: "h-8 px-3 text-xs",
         lg: "h-10 px-5",
-        icon: "h-8 w-8 rounded-lg",
+        icon: "h-8 w-8",
       },
       width: {
         auto: "w-auto",

@@ -40,10 +40,10 @@ const UserAvatar = ({ className = "" }: { className?: string }) => (
 // Indicador de escritura con avatar
 export const TypingIndicator = React.memo(function TypingIndicator() {
   return (
-    <div className="flex items-end gap-2">
+    <div className="flex items-end gap-3">
       <BotAvatar className="w-8 h-8 shadow-sm" />
       <div className="flex flex-col items-start">
-        <div className="bg-white border border-gray-100 dark:bg-slate-800 dark:border-slate-700 rounded-2xl rounded-bl-none px-4 py-3 shadow-sm">
+        <div className="bg-white border border-slate-100 dark:bg-slate-800 dark:border-slate-700 rounded-2xl rounded-bl-none px-4 py-3 shadow-sm">
           <div className="flex items-center gap-2">
             <div className="typing-indicator">
               <span></span>
@@ -71,7 +71,7 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble(props: {
   const isUser = role === "user";
 
   return (
-    <div className={`flex items-end gap-2 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
+    <div className={`flex items-end gap-3 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
       {/* Avatar - posicionado abajo de la burbuja */}
       {isUser ? (
         <UserAvatar className="w-8 h-8 shadow-sm" />
@@ -81,15 +81,17 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble(props: {
 
       {/* Contenedor de burbuja + timestamp */}
       <div className={`flex flex-col ${isUser ? "items-end" : "items-start"} max-w-[85%] sm:max-w-[75%]`}>
-        {/* Burbuja del mensaje */}
+        {/* Burbuja del mensaje - ESTILOS ASIMÉTRICOS */}
         <div
-          className={`px-4 py-3 shadow-sm text-sm sm:text-base ${isUser
-              ? "bg-muted border border-border text-slate-800 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 rounded-2xl rounded-br-none"
-              : "bg-primary/10 border border-primary/30 text-slate-800 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 rounded-2xl rounded-bl-none"
+          className={`text-sm sm:text-base leading-relaxed ${isUser
+            ? // Usuario: Premium bubble - forma asimétrica, sombra de color, tipografía clara
+            "bg-blue-600 text-white font-medium rounded-2xl rounded-br-md px-5 py-3 shadow-lg shadow-blue-500/30"
+            : // Bot: Fondo blanco, texto oscuro, esquina inferior izquierda recta (apunta al avatar)
+            "bg-white border border-slate-100 text-slate-800 rounded-2xl rounded-bl-none shadow-sm px-4 py-3 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
             }`}
         >
           {isUser ? (
-            <p className="whitespace-pre-wrap leading-relaxed break-words">
+            <p className="whitespace-pre-wrap break-words text-white">
               {content}
             </p>
           ) : (
@@ -99,7 +101,7 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble(props: {
 
         {/* Timestamp - color más sutil */}
         {createdAt && (
-          <span className={`text-[10px] mt-1 px-1 ${isUser ? "text-right" : "text-left"} text-slate-400 dark:text-slate-500`}>
+          <span className={`text-[10px] mt-1.5 px-1 ${isUser ? "text-right" : "text-left"} text-slate-400 dark:text-slate-500`}>
             {formatTime(createdAt)}
           </span>
         )}

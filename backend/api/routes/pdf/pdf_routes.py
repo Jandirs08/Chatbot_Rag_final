@@ -1,7 +1,7 @@
 """API routes for PDF management."""
 import logging
 import datetime
-from fastapi import APIRouter, HTTPException, UploadFile, File, Request, BackgroundTasks, Response
+from fastapi import APIRouter, HTTPException, UploadFile, File, Request, BackgroundTasks, Response, Depends
 from pathlib import Path
 from starlette.responses import FileResponse
 
@@ -11,11 +11,24 @@ from api.schemas import (
     PDFDeleteResponse,
     PDFListItem
 )
+from auth.dependencies import get_current_active_user
+from models.user import User
 from utils.rate_limiter import conditional_limit
 from config import settings
+from api.routes.rag.corpus_state import refresh_rag_corpus_state
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["pdfs"])
+
+
+def _require_rag_ingestor(request: Request):
+    rag_ingestor = getattr(request.app.state, "rag_ingestor", None)
+    if rag_ingestor is None:
+        raise HTTPException(
+            status_code=503,
+            detail="El pipeline RAG no esta disponible actualmente.",
+        )
+    return rag_ingestor
 
 
 @router.post("/upload", response_model=PDFUploadResponse)
@@ -24,16 +37,19 @@ async def upload_pdf(
     request: Request,
     response: Response,
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_active_user),
 ):
     """
     Subida de PDF con detección de duplicados por hash.
     Si el PDF ya existe:
         → se borra el PDF recién guardado
         → se retorna 409
+    Requiere: usuario autenticado y activo.
+    Para restringir a admins en el futuro: cambiar a Depends(require_admin).
     """
     pdf_file_manager = request.app.state.pdf_file_manager
-    rag_ingestor = request.app.state.rag_ingestor
+    rag_ingestor = _require_rag_ingestor(request)
 
     try:
         # Validar tamaño del archivo
@@ -53,9 +69,9 @@ async def upload_pdf(
 
         # Ingestar y detectar duplicados por HASH
         ingest_result = await rag_ingestor.ingest_single_pdf(file_path)
+        ingest_status = str(ingest_result.get("status", "error")).lower()
 
-        if ingest_result.get("status") == "skipped":
-            # ← ES DUPLICADO
+        if ingest_status == "skipped":
             await pdf_file_manager.delete_pdf(file_path.name)
             logger.info(f"PDF duplicado eliminado: {file_path.name}")
 
@@ -64,16 +80,19 @@ async def upload_pdf(
                 detail="Este PDF ya fue procesado anteriormente (contenido duplicado)."
             )
 
+        if ingest_status != "success":
+            try:
+                await pdf_file_manager.delete_pdf(file_path.name)
+            except Exception:
+                logger.warning("No se pudo eliminar el PDF tras fallo de ingesta: %s", file_path.name)
+
+            detail = ingest_result.get("error") or "La ingesta del PDF falló"
+            raise HTTPException(status_code=500, detail=f"Error durante la ingesta del PDF: {detail}")
+
         # Éxito → devolver lista actualizada
         pdfs = await pdf_file_manager.list_pdfs()
 
-        # Programar recálculo del centroide en segundo plano
-        try:
-            retriever = getattr(request.app.state, "rag_retriever", None)
-            if retriever:
-                background_tasks.add_task(retriever.trigger_centroid_update)
-        except Exception:
-            pass
+        refresh_rag_corpus_state(request.app.state, background_tasks=background_tasks)
 
         return PDFUploadResponse(
             message="PDF subido e ingerido exitosamente.",
@@ -92,7 +111,10 @@ async def upload_pdf(
 
 
 @router.get("/list", response_model=PDFListResponse)
-async def list_pdfs(request: Request):
+async def list_pdfs(
+    request: Request,
+    _: User = Depends(get_current_active_user),
+):
     pdf_file_manager = request.app.state.pdf_file_manager
     try:
         pdfs_raw = await pdf_file_manager.list_pdfs()
@@ -114,43 +136,28 @@ async def list_pdfs(request: Request):
 
 
 @router.delete("/{filename}", response_model=PDFDeleteResponse)
-async def delete_pdf(request: Request, background_tasks: BackgroundTasks, filename: str):
+async def delete_pdf(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    filename: str,
+    _: User = Depends(get_current_active_user),
+):
+    """
+    Elimina un PDF y sus embeddings.
+    Requiere: usuario autenticado y activo.
+    Para restringir a admins: cambiar a Depends(require_admin).
+    """
     pdf_file_manager = request.app.state.pdf_file_manager
-    rag_ingestor = request.app.state.rag_ingestor
-    rag_retriever = request.app.state.rag_retriever
-    from cache.manager import cache
-
+    rag_ingestor = _require_rag_ingestor(request)
     try:
+        await rag_ingestor.delete_by_source(filename)
+        logger.info(f"Indices RAG eliminados para: {filename}")
+
         await pdf_file_manager.delete_pdf(filename)
         logger.info(f"PDF eliminado físicamente: {filename}")
 
-        await rag_ingestor.vector_store.delete_documents(filter={"source": filename})
-        logger.info(f"Embeddings asociados borrados para: {filename}")
-
-        try:
-            if rag_retriever and hasattr(rag_retriever, "invalidate_rag_cache"):
-                rag_retriever.invalidate_rag_cache()
-                logger.info("Caché RAG invalidado tras eliminar PDF")
-        except Exception:
-            pass
-
-        try:
-            if rag_retriever and hasattr(rag_retriever, "reset_centroid"):
-                rag_retriever.reset_centroid()
-                logger.info("Centroide del retriever reiniciado tras eliminar PDF")
-                # Programar recálculo en segundo plano
-                try:
-                    background_tasks.add_task(rag_retriever.trigger_centroid_update)
-                except Exception:
-                    pass
-        except Exception:
-            pass
-
-        try:
-            cache.invalidate_prefix("resp:")
-            cache.invalidate_prefix("vs:")
-        except Exception:
-            pass
+        refresh_rag_corpus_state(request.app.state, background_tasks=background_tasks)
+        logger.info("Estado derivado del corpus invalidado tras eliminar PDF")
 
         return PDFDeleteResponse(
             message=f"PDF '{filename}' y embeddings asociados eliminados exitosamente."
@@ -162,12 +169,16 @@ async def delete_pdf(request: Request, background_tasks: BackgroundTasks, filena
         logger.error(f"Error al eliminar PDF '{filename}': {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Error interno del servidor al eliminar PDF: {str(e)}"
+            detail="Error interno del servidor al eliminar PDF. Revise el estado del vector store."
         )
 
 
 @router.get("/download/{filename}")
-async def download_pdf(request: Request, filename: str):
+async def download_pdf(
+    request: Request,
+    filename: str,
+    _: User = Depends(get_current_active_user),
+):
     pdf_file_manager = request.app.state.pdf_file_manager
     try:
         file_path = pdf_file_manager.pdf_dir / Path(filename).name
@@ -182,7 +193,11 @@ async def download_pdf(request: Request, filename: str):
 
 
 @router.get("/view/{filename}")
-async def view_pdf(request: Request, filename: str):
+async def view_pdf(
+    request: Request,
+    filename: str,
+    _: User = Depends(get_current_active_user),
+):
     pdf_file_manager = request.app.state.pdf_file_manager
     try:
         file_path = pdf_file_manager.pdf_dir / Path(filename).name

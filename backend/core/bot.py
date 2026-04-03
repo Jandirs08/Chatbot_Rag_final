@@ -16,7 +16,8 @@ from utils import CacheTypes, ChatbotCache
 from utils.logging_utils import get_logger
 from config import Settings, settings as app_settings
 from .chain import ChainManager
-from rag.retrieval.retriever import RAGRetriever
+from .request_context import get_request_context
+from rag.retrieval import RAGRetriever, RetrievalBackendUnavailableError
 
 
 class Bot:
@@ -74,10 +75,6 @@ class Bot:
         )
 
         # Compone pipeline LCEL completo
-        self._last_retrieved_docs = []
-        self._last_context = ""
-        self._last_rag_time = None
-        self._last_gating_reason = None
         self._build_pipeline()
 
     def reload_chain(self, new_settings: Optional[Settings] = None):
@@ -121,7 +118,16 @@ class Bot:
 
         async def get_history_async(x):
             conversation_id = x.get("conversation_id")
-            hist = await self.memory.get_history(conversation_id)
+            try:
+                hist = await self.memory.get_history(conversation_id)
+            except Exception as exc:
+                self.logger.error(
+                    "[HISTORY] Error cargando historial para conv=%s. Continuando sin historial: %s",
+                    conversation_id,
+                    exc,
+                    exc_info=True,
+                )
+                hist = []
 
             formatted = self._format_history(hist)
 
@@ -133,11 +139,7 @@ class Bot:
 
         async def get_context_async(x):
             """Inyecta contexto RAG y evita contexto vacío con un mensaje explícito."""
-            # Reiniciar estado de debug para esta nueva ejecución
-            self._last_retrieved_docs = []
-            self._last_rag_time = None
-            self._last_gating_reason = None
-            self._last_context = ""
+            req_ctx = get_request_context()
             fallback_ctx = "No hay información adicional recuperada para esta consulta."
             try:
                 t_start = time.perf_counter()
@@ -151,35 +153,39 @@ class Bot:
                 if not query.strip():
                     return fallback_ctx
 
-                # El retriever ya hace gating_async() internamente en retrieve_documents()
-                # con mejor precisión (embebe el query para calcular similitud real)
                 docs = await self.rag_retriever.retrieve_documents(
                     query=query,
                     k=self.settings.retrieval_k
                 )
                 
-                # Capturar la razón del gating desde el retriever (para debug info)
-                self._last_gating_reason = getattr(self.rag_retriever, "_last_gating_reason", None)
-                self.logger.debug(f"RAG gating (from retriever): reason={self._last_gating_reason}")
+                req_ctx.gating_reason = getattr(self.rag_retriever, "_last_gating_reason", None)
+                self.logger.debug(f"RAG gating (from retriever): reason={req_ctx.gating_reason}")
                 
                 if not docs:
-                    self._last_rag_time = time.perf_counter() - t_start
+                    req_ctx.rag_time = time.perf_counter() - t_start
                     return fallback_ctx
 
-                self._last_retrieved_docs = docs
+                req_ctx.retrieved_docs = docs
                 ctx = self.rag_retriever.format_context_from_documents(docs)
-                # Evitar etiqueta <context> vacía
-                self._last_context = ctx if (isinstance(ctx, str) and ctx.strip()) else fallback_ctx
-                self._last_rag_time = time.perf_counter() - t_start
-                return self._last_context
+                req_ctx.context = ctx if (isinstance(ctx, str) and ctx.strip()) else fallback_ctx
+                req_ctx.rag_time = time.perf_counter() - t_start
+                return req_ctx.context
 
-
+            except RetrievalBackendUnavailableError:
+                self.logger.warning("RAG backend unavailable; continuando sin contexto recuperado.")
+                req_ctx.gating_reason = "retrieval_backend_unavailable"
+                try:
+                    req_ctx.rag_time = time.perf_counter() - t_start
+                except Exception:
+                    req_ctx.rag_time = None
+                req_ctx.context = fallback_ctx
+                return fallback_ctx
             except Exception as e:
                 self.logger.warning(f"Context RAG failed: {e}")
                 try:
-                    self._last_rag_time = time.perf_counter() - t_start
+                    req_ctx.rag_time = time.perf_counter() - t_start
                 except Exception:
-                    self._last_rag_time = None
+                    req_ctx.rag_time = None
                 return fallback_ctx
 
         # LCEL pipeline
@@ -212,7 +218,7 @@ class Bot:
             return BaseChatbotMemory(
                 settings=self.settings,
                 session_id="fallback_session",
-                window_size=self.settings.max_memory_entries
+                window_size=self.settings.memory_window_size
             )
 
     async def __call__(self, x: Dict[str, Any]):
@@ -304,12 +310,20 @@ class Bot:
         if isinstance(ai, str):
             ai = Message(message=ai, role=self.settings.ai_prefix)
 
-        await self.memory.add_message(
-            session_id=conversation_id, role="human", content=human.message
-        )
-        await self.memory.add_message(
-            session_id=conversation_id, role="ai", content=ai.message
-        )
+        try:
+            await self.memory.add_message(
+                session_id=conversation_id, role="human", content=human.message
+            )
+            await self.memory.add_message(
+                session_id=conversation_id, role="ai", content=ai.message
+            )
+        except Exception as exc:
+            self.logger.error(
+                "No se pudo persistir la memoria conversacional para conv=%s: %s",
+                conversation_id,
+                exc,
+                exc_info=True,
+            )
 
     def _format_history(self, hist_list):
         out = []

@@ -1,6 +1,7 @@
 """FastAPI application for the chatbot."""
 
 # ---- Builtins ----
+import asyncio
 import logging
 import time
 from contextlib import asynccontextmanager
@@ -19,9 +20,11 @@ from utils.logging_utils import get_logger, suppress_cl100k_warnings
 from config import settings
 from utils.rate_limiter import limiter, retry_after_for_path
 from chat.manager import ChatManager
-from rag.retrieval.retriever import RAGRetriever
+from rag.retrieval import HierarchicalRetriever
+from rag.retrieval.reranker import build_parent_reranker
 from storage.documents import PDFManager
 from database.config_repository import ConfigRepository
+from database import RAGChildLexicalRepository, RAGParentDocumentRepository
 from database.whatsapp_session_repository import WhatsAppSessionRepository
 
 # ---- Logging Setup ----
@@ -140,7 +143,13 @@ from .routes.rag.rag_routes import router as rag_router
 from .routes.chat.chat_routes import router as chat_router
 from .routes.whatsapp.webhook_routes import router as whatsapp_router
 from .routes.bot.bot_routes import router as bot_router
-from .routes.bot.config_routes import router as bot_config_router
+from .routes.bot.config_routes import (
+    router as bot_config_router,
+    apply_runtime_config,
+    build_runtime_config_payload,
+    read_runtime_config_from_cache,
+    write_runtime_config_to_cache,
+)
 from .routes.assets.assets_routes import router as assets_router
 from .routes.users.users_routes import router as users_router
 from .auth import router as auth_router
@@ -149,12 +158,175 @@ from auth.middleware import AuthenticationMiddleware
 # Dependencias para inicializar managers
 from core.bot import Bot
 from memory import MemoryTypes
-from rag.pdf_processor.pdf_loader import PDFContentLoader
 from rag.embeddings.embedding_manager import EmbeddingManager
 from rag.vector_store.vector_store import VectorStore
-from rag.ingestion.ingestor import RAGIngestor
+from rag.ingestion.hierarchical_chunker import HierarchicalChunker
+from rag.ingestion.hierarchical_ingestion_service import HierarchicalIngestionService
 from utils.deploy_log import build_full_startup_summary
 from storage.pdf_processor_adapter import PDFProcessorAdapter
+from cache.manager import cache
+
+BOT_CONFIG_COLLECTION = "bot_config"
+BOT_CONFIG_DOC_ID = "default"
+BOT_IS_ACTIVE_CACHE_KEY = "bot:is_active"
+RUNTIME_SYNC_PATH_PREFIXES = ("/api/v1/bot", "/api/v1/chat", "/api/v1/whatsapp")
+
+
+def _redis_coordination_available() -> bool:
+    try:
+        return bool(cache.get_health_status().get("redis_connected"))
+    except Exception:
+        return False
+
+
+def _normalize_is_active(value: object) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    return None
+
+
+def _read_bot_is_active_from_cache() -> bool | None:
+    if not _redis_coordination_available():
+        return None
+
+    try:
+        return _normalize_is_active(cache.get(BOT_IS_ACTIVE_CACHE_KEY))
+    except Exception:
+        return None
+
+
+def _write_bot_is_active_to_cache(value: bool) -> None:
+    if not _redis_coordination_available():
+        return
+
+    try:
+        cache.set(BOT_IS_ACTIVE_CACHE_KEY, bool(value), ttl=0)
+    except Exception:
+        pass
+
+
+async def _read_bot_is_active_from_mongo(mongo_client) -> bool | None:
+    try:
+        if mongo_client is None:
+            return None
+
+        doc = await mongo_client.db.get_collection(BOT_CONFIG_COLLECTION).find_one(
+            {"_id": BOT_CONFIG_DOC_ID},
+            {"is_active": 1},
+        )
+        if not doc:
+            return None
+
+        return _normalize_is_active(doc.get("is_active"))
+    except Exception:
+        return None
+
+
+async def _read_runtime_config_from_mongo(mongo_client) -> dict | None:
+    try:
+        if mongo_client is None:
+            return None
+
+        repo = ConfigRepository(mongo=mongo_client)
+        config = await repo.get_config()
+        return build_runtime_config_payload(config)
+    except Exception:
+        return None
+
+
+async def _load_shared_runtime_snapshot(mongo_client) -> tuple[dict | None, bool | None]:
+    runtime_config = read_runtime_config_from_cache()
+    if runtime_config is None:
+        runtime_config = await _read_runtime_config_from_mongo(mongo_client)
+        if runtime_config is not None:
+            write_runtime_config_to_cache(runtime_config)
+
+    is_active = _read_bot_is_active_from_cache()
+    if is_active is None:
+        is_active = await _read_bot_is_active_from_mongo(mongo_client)
+        if is_active is not None:
+            _write_bot_is_active_to_cache(is_active)
+
+    return runtime_config, is_active
+
+
+def _apply_shared_runtime_snapshot(app: FastAPI, runtime_config: dict | None, is_active: bool | None, *, reload_chain: bool) -> None:
+    config_changed = False
+
+    if runtime_config is not None and getattr(app.state, "settings", None) is not None:
+        current_config = getattr(app.state, "last_synced_bot_config", None)
+        if current_config != runtime_config:
+            config_changed = apply_runtime_config(app.state.settings, runtime_config)
+            app.state.last_synced_bot_config = runtime_config
+
+    bot = getattr(app.state, "bot_instance", None)
+    if bot is not None and is_active is not None and bot.is_active != is_active:
+        bot.is_active = is_active
+
+    if is_active is not None:
+        app.state.last_synced_bot_is_active = is_active
+
+    if reload_chain and config_changed and bot is not None:
+        try:
+            bot.reload_chain(app.state.settings)
+        except Exception as e:
+            get_logger(__name__).error(f"Error recargando chain desde estado compartido: {e}", exc_info=True)
+
+
+async def _sync_worker_runtime_state(app: FastAPI, *, reload_chain: bool) -> None:
+    mongo_client = getattr(app.state, "mongodb_client", None)
+    runtime_config, is_active = await _load_shared_runtime_snapshot(mongo_client)
+    _apply_shared_runtime_snapshot(app, runtime_config, is_active, reload_chain=reload_chain)
+
+
+def _should_sync_runtime_state(path: str) -> bool:
+    return path.startswith(RUNTIME_SYNC_PATH_PREFIXES)
+
+
+def _refresh_rag_availability_state(app: FastAPI) -> bool:
+    vector_store = getattr(app.state, "vector_store", None)
+    rag_retriever = getattr(app.state, "rag_retriever", None)
+    rag_ingestor = getattr(app.state, "rag_ingestor", None)
+    rag_available = bool(
+        vector_store is not None
+        and getattr(vector_store, "is_available", False)
+        and rag_retriever is not None
+        and rag_ingestor is not None
+    )
+    app.state.rag_available = rag_available
+    return rag_available
+
+
+async def _ensure_rag_runtime_available(app: FastAPI) -> bool:
+    vector_store = getattr(app.state, "vector_store", None)
+    rag_retriever = getattr(app.state, "rag_retriever", None)
+    rag_ingestor = getattr(app.state, "rag_ingestor", None)
+    if vector_store is None or rag_retriever is None or rag_ingestor is None:
+        app.state.rag_available = False
+        return False
+
+    if getattr(vector_store, "is_available", False):
+        app.state.rag_available = True
+        return True
+
+    try:
+        reconnected = await asyncio.to_thread(vector_store.ensure_connected)
+    except Exception as exc:
+        get_logger(__name__).warning("Intento de reconexión a Qdrant falló: %s", exc, exc_info=True)
+        reconnected = False
+
+    app.state.rag_available = bool(reconnected)
+    if reconnected:
+        get_logger(__name__).warning("Qdrant volvió a estar disponible. RAG reactivado en runtime.")
+    return bool(reconnected)
 
 # ---- Lifespan ----
 @asynccontextmanager
@@ -167,43 +339,54 @@ async def lifespan(app: FastAPI):
         s = settings
         app.state.settings = s
         logger.info(f"SIMILARITY_THRESHOLD={s.similarity_threshold}")
+        app.state.startup_bot_is_active = None
 
         # Visibilidad del backend de caché activo al inicio
         try:
-            from cache.manager import cache
             logger.info(
                 f"Cache activo: backend={type(cache.backend).__name__}, ttl={cache.ttl}, max_size={cache.max_size}"
             )
         except Exception as e:
             logger.warning(f"No se pudo determinar el estado del cache en arranque: {e}")
 
+        try:
+            cache_health = cache.get_health_status()
+        except Exception as cache_error:
+            cache_health = {
+                "backend_type": "unknown",
+                "is_degraded": True,
+                "redis_connected": False,
+                "message": f"Cache health unavailable: {cache_error}",
+            }
+
+        if s.environment.lower() == "production" and not bool(cache_health.get("redis_connected")):
+            raise RuntimeError(
+                "Redis es obligatorio en producción. El backend detectó que CacheManager está en modo degradado "
+                f"({cache_health.get('backend_type')}). Configure REDIS_URL y restaure la conectividad antes de iniciar."
+            )
+
         # Cargar configuración dinámica del bot desde Mongo (si disponible)
         try:
-            config_repo = ConfigRepository()
-            bot_config = await config_repo.get_config()
-            # Sincronizar settings antes de crear el Bot (evitar system_prompt legado)
-            # En modo complemento seguro, ignoramos system_prompt persistido y usamos la base del módulo.
-            s.system_prompt = None
-            if bot_config.temperature is not None:
-                s.temperature = bot_config.temperature
-            # Asignar nombre y prompt extra para composición en ChainManager
-            s.bot_name = bot_config.bot_name
-            s.ui_prompt_extra = bot_config.ui_prompt_extra
-            logger.info(f"Config dinámica aplicada: temperature={s.temperature} system_prompt_len={len(s.system_prompt or '')}")
+            from database.mongodb import get_mongodb_client
+            try:
+                app.state.mongodb_client = get_mongodb_client()
+            except Exception as mongo_error:
+                app.state.mongodb_client = None
+                logger.warning(f"No se pudo inicializar MongoDB para configuración dinámica inicial: {mongo_error}")
+
+            runtime_config, startup_is_active = await _load_shared_runtime_snapshot(
+                getattr(app.state, "mongodb_client", None)
+            )
+            if runtime_config is not None:
+                apply_runtime_config(s, runtime_config)
+                app.state.last_synced_bot_config = runtime_config
+            app.state.startup_bot_is_active = startup_is_active
+            logger.info(f"Config dinámica aplicada: temperature={s.temperature}")
         except Exception as e:
             logger.warning(f"No se pudo cargar configuración dinámica inicial: {e}")
 
         # Inicializar componentes
         app.state.pdf_file_manager = PDFManager(base_dir=Path(s.pdfs_dir).resolve() if s.pdfs_dir else None)
-
-        app.state.pdf_content_loader = PDFContentLoader(
-            chunk_size=s.chunk_size,
-            chunk_overlap=s.chunk_overlap,
-            min_chunk_length=s.min_chunk_length,
-        )
-        logger.info(
-            f"PDFContentLoader inicializado con chunk_size={s.chunk_size}, overlap={s.chunk_overlap}, min_chunk_length={s.min_chunk_length}"
-        )
 
         app.state.embedding_manager = EmbeddingManager(model_name=s.embedding_model)
 
@@ -212,29 +395,20 @@ async def lifespan(app: FastAPI):
             distance_strategy=s.distance_strategy,
             cache_enabled=s.enable_cache,
             cache_ttl=s.cache_ttl,
-            batch_size=s.batch_size
+            batch_size=s.batch_size,
+            collection_name=s.rag_child_collection_name,
         )
-        logger.debug("VectorStore inicializado (Qdrant)")
+        app.state.rag_available = bool(getattr(app.state.vector_store, "is_available", False))
+        if app.state.rag_available:
+            logger.debug("VectorStore inicializado (Qdrant)")
+        else:
+            logger.critical("Qdrant no disponible al arranque. La aplicación continuará sin contexto RAG.")
 
-        app.state.rag_ingestor = RAGIngestor(
-            pdf_file_manager=app.state.pdf_file_manager,
-            pdf_content_loader=app.state.pdf_content_loader,
-            embedding_manager=app.state.embedding_manager,
-            vector_store=app.state.vector_store
-        )
-
-        app.state.rag_retriever = RAGRetriever(
-            vector_store=app.state.vector_store,
-            embedding_manager=app.state.embedding_manager
-        )
-
-        # Warmup del centroide para gating (precalcula en background si no está en caché)
-        # Esto mejora tiempos de respuesta de la primera consulta
-        try:
-            await app.state.rag_retriever.warmup()
-            logger.info("✅ RAG Retriever warmup completado")
-        except Exception as e:
-            logger.warning(f"⚠️ RAG Retriever warmup falló (gating funcionará pero más lento): {e}")
+        app.state.rag_ingestor = None
+        app.state.rag_retriever = None
+        app.state.rag_parent_repository = None
+        app.state.rag_child_lexical_repository = None
+        app.state.hierarchical_chunker = None
 
         # Ping ligero de embeddings para visibilidad (sin bloquear arranque si falla)
         try:
@@ -259,6 +433,10 @@ async def lifespan(app: FastAPI):
             model_type=None,
             rag_retriever=app.state.rag_retriever
         )
+        if app.state.startup_bot_is_active is not None:
+            app.state.bot_instance.is_active = app.state.startup_bot_is_active
+        app.state.last_synced_bot_config = build_runtime_config_payload(app.state.settings)
+        app.state.last_synced_bot_is_active = app.state.bot_instance.is_active
         logger.info(f"Instancia de Bot creada con tipo de memoria: {bot_memory_type}")
 
         app.state.chat_manager = ChatManager(bot_instance=app.state.bot_instance)
@@ -269,7 +447,8 @@ async def lifespan(app: FastAPI):
         try:
             from database.mongodb import get_mongodb_client
             logger.info("Initializing persistent MongoDB client for application lifespan...")
-            app.state.mongodb_client = get_mongodb_client()
+            if not getattr(app.state, "mongodb_client", None):
+                app.state.mongodb_client = get_mongodb_client()
             await app.state.mongodb_client.ensure_indexes()
             logger.debug(f"[DB] MongoDB client id={id(app.state.mongodb_client)}")
             # Asegurar índices de usuarios (únicos y de estado)
@@ -282,6 +461,43 @@ async def lifespan(app: FastAPI):
                 await wa_repo.ensure_indexes()
             except Exception as e_idx:
                 logger.warning(f"No se pudieron aplicar índices de whatsapp_sessions al arranque: {e_idx}")
+            try:
+                app.state.rag_parent_repository = RAGParentDocumentRepository(
+                    mongodb_client=app.state.mongodb_client,
+                    collection_name=s.rag_parent_collection_name,
+                )
+                await app.state.rag_parent_repository.ensure_indexes()
+                app.state.rag_child_lexical_repository = RAGChildLexicalRepository(
+                    mongodb_client=app.state.mongodb_client,
+                    documents_collection_name=s.rag_child_lexical_collection_name,
+                    postings_collection_name=s.rag_child_lexical_postings_collection_name,
+                )
+                await app.state.rag_child_lexical_repository.ensure_indexes()
+                app.state.hierarchical_chunker = HierarchicalChunker()
+                app.state.rag_ingestor = HierarchicalIngestionService(
+                    chunker=app.state.hierarchical_chunker,
+                    parent_repository=app.state.rag_parent_repository,
+                    embedding_manager=app.state.embedding_manager,
+                    vector_store=app.state.vector_store,
+                    lexical_repository=app.state.rag_child_lexical_repository,
+                )
+                app.state.rag_retriever = HierarchicalRetriever(
+                    child_vector_store=app.state.vector_store,
+                    parent_repository=app.state.rag_parent_repository,
+                    embedding_manager=app.state.embedding_manager,
+                    lexical_repository=app.state.rag_child_lexical_repository,
+                    reranker=build_parent_reranker(),
+                    child_fetch_multiplier=getattr(s, "retrieval_k_multiplier", 3),
+                    cache_enabled=s.enable_cache,
+                )
+                app.state.bot_instance.rag_retriever = app.state.rag_retriever
+            except Exception as e_idx:
+                app.state.rag_parent_repository = None
+                app.state.rag_child_lexical_repository = None
+                app.state.hierarchical_chunker = None
+                app.state.rag_ingestor = None
+                app.state.rag_retriever = None
+                logger.warning(f"No se pudo inicializar el pipeline RAG jerarquico al arranque: {e_idx}")
             logger.info("🚀 Persistent MongoDB client initialized and indexes created successfully")
         except Exception as e:
             logger.error(f"⚠️ Error initializing persistent MongoDB client: {e}", exc_info=True)
@@ -367,6 +583,14 @@ def create_app() -> FastAPI:
     main_logger.info(enterprise_banner())
 
     app.state.limiter = limiter
+
+    @app.middleware("http")
+    async def sync_runtime_state(request: Request, call_next):
+        if not _refresh_rag_availability_state(request.app):
+            await _ensure_rag_runtime_available(request.app)
+        if _should_sync_runtime_state(request.url.path):
+            await _sync_worker_runtime_state(request.app, reload_chain=True)
+        return await call_next(request)
 
     @app.middleware("http")
     async def log_requests(request: Request, call_next):
@@ -458,7 +682,14 @@ def create_app() -> FastAPI:
             except Exception:
                 pass
             retry_after = retry_after_for_path(request.url.path)
-            return JSONResponse(status_code=429, content={"detail": "Demasiadas peticiones. Calma, cowboy.", "retry_after": retry_after})
+            headers = {}
+            if retry_after is not None:
+                headers["Retry-After"] = str(int(retry_after))
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Demasiadas peticiones. Calma, cowboy.", "retry_after": retry_after},
+                headers=headers,
+            )
 
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):

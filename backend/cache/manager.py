@@ -127,6 +127,23 @@ class CacheManager:
         except Exception:
             pass
 
+    def increment(self, key: str, delta: int = 1, initial: int = 0) -> int:
+        try:
+            if hasattr(self.backend, "increment"):
+                return int(self.backend.increment(key, delta=delta, initial=initial))
+        except Exception:
+            pass
+
+        current = self.get(key)
+        try:
+            base = int(current) if current is not None else int(initial)
+        except Exception:
+            base = int(initial)
+
+        new_value = base + int(delta)
+        self.set(key, new_value, ttl=0)
+        return new_value
+
 
 # Instancia global accesible
 cache = CacheManager()

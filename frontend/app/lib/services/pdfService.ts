@@ -1,6 +1,15 @@
 import { API_URL } from "../constants";
 import { authService, authenticatedFetch } from "./authService";
 
+export type PDFUploadStatus =
+  | {
+      phase: "uploading";
+      progress: number;
+    }
+  | {
+      phase: "processing";
+    };
+
 // Normaliza el base URL y evita duplicar el prefijo "/api/v1" al construir endpoints
 function buildApiUrl(base: string, path: string): string {
   // Limpia barras finales y colapsa múltiples "/api/v1" en el base
@@ -19,7 +28,8 @@ function buildApiUrl(base: string, path: string): string {
 export class PDFService {
   static async uploadPDF(
     file: File,
-    onProgress?: (percent: number) => void,
+    onProgress?: (status: PDFUploadStatus) => void,
+    isRetry: boolean = false
   ): Promise<{
     message: string;
     file_path: string;
@@ -43,19 +53,35 @@ export class PDFService {
       // Reportar progreso si es posible
       xhr.upload.onprogress = (event: ProgressEvent) => {
         if (event.lengthComputable && onProgress) {
-          const percent = Math.round((event.loaded / event.total) * 100);
-          onProgress(percent);
+          const percent = Math.min(
+            Math.round((event.loaded / event.total) * 100),
+            99
+          );
+          onProgress({ phase: "uploading", progress: percent });
         }
       };
       xhr.upload.onload = () => {
         if (onProgress) {
-          onProgress(100);
+          onProgress({ phase: "processing" });
         }
       };
 
-      xhr.onreadystatechange = () => {
+      xhr.onreadystatechange = async () => {
         if (xhr.readyState === XMLHttpRequest.DONE) {
           const status = xhr.status;
+
+          // Manejo de token expirado (401)
+          if (status === 401 && !isRetry) {
+            try {
+              await authService.refreshToken();
+              // Reintentar subida con nuevo token
+              const result = await this.uploadPDF(file, onProgress, true);
+              resolve(result);
+            } catch (e) {
+              reject(new Error("Sesión expirada. Por favor inicie sesión nuevamente."));
+            }
+            return;
+          }
 
           // Extraer rate limit headers
           const rateLimitLimit = xhr.getResponseHeader('X-RateLimit-Limit');
@@ -83,9 +109,28 @@ export class PDFService {
             }
           } else if (status === 429) {
             // Rate limit exceeded - error especial con tipo identificable
+            let bodyRetryAfter: number | undefined;
+            let bodyDetail: string | undefined;
+            try {
+              const errJson = JSON.parse(xhr.responseText);
+              if (typeof errJson?.retry_after === "number") {
+                bodyRetryAfter = errJson.retry_after;
+              }
+              if (typeof errJson?.detail === "string") {
+                bodyDetail = errJson.detail;
+              }
+            } catch (_e) {
+              // ignorar si no es JSON
+            }
+
             const errorObj: any = new Error("Límite de uploads alcanzado");
             errorObj.type = 'RATE_LIMIT_EXCEEDED';
-            errorObj.retryAfter = retryAfter ? parseInt(retryAfter) : 3600;
+            errorObj.retryAfter = retryAfter
+              ? parseInt(retryAfter)
+              : bodyRetryAfter ?? 3600;
+            errorObj.limit = rateLimitLimit ? parseInt(rateLimitLimit) : undefined;
+            errorObj.remaining = rateLimitRemaining ? parseInt(rateLimitRemaining) : 0;
+            errorObj.serverMessage = bodyDetail;
             reject(errorObj);
           } else {
             try {

@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useRef } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from './useAuth';
 
 interface UseAuthGuardOptions {
@@ -19,7 +19,7 @@ interface UseAuthGuardOptions {
   
   /**
    * Ruta a la que redirigir si no es admin
-   * @default '/auth/login'
+   * @default '/'
    */
   adminRedirectTo?: string;
   
@@ -40,20 +40,54 @@ export function useAuthGuard(options: UseAuthGuardOptions = {}) {
   const {
     redirectTo = '/auth/login',
     requireAdmin = false,
-    adminRedirectTo = '/auth/login',
-    autoRedirect = false,
+    adminRedirectTo = '/',
+    autoRedirect = true,
   } = options;
 
   const { isAuthenticated, isLoading, isAdmin, user } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const hasRedirectedRef = useRef(false);
 
   // Estados derivados
   const isAuthorized = isAuthenticated && (!requireAdmin || isAdmin);
-  const shouldRedirect = false;
+  const shouldRedirect = autoRedirect && !isLoading && !isAuthorized;
 
   useEffect(() => {
-    // Sin redirecciones en cliente: el Middleware del servidor se encarga
-  }, []);
+    if (!shouldRedirect) {
+      hasRedirectedRef.current = false;
+      return;
+    }
+
+    const target = !isAuthenticated
+      ? redirectTo
+      : requireAdmin && !isAdmin
+        ? adminRedirectTo
+        : null;
+
+    if (!target || pathname === target || hasRedirectedRef.current) {
+      return;
+    }
+
+    hasRedirectedRef.current = true;
+
+    if (!isAuthenticated) {
+      window.location.replace(target);
+      return;
+    }
+
+    if (requireAdmin && !isAdmin) {
+      window.location.replace(target);
+    }
+  }, [
+    adminRedirectTo,
+    isAdmin,
+    isAuthenticated,
+    pathname,
+    redirectTo,
+    requireAdmin,
+    shouldRedirect,
+  ]);
 
   return {
     // Estados

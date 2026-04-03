@@ -70,7 +70,6 @@ export default function AdminSettingsPage() {
   }, [data, baseline]);
 
   const [saving, setSaving] = useState(false);
-  const [prompt, setPrompt] = useState<string>("");
   const [temperature, setTemperature] = useState<number>(0.7);
   const [uiExtra, setUiExtra] = useState<string>("");
   const [fieldsLocked, setFieldsLocked] = useState<boolean>(true);
@@ -129,7 +128,6 @@ export default function AdminSettingsPage() {
       }
     }
     if (data) {
-      setPrompt(data.system_prompt || "");
       setTemperature(
         typeof data.temperature === "number" ? data.temperature : 0.7,
       );
@@ -177,7 +175,6 @@ export default function AdminSettingsPage() {
       setSaving(true);
       await updateBotConfig({
         bot_name: config.name || undefined,
-        system_prompt: prompt || undefined,
         temperature,
         theme_color: config.brandColor,
         input_placeholder: config.placeholder,
@@ -193,21 +190,29 @@ export default function AdminSettingsPage() {
   };
 
   const effectivePreview = useMemo(() => {
-    const base = prompt || "";
-    const extra = uiExtra ? `\n\nInstrucciones adicionales:\n${uiExtra}` : "";
+    const effectiveName = config.name || data?.bot_name || "Asistente IA";
+    const base = [
+      `Nombre: ${effectiveName}`,
+      "Rol: Asistente experto, analítico y cercano.",
+      "Rasgos:",
+      "- Agudeza: Verifica que los datos pertenezcan al sujeto correcto antes de responder.",
+      "- Tono: Natural y fluido. Evita sonar como un robot o una base de datos.",
+      "- Honestidad: Si no sabe algo, lo admite con naturalidad.",
+    ].join("\n");
+    const extra = uiExtra.trim()
+      ? `\n\nInstrucciones adicionales:\n${uiExtra.trim()}`
+      : "";
     return `${base}${extra}`;
-  }, [prompt, uiExtra]);
+  }, [config.name, data?.bot_name, uiExtra]);
 
   const handleBrainSave = async () => {
     try {
       setSavingBrain(true);
       setErrorBrain(null);
       const updated = await updateBotConfig({
-        system_prompt: prompt,
         temperature,
         ui_prompt_extra: (uiExtra || "").trim() || undefined,
       });
-      setPrompt(updated.system_prompt || "");
       const sanitizeUiExtra = (val?: string | null) => {
         const txt = String(val || "").trim();
         try {
@@ -400,10 +405,6 @@ export default function AdminSettingsPage() {
             </div>
           </DialogContent>
         </Dialog>
-
-        <TabsContent value="system" className="flex-1 min-h-0">
-          <SettingsSystemTab isLoading={isLoading} />
-        </TabsContent>
       </Tabs>
     </div>
   );

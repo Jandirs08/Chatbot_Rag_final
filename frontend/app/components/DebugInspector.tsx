@@ -41,8 +41,7 @@ type RetrievedDoc = {
 type DebugData = {
   retrieved_documents?: RetrievedDoc[];
   retrieved?: RetrievedDoc[];
-  system_prompt_used?: string;
-  system_prompt?: string;
+  prompt_used?: string;
   model_params?: Record<string, any>;
   rag_time?: number | null;
   llm_time?: number | null;
@@ -88,9 +87,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
   }, [pdfUrl]);
   const SEGMENTS = ["context", "history", "instructions"] as const;
   const ORDERED_SEGMENTS = ["instructions", "context", "history"] as const;
-  const sysPrompt = (data?.system_prompt_used ?? data?.system_prompt ?? "") as string;
-
-  const promptText = sysPrompt;
+  const promptText = (data?.prompt_used ?? "") as string;
   const segRegex = (name: string) => new RegExp(`<${name}>[\s\S]*?<\/${name}>`);
   const extractInner = (name: string) => {
     const regex = new RegExp(`<${name}>[\\s\\S]*?<\/${name}>`, "i");
@@ -398,13 +395,13 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
 
   if (!data) {
     return (
-      <div className="h-full w-full flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-white shadow-sm border mb-3">
+      <div className="flex h-full w-full items-center justify-center bg-gradient-to-b from-background via-background to-surface/70 p-6">
+        <div className="w-full max-w-sm rounded-[24px] border border-border/60 bg-card px-6 py-8 text-center shadow-sm">
+          <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-border/60 bg-surface shadow-sm">
             <Gauge className="w-5 h-5 text-slate-500" />
           </div>
-          <div className="text-sm text-slate-600">Esperando datos...</div>
-          <div className="text-xs text-muted-foreground mt-1">
+          <div className="text-sm font-semibold text-foreground">Esperando datos</div>
+          <div className="mt-1 text-xs text-muted-foreground">
             Envía un mensaje para inspeccionar el flujo RAG
           </div>
         </div>
@@ -413,9 +410,9 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
   }
 
   return (
-    <div className="h-full w-full flex flex-col overflow-visible md:overflow-hidden bg-transparent">
-      <div className="flex-none border-b bg-card p-3 dark:bg-slate-900 dark:border-slate-800">
-        <div className="flex items-center justify-between">
+    <div className="flex h-full w-full flex-col overflow-hidden bg-gradient-to-b from-background via-background to-surface/60">
+      <div className="flex-none border-b border-border/60 bg-background/95 px-4 py-3 supports-[backdrop-filter]:bg-background/90 dark:bg-slate-900 dark:border-slate-800">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="text-sm font-semibold text-foreground">Monitor RAG</div>
             <Tooltip>
@@ -455,7 +452,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
             <Button
               variant="outline"
               size="sm"
-              className="h-8 gap-2 text-xs font-medium text-muted-foreground border-border hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50/50 transition-all dark:border-slate-700"
+              className="h-8 rounded-full gap-2 border-border bg-card px-3 text-xs font-medium text-muted-foreground transition-all hover:border-primary/30 hover:bg-primary/5 hover:text-primary dark:border-slate-700"
               onClick={() => setShowPrompt(true)}
             >
               <Terminal className="w-3.5 h-3.5" />
@@ -464,7 +461,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
             <Button
               variant="outline"
               size="sm"
-              className="h-8 gap-2 text-xs font-medium text-muted-foreground border-border hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50/50 transition-all dark:border-slate-700"
+              className="h-8 rounded-full gap-2 border-border bg-card px-3 text-xs font-medium text-muted-foreground transition-all hover:border-primary/30 hover:bg-primary/5 hover:text-primary dark:border-slate-700"
               onClick={() => setShowJson(true)}
             >
               <Braces className="w-3.5 h-3.5" />
@@ -473,11 +470,24 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
           </div>
         </div>
       </div>
-      <div className="flex-1 overflow-visible md:overflow-y-auto p-3 space-y-8">
-        <div className="space-y-6">
+      <div className="flex-1 overflow-visible px-4 py-4 md:overflow-y-auto">
+        <div className="space-y-5">
           <section>
-            <div className="rounded-xl border border-border bg-card shadow-md ring-1 ring-white/5 p-6 dark:bg-slate-900 dark:border-slate-800">
-              <div className="text-sm font-semibold text-foreground mb-3">Resumen del Flujo RAG</div>
+            <div className="rounded-[24px] border border-border/70 bg-card p-5 shadow-sm dark:bg-slate-900 dark:border-slate-800">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-foreground">Resumen del flujo</div>
+                  <div className="text-xs text-muted-foreground">Latencia, modelo y decisión del pipeline</div>
+                </div>
+                {typeof totalTime === "number" && (
+                  <Badge
+                    variant="secondary"
+                    className="rounded-full px-2.5 py-1 text-[10px] font-medium"
+                  >
+                    Total {fmtSVal(totalTime)}s
+                  </Badge>
+                )}
+              </div>
               <div className="space-y-4">
                 {Boolean(data?.is_cached) ? (
                   <div className="rounded-lg border border-success/20 bg-success/10 px-4 py-3 flex items-center justify-between">
@@ -612,9 +622,6 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                             );
                           })()}
                         </div>
-                        <div className="absolute top-0 right-0">
-                          <span className="inline-flex items-center px-2 py-1 rounded-md bg-muted text-foreground text-xs dark:bg-slate-800 dark:text-slate-200">Total: {fmtSVal(tot)}s</span>
-                        </div>
                         <div className="w-full">
                           <div className="flex mb-2 text-xs text-slate-800">
                             <div style={{ width: `${Math.max(0, Math.min(100, rPct))}%` }} className="relative">
@@ -654,7 +661,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                   })()
                 )}
                 <div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 rounded-xl border-none bg-card shadow-none ring-1 ring-white/5 p-4 dark:bg-slate-900 dark:border-slate-800">
+                  <div className="grid grid-cols-1 gap-3 rounded-[20px] border border-border/60 bg-surface/80 p-4 md:grid-cols-3 dark:bg-slate-900 dark:border-slate-800">
                     <div className="flex flex-col gap-2">
                       <div className="text-xs font-semibold text-foreground">Motor</div>
                       <div className="flex flex-wrap items-center gap-3">
@@ -771,21 +778,31 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
 
 
 
-            <section className="mt-6 pl-6">
-              <div className="text-sm font-semibold text-foreground mb-1">
-                Fuentes
+            <section>
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-foreground mb-1">
+                    Fuentes
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Fragmentos recuperados y similitud
+                  </div>
+                </div>
+                <Badge
+                  variant="outline"
+                  className="rounded-full px-2.5 py-1 text-[10px] font-medium"
+                >
+                  {docs.length} fragmentos
+                </Badge>
               </div>
-              <div className="text-xs text-muted-foreground">
-                Fragmentos recuperados y similitud
-              </div>
-              <div className="rounded-xl border-none p-4 bg-card shadow-none ring-1 ring-white/5 space-y-4 text-[13px] leading-relaxed mt-2 dark:bg-slate-900 dark:border-slate-800">
+              <div className="rounded-[24px] border border-border/70 bg-card p-4 text-[13px] leading-relaxed shadow-sm dark:bg-slate-900 dark:border-slate-800">
                 {docs.length === 0 ? (
-                  <div className="inline-flex items-center px-3 py-2 rounded-md text-sm bg-muted text-muted-foreground border border-border dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700">
+                  <div className="inline-flex items-center rounded-xl border border-border bg-muted px-3 py-2 text-sm text-muted-foreground dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700">
                     Salto de Búsqueda
                   </div>
                 ) : (
                   <div>
-                    <div className="mt-3 space-y-4">
+                    <div className="space-y-3">
                       {docs.map((d, idx) => {
                         const score =
                           typeof d.score === "number" ? d.score : undefined;
@@ -833,7 +850,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                           <div
                             key={idx}
                             className={cn(
-                              "rounded-lg shadow-md ring-1 ring-white/5 border border-border border-l-4 overflow-hidden transition ease-out duration-300 hover:shadow-lg bg-card dark:bg-slate-900 dark:border-slate-800",
+                              "overflow-hidden rounded-[20px] border border-border bg-background shadow-sm transition ease-out duration-200 hover:border-border/90 hover:shadow-md dark:bg-slate-900 dark:border-slate-800",
                             )}
                             style={{ borderLeftColor: scoreColorHex }}
                           >
@@ -983,7 +1000,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                   <MessageSquare className="w-4 h-4 text-muted-foreground" />
                 </span>
                 <span className="text-sm font-semibold text-foreground">
-                  Prompt del Sistema
+                  Prompt Efectivo
                 </span>
               </div>
               <button

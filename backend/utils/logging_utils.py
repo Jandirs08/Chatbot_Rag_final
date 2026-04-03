@@ -16,7 +16,8 @@ def setup_logging():
     logging.basicConfig(
         level=log_level,
         format=log_format,
-        datefmt=date_format[:-3]  # Quitar .%f ya que basicConfig no lo soporta
+        datefmt=date_format[:-3],  # Quitar .%f ya que basicConfig no lo soporta
+        force=True,
     )
     
     # Aplicar filtro de request_id al root logger
