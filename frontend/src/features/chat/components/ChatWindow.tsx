@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useRef, useEffect } from "react";
-import useSWR from "swr";
 import Image from "next/image";
 import { EmptyState } from "./EmptyState";
 import { ChatMessageBubble, TypingIndicator } from "./ChatMessageBubble";
@@ -9,20 +8,11 @@ import { AutoResizeTextarea } from "@/shared/components/ui/AutoResizeTextarea";
 import { Button } from "@/app/components/ui/button";
 import { ArrowUp, MessageCircle, Trash } from "lucide-react";
 import { useChatStream } from "@/app/hooks/useChatStream";
+import { usePublicBotConfig } from "@/app/hooks/usePublicBotConfig";
 import { botService } from "@/app/lib/services/botService";
 import { TokenManager } from "@/app/lib/services/authService";
 import { API_URL } from "@/app/lib/config";
-import { getPublicBotConfig } from "@/app/lib/services/botConfigService";
 import { cn } from "@/lib/utils";
-
-function isLightColor(hexColor: string) {
-  const hex = hexColor.replace("#", "");
-  const r = parseInt(hex.substring(0, 2), 16);
-  const g = parseInt(hex.substring(2, 4), 16);
-  const b = parseInt(hex.substring(4, 6), 16);
-  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
-  return yiq >= 128;
-}
 
 export function ChatWindow(props: {
   placeholder?: string;
@@ -52,28 +42,40 @@ export function ChatWindow(props: {
     onNewChat,
     variant = "default",
   } = props;
-  const [botName, setBotName] = React.useState<string | undefined>(undefined);
+  const { botName, isThemeLight, inputPlaceholder, starters, cfg } = usePublicBotConfig();
   const [isBotActive, setIsBotActive] = React.useState(true);
-  const [inputPh, setInputPh] = React.useState<string>("Escribe tu mensaje...");
   const [logoUrl, setLogoUrl] = React.useState<string | undefined>(undefined);
   const isPlayground = variant === "playground";
 
-  const { messages, isLoading, debugData, sendMessage, clearMessages } =
+  const { messages, isLoading, debugData, sendMessage, clearMessages, cancelStream } =
     useChatStream(conversationId, initialMessages);
 
-  const scrollToBottom = () => {
+  // --- Smart auto-scroll ---
+  // Only auto-scroll if user is near the bottom (hasn't scrolled up to read).
+  // Use "instant" during streaming to avoid animation overhead from batched
+  // rAF flushes, and "smooth" for discrete events like new user messages.
+  const isNearBottomRef = React.useRef(true);
+
+  const scrollToBottom = React.useCallback((instant = false) => {
     if (messageContainerRef.current) {
-      const scrollContainer = messageContainerRef.current;
-      scrollContainer.scrollTo({
-        top: scrollContainer.scrollHeight,
-        behavior: "smooth",
+      messageContainerRef.current.scrollTo({
+        top: messageContainerRef.current.scrollHeight,
+        behavior: instant ? "instant" : "smooth",
       });
     }
-  };
+  }, []);
+
+  const handleContainerScroll = React.useCallback(() => {
+    if (!messageContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = messageContainerRef.current;
+    isNearBottomRef.current = scrollHeight - scrollTop - clientHeight < 120;
+  }, []);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (isNearBottomRef.current) {
+      scrollToBottom(isLoading);
+    }
+  }, [messages, isLoading, scrollToBottom]);
 
   const resetIdle = React.useCallback(() => {
     setShowPulse(false);
@@ -96,22 +98,8 @@ export function ChatWindow(props: {
     }
   }, [isLoading]);
 
-  const { data: cfg } = useSWR("chat-window-config", getPublicBotConfig);
-  const [isThemeLight, setIsThemeLight] = React.useState(true);
-
   useEffect(() => {
     if (cfg) {
-      if (cfg.theme_color) {
-        try {
-          document.documentElement.style.setProperty(
-            "--brand-color",
-            cfg.theme_color
-          );
-          setIsThemeLight(isLightColor(cfg.theme_color));
-        } catch {}
-      }
-      setBotName(cfg.bot_name || undefined);
-      setInputPh(cfg.input_placeholder || "Escribe tu mensaje...");
       setLogoUrl(`${API_URL}/assets/logo`);
     }
   }, [cfg]);
@@ -149,22 +137,13 @@ export function ChatWindow(props: {
     });
   };
 
-  const sendInitialQuestion = async (question: string) => {
-    await sendMessage(question, {
-      debug: forceDebug,
-      body: { enable_verification: enableVerification },
-    });
-  };
-
-  if (!cfg) return null;
-
   return (
     <div
       className={cn(
         "flex h-full w-full flex-col overflow-hidden",
         isPlayground
           ? "rounded-[22px] border border-border/60 bg-card shadow-none"
-          : "animate-slide-in rounded-2xl bg-gradient-to-br from-gray-50 via-white to-gray-50 shadow-2xl",
+          : "animate-slide-in rounded-2xl bg-[#f7f8fa] shadow-2xl",
       )}
     >
       <div className={cn(isPlayground ? "border-b border-border/60 bg-brand" : "shadow-lg bg-brand")}>
@@ -244,12 +223,13 @@ export function ChatWindow(props: {
       <div
         className={cn(
           "flex flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-contain",
-          isPlayground ? "bg-surface/80 px-3 py-3 space-y-4" : "p-4 space-y-5",
+          isPlayground ? "bg-surface/80 px-3 py-3 space-y-3" : "px-5 pt-5 pb-3 space-y-2.5",
         )}
         ref={messageContainerRef}
+        onScroll={handleContainerScroll}
       >
         {messages.length === 0 ? (
-          <EmptyState onSubmit={handleSendMessage} variant={variant} />
+          <EmptyState onSubmit={handleSendMessage} variant={variant} botName={botName} starters={starters} />
         ) : (
           messages.map((message, i) => {
             const isUser = message.role === "user";
@@ -285,13 +265,20 @@ export function ChatWindow(props: {
         })()}
       </div>
 
+      {/* Input flotante estilo ChatGPT */}
       <div
         className={cn(
-          "border-t p-4",
-          isPlayground ? "bg-card px-3 py-3" : "bg-gradient-to-r from-gray-50 to-white",
+          isPlayground ? "bg-card px-3 py-3 border-t" : "bg-[#f7f8fa] px-4 pb-5 pt-2",
         )}
       >
-        <div className="flex items-center gap-3 pb-2">
+        <div
+          className={cn(
+            "flex items-end gap-3",
+            isPlayground
+              ? ""
+              : "rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-[0_4px_24px_0_rgba(0,0,0,0.08)] ring-1 ring-slate-100 transition-shadow focus-within:shadow-[0_4px_32px_0_rgba(59,130,246,0.15)] focus-within:ring-blue-200",
+          )}
+        >
           <AutoResizeTextarea
             ref={inputRef}
             value={input}
@@ -302,8 +289,11 @@ export function ChatWindow(props: {
                 handleSendMessage();
               }
             }}
-            placeholder={placeholder ?? inputPh}
-            className="flex-1"
+            placeholder={placeholder ?? inputPlaceholder}
+            className={cn(
+              "flex-1 min-h-[44px] px-2 py-2.5 resize-none border-0 bg-transparent text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-0 leading-relaxed",
+              isPlayground && "flex-1",
+            )}
             disabled={isLoading}
             autoFocus
           />
@@ -312,13 +302,13 @@ export function ChatWindow(props: {
             disabled={isLoading || input.trim() === ""}
             size="icon"
             className={cn(
-              "shrink-0 text-white transition-all duration-200 hover:scale-105 active:scale-95 bg-brand",
+              "shrink-0 transition-all duration-200 hover:scale-105 active:scale-95 bg-brand text-white",
               isPlayground
                 ? "h-11 w-11 rounded-2xl shadow-sm"
-                : "h-10 w-10 rounded-full shadow-md",
+                : "h-9 w-9 rounded-xl shadow-sm",
             )}
           >
-            <ArrowUp className="h-5 w-5 text-white" />
+            <ArrowUp className="h-5 w-5" />
           </Button>
         </div>
       </div>

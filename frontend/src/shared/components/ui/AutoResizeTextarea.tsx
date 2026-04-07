@@ -12,7 +12,8 @@ export const AutoResizeTextarea = React.forwardRef<
   return (
     <ResizeTextarea
       className={cn(
-        "flex min-h-[48px] w-full rounded-[20px] border border-input bg-background px-4 py-2.5 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none dark:bg-slate-800 dark:text-white dark:border-slate-700 dark:placeholder-slate-500 shadow-[0_4px_8px_rgba(0,0,0,0.08)]",
+        // Sólo layout y accesibilidad como base — el contenedor padre define la forma visual
+        "flex w-full resize-none bg-transparent px-0 py-0 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50",
         className
       )}
       ref={ref}

@@ -15,8 +15,8 @@ import {
   AUTH_STATE_INVALIDATED_EVENT,
   authService,
   TokenManager,
-} from "@/lib/services/authService";
-import type { User } from "@/lib/services/authService";
+} from "@/app/lib/services/authService";
+import type { User } from "@/app/lib/services/authService";
 
 export interface AuthState {
   user: User | null;
@@ -142,14 +142,19 @@ export function AuthProvider({
     createAuthState,
   );
 
+  // On first mount, sync the SSR-resolved session into the client-side
+  // TokenManager (a module-level singleton that doesn't survive SSR).
+  // We intentionally do NOT dispatch AUTH_SUCCESS here because
+  // createAuthState() already initialised the reducer with the correct user
+  // and is_admin value — a redundant dispatch would trigger a second render
+  // that briefly shows the sidebar without admin items (the race condition).
+  const syncedRef = React.useRef(false);
   useEffect(() => {
+    if (syncedRef.current) return;
+    syncedRef.current = true;
+
     if (!initialSession) {
       TokenManager.clearTokens();
-
-      if (state.isAuthenticated || state.token) {
-        dispatch({ type: "AUTH_LOGOUT" });
-      }
-
       return;
     }
 
@@ -157,35 +162,15 @@ export function AuthProvider({
       accessToken: initialSession.accessToken,
       expiresAt: initialSession.expiresAt,
     });
-
-    const isSameSession =
-      state.isAuthenticated &&
-      state.user?.id === initialSession.user.id &&
-      state.token === initialSession.accessToken;
-
-    if (isSameSession) {
-      return;
-    }
-
-    dispatch({
-      type: "AUTH_SUCCESS",
-      payload: {
-        user: initialSession.user,
-        token: initialSession.accessToken,
-      },
-    });
-  }, [
-    initialSession,
-    state.isAuthenticated,
-    state.token,
-    state.user,
-  ]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const checkAuthStatus = useCallback(async () => {
     dispatch({ type: "SET_LOADING", payload: true });
 
     try {
-      await authService.initFromCookie();
+      // getCurrentUser uses credentials:include — the middleware cookie is
+      // present even when TokenManager is empty after a page reload.
       const user = await authService.getCurrentUser();
       dispatch({
         type: "AUTH_SUCCESS",

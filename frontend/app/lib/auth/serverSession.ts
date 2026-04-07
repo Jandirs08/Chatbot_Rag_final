@@ -2,7 +2,7 @@ import "server-only";
 
 import { cookies } from "next/headers";
 import { API_URL } from "@/app/lib/config";
-import type { User } from "@/lib/services/authService";
+import type { User } from "@/app/lib/services/authService";
 import type { AuthSessionSnapshot } from "./session";
 import { ACCESS_TOKEN_COOKIE, decodeTokenExpiry } from "./sessionRefresh";
 

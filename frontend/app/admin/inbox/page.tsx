@@ -3,7 +3,7 @@
 import React, { useEffect, useState, Suspense } from "react";
 import useSWR from "swr";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useRequireAdmin } from "@/app/hooks/useAuthGuard";
+import { useAuth } from "@/app/hooks/useAuth";
 import { API_URL } from "@/app/lib/config";
 import { authenticatedFetch } from "@/app/lib/services/authService";
 import {
@@ -144,7 +144,8 @@ const getConversationSection = (iso?: string) => {
 };
 
 function AdminInboxContent() {
-  const { isAuthorized } = useRequireAdmin();
+  const { isAdmin } = useAuth();
+  const isAuthorized = isAdmin;
   const router = useRouter();
   const searchParams = useSearchParams();
 

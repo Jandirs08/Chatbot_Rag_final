@@ -1,7 +1,7 @@
 "use client";
 import React, { useMemo, useState } from "react";
 import useSWR from "swr";
-import { useRequireAdmin } from "@/app/hooks/useAuthGuard";
+import { useAuth } from "@/app/hooks/useAuth";
 import {
   Tabs,
   TabsList,
@@ -38,7 +38,8 @@ import { SettingsBrainTab } from "@/app/components/admin/settings/SettingsBrainT
 import { SettingsSystemTab } from "@/app/components/admin/settings/SettingsSystemTab";
 
 export default function AdminSettingsPage() {
-  const { isAuthorized } = useRequireAdmin();
+  const { isAdmin } = useAuth();
+  const isAuthorized = isAdmin;
   const [activeTab, setActiveTab] = useState<"appearance" | "brain" | "system">(
     "appearance",
   );

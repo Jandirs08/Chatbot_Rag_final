@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useAuthGuard } from "@/app/hooks/useAuthGuard";
+import { useAuth } from "@/app/hooks/useAuth";
 import {
   Card,
   CardHeader,
@@ -22,7 +22,8 @@ import { CheckCircle, AlertTriangle, Circle } from "lucide-react";
 import { useUnsavedChanges } from "@/app/hooks/useUnsavedChanges";
 
 export default function ConfiguracionWhatsAppPage() {
-  const { isAuthorized } = useAuthGuard({ requireAdmin: true });
+  const { isAdmin } = useAuth();
+  const isAuthorized = isAdmin;
   const [twilioSid, setTwilioSid] = useState("");
   const [twilioToken, setTwilioToken] = useState("");
   const [twilioFrom, setTwilioFrom] = useState("");

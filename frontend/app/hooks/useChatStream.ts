@@ -1,8 +1,21 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { logger } from "@/app/lib/logger";
 import { API_URL } from "../lib/config";
 import type { Message } from "@/types/chat";
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function generateId(): string {
+  return crypto?.randomUUID
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random()}`;
+}
+
+// ---------------------------------------------------------------------------
+// Public interface
+// ---------------------------------------------------------------------------
 
 export interface UseChatStreamReturn {
   messages: Message[];
@@ -13,7 +26,12 @@ export interface UseChatStreamReturn {
     opts?: { debug?: boolean; body?: Record<string, any> },
   ) => Promise<void>;
   clearMessages: () => void;
+  cancelStream: () => void;
 }
+
+// ---------------------------------------------------------------------------
+// Hook
+// ---------------------------------------------------------------------------
 
 export function useChatStream(
   conversationId: string,
@@ -23,78 +41,162 @@ export function useChatStream(
   const [isLoading, setIsLoading] = useState(false);
   const [debugData, setDebugData] = useState<any | undefined>(undefined);
 
-  useEffect(() => {
-    logger.log("useChatStream initialMessages received", {
-      initialLen: Array.isArray(initialMessages) ? initialMessages.length : 0,
-      stateLen: messages.length,
-      conversation_id: conversationId,
-    });
-  }, [initialMessages, messages.length, conversationId]);
+  // ---- Refs for streaming performance ----
+  // pendingDelta accumulates SSE text between animation frames so we batch
+  // N rapid chunks into ~1 setState per frame (~60 fps) instead of N.
+  const pendingDeltaRef = useRef("");
+  const rafIdRef = useRef<number | null>(null);
 
+  // AbortController lets us cancel an in-flight stream on unmount, new send,
+  // or explicit cancel (e.g. "New chat" button).
+  const abortRef = useRef<AbortController | null>(null);
+
+  // Track mount status to guard against setState on unmounted component.
+  const mountedRef = useRef(true);
+
+  // isLoadingRef avoids recreating sendMessage every time isLoading toggles.
+  const isLoadingRef = useRef(false);
+
+  // ---- Sync initialMessages ----
   useEffect(() => {
     if (Array.isArray(initialMessages) && initialMessages.length > 0) {
       setMessages((prev) => (prev.length === 0 ? initialMessages : prev));
     }
   }, [initialMessages]);
 
+  // ---- Cleanup on unmount ----
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      abortRef.current?.abort();
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+      }
+    };
+  }, []);
+
+  // -----------------------------------------------------------------------
+  // scheduleFlush – batches accumulated SSE deltas into a single setState
+  // per animation frame.  This is the core performance win: instead of
+  // cloning the messages array on every tiny chunk, we coalesce them.
+  // -----------------------------------------------------------------------
+  const scheduleFlush = useCallback(() => {
+    if (rafIdRef.current !== null) return; // already scheduled
+
+    rafIdRef.current = requestAnimationFrame(() => {
+      rafIdRef.current = null;
+      const delta = pendingDeltaRef.current;
+      if (!delta || !mountedRef.current) return;
+      pendingDeltaRef.current = "";
+
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last && last.role === "assistant") {
+          // Clone only the slice we need – reuse array prefix by reference.
+          const updated = prev.slice();
+          updated[updated.length - 1] = {
+            ...last,
+            content: (last.content || "") + delta,
+          };
+          return updated;
+        }
+        return [
+          ...prev,
+          {
+            id: generateId(),
+            content: delta,
+            role: "assistant" as const,
+            createdAt: new Date(),
+          },
+        ];
+      });
+    });
+  }, []);
+
+  // -----------------------------------------------------------------------
+  // cancelStream – aborts the in-flight SSE connection and cleans up.
+  // Safe to call multiple times.
+  // -----------------------------------------------------------------------
+  const cancelStream = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    pendingDeltaRef.current = "";
+
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
+
+    if (mountedRef.current) {
+      setIsLoading(false);
+      isLoadingRef.current = false;
+    }
+  }, []);
+
+  // -----------------------------------------------------------------------
+  // sendMessage – initiates a new SSE stream.
+  // -----------------------------------------------------------------------
   const sendMessage = useCallback(
     async (
       messageText: string,
       opts?: { debug?: boolean; body?: Record<string, any> },
     ) => {
-      if (isLoading || !messageText.trim()) {
+      if (isLoadingRef.current || !messageText.trim()) {
         return;
       }
 
-      // Agregar mensaje del usuario
+      // Cancel any previous in-flight stream before starting a new one.
+      abortRef.current?.abort();
+
       const userMessage: Message = {
-        id: crypto?.randomUUID
-          ? crypto.randomUUID()
-          : `${Date.now()}-${Math.random()}`,
+        id: generateId(),
         content: messageText,
         role: "user",
         createdAt: new Date(),
       };
 
-      setMessages((prevMessages) => [...prevMessages, userMessage]);
+      setMessages((prev) => [...prev, userMessage]);
       setIsLoading(true);
+      isLoadingRef.current = true;
+      pendingDeltaRef.current = "";
+
       let handledErrorMessage: string | null = null;
 
       const appendAssistantError = (content: string) => {
-        if (handledErrorMessage) {
-          return;
-        }
+        if (handledErrorMessage || !mountedRef.current) return;
         handledErrorMessage = content;
-        setMessages((prevMessages) => {
-          const last = prevMessages[prevMessages.length - 1];
+        setMessages((prev) => {
+          const last = prev[prev.length - 1];
           if (last?.role === "assistant" && last?.content === content) {
-            return prevMessages;
+            return prev;
           }
           return [
-            ...prevMessages,
+            ...prev,
             {
-              id: crypto?.randomUUID
-                ? crypto.randomUUID()
-                : `${Date.now()}-${Math.random()}`,
+              id: generateId(),
               content,
-              role: "assistant",
+              role: "assistant" as const,
               createdAt: new Date(),
             },
           ];
         });
       };
 
+      const controller = new AbortController();
+      abortRef.current = controller;
+
       try {
-        // Carga dinámica de fetchEventSource para reducir el bundle inicial
+        // Dynamic import keeps fetchEventSource out of the initial bundle.
         const { fetchEventSource } = await import(
           "@microsoft/fetch-event-source"
         );
 
         setDebugData(undefined);
+
         await fetchEventSource(API_URL + "/chat/", {
           method: "POST",
           headers: {
-            // Asegurar UTF-8 explícito y evitar enviar encabezados de respuesta (como ACAO)
             "Content-Type": "application/json; charset=utf-8",
             Accept: "text/event-stream",
           },
@@ -102,87 +204,70 @@ export function useChatStream(
           body: JSON.stringify({
             input: messageText,
             conversation_id: conversationId,
-            // Campo opcional para rastrear el origen/embebido
             source: "embed-default",
             debug_mode: Boolean(opts?.debug),
             ...(opts?.body || {}),
           }),
+          signal: controller.signal,
           openWhenHidden: true,
-          async onopen(response) {
-            logger.log("Estado de la conexión:", {
-              status: response.status,
-              statusText: response.statusText,
-              contentType: response.headers.get("content-type"),
-            });
 
+          async onopen(response) {
             if (!response.ok) {
-              logger.error(
-                "Error en la conexión:",
-                response.status,
-                response.statusText,
-              );
               throw new Error(
                 `Error en la conexión: ${response.status} ${response.statusText}`,
               );
             }
           },
+
           onerror(err) {
+            // If we intentionally aborted, swallow the error silently.
+            if (controller.signal.aborted) return;
             logger.error("Error en la conexión SSE:", err);
-            setIsLoading(false);
-            // Re-throw to stop infinite retries by fetchEventSource
-            // El mensaje al usuario se agrega en catch para no duplicarlo.
+            // Re-throw to stop fetchEventSource's infinite retry loop.
             throw err;
           },
+
           async onmessage(msg) {
+            // Guard: ignore messages after abort.
+            if (controller.signal.aborted) return;
+
             if (msg.data) {
               try {
                 const chunk = JSON.parse(msg.data);
                 const delta: string | undefined =
                   chunk.stream ?? chunk.streamed_output;
                 if (typeof delta === "string" && delta.length > 0) {
-                  try {
-                    logger.log("[SSE] chunk received", { len: delta.length });
-                  } catch { }
-                  setMessages((prevMessages) => {
-                    const last = prevMessages[prevMessages.length - 1];
-                    if (last && last.role === "assistant") {
-                      return [
-                        ...prevMessages.slice(0, -1),
-                        { ...last, content: (last.content || "") + delta },
-                      ];
-                    }
-                    return [
-                      ...prevMessages,
-                      {
-                        id: crypto?.randomUUID
-                          ? crypto.randomUUID()
-                          : `${Date.now()}-${Math.random()}`,
-                        content: delta,
-                        role: "assistant",
-                        createdAt: new Date(),
-                      },
-                    ];
-                  });
+                  // Accumulate delta and schedule a batched flush.
+                  pendingDeltaRef.current += delta;
+                  scheduleFlush();
                 }
               } catch (e) {
                 logger.error("Error procesando mensaje:", e);
               }
             }
 
-            // Manejo explícito de eventos del servidor
+            // Handle server-sent event types.
             if (msg.event === "end") {
-              logger.log("Evento end recibido");
-              setIsLoading(false);
+              // Force one last flush so no text is lost.
+              if (pendingDeltaRef.current) {
+                scheduleFlush();
+              }
+              if (mountedRef.current) {
+                setIsLoading(false);
+                isLoadingRef.current = false;
+              }
             } else if (msg.event === "debug") {
               try {
                 const dataObj = JSON.parse(msg.data ?? "{}");
-                setDebugData(dataObj);
+                if (mountedRef.current) setDebugData(dataObj);
               } catch (e) {
                 logger.warn("No se pudo parsear debug data", e);
               }
             } else if (msg.event === "error") {
-              logger.warn("Evento error recibido", msg.data);
-              setIsLoading(false);
+              if (mountedRef.current) {
+                setIsLoading(false);
+                isLoadingRef.current = false;
+              }
               let errorContent =
                 "Lo siento, ocurrió un error procesando tu mensaje. Por favor, inténtalo nuevamente.";
               try {
@@ -193,25 +278,34 @@ export function useChatStream(
                 ) {
                   errorContent = errorPayload.message;
                 }
-              } catch (_error) { }
+              } catch {}
               appendAssistantError(errorContent);
             }
           },
         });
       } catch (error) {
+        // AbortError is expected when we cancel – don't treat it as failure.
+        if (controller.signal.aborted) return;
         logger.error("Error general:", error);
-        setIsLoading(false);
+        if (mountedRef.current) {
+          setIsLoading(false);
+          isLoadingRef.current = false;
+        }
         appendAssistantError(
           "Se perdió la conexión con el servidor. Por favor, verifica tu conexión o intenta más tarde.",
         );
       }
     },
-    [conversationId, isLoading],
+    [conversationId, scheduleFlush],
   );
 
+  // -----------------------------------------------------------------------
+  // clearMessages – cancels any active stream, then wipes history.
+  // -----------------------------------------------------------------------
   const clearMessages = useCallback(() => {
+    cancelStream();
     setMessages([]);
-  }, []);
+  }, [cancelStream]);
 
   return {
     messages,
@@ -219,5 +313,6 @@ export function useChatStream(
     debugData,
     sendMessage,
     clearMessages,
+    cancelStream,
   };
 }

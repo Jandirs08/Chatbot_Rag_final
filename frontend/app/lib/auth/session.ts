@@ -1,4 +1,4 @@
-import type { User } from "@/lib/services/authService";
+import type { User } from "@/app/lib/services/authService";
 
 export interface AuthSessionSnapshot {
   user: User;
