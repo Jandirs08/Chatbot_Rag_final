@@ -71,6 +71,7 @@ class Settings(BaseSettings):
     base_model_name: str = Field(default="gpt-3.5-turbo", env="BASE_MODEL_NAME")
     max_tokens: int = Field(default=2000, env="MAX_TOKENS")
     temperature: float = Field(default=0.7, env="TEMPERATURE")
+    stream_min_chunk_chars: int = Field(default=32, env="STREAM_MIN_CHUNK_CHARS")
     
     # Dynamic UI-driven config (complemento seguro)
     bot_name: Optional[str] = Field(default=None, env="BOT_NAME")
@@ -119,6 +120,9 @@ class Settings(BaseSettings):
     hybrid_rrf_k: int = Field(default=60, env="HYBRID_RRF_K")
     hybrid_child_candidate_limit: int = Field(default=12, env="HYBRID_CHILD_CANDIDATE_LIMIT")
     hybrid_parent_candidate_limit: int = Field(default=6, env="HYBRID_PARENT_CANDIDATE_LIMIT")
+    rag_child_first_context_enabled: bool = Field(default=False, env="RAG_CHILD_FIRST_CONTEXT_ENABLED")
+    rag_child_first_context_top_children: int = Field(default=3, env="RAG_CHILD_FIRST_CONTEXT_TOP_CHILDREN")
+    rag_child_first_context_window_tokens: int = Field(default=200, env="RAG_CHILD_FIRST_CONTEXT_WINDOW_TOKENS")
     rag_reranker_model_name: Optional[str] = Field(default=None, env="RAG_RERANKER_MODEL_NAME")
     rag_reranker_timeout_seconds: float = Field(default=12.0, env="RAG_RERANKER_TIMEOUT_SECONDS")
     
@@ -251,6 +255,13 @@ class Settings(BaseSettings):
     def validate_max_file_size(cls, v: int):
         if v <= 0 or v > 100:
             raise ValueError("Max file size must be between 1 and 100 MB")
+        return v
+
+    @field_validator("stream_min_chunk_chars")
+    @classmethod
+    def validate_stream_min_chunk_chars(cls, v: int):
+        if v <= 0 or v > 4096:
+            raise ValueError("STREAM_MIN_CHUNK_CHARS must be between 1 and 4096")
         return v
 
 # Create global settings instance

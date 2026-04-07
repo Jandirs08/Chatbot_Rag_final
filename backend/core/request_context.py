@@ -24,6 +24,21 @@ class RequestContext:
     rag_time: Optional[float] = None
     gating_reason: Optional[str] = None
     debug_info: Optional[Any] = None  # DebugInfo de api.schemas
+    stage_timings_ms: dict[str, float] = field(default_factory=dict)
+
+    def set_stage_timing_ms(self, name: str, value: float | None) -> None:
+        if not name or value is None:
+            return
+        try:
+            self.stage_timings_ms[name] = float(value)
+        except Exception:
+            pass
+
+    def get_stage_timing_ms(self, name: str) -> float | None:
+        value = self.stage_timings_ms.get(name)
+        if isinstance(value, (int, float)):
+            return float(value)
+        return None
 
 
 # ContextVar: cada tarea asyncio recibe su propia copia

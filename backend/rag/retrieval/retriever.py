@@ -16,6 +16,7 @@ from langchain_core.documents import Document
 
 from cache.manager import cache
 from config import settings
+from core.request_context import get_request_context
 
 from ..vector_store.vector_store import VectorStore, VectorStoreUnavailableError
 from .gating import CheapGateDecision, cheap_gate
@@ -346,6 +347,7 @@ class RAGRetriever:
         return (usable_documents, "accepted")
 
     async def _embed_query_async(self, text: str) -> Optional[np.ndarray]:
+        started_at = time.perf_counter()
         try:
             if not self.embedding_manager:
                 return None
@@ -353,6 +355,14 @@ class RAGRetriever:
             return self._clean_vector(embedding)
         except Exception:
             return None
+        finally:
+            try:
+                get_request_context().set_stage_timing_ms(
+                    "embedding_ms",
+                    (time.perf_counter() - started_at) * 1000,
+                )
+            except Exception:
+                pass
 
     def _get_content_type_score(self, chunk_type: str) -> float:
         try:

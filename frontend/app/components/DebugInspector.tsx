@@ -45,6 +45,14 @@ type DebugData = {
   model_params?: Record<string, any>;
   rag_time?: number | null;
   llm_time?: number | null;
+  history_ms?: number | null;
+  embedding_ms?: number | null;
+  dense_ms?: number | null;
+  lexical_ms?: number | null;
+  hydrate_ms?: number | null;
+  rerank_ms?: number | null;
+  first_token_ms?: number | null;
+  stream_total_ms?: number | null;
   input_tokens?: number | null;
   output_tokens?: number | null;
   verification?: { is_grounded: boolean; reason?: string } | null;
@@ -164,11 +172,21 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
 
   const ragTime = typeof data?.rag_time === "number" ? data!.rag_time! : null;
   const llmTime = typeof data?.llm_time === "number" ? data!.llm_time! : null;
+  const historyMs = typeof data?.history_ms === "number" ? data.history_ms : null;
+  const embeddingMs = typeof data?.embedding_ms === "number" ? data.embedding_ms : null;
+  const denseMs = typeof data?.dense_ms === "number" ? data.dense_ms : null;
+  const lexicalMs = typeof data?.lexical_ms === "number" ? data.lexical_ms : null;
+  const hydrateMs = typeof data?.hydrate_ms === "number" ? data.hydrate_ms : null;
+  const rerankMs = typeof data?.rerank_ms === "number" ? data.rerank_ms : null;
+  const firstTokenMs = typeof data?.first_token_ms === "number" ? data.first_token_ms : null;
+  const streamTotalMs = typeof data?.stream_total_ms === "number" ? data.stream_total_ms : null;
   const inTok =
     typeof data?.input_tokens === "number" ? data!.input_tokens! : null;
   const outTok =
     typeof data?.output_tokens === "number" ? data!.output_tokens! : null;
   const fmtSVal = (v: number | null) => (v === null ? "-" : v.toFixed(2));
+  const fmtMsVal = (v: number | null) =>
+    v === null ? "-" : v >= 1000 ? `${(v / 1000).toFixed(2)}s` : `${v.toFixed(0)} ms`;
   const fmtTokVal = (v: number | null) =>
     v === null ? "-" : v.toLocaleString();
   const ragColor =
@@ -180,6 +198,9 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
           ? "text-rose-500"
           : "text-amber-500";
   const totalTime =
+    typeof streamTotalMs === "number"
+      ? streamTotalMs / 1000
+      : 
     typeof ragTime === "number" && typeof llmTime === "number"
       ? ragTime + llmTime
       : typeof ragTime === "number"
@@ -187,6 +208,16 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
         : typeof llmTime === "number"
           ? llmTime
           : null;
+  const stageMetrics = [
+    { key: "history_ms", label: "History", value: historyMs, help: "Carga del historial en memoria/Mongo" },
+    { key: "embedding_ms", label: "Embedding", value: embeddingMs, help: "Embedding de la consulta" },
+    { key: "dense_ms", label: "Dense", value: denseMs, help: "Busqueda vectorial en Qdrant" },
+    { key: "lexical_ms", label: "Lexical", value: lexicalMs, help: "Busqueda lexical/hibrida" },
+    { key: "hydrate_ms", label: "Hydrate", value: hydrateMs, help: "Hidratacion de parents/documentos" },
+    { key: "rerank_ms", label: "Rerank", value: rerankMs, help: "Reranking de candidatos" },
+    { key: "first_token_ms", label: "First Token", value: firstTokenMs, help: "Tiempo hasta el primer chunk visible" },
+    { key: "stream_total_ms", label: "Stream Total", value: streamTotalMs, help: "Tiempo total del stream" },
+  ].filter((item) => item.value !== null);
   const totalTokens =
     typeof inTok === "number" && typeof outTok === "number"
       ? inTok + outTok
@@ -659,6 +690,36 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                       </div>
                     );
                   })()
+                )}
+                {stageMetrics.length > 0 && (
+                  <div className="rounded-[20px] border border-border/60 bg-surface/80 p-4 dark:bg-slate-900 dark:border-slate-800">
+                    <div className="mb-3 flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <div className="text-xs font-semibold text-foreground">Tiempos por etapa</div>
+                        <div className="text-[11px] text-muted-foreground">Metricas internas del pipeline</div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
+                      {stageMetrics.map((metric) => (
+                        <Tooltip key={metric.key}>
+                          <TooltipTrigger asChild>
+                            <div className="rounded-2xl border border-border/60 bg-card px-3 py-2.5 dark:bg-slate-950 dark:border-slate-800">
+                              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                                {metric.label}
+                              </div>
+                              <div className="mt-1 text-sm font-semibold text-foreground">
+                                {fmtMsVal(metric.value)}
+                              </div>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent className="text-xs">
+                            {metric.help}
+                          </TooltipContent>
+                        </Tooltip>
+                      ))}
+                    </div>
+                  </div>
                 )}
                 <div>
                   <div className="grid grid-cols-1 gap-3 rounded-[20px] border border-border/60 bg-surface/80 p-4 md:grid-cols-3 dark:bg-slate-900 dark:border-slate-800">

@@ -118,6 +118,8 @@ class Bot:
 
         async def get_history_async(x):
             conversation_id = x.get("conversation_id")
+            req_ctx = get_request_context()
+            history_started_at = time.perf_counter()
             try:
                 hist = await self.memory.get_history(conversation_id)
             except Exception as exc:
@@ -128,6 +130,11 @@ class Bot:
                     exc_info=True,
                 )
                 hist = []
+            finally:
+                req_ctx.set_stage_timing_ms(
+                    "history_ms",
+                    (time.perf_counter() - history_started_at) * 1000,
+                )
 
             formatted = self._format_history(hist)
 
@@ -250,7 +257,7 @@ class Bot:
 
         return {"output": final_text}
 
-    async def astream_chunked(self, x: Dict[str, Any], min_chunk_chars: int = 128) -> AsyncGenerator[str, None]:
+    async def astream_chunked(self, x: Dict[str, Any], min_chunk_chars: int | None = None) -> AsyncGenerator[str, None]:
         if getattr(self.settings, "mock_mode", False):
             await asyncio.sleep(1.5)
             yield " [MOCK] Respuesta simulada para prueba de carga. Sistema operativo bajo estrés. "
@@ -262,7 +269,16 @@ class Bot:
             "conversation_id": conversation_id,
         }
 
+        effective_min_chunk_chars = max(
+            1,
+            int(
+                min_chunk_chars
+                if min_chunk_chars is not None
+                else getattr(self.settings, "stream_min_chunk_chars", 32)
+            ),
+        )
         buffer = ""
+        first_chunk_sent = False
 
         def _extract_text(p: Any) -> str:
             c = getattr(p, "content", None)
@@ -297,8 +313,12 @@ class Bot:
             txt = _extract_text(part)
             if not txt:
                 continue
+            if not first_chunk_sent:
+                first_chunk_sent = True
+                yield txt
+                continue
             buffer += txt
-            if len(buffer) >= min_chunk_chars:
+            if len(buffer) >= effective_min_chunk_chars:
                 yield buffer
                 buffer = ""
         if buffer:

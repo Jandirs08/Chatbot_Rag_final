@@ -408,6 +408,7 @@ class ChatManager:
             )
             output_tokens = _get_token_count(str(final_text))
             rag_time = req_ctx.rag_time
+            stage_timings_ms = dict(getattr(req_ctx, "stage_timings_ms", {}) or {})
 
             llm_time = None
             try:
@@ -423,6 +424,14 @@ class ChatManager:
                 model_params=dict(model_params),
                 rag_time=rag_time,
                 llm_time=llm_time,
+                history_ms=stage_timings_ms.get("history_ms"),
+                embedding_ms=stage_timings_ms.get("embedding_ms"),
+                dense_ms=stage_timings_ms.get("dense_ms"),
+                lexical_ms=stage_timings_ms.get("lexical_ms"),
+                hydrate_ms=stage_timings_ms.get("hydrate_ms"),
+                rerank_ms=stage_timings_ms.get("rerank_ms"),
+                first_token_ms=stage_timings_ms.get("first_token_ms"),
+                stream_total_ms=stage_timings_ms.get("stream_total_ms"),
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 verification=verification,
@@ -439,6 +448,37 @@ class ChatManager:
                 is_cached=bool(is_cached),
             )
 
+    @staticmethod
+    def _fmt_ms(value: float | int | None) -> str:
+        if value is None:
+            return "-"
+        try:
+            return f"{float(value):.1f}"
+        except Exception:
+            return "-"
+
+    def _log_stream_timing_summary(self, conversation_id: str, is_cached: bool = False) -> None:
+        try:
+            req_ctx = get_request_context()
+            timings = dict(getattr(req_ctx, "stage_timings_ms", {}) or {})
+            logger.info(
+                "[CHAT][PERF] conv=%s cached=%s history_ms=%s embedding_ms=%s dense_ms=%s lexical_ms=%s hydrate_ms=%s rerank_ms=%s first_token_ms=%s rag_ms=%s llm_ms=%s stream_total_ms=%s",
+                conversation_id,
+                int(bool(is_cached)),
+                self._fmt_ms(timings.get("history_ms")),
+                self._fmt_ms(timings.get("embedding_ms")),
+                self._fmt_ms(timings.get("dense_ms")),
+                self._fmt_ms(timings.get("lexical_ms")),
+                self._fmt_ms(timings.get("hydrate_ms")),
+                self._fmt_ms(timings.get("rerank_ms")),
+                self._fmt_ms(timings.get("first_token_ms")),
+                self._fmt_ms((req_ctx.rag_time * 1000) if req_ctx.rag_time is not None else None),
+                self._fmt_ms(timings.get("llm_ms")),
+                self._fmt_ms(timings.get("stream_total_ms")),
+            )
+        except Exception:
+            pass
+
     async def generate_streaming_response(self, input_text: str, conversation_id: str, source: str | None = None, debug_mode: bool = False, enable_verification: bool = False):
         conversation_lock: Optional[asyncio.Lock] = None
         lock_acquired = False
@@ -448,6 +488,7 @@ class ChatManager:
                 raise HTTPException(status_code=429, detail="Conversation busy, try again")
             logger.debug(f"[CHAT] Streaming start | conv={conversation_id}")
             req_ctx = new_request_context()
+            stream_started_at = time.perf_counter()
             cache_key = self._build_response_cache_key(conversation_id, input_text)
             chunk_timeout = getattr(settings, "llm_timeout", 25)
             cached_response = None
@@ -459,6 +500,10 @@ class ChatManager:
 
             if cached_response is not None:
                 final_text = cached_response
+                req_ctx.set_stage_timing_ms(
+                    "first_token_ms",
+                    (time.perf_counter() - stream_started_at) * 1000,
+                )
                 yield final_text
                 if not debug_mode:
                     await self._persist_messages_safely(conversation_id, input_text, final_text, source)
@@ -475,6 +520,12 @@ class ChatManager:
                         verification=None,
                         is_cached=True,
                     )
+                req_ctx.set_stage_timing_ms("llm_ms", 0.0)
+                req_ctx.set_stage_timing_ms(
+                    "stream_total_ms",
+                    (time.perf_counter() - stream_started_at) * 1000,
+                )
+                self._log_stream_timing_summary(conversation_id, is_cached=True)
                 return
 
             bot_input = {"input": input_text, "conversation_id": conversation_id}
@@ -482,9 +533,16 @@ class ChatManager:
 
             final_text = ""
             t_llm_start = time.perf_counter()
+            first_chunk_sent = False
             try:
                 while True:
                     chunk = await asyncio.wait_for(stream.__anext__(), timeout=chunk_timeout)
+                    if not first_chunk_sent:
+                        first_chunk_sent = True
+                        req_ctx.set_stage_timing_ms(
+                            "first_token_ms",
+                            (time.perf_counter() - stream_started_at) * 1000,
+                        )
                     final_text += chunk
                     yield chunk
             except asyncio.TimeoutError:
@@ -503,6 +561,7 @@ class ChatManager:
                 pass
             if debug_mode:
                 t_llm_end = time.perf_counter()
+                req_ctx.set_stage_timing_ms("llm_ms", (t_llm_end - t_llm_start) * 1000)
                 verification = None
                 try:
                     if enable_verification:
@@ -520,7 +579,16 @@ class ChatManager:
                     is_cached=False,
                 )
             else:
+                req_ctx.set_stage_timing_ms(
+                    "llm_ms",
+                    (time.perf_counter() - t_llm_start) * 1000,
+                )
                 req_ctx.debug_info = None
+            req_ctx.set_stage_timing_ms(
+                "stream_total_ms",
+                (time.perf_counter() - stream_started_at) * 1000,
+            )
+            self._log_stream_timing_summary(conversation_id, is_cached=False)
             logger.debug(f"[CHAT] Streaming end | conv={conversation_id} len={len(final_text)}")
         except Exception as e:
             logger.error(f"Error generando respuesta streaming en ChatManager: {e}", exc_info=True)

@@ -47,6 +47,14 @@ class DebugInfo(BaseModel):
     model_params: Dict[str, Any]
     rag_time: float | None = None
     llm_time: float | None = None
+    history_ms: float | None = None
+    embedding_ms: float | None = None
+    dense_ms: float | None = None
+    lexical_ms: float | None = None
+    hydrate_ms: float | None = None
+    rerank_ms: float | None = None
+    first_token_ms: float | None = None
+    stream_total_ms: float | None = None
     input_tokens: int | None = None
     output_tokens: int | None = None
     verification: Optional[VerificationResult] = None

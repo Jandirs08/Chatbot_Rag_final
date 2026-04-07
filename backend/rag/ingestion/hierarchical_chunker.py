@@ -233,6 +233,17 @@ class HierarchicalChunker:
 
         for block in blocks:
             block_tokens = max(1, block.token_count)
+            starts_new_section = (
+                block.block_type == "header"
+                and current_group
+                and any(existing.block_type != "header" for existing in current_group)
+            )
+
+            if starts_new_section:
+                groups.append(current_group)
+                current_group = []
+                current_tokens = 0
+
             should_flush = (
                 current_group
                 and current_tokens >= self.parent_min_tokens

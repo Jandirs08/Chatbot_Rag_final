@@ -81,3 +81,6 @@ __pycache__/
 */*/__pycache__/
 */*/*/__pycache__/
 similar_cache_*/
+backend/tests/evals/generated/
+backend/tests/evals/reports/
+backend/tests/_tmp_hier/

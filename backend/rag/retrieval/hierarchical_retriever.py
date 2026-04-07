@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from collections import defaultdict
 from dataclasses import replace
@@ -10,6 +11,7 @@ from typing import Any, Dict, Optional
 from langchain_core.documents import Document
 
 from config import settings
+from core.request_context import get_request_context
 from database import LexicalSearchHit
 from rag.ingestion.models import ParentDocument
 
@@ -41,6 +43,88 @@ class HierarchicalRetriever(RAGRetriever):
         self.lexical_repository = lexical_repository
         self.reranker = reranker
         self.child_fetch_multiplier = max(1, int(child_fetch_multiplier))
+
+    def _child_first_context_enabled(self) -> bool:
+        return bool(getattr(settings, "rag_child_first_context_enabled", False))
+
+    def _child_first_top_children(self) -> int:
+        return max(1, int(getattr(settings, "rag_child_first_context_top_children", 3)))
+
+    def _child_first_window_tokens(self) -> int:
+        return max(0, int(getattr(settings, "rag_child_first_context_window_tokens", 200)))
+
+    def _split_text_tokens(self, text: str) -> list[str]:
+        return re.findall(r"\S+", text or "")
+
+    def _find_child_token_span(self, parent_text: str, child_text: str) -> tuple[int, int] | None:
+        parent_tokens = self._split_text_tokens(parent_text)
+        child_tokens = self._split_text_tokens(child_text)
+        if not parent_tokens or not child_tokens:
+            return None
+
+        child_len = len(child_tokens)
+        first_token = child_tokens[0]
+        max_start = len(parent_tokens) - child_len
+        for start in range(max_start + 1):
+            if parent_tokens[start] != first_token:
+                continue
+            if parent_tokens[start : start + child_len] == child_tokens:
+                return (start, start + child_len)
+        return None
+
+    def _extract_parent_window_for_child(self, *, parent_text: str, child_text: str, window_tokens: int) -> str:
+        parent_tokens = self._split_text_tokens(parent_text)
+        if not parent_tokens:
+            return ""
+
+        span = self._find_child_token_span(parent_text, child_text)
+        if span is None:
+            child_tokens = self._split_text_tokens(child_text)
+            clipped = child_tokens[: max(1, window_tokens)]
+            return " ".join(clipped).strip()
+
+        start, end = span
+        window_start = max(0, start - window_tokens)
+        window_end = min(len(parent_tokens), end + window_tokens)
+        return " ".join(parent_tokens[window_start:window_end]).strip()
+
+    def _build_child_first_context(self, candidate: ParentCandidate) -> str:
+        parent = candidate.parent
+        evidence = list(candidate.evidence[: self._child_first_top_children()])
+        if not evidence:
+            return parent.content
+
+        window_tokens = self._child_first_window_tokens()
+        parts = []
+        seen_windows: set[str] = set()
+
+        for index, child in enumerate(evidence, start=1):
+            child_content = str(child.get("content") or "").strip()
+            if not child_content:
+                continue
+
+            window = self._extract_parent_window_for_child(
+                parent_text=parent.content,
+                child_text=child_content,
+                window_tokens=window_tokens,
+            )
+            normalized_window = " ".join(window.split())
+            if not normalized_window or normalized_window in seen_windows:
+                continue
+            seen_windows.add(normalized_window)
+
+            parts.append(
+                "\n".join(
+                    [
+                        f"[Fragmento relevante {index} | paginas {child.get('page_start')}-{child.get('page_end')}]",
+                        child_content,
+                        f"[Ventana del parent +/- {window_tokens} tokens]",
+                        window,
+                    ]
+                ).strip()
+            )
+
+        return "\n\n".join(part for part in parts if part).strip() or parent.content
 
     def _candidate_child_k(self, parent_k: int) -> int:
         base = max(1, int(parent_k))
@@ -103,12 +187,41 @@ class HierarchicalRetriever(RAGRetriever):
         child_k = self._candidate_child_k(k)
         query_embedding = await self._embed_query_async(normalized_query)
 
-        dense_task = (
-            self._dense_search(normalized_query, query_embedding, child_k, filter_criteria)
-            if query_embedding is not None
-            else asyncio.sleep(0, result=[])
-        )
-        lexical_task = self._lexical_search(normalized_query, child_k, filter_criteria)
+        async def _timed_dense_search():
+            dense_started_at = time.perf_counter()
+            try:
+                if query_embedding is None:
+                    return []
+                return await self._dense_search(
+                    normalized_query,
+                    query_embedding,
+                    child_k,
+                    filter_criteria,
+                )
+            finally:
+                try:
+                    get_request_context().set_stage_timing_ms(
+                        "dense_ms",
+                        (time.perf_counter() - dense_started_at) * 1000,
+                    )
+                except Exception:
+                    pass
+
+        async def _timed_lexical_search():
+            lexical_started_at = time.perf_counter()
+            try:
+                return await self._lexical_search(normalized_query, child_k, filter_criteria)
+            finally:
+                try:
+                    get_request_context().set_stage_timing_ms(
+                        "lexical_ms",
+                        (time.perf_counter() - lexical_started_at) * 1000,
+                    )
+                except Exception:
+                    pass
+
+        dense_task = _timed_dense_search()
+        lexical_task = _timed_lexical_search()
         dense_hits, lexical_hits = await asyncio.gather(dense_task, lexical_task)
         if query_embedding is None and lexical_hits:
             self._last_gating_reason = "lexical_only"
@@ -120,7 +233,15 @@ class HierarchicalRetriever(RAGRetriever):
             self._last_gating_reason = "no_candidates"
             return []
 
+        hydrate_started_at = time.perf_counter()
         parent_candidates = await self._hydrate_parent_candidates(fused_children, k)
+        try:
+            get_request_context().set_stage_timing_ms(
+                "hydrate_ms",
+                (time.perf_counter() - hydrate_started_at) * 1000,
+            )
+        except Exception:
+            pass
         if not parent_candidates:
             self._last_gating_reason = "no_parent_candidates"
             return []
@@ -129,11 +250,19 @@ class HierarchicalRetriever(RAGRetriever):
             max(1, int(k)),
             int(getattr(settings, "hybrid_parent_candidate_limit", 6)),
         )
+        rerank_started_at = time.perf_counter()
         reranked = (
             await self.reranker.rerank(query=normalized_query, candidates=parent_candidates, limit=limit)
             if self.reranker is not None
             else parent_candidates[:limit]
         )
+        try:
+            get_request_context().set_stage_timing_ms(
+                "rerank_ms",
+                (time.perf_counter() - rerank_started_at) * 1000,
+            )
+        except Exception:
+            pass
         self._last_gating_reason = "accepted" if reranked else "reranker_empty"
         return reranked[: max(1, int(k))]
 
@@ -328,6 +457,7 @@ class HierarchicalRetriever(RAGRetriever):
                             "lexical_score": float(child.get("lexical_score", 0.0) or 0.0),
                             "page_start": child.get("page_start"),
                             "page_end": child.get("page_end"),
+                            "content": str(child.get("content") or ""),
                             "preview": str(child.get("content") or "")[:300],
                         }
                         for child in evidence[:5]
@@ -363,6 +493,11 @@ class HierarchicalRetriever(RAGRetriever):
 
     def _parent_candidate_to_document(self, candidate: ParentCandidate) -> Document:
         parent = candidate.parent
+        page_content = (
+            self._build_child_first_context(candidate)
+            if self._child_first_context_enabled()
+            else parent.content
+        )
         metadata = {
             "parent_id": parent.parent_id,
             "doc_id": parent.doc_id,
@@ -382,8 +517,9 @@ class HierarchicalRetriever(RAGRetriever):
             "rerank_score": float(candidate.rerank_score or candidate.fused_score),
             "chunk_type": "parent_document",
             "child_hits": candidate.evidence,
+            "context_mode": "child_first" if self._child_first_context_enabled() else "parent_full",
         }
-        return Document(page_content=parent.content, metadata=metadata)
+        return Document(page_content=page_content, metadata=metadata)
 
     def format_context_from_documents(self, documents: list[Document]) -> str:
         if not documents:
@@ -394,7 +530,8 @@ class HierarchicalRetriever(RAGRetriever):
             metadata = doc.metadata or {}
             parts.append(
                 f"[Documento: {metadata.get('source')}, paginas {metadata.get('page_start')}-{metadata.get('page_end')}, "
-                f"seccion: {metadata.get('section_title') or 'sin seccion'}]"
+                f"seccion: {metadata.get('section_title') or 'sin seccion'}, "
+                f"modo_contexto: {metadata.get('context_mode') or 'parent_full'}]"
             )
             parts.append((doc.page_content or "").strip())
 

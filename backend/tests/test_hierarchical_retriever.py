@@ -4,6 +4,7 @@ import pytest
 from langchain_core.documents import Document
 
 from rag.ingestion.models import PageSpan, ParentDocument
+from core.request_context import new_request_context, get_request_context
 from rag.retrieval.hierarchical_retriever import HierarchicalRetriever
 from rag.retrieval.reranker import BaseParentReranker, ParentCandidate
 
@@ -105,7 +106,6 @@ def _build_child(parent_id: str, score: float, content: str, *, child_id: str, p
     )
 
 
-@pytest.mark.asyncio
 async def test_hierarchical_retriever_groups_children_and_hydrates_parents():
     dense_children = [
         _build_child("parent_a", 0.91, "Evidencia A1", child_id="child_a1", page_start=2),
@@ -156,7 +156,6 @@ async def test_hierarchical_retriever_groups_children_and_hydrates_parents():
     assert lexical_repo.calls[0]["limit"] == 8
 
 
-@pytest.mark.asyncio
 async def test_hierarchical_retriever_trace_includes_context_and_timings():
     children = [
         _build_child("parent_a", 0.93, "La tabla muestra el valor 2026.", child_id="child_a1", page_start=1),
@@ -185,3 +184,29 @@ async def test_hierarchical_retriever_trace_includes_context_and_timings():
     assert trace["retrieved"][0]["child_hits"][0]["child_id"] == "child_a1"
     assert trace["retrieved"][0]["dense_score"] > 0
     assert "Contenido del padre parent_a" in (trace["context"] or "")
+
+
+async def test_hierarchical_retriever_records_stage_timings():
+    children = [
+        _build_child("parent_a", 0.93, "La tabla muestra el valor 2026.", child_id="child_a1", page_start=1),
+    ]
+    vector_store = _FakeChildVectorStore(children)
+    repository = _FakeParentRepository([_build_parent("parent_a", parent_index=0)])
+    lexical_repo = _FakeLexicalRepository([])
+    retriever = HierarchicalRetriever(
+        child_vector_store=vector_store,
+        parent_repository=repository,
+        embedding_manager=_FakeEmbeddingManager(),
+        lexical_repository=lexical_repo,
+        reranker=_FakeReranker(),
+        child_fetch_multiplier=3,
+    )
+
+    new_request_context()
+    results = await retriever.retrieve_parents(query="valor exacto 2026 en la tabla", k=1)
+    req_ctx = get_request_context()
+
+    assert len(results) == 1
+    for key in ("embedding_ms", "dense_ms", "lexical_ms", "hydrate_ms", "rerank_ms"):
+        assert key in req_ctx.stage_timings_ms
+        assert req_ctx.stage_timings_ms[key] >= 0
