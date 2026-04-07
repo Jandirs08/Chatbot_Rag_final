@@ -21,7 +21,6 @@ import type { User } from "@/lib/services/authService";
 export interface AuthState {
   user: User | null;
   token: string | null;
-  refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
@@ -42,7 +41,6 @@ type AuthAction =
       payload: {
         user: User;
         token: string | null;
-        refreshToken: string | null;
       };
     }
   | { type: "AUTH_FAILURE"; payload: string }
@@ -57,7 +55,6 @@ function createAuthState(
     return {
       user: null,
       token: null,
-      refreshToken: null,
       isAuthenticated: false,
       isLoading: false,
       error: null,
@@ -67,7 +64,6 @@ function createAuthState(
   return {
     user: initialSession.user,
     token: initialSession.accessToken,
-    refreshToken: initialSession.refreshToken,
     isAuthenticated: true,
     isLoading: false,
     error: null,
@@ -88,7 +84,6 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
         ...state,
         user: action.payload.user,
         token: action.payload.token,
-        refreshToken: action.payload.refreshToken,
         isAuthenticated: true,
         isLoading: false,
         error: null,
@@ -99,7 +94,6 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
         ...state,
         user: null,
         token: null,
-        refreshToken: null,
         isAuthenticated: false,
         isLoading: false,
         error: action.payload,
@@ -109,7 +103,6 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
       return {
         user: null,
         token: null,
-        refreshToken: null,
         isAuthenticated: false,
         isLoading: false,
         error: null,
@@ -151,20 +144,24 @@ export function AuthProvider({
 
   useEffect(() => {
     if (!initialSession) {
+      TokenManager.clearTokens();
+
+      if (state.isAuthenticated || state.token) {
+        dispatch({ type: "AUTH_LOGOUT" });
+      }
+
       return;
     }
 
     TokenManager.setSession({
       accessToken: initialSession.accessToken,
-      refreshToken: initialSession.refreshToken,
       expiresAt: initialSession.expiresAt,
     });
 
     const isSameSession =
       state.isAuthenticated &&
       state.user?.id === initialSession.user.id &&
-      state.token === initialSession.accessToken &&
-      state.refreshToken === initialSession.refreshToken;
+      state.token === initialSession.accessToken;
 
     if (isSameSession) {
       return;
@@ -175,13 +172,11 @@ export function AuthProvider({
       payload: {
         user: initialSession.user,
         token: initialSession.accessToken,
-        refreshToken: initialSession.refreshToken,
       },
     });
   }, [
     initialSession,
     state.isAuthenticated,
-    state.refreshToken,
     state.token,
     state.user,
   ]);
@@ -197,7 +192,6 @@ export function AuthProvider({
         payload: {
           user,
           token: TokenManager.getAccessToken(),
-          refreshToken: TokenManager.getRefreshToken(),
         },
       });
     } catch (error) {
@@ -217,7 +211,6 @@ export function AuthProvider({
         payload: {
           user,
           token: response.access_token,
-          refreshToken: response.refresh_token,
         },
       });
     } catch (error) {
@@ -254,24 +247,6 @@ export function AuthProvider({
     };
   }, [checkAuthStatus]);
 
-  useEffect(() => {
-    if (!state.isAuthenticated) {
-      return;
-    }
-
-    const expiryTime = TokenManager.getExpiryTime();
-    if (!expiryTime) {
-      return;
-    }
-
-    const refreshDelayMs = Math.max(1000, expiryTime - Date.now() - 60_000);
-    const refreshTimeout = window.setTimeout(() => {
-      void refreshAuth();
-    }, refreshDelayMs);
-
-    return () => window.clearTimeout(refreshTimeout);
-  }, [refreshAuth, state.isAuthenticated, state.token]);
-
   const login = async (email: string, password: string) => {
     try {
       dispatch({ type: "AUTH_START" });
@@ -284,7 +259,6 @@ export function AuthProvider({
         payload: {
           user,
           token: response.access_token,
-          refreshToken: response.refresh_token,
         },
       });
     } catch (error) {

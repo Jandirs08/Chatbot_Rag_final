@@ -29,7 +29,7 @@ export interface AuthResponse {
   access_token: string;
   token_type: string;
   expires_in: number;
-  refresh_token: string;
+  refresh_token?: string | null;
 }
 
 export interface AuthError {
@@ -66,41 +66,28 @@ async function expireSession(): Promise<void> {
 
 class TokenManager {
   private static accessToken: string | null = null;
-  private static refreshToken: string | null = null;
   private static expiryTime: number | null = null;
 
-  static setTokens(
-    accessToken: string,
-    refreshToken: string | null,
-    expiresIn: number,
-  ): void {
+  static setTokens(accessToken: string, expiresIn: number): void {
     this.setSession({
       accessToken,
-      refreshToken,
       expiresAt: Date.now() + expiresIn * 1000,
     });
   }
 
   static setSession({
     accessToken,
-    refreshToken,
     expiresAt,
   }: {
     accessToken: string;
-    refreshToken: string | null;
     expiresAt: number | null;
   }): void {
     this.accessToken = accessToken;
-    this.refreshToken = refreshToken;
     this.expiryTime = expiresAt;
   }
 
   static getAccessToken(): string | null {
     return this.accessToken;
-  }
-
-  static getRefreshToken(): string | null {
-    return this.refreshToken;
   }
 
   static getExpiryTime(): number | null {
@@ -113,7 +100,6 @@ class TokenManager {
 
   static clearTokens(): void {
     this.accessToken = null;
-    this.refreshToken = null;
     this.expiryTime = null;
   }
 
@@ -182,7 +168,6 @@ export const authService = {
 
       TokenManager.setTokens(
         authData.access_token,
-        authData.refresh_token,
         authData.expires_in,
       );
 
@@ -241,7 +226,6 @@ export const authService = {
       const authData: AuthResponse = await response.json();
       TokenManager.setTokens(
         authData.access_token,
-        authData.refresh_token,
         authData.expires_in,
       );
 
