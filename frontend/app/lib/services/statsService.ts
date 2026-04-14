@@ -1,4 +1,5 @@
-import { API_URL } from "../config";
+﻿import { API_URL } from "../config";
+import { logger } from "../logger";
 import { authenticatedFetch } from "./authService";
 
 export interface Stats {
@@ -34,7 +35,7 @@ class StatsService {
         total_pdfs: Number(data.total_pdfs) || 0,
       };
     } catch (error) {
-      console.error("StatsService: Error al obtener stats:", error);
+      logger.error("StatsService: Error al obtener stats:", error);
       throw error;
     }
   }
@@ -57,7 +58,7 @@ class StatsService {
         users_count: Number(d.users_count) || 0,
       }));
     } catch (error) {
-      console.error("StatsService: Error al obtener histórico:", error);
+      logger.error("StatsService: Error al obtener histórico:", error);
       throw error;
     }
   }

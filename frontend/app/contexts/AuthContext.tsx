@@ -23,6 +23,7 @@ export interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isInitialized: boolean;
   error: string | null;
 }
 
@@ -57,6 +58,7 @@ function createAuthState(
       token: null,
       isAuthenticated: false,
       isLoading: false,
+      isInitialized: false,
       error: null,
     };
   }
@@ -66,6 +68,7 @@ function createAuthState(
     token: initialSession.accessToken,
     isAuthenticated: true,
     isLoading: false,
+    isInitialized: true,
     error: null,
   };
 }
@@ -86,6 +89,7 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
         token: action.payload.token,
         isAuthenticated: true,
         isLoading: false,
+        isInitialized: true,
         error: null,
       };
 
@@ -96,6 +100,7 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
         token: null,
         isAuthenticated: false,
         isLoading: false,
+        isInitialized: true,
         error: action.payload,
       };
 
@@ -105,6 +110,7 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
         token: null,
         isAuthenticated: false,
         isLoading: false,
+        isInitialized: true,
         error: null,
       };
 
@@ -165,6 +171,8 @@ export function AuthProvider({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const bootstrapRef = React.useRef(false);
+
   const checkAuthStatus = useCallback(async () => {
     dispatch({ type: "SET_LOADING", payload: true });
 
@@ -186,6 +194,17 @@ export function AuthProvider({
       dispatch({ type: "SET_LOADING", payload: false });
     }
   }, []);
+
+  useEffect(() => {
+    if (bootstrapRef.current) return;
+    bootstrapRef.current = true;
+
+    if (initialSession) {
+      return;
+    }
+
+    void checkAuthStatus();
+  }, [checkAuthStatus, initialSession]);
 
   const refreshAuth = useCallback(async () => {
     try {

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useState, Suspense } from "react";
 import useSWR from "swr";
@@ -63,7 +63,7 @@ const fetcher = async (url: string) => {
   return res.json();
 };
 
-// --- Helpers Visuales (Humanización de IDs) ---
+// --- Helpers Visuales (HumanizaciÃ³n de IDs) ---
 const colorFromId = (id: string) => {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 360;
@@ -72,7 +72,7 @@ const colorFromId = (id: string) => {
 
 const humanizeId = (id?: string | null) => {
   if (!id) return "Usuario Desconocido";
-  // Toma los últimos 4 caracteres hexadecimales para crear un "Tag"
+  // Toma los Ãºltimos 4 caracteres hexadecimales para crear un "Tag"
   const clean = id.replace(/[^a-fA-F0-9]/g, "");
   const tag = clean.slice(-4).toUpperCase();
   return `Visitante #${tag || "0000"}`;
@@ -149,7 +149,7 @@ function AdminInboxContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Estado local solo para la selección visual inmediata
+  // Estado local solo para la selecciÃ³n visual inmediata
   const chatIdFromUrl = searchParams.get("chatId");
   const hasChat = Boolean(chatIdFromUrl);
   const [filterConfig, setFilterConfig] = useState({
@@ -159,7 +159,7 @@ function AdminInboxContent() {
     hideTrivial: false,
   });
 
-  // Paginación
+  // PaginaciÃ³n
   const [page, setPage] = useState(1);
   const LIMIT = 50;
 
@@ -183,7 +183,7 @@ function AdminInboxContent() {
   const totalConversations = conversationData?.total || 0;
   const totalPages = Math.max(1, Math.ceil(totalConversations / LIMIT));
 
-  // 2. SWR para el HISTORIAL del chat seleccionado (Polling más rápido: 5s)
+  // 2. SWR para el HISTORIAL del chat seleccionado (Polling mÃ¡s rÃ¡pido: 5s)
   // Esto hace que los mensajes aparezcan solos sin refrescar
   const { data: messages = EMPTY_HISTORY, isLoading: loadingHistory } = useSWR<
     HistoryItem[]
@@ -293,7 +293,7 @@ function AdminInboxContent() {
     }
   }, [messages, chatIdFromUrl]);
 
-  // Manejo de selección
+  // Manejo de selecciÃ³n
   const handleSelectChat = (id: string) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("chatId", id);
@@ -374,7 +374,7 @@ function AdminInboxContent() {
                 <p className="m-0 text-xs text-muted-foreground">
                   {hasActiveFilters
                     ? `Filtradas sobre ${totalConversations}`
-                    : "Actualizadas automÃ¡ticamente"}
+                    : "Actualizadas automáticamente"}
                 </p>
               </div>
               <Button
@@ -391,7 +391,7 @@ function AdminInboxContent() {
             </div>
             <div className="flex items-center gap-2">
               <Input
-                placeholder="Buscar por texto o ID…"
+                placeholder="Buscar por texto o ID..."
                 value={filterConfig.search}
                 onChange={(e) =>
                   setFilterConfig((f) => ({ ...f, search: e.target.value }))
@@ -721,7 +721,7 @@ function AdminInboxContent() {
             )}
           </div>
 
-          {/* Paginación */}
+          {/* PaginaciÃ³n */}
           <div className="flex items-center justify-between border-t border-border/60 bg-card/80 px-4 py-3">
             <div className="text-xs text-muted-foreground">
               Pagina {page} de {totalPages}
@@ -760,7 +760,7 @@ function AdminInboxContent() {
               </div>
               <p className="text-[13px] font-medium">Selecciona una conversación</p>
               <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-                La lista mantiene contexto y estados; el detalle aparece aquÃ­ sin competir con el resto de la interfaz.
+                La lista mantiene contexto y estados; el detalle aparece aquí sin competir con el resto de la interfaz.
               </p>
             </div>
           ) : (
@@ -793,7 +793,7 @@ function AdminInboxContent() {
                         {selectedConversation?.total_messages ?? messages.length} mensajes
                       </Badge>
                       <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] font-mono text-muted-foreground">
-                        {chatIdFromUrl.slice(0, 8)}…
+                        {chatIdFromUrl.slice(0, 8)}...
                       </span>
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -883,7 +883,7 @@ function AdminInboxContent() {
 
               <div className="border-t border-border/60 bg-card/90 px-5 py-3">
                 <div className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-3 py-1.5 text-[11px] font-medium text-muted-foreground">
-                  🔒 Solo lectura
+                  Solo lectura
                 </div>
               </div>
             </>
@@ -907,3 +907,4 @@ export default function AdminInboxPage() {
     </Suspense>
   );
 }
+

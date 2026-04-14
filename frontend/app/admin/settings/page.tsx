@@ -1,7 +1,7 @@
 "use client";
 import React, { useMemo, useState } from "react";
-import useSWR from "swr";
 import { useAuth } from "@/app/hooks/useAuth";
+import { useBotConfig } from "@/app/hooks/useBotConfig";
 import {
   Tabs,
   TabsList,
@@ -15,11 +15,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  getBotConfig,
   updateBotConfig,
   resetBotConfig,
   getBotRuntime,
-  type BotConfigDTO,
   type BotRuntimeDTO,
 } from "@/app/lib/services/botConfigService";
 import {
@@ -50,11 +48,10 @@ export default function AdminSettingsPage() {
     placeholder: "Escribe aquí...",
     starters: [] as string[],
   });
-  const { data, isLoading, mutate } = useSWR<BotConfigDTO>(
-    isAuthorized ? "bot-config" : null,
-    async () => getBotConfig(),
-    { revalidateOnFocus: true },
-  );
+  const { data, isLoading, mutate } = useBotConfig({
+    enabled: isAuthorized,
+    revalidateOnFocus: true,
+  });
   const baseline = useMemo(() => {
     const name = data?.bot_name || "Asistente IA";
     const brand = data?.theme_color || "#F97316";

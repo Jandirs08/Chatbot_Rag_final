@@ -15,6 +15,7 @@ export function useAuth() {
     token: context.token,
     isAuthenticated: context.isAuthenticated,
     isLoading: context.isLoading,
+    isInitialized: context.isInitialized,
     error: context.error,
     
     // Computed properties

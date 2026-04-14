@@ -1,9 +1,10 @@
 import "server-only";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { API_URL } from "@/app/lib/config";
 import type { User } from "@/app/lib/services/authService";
 import type { AuthSessionSnapshot } from "./session";
+import { SSR_ACCESS_TOKEN_HEADER } from "./session";
 import { ACCESS_TOKEN_COOKIE, decodeTokenExpiry } from "./sessionRefresh";
 
 async function fetchCurrentUser(accessToken: string): Promise<User | null> {
@@ -28,8 +29,12 @@ async function fetchCurrentUser(accessToken: string): Promise<User | null> {
 }
 
 export async function resolveServerSession(): Promise<AuthSessionSnapshot | null> {
+  const headerStore = headers();
   const cookieStore = cookies();
-  const accessToken = cookieStore.get(ACCESS_TOKEN_COOKIE)?.value ?? null;
+  const forwardedAccessToken =
+    headerStore.get(SSR_ACCESS_TOKEN_HEADER)?.trim() || null;
+  const accessToken =
+    forwardedAccessToken ?? cookieStore.get(ACCESS_TOKEN_COOKIE)?.value ?? null;
 
   if (!accessToken) {
     return null;

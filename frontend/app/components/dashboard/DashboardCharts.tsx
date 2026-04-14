@@ -1,9 +1,15 @@
-"use client";
-import React, { useEffect, useState } from "react";
+﻿"use client";
+import React, { useMemo, useState } from "react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { statsService } from "@/app/lib/services/statsService";
+import { useStatsHistory } from "@/app/hooks/useDashboardData";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -14,10 +20,25 @@ import {
 } from "recharts";
 
 function formatLabel(dateIso: string, range: "7d" | "30d" | "3m"): string {
-  const [year, monthNum, dayNum] = dateIso.split("-").map((v) => parseInt(v, 10));
+  const [year, monthNum, dayNum] = dateIso
+    .split("-")
+    .map((value) => parseInt(value, 10));
   const dt = new Date(year, (monthNum || 1) - 1, dayNum || 1);
   const days = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-  const months = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+  const months = [
+    "Ene",
+    "Feb",
+    "Mar",
+    "Abr",
+    "May",
+    "Jun",
+    "Jul",
+    "Ago",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dic",
+  ];
   if (range === "7d") return days[dt.getDay()];
   const day = dt.getDate();
   const monthLabel = months[dt.getMonth()];
@@ -32,12 +53,20 @@ type TooltipProps = {
   color: string;
 };
 
-function CustomTooltip({ active, payload, label, metricLabel, color }: TooltipProps) {
+function CustomTooltip({
+  active,
+  payload,
+  label,
+  metricLabel,
+  color,
+}: TooltipProps) {
   if (!active || !payload || !payload.length) return null;
   const value = payload[0]?.value ?? 0;
   return (
     <div className="rounded-xl border border-slate-100 bg-white dark:bg-slate-900 dark:border-slate-800 shadow-lg px-4 py-3">
-      <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</div>
+      <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+        {label}
+      </div>
       <div className="mt-1 flex items-center gap-2">
         <div
           className="w-2.5 h-2.5 rounded-full"
@@ -55,48 +84,38 @@ function CustomTooltip({ active, payload, label, metricLabel, color }: TooltipPr
 }
 
 export default function DashboardCharts() {
-  const [activeTab, setActiveTab] = useState<"consultas" | "usuarios">("consultas");
+  const [activeTab, setActiveTab] = useState<"consultas" | "usuarios">(
+    "consultas",
+  );
   const [range, setRange] = useState<"7d" | "30d" | "3m">("7d");
-  const [loading, setLoading] = useState<boolean>(false);
-  const [data, setData] = useState<{ name: string; consultas: number; usuarios: number }[]>([]);
+  const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
+  const { data: historyPoints, isLoading: loading } = useStatsHistory(days);
+  const data = useMemo(
+    () =>
+      (historyPoints ?? []).map((point) => ({
+        name: formatLabel(point.date, range),
+        consultas: point.messages_count,
+        usuarios: point.users_count,
+      })),
+    [historyPoints, range],
+  );
   const dataKey = activeTab === "consultas" ? "consultas" : "usuarios";
 
-  // Color palette for each metric
   const chartColors = {
     consultas: {
-      stroke: "#3b82f6", // blue-500
+      stroke: "#3b82f6",
       fill: "#3b82f6",
     },
     usuarios: {
-      stroke: "#8b5cf6", // violet-500
+      stroke: "#8b5cf6",
       fill: "#8b5cf6",
     },
   };
 
   const currentColor = chartColors[activeTab];
 
-  useEffect(() => {
-    const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
-    setLoading(true);
-    statsService
-      .getHistory(days)
-      .then((points) => {
-        const formatted = points.map((p) => ({
-          name: formatLabel(p.date, range),
-          consultas: p.messages_count,
-          usuarios: p.users_count,
-        }));
-        setData(formatted);
-      })
-      .catch(() => {
-        setData([]);
-      })
-      .finally(() => setLoading(false));
-  }, [range]);
-
   return (
     <div className="space-y-6">
-      {/* Controls bar */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="space-y-1">
           <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
@@ -124,7 +143,10 @@ export default function DashboardCharts() {
             </TabsList>
           </Tabs>
           <Select value={range} onValueChange={(v: any) => setRange(v)}>
-            <SelectTrigger className="w-40 h-9 text-sm bg-white dark:bg-slate-900" aria-label="Rango de tiempo">
+            <SelectTrigger
+              className="w-40 h-9 text-sm bg-white dark:bg-slate-900"
+              aria-label="Rango de tiempo"
+            >
               <SelectValue placeholder="Últimos 7 días" />
             </SelectTrigger>
             <SelectContent>
@@ -136,7 +158,6 @@ export default function DashboardCharts() {
         </div>
       </div>
 
-      {/* Chart */}
       <div className="h-[320px] w-full">
         {loading ? (
           <Skeleton className="w-full h-full rounded-xl" />
@@ -155,7 +176,6 @@ export default function DashboardCharts() {
                 </linearGradient>
               </defs>
 
-              {/* Clean X Axis */}
               <XAxis
                 dataKey="name"
                 tick={{ fill: "#94a3b8", fontSize: 12 }}
@@ -166,28 +186,34 @@ export default function DashboardCharts() {
                 interval="preserveStartEnd"
               />
 
-              {/* Clean Y Axis */}
               <YAxis
                 tick={{ fill: "#94a3b8", fontSize: 12 }}
                 axisLine={false}
                 tickLine={false}
                 width={40}
-                tickFormatter={(value) => value >= 1000 ? `${(value / 1000).toFixed(0)}k` : value}
+                tickFormatter={(value) =>
+                  value >= 1000 ? `${(value / 1000).toFixed(0)}k` : value
+                }
               />
 
-              {/* Custom Tooltip */}
               <Tooltip
                 content={(props: any) => (
                   <CustomTooltip
                     {...props}
-                    metricLabel={activeTab === "consultas" ? "consultas" : "usuarios"}
+                    metricLabel={
+                      activeTab === "consultas" ? "consultas" : "usuarios"
+                    }
                     color={currentColor.stroke}
                   />
                 )}
-                cursor={{ stroke: currentColor.stroke, strokeWidth: 1, strokeDasharray: "4 4", strokeOpacity: 0.3 }}
+                cursor={{
+                  stroke: currentColor.stroke,
+                  strokeWidth: 1,
+                  strokeDasharray: "4 4",
+                  strokeOpacity: 0.3,
+                }}
               />
 
-              {/* Area with smooth curve */}
               <Area
                 type="monotone"
                 dataKey={dataKey}
@@ -200,7 +226,7 @@ export default function DashboardCharts() {
                   strokeWidth: 3,
                   fill: "white",
                   stroke: currentColor.stroke,
-                  className: "drop-shadow-md"
+                  className: "drop-shadow-md",
                 }}
                 isAnimationActive
                 animationDuration={500}

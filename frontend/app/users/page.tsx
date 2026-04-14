@@ -1,71 +1,128 @@
-"use client";
-import { useState, useEffect } from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/card";
+﻿"use client";
+import { useEffect, useState } from "react";
+import { useUsers, useUsersMutations } from "@/app/hooks/useUsers";
+import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../components/ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { toast } from "sonner";
 import { Switch } from "../components/ui/switch";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
-import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogFooter, AlertDialogCancel, AlertDialogAction, AlertDialogTrigger } from "../components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "../components/ui/alert-dialog";
 import { Skeleton } from "../components/ui/skeleton";
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "../components/ui/select";
-import { userService, CreateUserData, UserListItem, PaginatedUsersResponse } from "../lib/services/userService";
-import { authService } from "../lib/services/authService";
+import {
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from "../components/ui/select";
+import { CreateUserData, UserListItem } from "../lib/services/userService";
 
 export default function UsuariosPage() {
-  const [users, setUsers] = useState<UserListItem[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState<CreateUserData>({ email: "", password: "", full_name: "", is_admin: true });
+  const [form, setForm] = useState<CreateUserData>({
+    email: "",
+    password: "",
+    full_name: "",
+    is_admin: true,
+  });
   const [role, setRole] = useState<string>("admin");
-  const [passwordHints, setPasswordHints] = useState({ len: false, upper: false, special: false });
+  const [passwordHints, setPasswordHints] = useState({
+    len: false,
+    upper: false,
+    special: false,
+  });
   const [editingUser, setEditingUser] = useState<UserListItem | null>(null);
-  const [editForm, setEditForm] = useState<{ email: string; full_name: string; role: string; is_active: boolean; password: string }>({ email: "", full_name: "", role: "admin", is_active: true, password: "" });
-  const [editPasswordHints, setEditPasswordHints] = useState({ len: false, upper: false, special: false });
+  const [editForm, setEditForm] = useState<{
+    email: string;
+    full_name: string;
+    role: string;
+    is_active: boolean;
+    password: string;
+  }>({
+    email: "",
+    full_name: "",
+    role: "admin",
+    is_active: true,
+    password: "",
+  });
+  const [editPasswordHints, setEditPasswordHints] = useState({
+    len: false,
+    upper: false,
+    special: false,
+  });
   const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set());
+  const [pendingActiveById, setPendingActiveById] = useState<Record<string, boolean>>({});
   const [deleteUser, setDeleteUser] = useState<UserListItem | null>(null);
-  // Filtros y paginación
   const [search, setSearch] = useState<string>("");
   const [debouncedSearch, setDebouncedSearch] = useState<string>("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [activeFilter, setActiveFilter] = useState<string>("all");
   const [skip, setSkip] = useState<number>(0);
   const [limit, setLimit] = useState<number>(10);
-  const [total, setTotal] = useState<number>(0);
 
-  // Debounce del buscador
+  const { data, error: listError, isLoading } = useUsers(
+    {
+      skip,
+      limit,
+      search: debouncedSearch || undefined,
+      role:
+        roleFilter !== "all" ? (roleFilter as "admin" | "user") : undefined,
+      is_active:
+        activeFilter === "all" ? undefined : activeFilter === "active",
+    },
+    {
+      keepPreviousData: true,
+      revalidateOnFocus: true,
+    },
+  );
+  const {
+    createUser: createUserAction,
+    updateUser: updateUserAction,
+    deleteUser: deleteUserAction,
+    requestPasswordReset,
+  } = useUsersMutations();
+
+  const users = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const loading = isLoading && !data;
+  const pageError =
+    error || (listError instanceof Error ? listError.message : null);
+
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 400);
     return () => clearTimeout(t);
   }, [search]);
 
-  useEffect(() => {
-    setLoading(true);
-    (async () => {
-      try {
-        const params: any = { skip, limit };
-        if (debouncedSearch) params.search = debouncedSearch;
-        if (roleFilter !== 'all') params.role = roleFilter;
-        if (activeFilter !== 'all') params.is_active = activeFilter === 'active';
-        const data: PaginatedUsersResponse = await userService.listUsers(params);
-        setUsers(data.items);
-        setTotal(data.total);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Error al cargar usuarios");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [debouncedSearch, roleFilter, activeFilter, skip, limit]);
-
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
-    setForm(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
-    if (name === 'password') {
+    setForm((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+    if (name === "password") {
       const len = value.length >= 8;
       const upper = /[A-Z]/.test(value);
       const special = /[^A-Za-z0-9]/.test(value);
@@ -75,8 +132,11 @@ export default function UsuariosPage() {
 
   const onEditChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
-    setEditForm(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
-    if (name === 'password') {
+    setEditForm((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+    if (name === "password") {
       const len = value.length >= 8;
       const upper = /[A-Z]/.test(value);
       const special = /[^A-Za-z0-9]/.test(value);
@@ -87,9 +147,10 @@ export default function UsuariosPage() {
   const createUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    // Validación de política de contraseña
     if (!passwordHints.len || !passwordHints.upper || !passwordHints.special) {
-      setError("La contraseña debe tener mínimo 8 caracteres, una mayúscula y un carácter especial.");
+      setError(
+        "La contraseña debe tener mínimo 8 caracteres, una mayúscula y un carácter especial.",
+      );
       return;
     }
     try {
@@ -97,13 +158,12 @@ export default function UsuariosPage() {
         email: form.email,
         password: form.password,
         full_name: form.full_name,
-        is_admin: role === 'admin',
+        is_admin: role === "admin",
       };
-      const created = await userService.createUser(payload);
-      setUsers(prev => [created, ...prev]);
+      await createUserAction(payload);
       setShowCreate(false);
       setForm({ email: "", password: "", full_name: "", is_admin: true });
-      setRole('admin');
+      setRole("admin");
       setPasswordHints({ len: false, upper: false, special: false });
       toast.success("Usuario creado correctamente");
     } catch (e) {
@@ -129,45 +189,53 @@ export default function UsuariosPage() {
     if (!editingUser) return;
     try {
       const updatePayload: any = {
-        email: editForm.email !== editingUser.email ? editForm.email : undefined,
+        email:
+          editForm.email !== editingUser.email ? editForm.email : undefined,
         full_name: editForm.full_name,
-        is_admin: editForm.role === 'admin',
+        is_admin: editForm.role === "admin",
         is_active: editForm.is_active,
       };
       if (editForm.password) {
-        if (!editPasswordHints.len || !editPasswordHints.upper || !editPasswordHints.special) {
+        if (
+          !editPasswordHints.len ||
+          !editPasswordHints.upper ||
+          !editPasswordHints.special
+        ) {
           toast.error("La nueva contraseña no cumple la política");
           return;
         }
         updatePayload.password = editForm.password;
       }
 
-      const updated = await userService.updateUser(editingUser.id, updatePayload);
-      setUsers(prev => prev.map(u => (u.id === updated.id ? updated : u)));
+      await updateUserAction(editingUser.id, updatePayload);
       setEditingUser(null);
       toast.success("Usuario actualizado correctamente");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al actualizar usuario");
+      toast.error(
+        err instanceof Error ? err.message : "Error al actualizar usuario",
+      );
     }
   };
 
   const toggleActive = async (u: UserListItem, nextChecked: boolean) => {
-    // Optimista: actualiza UI enseguida
-    setTogglingIds(prev => new Set(prev).add(u.id));
-    const prevUsers = users;
-    setUsers(prev => prev.map(x => (x.id === u.id ? { ...x, is_active: nextChecked } : x)));
+    setTogglingIds((prev) => new Set(prev).add(u.id));
+    setPendingActiveById((prev) => ({ ...prev, [u.id]: nextChecked }));
     try {
-      const updated = await userService.updateUser(u.id, { is_active: nextChecked });
-      setUsers(prev => prev.map(x => (x.id === updated.id ? updated : x)));
-      toast.success(updated.is_active ? "Usuario activado" : "Usuario desactivado");
+      const updated = await updateUserAction(u.id, { is_active: nextChecked });
+      toast.success(
+        updated.is_active ? "Usuario activado" : "Usuario desactivado",
+      );
     } catch (err) {
-      // Revertir si falla
-      setUsers(prevUsers);
       toast.error("No se pudo actualizar el estado del usuario");
     } finally {
-      setTogglingIds(prev => {
+      setTogglingIds((prev) => {
         const next = new Set(prev);
         next.delete(u.id);
+        return next;
+      });
+      setPendingActiveById((prev) => {
+        const next = { ...prev };
+        delete next[u.id];
         return next;
       });
     }
@@ -175,16 +243,31 @@ export default function UsuariosPage() {
 
   return (
     <div className="space-y-6 p-6">
-      {/* Filtros */}
       <div className="flex flex-wrap gap-4 items-end">
         <div className="space-y-2 w-full md:w-64">
           <Label htmlFor="search">Buscar</Label>
-          <Input id="search" value={search} onChange={(e) => { setSearch(e.target.value); setSkip(0); }} placeholder="Email o usuario" />
+          <Input
+            id="search"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setSkip(0);
+            }}
+            placeholder="Email o usuario"
+          />
         </div>
         <div className="space-y-2 w-full md:w-56">
           <Label htmlFor="filter_role">Rol</Label>
-          <Select value={roleFilter} onValueChange={(v) => { setRoleFilter(v); setSkip(0); }}>
-            <SelectTrigger id="filter_role" className="w-full"><SelectValue placeholder="Rol" /></SelectTrigger>
+          <Select
+            value={roleFilter}
+            onValueChange={(v) => {
+              setRoleFilter(v);
+              setSkip(0);
+            }}
+          >
+            <SelectTrigger id="filter_role" className="w-full">
+              <SelectValue placeholder="Rol" />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos</SelectItem>
               <SelectItem value="admin">Administrador</SelectItem>
@@ -194,8 +277,16 @@ export default function UsuariosPage() {
         </div>
         <div className="space-y-2 w-full md:w-56">
           <Label htmlFor="filter_active">Estado</Label>
-          <Select value={activeFilter} onValueChange={(v) => { setActiveFilter(v); setSkip(0); }}>
-            <SelectTrigger id="filter_active" className="w-full"><SelectValue placeholder="Estado" /></SelectTrigger>
+          <Select
+            value={activeFilter}
+            onValueChange={(v) => {
+              setActiveFilter(v);
+              setSkip(0);
+            }}
+          >
+            <SelectTrigger id="filter_active" className="w-full">
+              <SelectValue placeholder="Estado" />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos</SelectItem>
               <SelectItem value="active">Activo</SelectItem>
@@ -207,12 +298,12 @@ export default function UsuariosPage() {
           <span className="text-sm text-muted-foreground">Total: {total}</span>
         </div>
       </div>
-            <div className="flex items-center justify-between">
-              <h1 className="text-3xl font-bold">Gestión de Usuarios</h1>
-              <Button onClick={() => setShowCreate(true)}>Crear Usuario</Button>
-            </div>
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold">Gestión de Usuarios</h1>
+        <Button onClick={() => setShowCreate(true)}>Crear Usuario</Button>
+      </div>
 
-      {error && <p className="text-red-600">{error}</p>}
+      {pageError && <p className="text-red-600">{pageError}</p>}
 
       <Card>
         <CardContent>
@@ -243,7 +334,7 @@ export default function UsuariosPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map(u => (
+                  {users.map((u) => (
                     <tr key={u.id} className="border-b">
                       <td className="py-2 align-middle">{u.username}</td>
                       <td className="py-2 align-middle">{u.email}</td>
@@ -251,15 +342,23 @@ export default function UsuariosPage() {
                       <td className="py-2 align-middle">
                         <div className="flex items-center gap-2">
                           <Switch
-                            checked={u.is_active}
-                            onCheckedChange={(checked) => toggleActive(u, Boolean(checked))}
+                            checked={pendingActiveById[u.id] ?? u.is_active}
+                            onCheckedChange={(checked) =>
+                              toggleActive(u, Boolean(checked))
+                            }
                             disabled={togglingIds.has(u.id)}
                             aria-label={`Cambiar estado activo para ${u.username}`}
                           />
-                          <span className="text-sm text-muted-foreground">{u.is_active ? "Activo" : "Inactivo"}</span>
+                          <span className="text-sm text-muted-foreground">
+                            {(pendingActiveById[u.id] ?? u.is_active)
+                              ? "Activo"
+                              : "Inactivo"}
+                          </span>
                         </div>
                       </td>
-                      <td className="py-2 align-middle">{u.is_admin ? "Administrador" : "Usuario"}</td>
+                      <td className="py-2 align-middle">
+                        {u.is_admin ? "Administrador" : "Usuario"}
+                      </td>
                       <td className="py-2 align-middle">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -269,25 +368,29 @@ export default function UsuariosPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => openEdit(u)}>
-                              📝 Editar
+                              Editar
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={async () => {
                                 try {
-                                  await authService.requestPasswordReset(u.email);
-                                  toast.success(`Correo de recuperación enviado a ${u.email}`);
+                                  await requestPasswordReset(u.email);
+                                  toast.success(
+                                    `Correo de recuperación enviado a ${u.email}`,
+                                  );
                                 } catch (err) {
-                                  toast.error("No se pudo enviar el correo de recuperación");
+                                  toast.error(
+                                    "No se pudo enviar el correo de recuperación",
+                                  );
                                 }
                               }}
                             >
-                              📧 Enviar Reset Password
+                              Enviar reset password
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="text-red-600 focus:text-red-600"
                               onClick={() => setDeleteUser(u)}
                             >
-                              🗑️ Eliminar
+                              Eliminar
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -296,13 +399,38 @@ export default function UsuariosPage() {
                   ))}
                 </tbody>
               </table>
-              {/* Paginación simple */}
               <div className="flex items-center justify-end gap-2 mt-4">
-                <Button variant="outline" size="sm" disabled={skip===0} onClick={() => setSkip(Math.max(0, skip - limit))} className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600">Anterior</Button>
-                <span className="text-sm">Página {Math.floor(skip/limit)+1} de {Math.max(1, Math.ceil(total/limit))}</span>
-                <Button variant="outline" size="sm" disabled={skip+limit>=total} onClick={() => setSkip(skip + limit)} className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600">Siguiente</Button>
-                <Select value={String(limit)} onValueChange={(v)=>{ setLimit(Number(v)); setSkip(0); }}>
-                  <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={skip === 0}
+                  onClick={() => setSkip(Math.max(0, skip - limit))}
+                  className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600"
+                >
+                  Anterior
+                </Button>
+                <span className="text-sm">
+                  Página {Math.floor(skip / limit) + 1} de {Math.max(1, Math.ceil(total / limit))}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={skip + limit >= total}
+                  onClick={() => setSkip(skip + limit)}
+                  className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600"
+                >
+                  Siguiente
+                </Button>
+                <Select
+                  value={String(limit)}
+                  onValueChange={(v) => {
+                    setLimit(Number(v));
+                    setSkip(0);
+                  }}
+                >
+                  <SelectTrigger className="w-24">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="10">10</SelectItem>
                     <SelectItem value="20">20</SelectItem>
@@ -321,95 +449,178 @@ export default function UsuariosPage() {
             <DialogTitle>Crear Usuario</DialogTitle>
           </DialogHeader>
           <form onSubmit={createUser} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" name="email" type="email" value={form.email} onChange={onChange} required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Contraseña</Label>
-                  <Input id="password" name="password" type="password" value={form.password} onChange={onChange} required />
-                  <div className="text-xs text-muted-foreground space-y-1 mt-1">
-                    <p>Requisitos de contraseña:</p>
-                    <p className={passwordHints.len ? "text-green-600" : ""}>• 8 caracteres mínimo</p>
-                    <p className={passwordHints.upper ? "text-green-600" : ""}>• Al menos una mayúscula</p>
-                    <p className={passwordHints.special ? "text-green-600" : ""}>• Al menos un carácter especial</p>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="full_name">Nombre completo</Label>
-                  <Input id="full_name" name="full_name" value={form.full_name || ""} onChange={onChange} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="role">Rol</Label>
-                  <Select value={role} onValueChange={(v) => setRole(v)}>
-                    <SelectTrigger id="role" className="w-full"><SelectValue placeholder="Selecciona un rol" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Administrador</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                value={form.email}
+                onChange={onChange}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Contraseña</Label>
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                value={form.password}
+                onChange={onChange}
+                required
+              />
+              <div className="text-xs text-muted-foreground space-y-1 mt-1">
+                <p>Requisitos de contraseña:</p>
+                <p className={passwordHints.len ? "text-green-600" : ""}>
+                  • 8 caracteres mínimo
+                </p>
+                <p className={passwordHints.upper ? "text-green-600" : ""}>
+                  • Al menos una mayúscula
+                </p>
+                <p className={passwordHints.special ? "text-green-600" : ""}>
+                  • Al menos un carácter especial
+                </p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="full_name">Nombre completo</Label>
+              <Input
+                id="full_name"
+                name="full_name"
+                value={form.full_name || ""}
+                onChange={onChange}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="role">Rol</Label>
+              <Select value={role} onValueChange={(v) => setRole(v)}>
+                <SelectTrigger id="role" className="w-full">
+                  <SelectValue placeholder="Selecciona un rol" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Administrador</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex gap-2 justify-end">
-              <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>Cancelar</Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowCreate(false)}
+              >
+                Cancelar
+              </Button>
               <Button type="submit">Crear</Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!editingUser} onOpenChange={(open)=> !open && setEditingUser(null)}>
+      <Dialog
+        open={!!editingUser}
+        onOpenChange={(open) => !open && setEditingUser(null)}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Editar Usuario</DialogTitle>
           </DialogHeader>
           <form onSubmit={saveEdit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit_email">Email</Label>
-                  <Input id="edit_email" name="email" type="email" value={editForm.email} onChange={onEditChange} required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit_full_name">Nombre completo</Label>
-                  <Input id="edit_full_name" name="full_name" value={editForm.full_name} onChange={onEditChange} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit_role">Rol</Label>
-                  <Select value={editForm.role} onValueChange={(v) => setEditForm(prev => ({ ...prev, role: v }))}>
-                    <SelectTrigger id="edit_role" className="w-full"><SelectValue placeholder="Selecciona un rol" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Administrador</SelectItem>
-                      <SelectItem value="user">Usuario</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit_is_active">Activo</Label>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      checked={!!editForm.is_active}
-                      onCheckedChange={(checked) => setEditForm(prev => ({ ...prev, is_active: Boolean(checked) }))}
-                      aria-label="Cambiar estado activo"
-                    />
-                    <span className="text-sm text-muted-foreground">{editForm.is_active ? "Activo" : "Inactivo"}</span>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit_password">Nueva contraseña (opcional)</Label>
-                  <Input id="edit_password" name="password" type="password" value={editForm.password} onChange={onEditChange} />
-                  <div className="text-xs text-muted-foreground space-y-1 mt-1">
-                    <p>Requisitos de contraseña:</p>
-                    <p className={editPasswordHints.len ? "text-green-600" : ""}>• 8 caracteres mínimo</p>
-                    <p className={editPasswordHints.upper ? "text-green-600" : ""}>• Al menos una mayúscula</p>
-                    <p className={editPasswordHints.special ? "text-green-600" : ""}>• Al menos un carácter especial</p>
-                  </div>
-                </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_email">Email</Label>
+              <Input
+                id="edit_email"
+                name="email"
+                type="email"
+                value={editForm.email}
+                onChange={onEditChange}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_full_name">Nombre completo</Label>
+              <Input
+                id="edit_full_name"
+                name="full_name"
+                value={editForm.full_name}
+                onChange={onEditChange}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_role">Rol</Label>
+              <Select
+                value={editForm.role}
+                onValueChange={(v) =>
+                  setEditForm((prev) => ({ ...prev, role: v }))
+                }
+              >
+                <SelectTrigger id="edit_role" className="w-full">
+                  <SelectValue placeholder="Selecciona un rol" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Administrador</SelectItem>
+                  <SelectItem value="user">Usuario</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_is_active">Activo</Label>
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={!!editForm.is_active}
+                  onCheckedChange={(checked) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      is_active: Boolean(checked),
+                    }))
+                  }
+                  aria-label="Cambiar estado activo"
+                />
+                <span className="text-sm text-muted-foreground">
+                  {editForm.is_active ? "Activo" : "Inactivo"}
+                </span>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_password">Nueva contraseña (opcional)</Label>
+              <Input
+                id="edit_password"
+                name="password"
+                type="password"
+                value={editForm.password}
+                onChange={onEditChange}
+              />
+              <div className="text-xs text-muted-foreground space-y-1 mt-1">
+                <p>Requisitos de contraseña:</p>
+                <p className={editPasswordHints.len ? "text-green-600" : ""}>
+                  • 8 caracteres mínimo
+                </p>
+                <p className={editPasswordHints.upper ? "text-green-600" : ""}>
+                  • Al menos una mayúscula
+                </p>
+                <p className={editPasswordHints.special ? "text-green-600" : ""}>
+                  • Al menos un carácter especial
+                </p>
+              </div>
+            </div>
             <div className="flex gap-2 justify-end">
-              <Button type="button" variant="outline" onClick={() => setEditingUser(null)}>Cancelar</Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditingUser(null)}
+              >
+                Cancelar
+              </Button>
               <Button type="submit">Guardar</Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
-      
-      <AlertDialog open={!!deleteUser} onOpenChange={(open) => !open && setDeleteUser(null)}>
+
+      <AlertDialog
+        open={!!deleteUser}
+        onOpenChange={(open) => !open && setDeleteUser(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
@@ -419,14 +630,12 @@ export default function UsuariosPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               className="bg-red-600 hover:bg-red-700"
               onClick={async () => {
                 if (!deleteUser) return;
                 try {
-                  await userService.deleteUser(deleteUser.id);
-                  setUsers(prev => prev.filter(u => u.id !== deleteUser.id));
-                  setTotal(t => t - 1);
+                  await deleteUserAction(deleteUser.id);
                   toast.success("Usuario eliminado");
                 } catch (e) {
                   toast.error("Error al eliminar usuario");

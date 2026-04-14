@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isProtectedPath, normalizePath } from "./app/lib/auth/routeAccess";
+import { SSR_ACCESS_TOKEN_HEADER } from "./app/lib/auth/session";
 import {
   ACCESS_TOKEN_COOKIE,
   REFRESH_TOKEN_COOKIE,
@@ -28,7 +29,17 @@ export async function middleware(req: NextRequest) {
     if (refreshToken) {
       const refreshedSession = await requestSessionRefresh(refreshToken);
       if (refreshedSession) {
-        const response = NextResponse.next();
+        const requestHeaders = new Headers(req.headers);
+        requestHeaders.set(
+          SSR_ACCESS_TOKEN_HEADER,
+          refreshedSession.access_token,
+        );
+
+        const response = NextResponse.next({
+          request: {
+            headers: requestHeaders,
+          },
+        });
         applySessionCookies(response, refreshedSession, refreshToken);
         return response;
       }

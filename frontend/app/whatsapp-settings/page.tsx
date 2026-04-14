@@ -1,10 +1,10 @@
-"use client";
+﻿"use client";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/app/hooks/useAuth";
+import { useBotConfig } from "@/app/hooks/useBotConfig";
 import {
   Card,
   CardHeader,
-  CardTitle,
   CardContent,
 } from "@/app/components/ui/card";
 import { Input } from "@/app/components/ui/input";
@@ -12,11 +12,7 @@ import { Label } from "@/app/components/ui/label";
 import { Button } from "@/app/components/ui/button";
 import { toast } from "sonner";
 import { API_URL } from "@/app/lib/config";
-import {
-  getBotConfig,
-  updateBotConfig,
-  BotConfigDTO,
-} from "@/app/lib/services/botConfigService";
+import { updateBotConfig } from "@/app/lib/services/botConfigService";
 import { whatsappService } from "@/app/lib/services/whatsappService";
 import { CheckCircle, AlertTriangle, Circle } from "lucide-react";
 import { useUnsavedChanges } from "@/app/hooks/useUnsavedChanges";
@@ -24,6 +20,14 @@ import { useUnsavedChanges } from "@/app/hooks/useUnsavedChanges";
 export default function ConfiguracionWhatsAppPage() {
   const { isAdmin } = useAuth();
   const isAuthorized = isAdmin;
+  const {
+    data: botConfig,
+    error: botConfigError,
+    mutate: mutateBotConfig,
+  } = useBotConfig({
+    enabled: isAuthorized,
+    revalidateOnFocus: true,
+  });
   const [twilioSid, setTwilioSid] = useState("");
   const [twilioToken, setTwilioToken] = useState("");
   const [twilioFrom, setTwilioFrom] = useState("");
@@ -45,43 +49,40 @@ export default function ConfiguracionWhatsAppPage() {
   useUnsavedChanges(isDirty);
 
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const cfg: BotConfigDTO = await getBotConfig();
-        if (!mounted) return;
-        setTwilioSid(cfg.twilio_account_sid ?? "");
-        setTwilioToken(cfg.twilio_auth_token ?? "");
-        setTwilioFrom(cfg.twilio_whatsapp_from ?? "");
-        setFieldsLocked(true);
-        setBaselineSid(cfg.twilio_account_sid ?? "");
-        setBaselineToken(cfg.twilio_auth_token ?? "");
-        setBaselineFrom(cfg.twilio_whatsapp_from ?? "");
-        const hasData = Boolean(
-          cfg.twilio_account_sid ||
-            cfg.twilio_auth_token ||
-            cfg.twilio_whatsapp_from,
-        );
-        setStatus(hasData ? "dirty" : "unknown");
-      } catch (e: any) {
-        toast.error(e?.message || "Error al obtener configuración");
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
+    if (!botConfig) return;
+
+    setTwilioSid(botConfig.twilio_account_sid ?? "");
+    setTwilioToken(botConfig.twilio_auth_token ?? "");
+    setTwilioFrom(botConfig.twilio_whatsapp_from ?? "");
+    setFieldsLocked(true);
+    setBaselineSid(botConfig.twilio_account_sid ?? "");
+    setBaselineToken(botConfig.twilio_auth_token ?? "");
+    setBaselineFrom(botConfig.twilio_whatsapp_from ?? "");
+    const hasData = Boolean(
+      botConfig.twilio_account_sid ||
+        botConfig.twilio_auth_token ||
+        botConfig.twilio_whatsapp_from,
+    );
+    setStatus(hasData ? "dirty" : "unknown");
+  }, [botConfig]);
+
+  useEffect(() => {
+    if (!botConfigError) return;
+
+    toast.error(botConfigError.message || "Error al obtener configuración");
+  }, [botConfigError]);
 
   if (!isAuthorized) return null;
 
   const onSave = async () => {
     try {
       setLoading(true);
-      await updateBotConfig({
+      const updatedConfig = await updateBotConfig({
         twilio_account_sid: twilioSid || undefined,
         twilio_auth_token: twilioToken || undefined,
         twilio_whatsapp_from: twilioFrom || undefined,
       });
+      await mutateBotConfig(updatedConfig, { revalidate: false });
       toast.success("Configuración guardada");
       setFieldsLocked(true);
       setBaselineSid(twilioSid);
@@ -141,13 +142,12 @@ export default function ConfiguracionWhatsAppPage() {
           )}
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button
-            variant="outline"
-            onClick={() => setFieldsLocked((v) => !v)}
-          >
+          <Button variant="outline" onClick={() => setFieldsLocked((v) => !v)}>
             {fieldsLocked ? "Editar" : "Bloquear"}
           </Button>
-          <Button onClick={onTest} className="gradient-primary hover:opacity-90">Probar conexión</Button>
+          <Button onClick={onTest} className="gradient-primary hover:opacity-90">
+            Probar conexión
+          </Button>
         </div>
       </div>
       <Card>

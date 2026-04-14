@@ -1,13 +1,21 @@
-"use client";
+﻿"use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { logger } from "@/app/lib/logger";
 import { toast } from "sonner";
 import { botService } from "@/app/lib/services/botService";
-import { statsService } from "@/app/lib/services/statsService";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card";
-import dynamic from "next/dynamic";
-import { Suspense } from "react";
+import {
+  useBotState,
+  useDashboardStats,
+} from "@/app/hooks/useDashboardData";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/app/components/ui/card";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import DashboardHeader from "./DashboardHeader";
 import DashboardStats from "./DashboardStats";
@@ -15,7 +23,7 @@ import DashboardQuickActions from "./DashboardQuickActions";
 
 const DashboardChartsLazy = dynamic(
   () => import("@/components/dashboard/DashboardCharts"),
-  { ssr: false, suspense: true }
+  { ssr: false, suspense: true },
 );
 
 function ChartsSkeleton() {
@@ -27,43 +35,23 @@ function ChartsSkeleton() {
 }
 
 export default function DashboardClient() {
-  const [isBotActive, setIsBotActive] = useState(true);
-  const [isLoading, setIsLoading] = useState(true);
-  const [lastActivityIso, setLastActivityIso] = useState<string | null>(null);
+  const {
+    data: botState,
+    isLoading: isBotStateLoading,
+    mutate: mutateBotState,
+  } = useBotState();
+  const { data: statsData, isLoading: isStatsLoading } = useDashboardStats();
+  const [isToggling, setIsToggling] = useState(false);
   const [relativeLastActivity, setRelativeLastActivity] = useState<string>("-");
 
-  const [stats, setStats] = useState({
+  const stats = statsData ?? {
     total_queries: 0,
     total_users: 0,
     total_pdfs: 0,
-  });
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const results = await Promise.allSettled([botService.getState(), statsService.getStats()]);
-        const botRes = results[0];
-        const statsRes = results[1];
-        if (botRes.status === "fulfilled") {
-          setIsBotActive(botRes.value.is_active);
-          setLastActivityIso(botRes.value.last_activity_iso ?? null);
-        } else {
-          logger.warn("Estado del bot no disponible:", botRes.reason);
-        }
-        if (statsRes.status === "fulfilled") {
-          setStats(statsRes.value);
-        } else {
-          logger.warn("Estadísticas no disponibles:", statsRes.reason);
-        }
-      } catch (error) {
-        logger.error("Error al obtener datos:", error);
-        toast.error("Error al obtener datos del dashboard");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
+  };
+  const isBotActive = botState?.is_active ?? true;
+  const lastActivityIso = botState?.last_activity_iso ?? null;
+  const isLoading = isToggling || isBotStateLoading || isStatsLoading;
 
   useEffect(() => {
     const fmt = (iso?: string | null) => {
@@ -88,24 +76,22 @@ export default function DashboardClient() {
     return () => clearInterval(id);
   }, [lastActivityIso]);
 
-  const handleBotToggle = async (checked: boolean) => {
+  const handleBotToggle = async (_checked: boolean) => {
     try {
-      setIsLoading(true);
+      setIsToggling(true);
       const state = await botService.toggleState();
-      setIsBotActive(state.is_active);
+      await mutateBotState(state, { revalidate: false });
       toast.success(state.message);
     } catch (error) {
       logger.error("Error al cambiar el estado del bot:", error);
       toast.error("Error al cambiar el estado del bot");
-      setIsBotActive(!checked);
     } finally {
-      setIsLoading(false);
+      setIsToggling(false);
     }
   };
 
   return (
     <div className="space-y-8 animate-fade-in w-full">
-      {/* Header Section */}
       <DashboardHeader
         isBotActive={isBotActive}
         isLoading={isLoading}
@@ -113,19 +99,15 @@ export default function DashboardClient() {
         onToggle={handleBotToggle}
       />
 
-      {/* KPI Stats Cards */}
       <DashboardStats stats={stats} isLoading={isLoading} />
 
-      {/* Main Content Grid */}
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Chart Card - Takes 2 columns */}
         <Card className="lg:col-span-2 p-6">
           <Suspense fallback={<ChartsSkeleton />}>
             <DashboardChartsLazy />
           </Suspense>
         </Card>
 
-        {/* Quick Actions Card */}
         <Card className="lg:col-span-1">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white">
