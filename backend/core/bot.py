@@ -1,8 +1,9 @@
-from typing import Optional, Dict, Any, AsyncGenerator
+from typing import Optional, Dict, Any, AsyncGenerator, List
 import time
 import asyncio
 from operator import itemgetter
 
+from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from langchain_core.runnables import RunnableLambda, RunnableMap, Runnable
 
 from memory import (
@@ -358,23 +359,35 @@ class Bot:
         char_budget = context_budget * 4
         if len(context) <= char_budget:
             return context
+
+        truncated = context[:char_budget]
+
+        # Cut at paragraph boundary (prefer) or sentence boundary (fallback)
+        para_boundary = truncated.rfind("\n\n")
+        if para_boundary > char_budget * 0.75:
+            truncated = truncated[:para_boundary]
+        else:
+            for sep in (".\n", ". ", "! ", "? "):
+                sent_boundary = truncated.rfind(sep)
+                if sent_boundary > char_budget * 0.65:
+                    truncated = truncated[:sent_boundary + 1]
+                    break
+
         self.logger.warning(
             "Context truncated: %d chars → %d chars (budget %d tokens)",
-            len(context), char_budget, context_budget,
+            len(context), len(truncated), context_budget,
         )
-        return context[:char_budget] + "\n[Contexto truncado por límite de tokens]"
+        return truncated + "\n[Contexto truncado por límite de tokens]"
 
-    def _format_history(self, hist_list):
-        out = []
+    def _format_history(self, hist_list) -> List[BaseMessage]:
+        msgs: List[BaseMessage] = []
         for msg in hist_list:
             role = msg.get("role", "unknown")
             content = msg.get("content", "").strip()
+            if not content:
+                continue
             if role in ("human", "user"):
-                out.append(f"User: {content}")
+                msgs.append(HumanMessage(content=content))
             elif role in ("ai", "assistant"):
-                out.append(f"Assistant: {content}")
-            elif role == "system":
-                out.append(f"System Info: {content}")
-        if not out:
-            return "No hay mensajes previos."
-        return "\n".join(out)
+                msgs.append(AIMessage(content=content))
+        return msgs

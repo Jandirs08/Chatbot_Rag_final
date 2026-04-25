@@ -291,6 +291,18 @@ class RAGRetriever:
         if not isinstance(payload, dict):
             return None
 
+        # Granular invalidation: if any contributing doc was re-ingested, miss
+        doc_timestamps = payload.get("doc_timestamps")
+        if doc_timestamps:
+            for doc_id, stored_ts in doc_timestamps.items():
+                current_ts = cache.get(f"rag:ts:{doc_id}")
+                if current_ts != stored_ts:
+                    logger.debug(
+                        "Cache miss (doc updated): doc_id=%s stored_ts=%s current_ts=%s",
+                        doc_id, stored_ts, current_ts,
+                    )
+                    return None
+
         kind = str(payload.get("kind") or "")
         reason = str(payload.get("reason") or "cache_hit")
 
@@ -327,11 +339,17 @@ class RAGRetriever:
             use_mmr=use_mmr,
         )
 
+        # Collect doc_ids and their current timestamps for granular invalidation
+        doc_ids = list({doc.metadata.get("doc_id") for doc in documents if doc.metadata.get("doc_id")})
+        doc_timestamps = {doc_id: cache.get(f"rag:ts:{doc_id}") for doc_id in doc_ids}
+
         if documents:
             payload = {
                 "kind": "documents",
                 "reason": reason,
                 "documents": self._serialize_documents(documents),
+                "doc_ids": doc_ids,
+                "doc_timestamps": doc_timestamps,
             }
         else:
             payload = {"kind": "no_context", "reason": reason}
@@ -736,10 +754,6 @@ class RAGRetriever:
                 logger.debug("[RERANK] query_embedding not provided; returning docs unchanged")
                 return docs
 
-            for doc in docs:
-                if doc.metadata.get("vector") is None:
-                    logger.warning("Document without vector during semantic reranking.")
-
             scored_docs = []
             for doc in docs:
                 doc_embedding = doc.metadata.get("vector")
@@ -749,17 +763,14 @@ class RAGRetriever:
                     if doc_vec is not None:
                         semantic_score = float(np.dot(query_vec, doc_vec))
 
-                quality_score = float(doc.metadata.get("quality_score", 0.5))
                 length_score = min(len(doc.page_content.split()) / 100, 1.0)
                 content_type_score = self._get_content_type_score(doc.metadata.get("chunk_type", "text"))
-                pdf_priority = 1.5 if str(doc.metadata.get("source", "")).lower().endswith(".pdf") else 1.0
 
                 final_score = (
-                    semantic_score * 0.5
-                    + quality_score * 0.35
-                    + length_score * 0.1
-                    + content_type_score * 0.05
-                ) * pdf_priority
+                    semantic_score * 0.75
+                    + length_score * 0.15
+                    + content_type_score * 0.10
+                )
 
                 doc.metadata["score"] = final_score
                 scored_docs.append((doc, final_score))

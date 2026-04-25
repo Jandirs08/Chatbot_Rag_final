@@ -1,7 +1,7 @@
 from typing import Optional
 import logging
 
-from langchain_core.prompts import PromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
 from langchain_core.runnables import Runnable
 
 from models import ModelTypes, MODEL_TO_CLASS
@@ -50,10 +50,22 @@ class ChainManager:
             parameters=model_kwargs
         )
 
-        # Prompt
-        prompt_str = getattr(prompt_module, self.settings.main_prompt_name)
-        self.prompt_template_str = str(prompt_str)
-        self._prompt = PromptTemplate.from_template(prompt_str)
+        # Prompt — prefer ChatPromptTemplate (_SYSTEM variant) over legacy PromptTemplate
+        prompt_name = self.settings.main_prompt_name
+        system_prompt_str = getattr(prompt_module, f"{prompt_name}_SYSTEM", None)
+        if system_prompt_str is not None:
+            self._prompt = ChatPromptTemplate.from_messages([
+                ("system", system_prompt_str),
+                MessagesPlaceholder(variable_name="history", optional=True),
+                ("human", "{input}"),
+            ])
+        else:
+            # Legacy fallback for custom prompt names without a _SYSTEM variant
+            prompt_str = getattr(prompt_module, prompt_name)
+            self.logger.warning(
+                "Prompt '%s' has no _SYSTEM variant; falling back to PromptTemplate (legacy).", prompt_name
+            )
+            self._prompt = PromptTemplate.from_template(prompt_str)
         self._prompt = self._prompt.partial(**self.prompt_vars)
 
         # LCEL chain

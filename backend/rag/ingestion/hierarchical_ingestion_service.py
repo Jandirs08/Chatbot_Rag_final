@@ -3,12 +3,14 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
 import aiofiles
 from langchain_core.documents import Document
 
+from cache.manager import cache
 from rag.ingestion.models import ChildChunk
 
 logger = logging.getLogger(__name__)
@@ -117,6 +119,12 @@ class HierarchicalIngestionService:
             [child.content for child in result.children]
         )
         await self.vector_store.add_documents(child_documents, embeddings=child_embeddings)
+
+        # Bump doc timestamp so retrieval cache for this doc_id is invalidated
+        try:
+            cache.set(f"rag:ts:{resolved_doc_id}", str(time.time()))
+        except Exception:
+            pass
 
         return {
             "doc_id": resolved_doc_id,

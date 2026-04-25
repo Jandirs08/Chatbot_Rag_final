@@ -69,6 +69,25 @@ class EmbeddingManager:
     def _hash_text(text: str) -> str:
         return hash_for_cache_key((text or "").strip().lower())
 
+    def _embed_query_with_retry(self, query: str) -> List[float]:
+        @retry(
+            stop=stop_after_attempt(3),
+            wait=wait_exponential(multiplier=1, min=1, max=8),
+            retry=retry_if_exception_type((TimeoutError, ConnectionError, OSError)),
+            reraise=True,
+        )
+        def _call():
+            return self._openai.embed_query(query)
+
+        try:
+            return _call()
+        except RetryError as e:
+            _retry_logger.error("OpenAI embed_query falló después de reintentos: %s", e)
+            raise
+        except Exception as e:
+            _retry_logger.warning("Error no retriable en embed_query: %s: %s", type(e).__name__, e)
+            raise
+
     def _embed_batch_with_retry(self, batch_texts: List[str]) -> List[List[float]]:
         """
         Llama a OpenAI con retry robusto usando tenacity.
@@ -257,7 +276,7 @@ class EmbeddingManager:
         vector_dim = getattr(settings, "default_embedding_dimension", 1536)
 
         try:
-            embedding = self._openai.embed_query(query)
+            embedding = self._embed_query_with_retry(query)
             if isinstance(embedding, np.ndarray):
                 embedding = embedding.tolist()
 
