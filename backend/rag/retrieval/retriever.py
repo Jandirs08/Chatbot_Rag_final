@@ -785,8 +785,10 @@ class RAGRetriever:
         docs: List[Document],
         k: int,
         query_embedding: Optional[np.ndarray] = None,
-        lambda_mult: float = 0.5,
+        lambda_mult: Optional[float] = None,
     ) -> List[Document]:
+        if lambda_mult is None:
+            lambda_mult = float(getattr(settings, "mmr_lambda_mult", 0.5))
         if not self.embedding_manager:
             return docs[:k]
         try:

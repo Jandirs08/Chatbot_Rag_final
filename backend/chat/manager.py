@@ -383,7 +383,7 @@ class ChatManager:
             prompt_str = getattr(self.bot.chain_manager, "prompt_template_str", "") or ""
             model_params = getattr(self.bot.chain_manager, "model_kwargs", {}) or {}
             hist = await self.bot.memory.get_history(conversation_id)
-            formatted_hist = self.bot._format_history(hist)
+            formatted_hist = self.bot._format_history_str(hist)
             ctx = req_ctx.context or ""
 
             try:

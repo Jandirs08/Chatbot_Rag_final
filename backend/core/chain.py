@@ -71,6 +71,24 @@ class ChainManager:
         # LCEL chain
         self.chain: Runnable = (self._prompt | self._model)
 
+    @property
+    def uses_chat_prompt(self) -> bool:
+        return isinstance(self._prompt, ChatPromptTemplate)
+
+    @property
+    def prompt_template_str(self) -> str:
+        """System prompt template string for debug/token-counting."""
+        try:
+            if self.uses_chat_prompt:
+                for msg in self._prompt.messages:
+                    if hasattr(msg, "prompt") and hasattr(msg.prompt, "template"):
+                        return str(msg.prompt.template)
+            if hasattr(self._prompt, "template"):
+                return str(self._prompt.template)
+        except Exception:
+            pass
+        return ""
+
     def override_chain(self, runnable: Runnable):
         """Permite al Bot reemplazar la chain por un pipeline LCEL completo."""
         self.chain = runnable

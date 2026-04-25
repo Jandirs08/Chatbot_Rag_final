@@ -137,7 +137,11 @@ class Bot:
                     (time.perf_counter() - history_started_at) * 1000,
                 )
 
-            formatted = self._format_history(hist)
+            formatted = (
+                self._format_history(hist)
+                if self.chain_manager.uses_chat_prompt
+                else self._format_history_str(hist)
+            )
 
             # Log conciso del historial cargado
             self.logger.debug(f"[HISTORY] Cargado | msgs={len(hist)} conv={x.get('conversation_id', 'unknown')}")
@@ -378,6 +382,18 @@ class Bot:
             len(context), len(truncated), context_budget,
         )
         return truncated + "\n[Contexto truncado por límite de tokens]"
+
+    def _format_history_str(self, hist_list) -> str:
+        """Plain-string history for debug/trace/token-counting consumers."""
+        out = []
+        for msg in hist_list:
+            role = msg.get("role", "unknown")
+            content = msg.get("content", "").strip()
+            if role in ("human", "user"):
+                out.append(f"User: {content}")
+            elif role in ("ai", "assistant"):
+                out.append(f"Assistant: {content}")
+        return "\n".join(out)
 
     def _format_history(self, hist_list) -> List[BaseMessage]:
         msgs: List[BaseMessage] = []
