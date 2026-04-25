@@ -105,7 +105,37 @@ class ChatManager:
         input_hash = hash_for_cache_key(input_text)
         return f"resp:v={corpus_version}:{conversation_id}:{config_hash}:{input_hash}"
 
-    async def _acquire_conversation_lock(self, conversation_id: str) -> tuple[Optional[asyncio.Lock], bool]:
+    def _get_redis_client(self):
+        """Return the Redis client if cache backend is Redis, else None."""
+        try:
+            if getattr(cache, "backend_type", None) == "RedisCache":
+                return cache.backend.client
+        except Exception:
+            pass
+        return None
+
+    async def _acquire_conversation_lock(self, conversation_id: str) -> tuple[object, bool]:
+        """Acquire per-conversation lock.
+
+        Uses Redis advisory lock when Redis is available (cross-worker safe).
+        Falls back to in-process asyncio.Lock when Redis is unavailable.
+        """
+        redis_client = self._get_redis_client()
+        if redis_client is not None:
+            return await self._acquire_redis_lock(conversation_id, redis_client)
+        return await self._acquire_local_lock(conversation_id)
+
+    async def _acquire_redis_lock(self, conversation_id: str, redis_client) -> tuple[object, bool]:
+        from utils.redis_lock import RedisAdvisoryLock
+        lock = RedisAdvisoryLock(
+            redis_client,
+            f"conv:lock:{conversation_id}",
+            acquire_timeout=10.0,
+        )
+        acquired = await lock.acquire()
+        return lock, acquired
+
+    async def _acquire_local_lock(self, conversation_id: str) -> tuple[Optional[asyncio.Lock], bool]:
         now = time.monotonic()
         async with self._conversation_locks_guard:
             lock = self._conversation_locks.get(conversation_id)
@@ -124,7 +154,7 @@ class ChatManager:
             return lock, True
         except asyncio.TimeoutError:
             logger.warning(
-                "[CHAT] Timeout adquiriendo lock de conversaciÃ³n | conv=%s. Continuando sin lock.",
+                "[CHAT] Timeout adquiriendo lock local de conversación | conv=%s. Continuando sin lock.",
                 conversation_id,
             )
             await self._release_conversation_lock(conversation_id, lock, acquired=False)
@@ -133,13 +163,20 @@ class ChatManager:
     async def _release_conversation_lock(
         self,
         conversation_id: str,
-        lock: Optional[asyncio.Lock],
+        lock: object,
         *,
         acquired: bool,
     ) -> None:
+        from utils.redis_lock import RedisAdvisoryLock
+        if isinstance(lock, RedisAdvisoryLock):
+            if acquired:
+                await lock.release()
+            return
+
+        # In-process asyncio.Lock path
         now = time.monotonic()
         async with self._conversation_locks_guard:
-            if acquired and lock is not None and lock.locked():
+            if acquired and lock is not None and isinstance(lock, asyncio.Lock) and lock.locked():
                 lock.release()
 
             current_refs = self._conversation_lock_refs.get(conversation_id, 0)
@@ -229,10 +266,7 @@ class ChatManager:
 
                 try:
                     t_llm_start = time.perf_counter()
-                    result = await asyncio.wait_for(
-                        self.bot(bot_input),
-                        timeout=getattr(settings, "llm_timeout", 25)
-                    )
+                    result = await self.bot(bot_input)
                     t_llm_end = time.perf_counter()
                 except asyncio.TimeoutError:
                     logger.error("Timeout al generar respuesta con el modelo LLM.")
@@ -490,7 +524,6 @@ class ChatManager:
             req_ctx = new_request_context()
             stream_started_at = time.perf_counter()
             cache_key = self._build_response_cache_key(conversation_id, input_text)
-            chunk_timeout = getattr(settings, "llm_timeout", 25)
             cached_response = None
             try:
                 if bool(getattr(settings, "enable_cache", True)):
@@ -534,21 +567,15 @@ class ChatManager:
             final_text = ""
             t_llm_start = time.perf_counter()
             first_chunk_sent = False
-            try:
-                while True:
-                    chunk = await asyncio.wait_for(stream.__anext__(), timeout=chunk_timeout)
-                    if not first_chunk_sent:
-                        first_chunk_sent = True
-                        req_ctx.set_stage_timing_ms(
-                            "first_token_ms",
-                            (time.perf_counter() - stream_started_at) * 1000,
-                        )
-                    final_text += chunk
-                    yield chunk
-            except asyncio.TimeoutError:
-                raise
-            except StopAsyncIteration:
-                pass
+            async for chunk in stream:
+                if not first_chunk_sent:
+                    first_chunk_sent = True
+                    req_ctx.set_stage_timing_ms(
+                        "first_token_ms",
+                        (time.perf_counter() - stream_started_at) * 1000,
+                    )
+                final_text += chunk
+                yield chunk
 
             if not debug_mode:
                 await self._persist_messages_safely(conversation_id, input_text, final_text, source)

@@ -7,7 +7,20 @@
       "Bash(yarn add *)",
       "Bash(xargs grep *)",
       "Bash(yarn typecheck *)",
-      "Bash(yarn lint *)"
+      "Bash(yarn lint *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(python -c ' *)",
+      "Bash(python -W error -c ' *)",
+      "Bash(git stash *)",
+      "Bash(pip install *)",
+      "Bash(python -m py_compile utils/circuit_breaker.py utils/redis_lock.py config.py database/mongodb.py cache/manager.py cache/redis_backend.py services/email_service.py storage/documents/pdf_manager.py)",
+      "Bash(python -m py_compile core/bot.py rag/retrieval/hierarchical_retriever.py rag/vector_store/vector_store.py chat/manager.py api/app.py)",
+      "Bash(docker exec chatbot-qdrant *)",
+      "Bash(docker-compose up *)",
+      "Bash(docker pull *)",
+      "Bash(docker run *)",
+      "Bash(docker rm *)"
     ]
   }
 }

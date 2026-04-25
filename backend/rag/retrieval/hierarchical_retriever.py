@@ -371,17 +371,33 @@ class HierarchicalRetriever(RAGRetriever):
         limit: int,
         filter_criteria: Optional[Dict[str, Any]],
     ) -> list[Document]:
-        try:
-            return await self.child_vector_store.retrieve(
-                query=query,
-                k=limit,
-                filter=filter_criteria,
-                score_threshold=float(getattr(settings, "similarity_threshold", 0.0)),
-                with_vectors=False,
-                query_embedding=query_embedding,
-            )
-        except Exception as exc:
-            raise RetrievalBackendUnavailableError(str(exc)) from exc
+        max_attempts = int(getattr(settings, "qdrant_retry_attempts", 2))
+        retry_delay = float(getattr(settings, "qdrant_retry_delay_base", 0.5))
+        last_exc: Exception = RuntimeError("no attempts made")
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                return await self.child_vector_store.retrieve(
+                    query=query,
+                    k=limit,
+                    filter=filter_criteria,
+                    score_threshold=float(getattr(settings, "similarity_threshold", 0.0)),
+                    with_vectors=False,
+                    query_embedding=query_embedding,
+                )
+            except Exception as exc:
+                last_exc = exc
+                breaker = getattr(self.child_vector_store, "_qdrant_breaker", None)
+                if breaker is not None and breaker.is_open:
+                    break
+                if attempt < max_attempts:
+                    logger.warning(
+                        "_dense_search attempt %d/%d failed: %s — retrying in %.1fs",
+                        attempt, max_attempts, exc, retry_delay * attempt,
+                    )
+                    await asyncio.sleep(retry_delay * attempt)
+
+        raise RetrievalBackendUnavailableError(str(last_exc)) from last_exc
 
     async def _lexical_search(
         self,

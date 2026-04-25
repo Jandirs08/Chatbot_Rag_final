@@ -1,4 +1,5 @@
 """MongoDB client for chat history."""
+import asyncio
 from typing import Optional
 from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -59,8 +60,9 @@ class MongodbClient:
         try:
             self.client = AsyncIOMotorClient(
                 mongo_uri,
-                maxPoolSize=getattr(app_settings, "mongo_max_pool_size", 100),
+                maxPoolSize=getattr(app_settings, "mongo_max_pool_size", 500),
                 serverSelectionTimeoutMS=getattr(app_settings, "mongo_timeout_ms", 5000),
+                waitQueueTimeoutMS=getattr(app_settings, "mongo_wait_queue_timeout_ms", 5000),
                 uuidRepresentation="standard",
             )
             self.db = self.client[database_name]
@@ -73,19 +75,27 @@ class MongodbClient:
 
     async def add_message(self, conversation_id: str, role: str, content: str, source: Optional[str] = None) -> None:
         """Add a message to the conversation history."""
-        try:
-            await self.messages.insert_one({
-                "conversation_id": conversation_id,
-                "role": role,
-                "content": content,
-                "source": source or "embed-default",
-                "timestamp": datetime.now(timezone.utc)
-            })
-            logger.info(f"Mensaje agregado a la conversación {conversation_id}")
-        except Exception as e:
-            logger.error(f"Error al agregar mensaje: {str(e)}")
-            # Propagar el error para que la API pueda manejarlo (e.g. devolver 500 o notificar al usuario)
-            raise
+        doc = {
+            "conversation_id": conversation_id,
+            "role": role,
+            "content": content,
+            "source": source or "embed-default",
+            "timestamp": datetime.now(timezone.utc),
+        }
+        for attempt in range(1, 3):
+            try:
+                await self.messages.insert_one(doc)
+                logger.info(f"Mensaje agregado a la conversación {conversation_id}")
+                return
+            except Exception as e:
+                if attempt == 2:
+                    logger.error(f"Error al agregar mensaje (attempt {attempt}): {str(e)}")
+                    raise
+                logger.warning(
+                    "add_message attempt %d/2 failed for conv=%s: %s — retrying",
+                    attempt, conversation_id, e,
+                )
+                await asyncio.sleep(0.5)
 
     async def ensure_indexes(self) -> None:
         """Ensure MongoDB indexes are created for optimal performance."""

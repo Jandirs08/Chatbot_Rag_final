@@ -9,6 +9,8 @@ from api.schemas.health import (
     CacheHealthResponse,
     ReadinessResponse,
     DependencyStatus,
+    CircuitBreakerStatus,
+    SystemStatusResponse,
 )
 from utils.logging_utils import get_logger
 
@@ -91,6 +93,52 @@ async def readiness_check(request: Request):
     return JSONResponse(
         content=response_data.model_dump(),
         status_code=http_status
+    )
+
+
+@router.get("/internal/status", response_model=SystemStatusResponse)
+async def system_status(request: Request):
+    """
+    Operational status for monitoring tools.
+
+    Reports circuit breaker state, RAG availability, cache backend, and uptime.
+    Always returns 200 — use status field for keyword-based alerting.
+
+    Pair with /health/ready (returns 503) for dependency-level alerts.
+    """
+    from cache.manager import cache
+
+    startup_time = getattr(request.app.state, "startup_time", None)
+    uptime = round(time.time() - startup_time, 1) if startup_time is not None else 0.0
+
+    rag_available = bool(getattr(request.app.state, "rag_available", False))
+
+    vector_store = getattr(request.app.state, "vector_store", None)
+    breaker = getattr(vector_store, "_qdrant_breaker", None)
+    if breaker is not None:
+        cb_status = CircuitBreakerStatus(**breaker.status_dict())
+    else:
+        cb_status = CircuitBreakerStatus(state="unknown", failures=0, is_open=False)
+
+    cache_health = cache.get_health_status()
+    cache_backend = cache_health.get("backend_type", "unknown")
+    cache_degraded = bool(cache_health.get("is_degraded", False))
+
+    if cb_status.is_open and cache_degraded:
+        overall = "critical"
+    elif cb_status.is_open or cache_degraded or not rag_available:
+        overall = "degraded"
+    else:
+        overall = "ok"
+
+    return SystemStatusResponse(
+        status=overall,
+        version=settings.app_version,
+        uptime_seconds=uptime,
+        rag_available=rag_available,
+        cache_backend=cache_backend,
+        cache_degraded=cache_degraded,
+        qdrant_circuit_breaker=cb_status,
     )
 
 

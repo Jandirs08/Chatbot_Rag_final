@@ -338,6 +338,7 @@ async def lifespan(app: FastAPI):
     try:
         s = settings
         app.state.settings = s
+        app.state.startup_time = time.time()
         logger.info(f"SIMILARITY_THRESHOLD={s.similarity_threshold}")
         app.state.startup_bot_is_active = None
 
@@ -363,6 +364,11 @@ async def lifespan(app: FastAPI):
             raise RuntimeError(
                 "Redis es obligatorio en producción. El backend detectó que CacheManager está en modo degradado "
                 f"({cache_health.get('backend_type')}). Configure REDIS_URL y restaure la conectividad antes de iniciar."
+            )
+
+        if s.environment.lower() == "production" and (not getattr(s, "mongo_uri", None)):
+            raise RuntimeError(
+                "MONGO_URI es obligatorio en producción. Configure la variable de entorno MONGO_URI antes de iniciar."
             )
 
         # Cargar configuración dinámica del bot desde Mongo (si disponible)
@@ -449,6 +455,7 @@ async def lifespan(app: FastAPI):
             logger.info("Initializing persistent MongoDB client for application lifespan...")
             if not getattr(app.state, "mongodb_client", None):
                 app.state.mongodb_client = get_mongodb_client()
+            await app.state.mongodb_client.client.admin.command("ping")
             await app.state.mongodb_client.ensure_indexes()
             logger.debug(f"[DB] MongoDB client id={id(app.state.mongodb_client)}")
             # Asegurar índices de usuarios (únicos y de estado)
@@ -501,7 +508,8 @@ async def lifespan(app: FastAPI):
             logger.info("🚀 Persistent MongoDB client initialized and indexes created successfully")
         except Exception as e:
             logger.error(f"⚠️ Error initializing persistent MongoDB client: {e}", exc_info=True)
-            # No fallar la aplicación por esto, solo registrar el error
+            if s.environment.lower() == "production":
+                raise RuntimeError(f"MongoDB no disponible en producción: {e}") from e
         try:
             from auth.dependencies import AuthDependencies
             from database.user_repository import get_user_repository
@@ -570,6 +578,20 @@ def create_app() -> FastAPI:
     main_logger = get_logger(__name__)
     main_logger.info("Creando instancia de FastAPI...")
 
+    if getattr(settings, "sentry_dsn", None):
+        import sentry_sdk
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+        from sentry_sdk.integrations.starlette import StarletteIntegration
+        sentry_sdk.init(
+            dsn=settings.sentry_dsn,
+            traces_sample_rate=getattr(settings, "sentry_traces_sample_rate", 0.1),
+            environment=settings.environment,
+            release=settings.app_version,
+            integrations=[StarletteIntegration(), FastApiIntegration()],
+            send_default_pii=False,
+        )
+        main_logger.info("Sentry initialized (environment=%s)", settings.environment)
+
     if settings.model_type == "OPENAI" and not settings.openai_api_key:
         main_logger.error("Error Crítico: OpenAI API key no está configurada.")
         raise ValueError("OpenAI API key es requerida para el modelo OPENAI.")
@@ -614,11 +636,20 @@ def create_app() -> FastAPI:
         
         body = None
         try:
-            # Solo loguear el body en modo debug para evitar ruido y posibles datos sensibles
             if settings.debug:
                 body_bytes = await request.body()
                 if body_bytes:
-                    body = body_bytes.decode(errors="ignore")
+                    try:
+                        import json as _json
+                        _REDACTED_KEYS = {"password", "token", "api_key", "secret", "new_password", "refresh_token", "access_token"}
+                        parsed = _json.loads(body_bytes)
+                        if isinstance(parsed, dict):
+                            for key in _REDACTED_KEYS:
+                                if key in parsed:
+                                    parsed[key] = "***"
+                        body = _json.dumps(parsed)
+                    except Exception:
+                        body = body_bytes.decode(errors="ignore")
         except Exception:
             body = None
 

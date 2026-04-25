@@ -51,6 +51,7 @@ slowapi>=0.1.7,<2.0.0
 # CLI / Console UX
 
 # Monitoring & Observability
+sentry-sdk[fastapi]>=2.0.0,<3.0.0
 
 
 # Development & Testing

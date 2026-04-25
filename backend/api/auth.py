@@ -1,7 +1,7 @@
 """Authentication API endpoints."""
 import logging
 from typing import Dict
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Response
 
 from models.auth import (
     LoginRequest,
@@ -27,6 +27,7 @@ from auth.password_handler import verify_password, hash_password
 from services.email_service import EmailService
 from auth.dependencies import get_current_user, get_current_active_user
 from config import get_settings
+from utils.rate_limiter import conditional_limit
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -355,7 +356,9 @@ async def logout(
     status_code=status.HTTP_200_OK,
     tags=["Authentication"],
 )
+@conditional_limit("5/hour")
 async def forgot_password(
+    request: Request,
     payload: ForgotPasswordRequest,
     user_repository: UserRepository = Depends(get_user_repository),
 ) -> Dict[str, str]:
@@ -384,7 +387,9 @@ async def forgot_password(
     status_code=status.HTTP_200_OK,
     tags=["Authentication"],
 )
+@conditional_limit("5/hour")
 async def reset_password(
+    request: Request,
     payload: ResetPasswordRequest,
     user_repository: UserRepository = Depends(get_user_repository),
 ) -> Dict[str, str]:

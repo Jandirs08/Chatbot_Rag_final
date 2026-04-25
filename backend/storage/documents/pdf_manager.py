@@ -48,6 +48,12 @@ class PDFManager:
             logger.warning(f"Intento de subir archivo no PDF: {file.filename}")
             raise HTTPException(status_code=400, detail="El archivo debe ser un PDF.")
 
+        first_bytes = await file.read(4)
+        await file.seek(0)
+        if first_bytes != b'%PDF':
+            logger.warning(f"Archivo con extensión .pdf pero contenido inválido: {file.filename}")
+            raise HTTPException(status_code=400, detail="El archivo no es un PDF válido.")
+
         file_path = self._build_unique_pdf_path(file.filename)
 
         try:

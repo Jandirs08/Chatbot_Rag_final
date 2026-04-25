@@ -115,7 +115,7 @@ class JWTHandler:
             logger.error(f"Unexpected JWT decode error: {e}")
             raise JWTError(f"Decode error: {str(e)}")
 
-    def verify_token(self, token: str, token_type: str = "access") -> Dict[str, Any]:
+    def verify_token(self, token: str, token_type: str) -> Dict[str, Any]:
         payload = self.decode(token)
 
         if payload.get("type") != token_type:
@@ -146,5 +146,5 @@ def get_jwt_handler() -> JWTHandler:
 def create_access_token(data): return get_jwt_handler().create_access_token(data)
 def create_refresh_token(data): return get_jwt_handler().create_refresh_token(data)
 def create_reset_token(data): return get_jwt_handler().create_reset_token(data)
-def verify_token(token, token_type="access"): return get_jwt_handler().verify_token(token, token_type)
+def verify_token(token, token_type): return get_jwt_handler().verify_token(token, token_type)
 def decode_token(token): return get_jwt_handler().decode(token)

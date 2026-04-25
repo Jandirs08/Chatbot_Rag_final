@@ -245,7 +245,17 @@ class Bot:
             "conversation_id": conversation_id,
         }
 
-        result = await self.chain_manager.runnable_chain.ainvoke(inp)
+        llm_timeout = float(getattr(self.settings, "llm_request_timeout_seconds", 60.0))
+        try:
+            result = await asyncio.wait_for(
+                self.chain_manager.runnable_chain.ainvoke(inp),
+                timeout=llm_timeout,
+            )
+        except asyncio.TimeoutError:
+            self.logger.error(
+                "LLM request timed out after %ss | conv=%s", llm_timeout, conversation_id
+            )
+            return {"output": "Lo siento, la solicitud tardó demasiado. Por favor, inténtalo de nuevo."}
 
         # Unifica output
         if hasattr(result, "content"):
@@ -283,6 +293,7 @@ class Bot:
                 else getattr(self.settings, "stream_min_chunk_chars", 32)
             ),
         )
+        chunk_timeout = float(getattr(self.settings, "llm_stream_chunk_timeout_seconds", 30.0))
         buffer = ""
         first_chunk_sent = False
 
@@ -315,20 +326,40 @@ class Bot:
                 return p
             return ""
 
-        async for part in self.chain_manager.runnable_chain.astream(inp):
-            txt = _extract_text(part)
-            if not txt:
-                continue
-            if not first_chunk_sent:
-                first_chunk_sent = True
-                yield txt
-                continue
-            buffer += txt
-            if len(buffer) >= effective_min_chunk_chars:
+        async def _timed_stream():
+            """Wrap astream to enforce a per-chunk timeout."""
+            it = self.chain_manager.runnable_chain.astream(inp).__aiter__()
+            while True:
+                try:
+                    chunk = await asyncio.wait_for(it.__anext__(), timeout=chunk_timeout)
+                    yield chunk
+                except StopAsyncIteration:
+                    return
+                except asyncio.TimeoutError:
+                    self.logger.error(
+                        "LLM stream chunk timeout after %ss | conv=%s",
+                        chunk_timeout, conversation_id,
+                    )
+                    raise
+
+        try:
+            async for part in _timed_stream():
+                txt = _extract_text(part)
+                if not txt:
+                    continue
+                if not first_chunk_sent:
+                    first_chunk_sent = True
+                    yield txt
+                    continue
+                buffer += txt
+                if len(buffer) >= effective_min_chunk_chars:
+                    yield buffer
+                    buffer = ""
+            if buffer:
                 yield buffer
-                buffer = ""
-        if buffer:
-            yield buffer
+        except asyncio.TimeoutError:
+            if not first_chunk_sent:
+                yield "Lo siento, la respuesta tardó demasiado. Por favor, inténtalo de nuevo."
 
     async def add_to_memory(self, human, ai, conversation_id):
         if isinstance(human, str):

@@ -38,4 +38,29 @@ class ReadinessResponse(BaseModel):
     status: str  # "healthy", "degraded", "unhealthy"
     mongodb: DependencyStatus
     redis: DependencyStatus
-    qdrant: DependencyStatus 
+    qdrant: DependencyStatus
+
+
+class CircuitBreakerStatus(BaseModel):
+    """Snapshot of a circuit breaker's current state."""
+    state: str  # "closed", "open", "half_open", "unknown"
+    failures: int
+    is_open: bool
+
+
+class SystemStatusResponse(BaseModel):
+    """
+    Operational status for monitoring tools (UptimeRobot, dashboards).
+
+    status values:
+    - "ok"       — all systems nominal
+    - "degraded" — one or more services impaired; app still serving requests
+    - "critical" — multiple core services down simultaneously
+    """
+    status: str
+    version: str
+    uptime_seconds: float
+    rag_available: bool
+    cache_backend: str
+    cache_degraded: bool
+    qdrant_circuit_breaker: CircuitBreakerStatus

@@ -88,12 +88,14 @@ class Settings(BaseSettings):
     mongo_uri: Optional[SecretStr] = Field(default=None, env="MONGO_URI")
     mongo_database_name: str = Field(default="chatbot_rag_db", env="MONGO_DATABASE_NAME")
     mongo_collection_name: str = Field(default="chat_history", env="MONGO_COLLECTION_NAME")
-    mongo_max_pool_size: int = Field(default=100, env="MONGO_MAX_POOL_SIZE")
+    mongo_max_pool_size: int = Field(default=500, env="MONGO_MAX_POOL_SIZE")
     mongo_timeout_ms: int = Field(default=5000, env="MONGO_TIMEOUT_MS")
+    mongo_wait_queue_timeout_ms: int = Field(default=5000, env="MONGO_WAIT_QUEUE_TIMEOUT_MS")
     
     # Configuraciones de Redis
     # Nota: Se usa redis_url como configuración principal, no configuraciones individuales
     redis_url: Optional[SecretStr] = Field(default=None, env="REDIS_URL")
+    redis_max_connections: int = Field(default=200, env="REDIS_MAX_CONNECTIONS")
     cache_retry_attempts: int = Field(default=3, env="CACHE_RETRY_ATTEMPTS")
     cache_retry_delay_base: float = Field(default=0.5, env="CACHE_RETRY_DELAY_BASE")
     
@@ -149,9 +151,13 @@ class Settings(BaseSettings):
     qdrant_url: str = Field(default="http://localhost:6333", env="QDRANT_URL")
     qdrant_api_key: Optional[SecretStr] = Field(default=None, env="QDRANT_API_KEY")
     qdrant_collection_name: str = Field(default="rag_collection", env="QDRANT_COLLECTION_NAME")
-    qdrant_max_connections: int = Field(default=100, env="QDRANT_MAX_CONNECTIONS")
-    qdrant_keepalive_connections: int = Field(default=20, env="QDRANT_KEEPALIVE_CONNECTIONS")
+    qdrant_max_connections: int = Field(default=200, env="QDRANT_MAX_CONNECTIONS")
+    qdrant_keepalive_connections: int = Field(default=40, env="QDRANT_KEEPALIVE_CONNECTIONS")
     qdrant_timeout_seconds: int = Field(default=30, env="QDRANT_TIMEOUT_SECONDS")
+    qdrant_circuit_breaker_threshold: int = Field(default=5, env="QDRANT_CIRCUIT_BREAKER_THRESHOLD")
+    qdrant_circuit_breaker_recovery_s: float = Field(default=60.0, env="QDRANT_CIRCUIT_BREAKER_RECOVERY_S")
+    qdrant_retry_attempts: int = Field(default=2, env="QDRANT_RETRY_ATTEMPTS")
+    qdrant_retry_delay_base: float = Field(default=0.5, env="QDRANT_RETRY_DELAY_BASE")
     rag_child_collection_name: str = Field(default="rag_child_chunks", env="RAG_CHILD_COLLECTION_NAME")
     rag_child_lexical_collection_name: str = Field(default="rag_child_lexical_documents", env="RAG_CHILD_LEXICAL_COLLECTION_NAME")
     rag_child_lexical_postings_collection_name: str = Field(default="rag_child_lexical_postings", env="RAG_CHILD_LEXICAL_POSTINGS_COLLECTION_NAME")
@@ -171,6 +177,10 @@ class Settings(BaseSettings):
     enable_cache: bool = Field(default=True, env="ENABLE_CACHE")
     cache_ttl: int = Field(default=3600, env="CACHE_TTL")  # 1 hora por defecto
     
+    # Timeouts LLM
+    llm_request_timeout_seconds: float = Field(default=60.0, env="LLM_REQUEST_TIMEOUT_SECONDS")
+    llm_stream_chunk_timeout_seconds: float = Field(default=30.0, env="LLM_STREAM_CHUNK_TIMEOUT_SECONDS")
+
     # Feature Flag: Integración LCEL del RAG
     enable_rag_lcel: bool = Field(default=False, env="ENABLE_RAG_LCEL")
 
@@ -183,6 +193,10 @@ class Settings(BaseSettings):
     cache_dir: str = Field(default="./backend/storage/cache", env="CACHE_DIR")
     temp_dir: str = Field(default="./backend/storage/temp", env="TEMP_DIR")
     backup_dir: str = Field(default="./backend/storage/backups", env="BACKUP_DIR")
+
+    # Monitoring
+    sentry_dsn: Optional[str] = Field(default=None, env="SENTRY_DSN")
+    sentry_traces_sample_rate: float = Field(default=0.1, env="SENTRY_TRACES_SAMPLE_RATE")
 
     resend_api_key: Optional[SecretStr] = Field(default=None, env="RESEND_API_KEY")
     email_from: Optional[str] = Field(default=None, env="EMAIL_FROM")

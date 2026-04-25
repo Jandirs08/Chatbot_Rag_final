@@ -47,16 +47,22 @@ class CacheManager:
                         if hasattr(redis_url, "get_secret_value")
                         else str(redis_url)
                     )
-                    
-                    client = redis.from_url(url, decode_responses=False)
-                    
+
+                    max_connections = int(getattr(settings, "redis_max_connections", 200))
+                    pool = redis.ConnectionPool.from_url(
+                        url,
+                        max_connections=max_connections,
+                        decode_responses=False,
+                    )
+                    client = redis.Redis(connection_pool=pool)
+
                     # Verificar conexión
                     client.ping()
                     _logger.info("CacheManager: Redis PING OK")
-                    
+
                     from .redis_backend import RedisCache
                     _logger.info("CacheManager: Redis conectado correctamente (usando RedisCache).")
-                    
+
                     self.is_degraded = False
                     self.backend_type = "RedisCache"
                     return RedisCache(client=client)
@@ -105,27 +111,32 @@ class CacheManager:
     def get(self, key: str) -> Optional[Any]:
         try:
             return self.backend.get(key)
-        except Exception:
+        except Exception as e:
+            _logger.warning("Cache get failed | key=%s | err=%s", key, e)
+            if not self.is_degraded:
+                self.is_degraded = True
             return None
 
     def set(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
         effective_ttl = int(ttl) if ttl is not None else self.ttl
         try:
             self.backend.set(key, value, effective_ttl)
-        except Exception:
-            pass
+        except Exception as e:
+            _logger.warning("Cache set failed | key=%s | err=%s", key, e)
+            if not self.is_degraded:
+                self.is_degraded = True
 
     def delete(self, key: str) -> None:
         try:
             self.backend.delete(key)
-        except Exception:
-            pass
+        except Exception as e:
+            _logger.warning("Cache delete failed | key=%s | err=%s", key, e)
 
     def invalidate_prefix(self, prefix: str) -> None:
         try:
             self.backend.invalidate_prefix(prefix)
-        except Exception:
-            pass
+        except Exception as e:
+            _logger.warning("Cache invalidate_prefix failed | prefix=%s | err=%s", prefix, e)
 
     def increment(self, key: str, delta: int = 1, initial: int = 0) -> int:
         try:

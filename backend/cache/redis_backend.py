@@ -37,8 +37,13 @@ class RedisCache:
             if hasattr(settings.redis_url, "get_secret_value")
             else str(settings.redis_url)
         )
-        # decode_responses=False para trabajar con bytes
-        self.client = redis.from_url(redis_url, decode_responses=False)
+        max_connections = int(getattr(settings, "redis_max_connections", 200))
+        pool = redis.ConnectionPool.from_url(
+            redis_url,
+            max_connections=max_connections,
+            decode_responses=False,
+        )
+        self.client = redis.Redis(connection_pool=pool)
 
     def get(self, key: str) -> Optional[Any]:
         if key is None:

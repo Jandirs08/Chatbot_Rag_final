@@ -20,10 +20,10 @@ from qdrant_client.http.models import (
     FilterSelector,
     HnswConfigDiff,
     OptimizersConfigDiff,
-    NearestQuery,
 )
 
 from config import settings
+from utils.circuit_breaker import CircuitBreaker, CircuitOpenError
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +55,11 @@ class VectorStore:
         self.collection_name = collection_name or getattr(settings, "qdrant_collection_name", "rag_collection")
         self.client = None
         self.is_available = False
+        self._qdrant_breaker = CircuitBreaker(
+            name="qdrant",
+            failure_threshold=int(getattr(settings, "qdrant_circuit_breaker_threshold", 5)),
+            recovery_timeout=float(getattr(settings, "qdrant_circuit_breaker_recovery_s", 60.0)),
+        )
 
         # Inicialización de conexión
         try:
@@ -97,6 +102,7 @@ class VectorStore:
                 api_key=api_key,
                 limits=http_limits,
                 timeout=int(getattr(settings, "qdrant_timeout_seconds", 30)),
+                check_compatibility=False,
             )
 
             dim = int(getattr(settings, "default_embedding_dimension", 1536))
@@ -143,6 +149,8 @@ class VectorStore:
             return False
 
     def _require_connection(self) -> None:
+        if self._qdrant_breaker.is_open:
+            raise VectorStoreUnavailableError("Qdrant circuit breaker is OPEN — fast-failing")
         if self.client is not None and self.is_available:
             return
         if not self.ensure_connected():
@@ -283,17 +291,22 @@ class VectorStore:
 
                 # 2) Upsert
                 try:
-                    await asyncio.to_thread(
-                        self.client.upsert,
-                        collection_name=self.collection_name,
-                        points=points,
-                        wait=True
+                    await self._qdrant_breaker.call(
+                        asyncio.to_thread(
+                            self.client.upsert,
+                            collection_name=self.collection_name,
+                            points=points,
+                            wait=True,
+                        )
                     )
                     total_inserted += len(points)
                     logger.info(
                         "Upsert OK | inserted_points=%s | batch_docs=%s | running_total=%s",
                         len(points), len(batch_docs), total_inserted
                     )
+                except CircuitOpenError as e:
+                    logger.error("Qdrant circuit open — upsert aborted: %s", e)
+                    raise RuntimeError("Qdrant circuit breaker OPEN — ingestion aborted") from e
                 except Exception as e:
                     self.is_available = False
                     logger.error("Error insertando lote en Qdrant: %s", e, exc_info=True)
@@ -484,15 +497,20 @@ class VectorStore:
                 must = [FieldCondition(key=str(kf), match=MatchValue(value=vf)) for kf, vf in filter.items()]
                 qfilter = QFilter(must=must)
 
-            results = await asyncio.to_thread(
-                self.client.query_points,
-                collection_name=self.collection_name,
-                query=NearestQuery(nearest=vector),
-                limit=max(1, k),
-                query_filter=qfilter,
-                with_payload=True,
-                with_vectors=with_vectors,
-            )
+            try:
+                results = await self._qdrant_breaker.call(
+                    asyncio.to_thread(
+                        self.client.query_points,
+                        collection_name=self.collection_name,
+                        query=vector,
+                        limit=max(1, k),
+                        query_filter=qfilter,
+                        with_payload=True,
+                        with_vectors=with_vectors,
+                    )
+                )
+            except CircuitOpenError as e:
+                raise VectorStoreUnavailableError("Qdrant circuit breaker is OPEN") from e
             raw_points = results.points if hasattr(results, "points") else results if isinstance(results, (list, tuple)) else []
             logger.info(
                 "_similarity_search() | raw_qdrant_result_count=%s | raw_qdrant_scores=%s",

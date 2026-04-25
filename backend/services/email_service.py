@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from typing import Optional, Dict, Any
@@ -25,8 +26,7 @@ class EmailService:
         html = self.render(template_name, context)
         if not self.api_key:
             try:
-                logger.info(f"[DEV] Email to {to_email} | subject={subject}")
-                logger.info(html)
+                logger.info(f"[DEV] Email to {to_email} | subject={subject} | template={template_name}")
                 return True
             except Exception:
                 return False
@@ -34,9 +34,15 @@ class EmailService:
             import resend
             resend.api_key = self.api_key
             payload = {"from": self.email_from, "to": to_email, "subject": subject, "html": html}
-            r = resend.Emails.send(payload)
+            r = await asyncio.wait_for(
+                asyncio.to_thread(resend.Emails.send, payload),
+                timeout=10.0,
+            )
             ok = bool(r)
             return ok
+        except asyncio.TimeoutError:
+            logger.error("Resend timeout after 10s | to=%s | subject=%s", to_email, subject)
+            return False
         except Exception as e:
             logger.error(f"Resend error: {e}")
             return False
@@ -45,7 +51,7 @@ class EmailService:
         subject = "Restablecer contraseña"
         try:
             if not self.api_key:
-                logger.info(f"[DEV] Reset link: {link}")
+                logger.info(f"[DEV] Reset email generated for {to_email}")
         except Exception:
             pass
         return await self.send(to_email, subject, "reset_password.html", {"link": link})
