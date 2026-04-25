@@ -100,25 +100,35 @@ class HierarchicalIngestionService:
         if not result.parents or not result.children:
             raise RuntimeError("Hierarchical chunking produced no parents or children")
 
-        await self.parent_repository.ensure_indexes()
+        index_tasks = [self.parent_repository.ensure_indexes()]
         if self.lexical_repository is not None:
-            await self.lexical_repository.ensure_indexes()
+            index_tasks.append(self.lexical_repository.ensure_indexes())
+        await asyncio.gather(*index_tasks)
 
         if replace_existing:
-            await self.parent_repository.delete_by_source(result.source)
-            await self.vector_store.delete_documents(filter={"source": result.source})
+            delete_tasks: list = [
+                self.parent_repository.delete_by_source(result.source),
+                self.vector_store.delete_documents(filter={"source": result.source}),
+            ]
             if self.lexical_repository is not None:
-                await self.lexical_repository.delete_by_source(result.source)
-
-        await self.parent_repository.upsert_documents(result.parents)
-        if self.lexical_repository is not None:
-            await self.lexical_repository.upsert_children(result.children)
+                delete_tasks.append(self.lexical_repository.delete_by_source(result.source))
+            await asyncio.gather(*delete_tasks)
 
         child_documents = [self._child_to_langchain_document(child) for child in result.children]
-        child_embeddings = await self.embedding_manager.embed_documents_async(
-            [child.content for child in result.children]
-        )
-        await self.vector_store.add_documents(child_documents, embeddings=child_embeddings)
+
+        async def _embed_and_store() -> None:
+            embeddings = await self.embedding_manager.embed_documents_async(
+                [child.content for child in result.children]
+            )
+            await self.vector_store.add_documents(child_documents, embeddings=embeddings)
+
+        store_tasks: list = [
+            self.parent_repository.upsert_documents(result.parents),
+            _embed_and_store(),
+        ]
+        if self.lexical_repository is not None:
+            store_tasks.append(self.lexical_repository.upsert_children(result.children))
+        await asyncio.gather(*store_tasks)
 
         # Bump doc timestamp so retrieval cache for this doc_id is invalidated
         try:
@@ -140,10 +150,13 @@ class HierarchicalIngestionService:
         }
 
     async def delete_by_source(self, source: str) -> None:
-        await self.parent_repository.delete_by_source(source)
-        await self.vector_store.delete_documents(filter={"source": source})
+        tasks: list = [
+            self.parent_repository.delete_by_source(source),
+            self.vector_store.delete_documents(filter={"source": source}),
+        ]
         if self.lexical_repository is not None:
-            await self.lexical_repository.delete_by_source(source)
+            tasks.append(self.lexical_repository.delete_by_source(source))
+        await asyncio.gather(*tasks)
 
     async def _build_doc_id(self, pdf_path: Path) -> str:
         sha256 = hashlib.sha256()
