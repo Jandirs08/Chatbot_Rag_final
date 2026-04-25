@@ -8,6 +8,11 @@ from collections import defaultdict
 from dataclasses import replace
 from typing import Any, Dict, Optional
 
+_INJECTION_PATTERN = re.compile(
+    r"</?(context|instructions|forbidden|system|system_personality|history)[^>]*>",
+    re.IGNORECASE,
+)
+
 from langchain_core.documents import Document
 
 from config import settings
@@ -439,6 +444,13 @@ class HierarchicalRetriever(RAGRetriever):
         parents = await self.parent_repository.get_by_parent_ids(ranked_parent_ids)
         parent_map = {parent.parent_id: parent for parent in parents}
 
+        orphan_ids = [pid for pid in ranked_parent_ids if pid not in parent_map]
+        if orphan_ids:
+            logger.warning(
+                "_hydrate_parent_candidates: %d orphan parent_id(s) not found in MongoDB (data inconsistency): %s",
+                len(orphan_ids), orphan_ids[:5],
+            )
+
         candidates: list[ParentCandidate] = []
         for parent_id in ranked_parent_ids:
             parent = parent_map.get(parent_id)
@@ -483,13 +495,12 @@ class HierarchicalRetriever(RAGRetriever):
         return [parent_id for parent_id, _ in ranked[: max(1, int(limit))]]
 
     def _parent_score(self, evidence_children: list[dict[str, Any]]) -> float:
+        """Pure RRF score for parent candidate selection.
+        Quality bonuses (lexical, table, numeric, date) belong exclusively to the reranker.
+        """
         if not evidence_children:
             return 0.0
-
-        max_fused = max(float(child.get("rrf_score", 0.0) or 0.0) for child in evidence_children)
-        lexical_bonus = max(float(child.get("lexical_score", 0.0) or 0.0) for child in evidence_children)
-        support_bonus = min(0.2, max(0, len(evidence_children) - 1) * 0.03)
-        return max_fused + lexical_bonus * 0.05 + support_bonus
+        return max(float(child.get("rrf_score", 0.0) or 0.0) for child in evidence_children)
 
     def _parent_candidate_to_document(self, candidate: ParentCandidate) -> Document:
         parent = candidate.parent
@@ -521,6 +532,11 @@ class HierarchicalRetriever(RAGRetriever):
         }
         return Document(page_content=page_content, metadata=metadata)
 
+    @staticmethod
+    def _sanitize_content(text: str) -> str:
+        """Strip XML tags that could escape the <context> boundary and inject instructions."""
+        return _INJECTION_PATTERN.sub("[REDACTED]", text or "")
+
     def format_context_from_documents(self, documents: list[Document]) -> str:
         if not documents:
             return NO_CONTEXT_MESSAGE
@@ -533,7 +549,7 @@ class HierarchicalRetriever(RAGRetriever):
                 f"seccion: {metadata.get('section_title') or 'sin seccion'}, "
                 f"modo_contexto: {metadata.get('context_mode') or 'parent_full'}]"
             )
-            parts.append((doc.page_content or "").strip())
+            parts.append(self._sanitize_content(doc.page_content).strip())
 
             child_hits = metadata.get("child_hits") or []
             if child_hits:

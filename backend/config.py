@@ -1,7 +1,7 @@
 """Configuration management for the chatbot application."""
 import os
 from typing import Optional, List, Union
-from pydantic import Field, field_validator, SecretStr, ValidationError
+from pydantic import Field, field_validator, model_validator, SecretStr, ValidationError
 from pydantic import ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
@@ -108,6 +108,8 @@ class Settings(BaseSettings):
     chunk_overlap: int = Field(default=50, validation_alias="RAG_CHUNK_OVERLAP")
     min_chunk_length: int = Field(default=100, validation_alias="MIN_CHUNK_LENGTH")
     max_file_size_mb: int = Field(default=10, validation_alias="MAX_FILE_SIZE_MB")
+    rag_child_overlap_tokens: int = Field(default=40, env="RAG_CHILD_OVERLAP_TOKENS")
+    llm_context_window: int = Field(default=16000, env="LLM_CONTEXT_WINDOW")
     
     # Configuraciones de RAG - Recuperación
     retrieval_k: int = Field(default=4, env="RETRIEVAL_K")
@@ -263,6 +265,15 @@ class Settings(BaseSettings):
         if v <= 0 or v > 4096:
             raise ValueError("STREAM_MIN_CHUNK_CHARS must be between 1 and 4096")
         return v
+
+    @model_validator(mode="after")
+    def validate_production_constraints(self):
+        if self.environment.lower() == "production" and self.debug:
+            raise ValueError(
+                "DEBUG=true no está permitido en production. "
+                "Desactive DEBUG antes de iniciar en producción."
+            )
+        return self
 
 # Create global settings instance
 try:

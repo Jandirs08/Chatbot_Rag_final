@@ -174,6 +174,7 @@ class Bot:
 
                 req_ctx.retrieved_docs = docs
                 ctx = self.rag_retriever.format_context_from_documents(docs)
+                ctx = self._truncate_context_to_budget(ctx)
                 req_ctx.context = ctx if (isinstance(ctx, str) and ctx.strip()) else fallback_ctx
                 req_ctx.rag_time = time.perf_counter() - t_start
                 return req_ctx.context
@@ -344,6 +345,24 @@ class Bot:
                 exc,
                 exc_info=True,
             )
+
+    def _truncate_context_to_budget(self, context: str) -> str:
+        """Truncate context string to stay within LLM token budget."""
+        context_window = int(getattr(self.settings, "llm_context_window", 16000))
+        max_output = int(getattr(self.settings, "max_tokens", 2000))
+        prompt_overhead = 1200
+        history_budget = int(getattr(self.settings, "memory_window_size", 20)) * 120
+        input_budget = int(getattr(self.settings, "max_message_length", 2000)) // 3
+        context_budget = max(500, context_window - max_output - prompt_overhead - history_budget - input_budget)
+
+        char_budget = context_budget * 4
+        if len(context) <= char_budget:
+            return context
+        self.logger.warning(
+            "Context truncated: %d chars → %d chars (budget %d tokens)",
+            len(context), char_budget, context_budget,
+        )
+        return context[:char_budget] + "\n[Contexto truncado por límite de tokens]"
 
     def _format_history(self, hist_list):
         out = []

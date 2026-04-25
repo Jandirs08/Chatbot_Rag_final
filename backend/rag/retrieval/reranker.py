@@ -30,18 +30,18 @@ class BaseParentReranker:
 
 class HeuristicParentReranker(BaseParentReranker):
     async def rerank(self, *, query: str, candidates: Sequence[ParentCandidate], limit: int) -> list[ParentCandidate]:
-        ranked = sorted(
-            candidates,
-            key=lambda candidate: (
+        def _score(candidate: ParentCandidate) -> float:
+            return (
                 candidate.fused_score
+                + candidate.lexical_score * 0.05
                 + min(0.15, len(candidate.evidence) * 0.03)
                 + (0.05 if candidate.parent.contains_table else 0.0)
                 + (0.05 if candidate.parent.contains_numeric else 0.0)
                 + (0.05 if candidate.parent.contains_date_like else 0.0)
-            ),
-            reverse=True,
-        )
-        return [replace(candidate, rerank_score=candidate.fused_score) for candidate in ranked[: max(1, limit)]]
+            )
+
+        ranked = sorted(candidates, key=_score, reverse=True)
+        return [replace(c, rerank_score=_score(c)) for c in ranked[: max(1, limit)]]
 
 
 class OpenAIParentReranker(BaseParentReranker):
@@ -58,7 +58,20 @@ class OpenAIParentReranker(BaseParentReranker):
     async def rerank(self, *, query: str, candidates: Sequence[ParentCandidate], limit: int) -> list[ParentCandidate]:
         if not candidates:
             return []
+        try:
+            return await self._rerank_with_llm(query=query, candidates=candidates, limit=limit)
+        except Exception as exc:
+            logger.warning(
+                "OpenAI reranker failed (%s: %s); falling back to fused_score. query_prefix=%r",
+                type(exc).__name__, exc, query[:80],
+            )
+            return self._fallback_sort(candidates, limit)
 
+    def _fallback_sort(self, candidates: Sequence[ParentCandidate], limit: int) -> list[ParentCandidate]:
+        ranked = sorted(candidates, key=lambda c: c.fused_score, reverse=True)
+        return [replace(c, rerank_score=c.fused_score) for c in ranked[: max(1, limit)]]
+
+    async def _rerank_with_llm(self, *, query: str, candidates: Sequence[ParentCandidate], limit: int) -> list[ParentCandidate]:
         payload = {
             "query": query,
             "candidates": [
@@ -101,7 +114,21 @@ class OpenAIParentReranker(BaseParentReranker):
         ranked_parent_ids = parsed.get("ranked_parent_ids") or []
         scores = self._normalize_scores(parsed.get("scores"))
 
+        if not ranked_parent_ids:
+            logger.warning(
+                "OpenAI reranker returned empty ranked_parent_ids; using fused_score fallback. query_prefix=%r",
+                query[:80],
+            )
+            return self._fallback_sort(candidates, limit)
+
         candidate_map = {candidate.parent.parent_id: candidate for candidate in candidates}
+        unknown_ids = [pid for pid in ranked_parent_ids if pid not in candidate_map]
+        if unknown_ids:
+            logger.warning(
+                "OpenAI reranker returned %d unknown parent_id(s) not in candidates: %s",
+                len(unknown_ids), unknown_ids[:5],
+            )
+
         reranked: list[ParentCandidate] = []
         for parent_id in ranked_parent_ids:
             if parent_id not in candidate_map:
@@ -110,10 +137,18 @@ class OpenAIParentReranker(BaseParentReranker):
             reranked.append(replace(candidate_map[parent_id], rerank_score=score))
 
         seen = {candidate.parent.parent_id for candidate in reranked}
+        appended_fallback = 0
         for candidate in sorted(candidates, key=lambda item: item.fused_score, reverse=True):
             if candidate.parent.parent_id in seen:
                 continue
             reranked.append(replace(candidate, rerank_score=candidate.fused_score))
+            appended_fallback += 1
+
+        if appended_fallback:
+            logger.debug(
+                "OpenAI reranker: %d candidate(s) not returned by LLM appended at end with fused_score.",
+                appended_fallback,
+            )
 
         return reranked[: max(1, limit)]
 

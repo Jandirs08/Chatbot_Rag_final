@@ -56,6 +56,7 @@ class HierarchicalChunker:
         child_target_tokens: int = 260,
         child_max_tokens: int = 320,
         child_min_tokens: int = 120,
+        child_overlap_tokens: int | None = None,
         page_loader: PageLoader | None = None,
         encoding_name: str = "cl100k_base",
     ) -> None:
@@ -65,6 +66,10 @@ class HierarchicalChunker:
         self.child_target_tokens = child_target_tokens
         self.child_max_tokens = child_max_tokens
         self.child_min_tokens = child_min_tokens
+        if child_overlap_tokens is None:
+            from config import settings as _s
+            child_overlap_tokens = int(getattr(_s, "rag_child_overlap_tokens", 40))
+        self.child_overlap_tokens = max(0, child_overlap_tokens)
         self.page_loader = page_loader
         try:
             self.encoding = tiktoken.get_encoding(encoding_name)
@@ -379,6 +384,19 @@ class HierarchicalChunker:
 
         return children
 
+    def _compute_overlap_carry(self, group: list[StructuralBlock]) -> list[StructuralBlock]:
+        """Return tail blocks from group that fit within child_overlap_tokens budget."""
+        if self.child_overlap_tokens <= 0 or not group:
+            return []
+        carry: list[StructuralBlock] = []
+        carry_tokens = 0
+        for block in reversed(group):
+            if carry_tokens + block.token_count > self.child_overlap_tokens:
+                break
+            carry.insert(0, block)
+            carry_tokens += block.token_count
+        return carry
+
     def _group_blocks_into_children(self, blocks: Sequence[StructuralBlock]) -> list[list[StructuralBlock]]:
         groups: list[list[StructuralBlock]] = []
         current_group: list[StructuralBlock] = []
@@ -393,16 +411,18 @@ class HierarchicalChunker:
             )
             if should_flush:
                 groups.append(current_group)
-                current_group = []
-                current_tokens = 0
+                overlap = self._compute_overlap_carry(current_group)
+                current_group = list(overlap)
+                current_tokens = sum(max(1, b.token_count) for b in current_group)
 
             current_group.append(block)
             current_tokens += block_tokens
 
             if current_tokens >= self.child_target_tokens and block.block_type == "table":
                 groups.append(current_group)
-                current_group = []
-                current_tokens = 0
+                overlap = self._compute_overlap_carry(current_group)
+                current_group = list(overlap)
+                current_tokens = sum(max(1, b.token_count) for b in current_group)
 
         if current_group:
             groups.append(current_group)
