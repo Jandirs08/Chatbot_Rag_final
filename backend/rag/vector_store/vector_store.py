@@ -258,7 +258,9 @@ class VectorStore:
                     if use_uuid5:
                         deterministic_id = str(uuid.uuid5(uuid.NAMESPACE_URL, unique_seed))
                     else:
-                        # Legacy (no cambiar por defecto: mantiene IDs históricos)
+                        # Legacy double-MD5: preserved to avoid breaking existing Qdrant point IDs.
+                        # For hierarchical ingestion, explicit_point_id (child_id) always overrides
+                        # this value below, so this path only runs for non-hierarchical docs.
                         content_hash = hashlib.md5(unique_seed.encode("utf-8")).hexdigest()
                         deterministic_id = str(uuid.UUID(bytes=hashlib.md5(content_hash.encode("utf-8")).digest()))
 

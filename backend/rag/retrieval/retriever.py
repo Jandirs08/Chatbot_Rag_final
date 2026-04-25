@@ -30,6 +30,20 @@ RETRIEVAL_UNAVAILABLE_MESSAGE = (
 )
 NO_CONTEXT_MESSAGE = "No se encontro informacion relevante para esta pregunta."
 _METRICS_MAX_SAMPLES = 1000
+_METRICS_LOG_INTERVAL = 5
+_CONTENT_TYPE_SCORES: Dict[str, float] = {
+    "header": 1.0,
+    "title": 0.95,
+    "subtitle": 0.9,
+    "paragraph": 0.8,
+    "text": 0.75,
+    "list": 0.7,
+    "bullet": 0.7,
+    "numbered_list": 0.7,
+    "table": 0.6,
+    "code": 0.5,
+}
+_CONTENT_TYPE_SCORE_DEFAULT = 0.6
 
 
 class RetrievalBackendUnavailableError(RuntimeError):
@@ -366,22 +380,9 @@ class RAGRetriever:
 
     def _get_content_type_score(self, chunk_type: str) -> float:
         try:
-            normalized_type = str(chunk_type or "text").lower()
-            mapping = {
-                "header": 1.0,
-                "title": 0.95,
-                "subtitle": 0.9,
-                "paragraph": 0.8,
-                "text": 0.75,
-                "list": 0.7,
-                "bullet": 0.7,
-                "numbered_list": 0.7,
-                "table": 0.6,
-                "code": 0.5,
-            }
-            return float(mapping.get(normalized_type, 0.6))
+            return float(_CONTENT_TYPE_SCORES.get(str(chunk_type or "text").lower(), _CONTENT_TYPE_SCORE_DEFAULT))
         except Exception:
-            return 0.6
+            return _CONTENT_TYPE_SCORE_DEFAULT
 
     def _clean_vector(self, vector: Any) -> Optional[np.ndarray]:
         try:
@@ -663,7 +664,7 @@ class RAGRetriever:
             total_time = time.perf_counter() - start_time
             self.performance_metrics.add_metric("total_time", total_time)
 
-            if len(self.performance_metrics.metrics["total_time"]) % 5 == 0:
+            if len(self.performance_metrics.metrics["total_time"]) % _METRICS_LOG_INTERVAL == 0:
                 self.performance_metrics.log_statistics()
 
             return accepted_docs

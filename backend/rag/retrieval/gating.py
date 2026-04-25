@@ -60,7 +60,6 @@ GREETING_SUFFIX_PATTERNS = frozenset(
         "que tal",
         "como estas",
         "todo bien",
-        "ben",
         "bot",
         "bro",
         "amigo",
