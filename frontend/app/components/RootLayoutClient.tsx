@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { AppSidebar } from "./AppSidebar";
 import { SidebarProvider, SidebarTrigger } from "./ui/sidebar";
-import { useAuth } from "@/app/hooks/useAuth";
 import { isProtectedPath } from "@/app/lib/auth/routeAccess";
+import { useTheme } from "@/app/hooks/useTheme";
 
 export function RootLayoutClient({ children }: { children: React.ReactNode }) {
   return (
@@ -17,18 +16,8 @@ export function RootLayoutClient({ children }: { children: React.ReactNode }) {
 
 function RootLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-
-  useEffect(() => {
-    const saved = localStorage.getItem("theme");
-    const isDarkSaved = saved === "dark";
-    const forceLight = pathname.startsWith("/chat");
-
-    if (forceLight) {
-      document.documentElement.classList.remove("dark");
-    } else {
-      document.documentElement.classList.toggle("dark", isDarkSaved);
-    }
-  }, [pathname]);
+  const forcedLight = pathname.startsWith("/chat");
+  useTheme(forcedLight);
 
   const shouldShowSidebar = isProtectedPath(pathname);
 

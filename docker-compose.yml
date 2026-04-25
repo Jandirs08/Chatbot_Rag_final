@@ -8,7 +8,7 @@
 
 services:
   mongodb:
-    image: mongo:latest
+    image: mongo:7.0
     container_name: chatbot-mongodb
     restart: unless-stopped
     # Intentionally not exposed to the host in production.
@@ -17,9 +17,15 @@ services:
       - mongodb_data:/data/db
     networks:
       - chatbot-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')", "--quiet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   qdrant:
-    image: qdrant/qdrant:latest
+    image: qdrant/qdrant:v1.9.2
     container_name: chatbot-qdrant
     restart: unless-stopped
     # Intentionally not exposed to the host in production.
@@ -28,6 +34,12 @@ services:
       - qdrant_data:/qdrant/storage
     networks:
       - chatbot-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   redis:
     image: redis:7-alpine
@@ -39,8 +51,12 @@ services:
       - redis-data:/data
     networks:
       - chatbot-network
-    # Persistencia de Redis (importante para caché en producción)
     command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   backend:
     build:
@@ -49,13 +65,15 @@ services:
     container_name: chatbot-backend
     restart: unless-stopped
     depends_on:
-      - mongodb
-      - qdrant
-      - redis
+      mongodb:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     env_file:
       - ./backend/.env
     environment:
-      # Sobrescribir URLs para Docker (usan nombres de servicio internos)
       - MONGO_URI=mongodb://mongodb:27017/chatbot_rag_db
       - QDRANT_URL=http://qdrant:6333
       - REDIS_URL=redis://redis:6379/0
@@ -63,27 +81,26 @@ services:
       - PORT=8000
     ports:
       - "8000:8000"
-    volumes:
-      # Solo en desarrollo: sincroniza código para hot-reloading
-      # En producción, comenta esta línea para usar la imagen buildeada
-      - ./backend:/app
     networks:
       - chatbot-network
-    # El entrypoint.sh detecta ENVIRONMENT y arranca con:
-    # - development: uvicorn con --reload (1 worker)
-    # - production: gunicorn con 4 workers (sin reload)
-    # Ver backend/entrypoint.sh para la lógica
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; s=socket.socket(); s.settimeout(2); s.connect(('localhost', 8000)); s.close()\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile.dev
     container_name: chatbot-frontend
+    restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     environment:
       - NODE_ENV=${ENVIRONMENT:-development}
-      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
       - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
       - NEXT_PUBLIC_BACKEND_URL=${NEXT_PUBLIC_BACKEND_URL:-http://localhost:8000/api/v1}

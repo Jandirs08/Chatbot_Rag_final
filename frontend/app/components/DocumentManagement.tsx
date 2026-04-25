@@ -1,4 +1,6 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+"use client";
+
+import { useRef } from "react";
 import {
   Card,
   CardContent,
@@ -29,78 +31,27 @@ import {
   TableHeader,
   TableRow,
 } from "@/app/components/ui/table";
-import { useToast } from "@/app/hooks/use-toast";
-import { toast as sonnerToast } from "sonner";
 import { useUnsavedChanges } from "@/app/hooks/useUnsavedChanges";
-import { PDFService, type PDFUploadStatus } from "@/app/lib/services/pdfService";
-import { ragService } from "@/app/lib/services/ragService";
 import { Progress } from "@/app/components/ui/progress";
 import { Skeleton } from "@/app/components/ui/skeleton";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/app/components/ui/dialog";
-import PdfViewerModal from "@/app/components/modals/PdfViewerModal";
+import dynamic from "next/dynamic";
+
+const PdfViewerModal = dynamic(
+  () => import("@/app/components/modals/PdfViewerModal"),
+  { ssr: false },
+);
 import { Toaster } from "@/app/components/ui/toaster";
 import { cn } from "@/lib/utils";
-
-interface PDFDocument {
-  filename: string;
-  path: string;
-  size: number;
-  last_modified: string;
-}
-
-type UploadState =
-  | {
-      phase: "idle";
-    }
-  | {
-      phase: "uploading";
-      fileName: string;
-      progress: number;
-    }
-  | {
-      phase: "processing";
-      fileName: string;
-    }
-  | {
-      phase: "success";
-      fileName: string;
-    }
-  | {
-      phase: "error";
-      fileName: string;
-      message: string;
-      failedPhase: "uploading" | "processing";
-    };
+import { ClearRAGDialog } from "@/app/components/documents/ClearRAGDialog";
+import { useDocumentManagement, type UploadState } from "@/app/hooks/useDocumentManagement";
 
 const uploadSteps = [
-  {
-    key: "uploading",
-    label: "Subiendo archivo",
-    description: "Transferencia segura al servidor.",
-  },
-  {
-    key: "processing",
-    label: "Procesando e indexando",
-    description: "Extraccion, embeddings y registro en Qdrant.",
-  },
+  { key: "uploading", label: "Subiendo archivo", description: "Transferencia segura al servidor." },
+  { key: "processing", label: "Procesando e indexando", description: "Extraccion, embeddings y registro en Qdrant." },
 ] as const;
 
-function UploadStatusPanel({
-  state,
-  onDismiss,
-}: {
-  state: UploadState;
-  onDismiss: () => void;
-}) {
-  if (state.phase === "idle") {
-    return null;
-  }
+function UploadStatusPanel({ state, onDismiss }: { state: UploadState; onDismiss: () => void }) {
+  if (state.phase === "idle") return null;
 
   const isUploading = state.phase === "uploading";
   const isProcessing = state.phase === "processing";
@@ -127,29 +78,10 @@ function UploadStatusPanel({
         : state.message;
 
   const statusBadgeVariant: "info" | "warning" | "success" | "error" =
-    isUploading
-      ? "info"
-      : isProcessing
-        ? "warning"
-        : isSuccess
-          ? "success"
-          : "error";
+    isUploading ? "info" : isProcessing ? "warning" : isSuccess ? "success" : "error";
 
-  const StatusIcon = isUploading
-    ? Upload
-    : isProcessing
-      ? Loader2
-      : isSuccess
-        ? CheckCircle2
-        : AlertCircle;
-
-  const statusPill = isUploading
-    ? "Subiendo"
-    : isProcessing
-      ? "Indexando"
-      : isSuccess
-        ? "Completado"
-        : "Con error";
+  const StatusIcon = isUploading ? Upload : isProcessing ? Loader2 : isSuccess ? CheckCircle2 : AlertCircle;
+  const statusPill = isUploading ? "Subiendo" : isProcessing ? "Indexando" : isSuccess ? "Completado" : "Con error";
 
   return (
     <div
@@ -168,12 +100,7 @@ function UploadStatusPanel({
                   : "border-primary/15 bg-primary/5 text-primary",
             )}
           >
-            <StatusIcon
-              className={cn(
-                "h-5 w-5",
-                isProcessing && "animate-spin",
-              )}
-            />
+            <StatusIcon className={cn("h-5 w-5", isProcessing && "animate-spin")} />
           </div>
 
           <div className="space-y-3">
@@ -186,14 +113,9 @@ function UploadStatusPanel({
                   </span>
                 )}
               </div>
-
               <div>
-                <p className="text-base font-semibold text-foreground">
-                  {header}
-                </p>
-                <p className="text-sm leading-6 text-muted-foreground">
-                  {description}
-                </p>
+                <p className="text-base font-semibold text-foreground">{header}</p>
+                <p className="text-sm leading-6 text-muted-foreground">{description}</p>
               </div>
             </div>
 
@@ -236,13 +158,9 @@ function UploadStatusPanel({
                       >
                         {index + 1}
                       </span>
-                      <p className="text-sm font-medium text-foreground">
-                        {step.label}
-                      </p>
+                      <p className="text-sm font-medium text-foreground">{step.label}</p>
                     </div>
-                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                      {step.description}
-                    </p>
+                    <p className="mt-2 text-xs leading-5 text-muted-foreground">{step.description}</p>
                   </div>
                 );
               })}
@@ -283,10 +201,7 @@ function UploadStatusPanel({
       <div className="mt-4">
         {isUploading ? (
           <div className="space-y-2">
-            <Progress
-              value={state.progress}
-              className="h-2.5 bg-primary/10"
-            />
+            <Progress value={state.progress} className="h-2.5 bg-primary/10" />
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>Transferencia del archivo en curso</span>
               <span>{state.progress}%</span>
@@ -322,374 +237,47 @@ function UploadStatusPanel({
 }
 
 export function DocumentManagement() {
-  const [documents, setDocuments] = useState<PDFDocument[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [isLoadingList, setIsLoadingList] = useState(true);
-  const [isUploading, setIsUploading] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [uploadState, setUploadState] = useState<UploadState>({
-    phase: "idle",
-  });
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [, setPreviewFilename] = useState<string | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [, setPreviewLoading] = useState(false);
-  const [, setPreviewError] = useState<string | null>(null);
-  const [isClearOpen, setIsClearOpen] = useState(false);
-  const [isClearing, setIsClearing] = useState(false);
-  const [clearResult, setClearResult] = useState<{
-    status: string;
-    message: string;
-    remaining_pdfs: number;
-    count?: number;
-    vector_store_size?: number;
-  } | null>(null);
-  const [clearError, setClearError] = useState<string | null>(null);
-  const [rateLimitInfo, setRateLimitInfo] = useState<{
-    limit: number;
-    remaining: number;
-    resetTime?: Date;
-  } | null>(null);
-  const [countdown, setCountdown] = useState<number | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const uploadPhaseRef = useRef<"uploading" | "processing">("uploading");
-  const { toast } = useToast();
+  const {
+    documents,
+    searchTerm, setSearchTerm,
+    isLoadingList,
+    isUploading,
+    isDownloading,
+    uploadState,
+    isPreviewOpen, setIsPreviewOpen,
+    previewFilename,
+    previewUrl,
+    previewLoading,
+    previewError,
+    rateLimitInfo,
+    countdown,
+    fileInputRef,
+    loadDocuments,
+    handleUpload,
+    handleDelete,
+    handlePreview,
+    handleDownload,
+    handleButtonClick,
+    handleDismissUploadState,
+    formatFileSize,
+    formatDate,
+    formatCountdown,
+    filteredDocuments,
+    totalSize,
+  } = useDocumentManagement();
 
   useUnsavedChanges(isDownloading);
 
-  const loadDocuments = useCallback(async () => {
-    try {
-      setIsLoadingList(true);
-      const response = await PDFService.listPDFs();
-      setDocuments(response.pdfs);
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "No se pudieron cargar los documentos",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoadingList(false);
-    }
-  }, [toast]);
-
-  useEffect(() => {
-    loadDocuments();
-  }, [loadDocuments]);
-
-  // Efecto para el countdown del rate limit
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (rateLimitInfo?.resetTime) {
-      const calculateCountdown = () => {
-        const now = new Date().getTime();
-        const reset = rateLimitInfo.resetTime!.getTime();
-        const diff = Math.max(0, Math.floor((reset - now) / 1000));
-        setCountdown(diff);
-
-        // Si el tiempo se acabó, limpiar
-        if (diff <= 0) {
-          setRateLimitInfo(null);
-        }
-        return diff;
-      };
-
-      const initialDiff = calculateCountdown();
-      if (initialDiff > 0) {
-        timer = setInterval(() => {
-          const remaining = calculateCountdown();
-          if (remaining <= 0) {
-            clearInterval(timer);
-          }
-        }, 1000);
-      }
-    }
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  }, [rateLimitInfo]);
-
-  const formatCountdown = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s.toString().padStart(2, "0")}`;
-  };
-
-  const handleUploadStatusChange = useCallback(
-    (fileName: string, status: PDFUploadStatus) => {
-      uploadPhaseRef.current = status.phase;
-
-      if (status.phase === "uploading") {
-        setUploadState({
-          phase: "uploading",
-          fileName,
-          progress: status.progress,
-        });
-        return;
-      }
-
-      setUploadState({
-        phase: "processing",
-        fileName,
-      });
-    },
-    [],
-  );
-
-  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      setIsUploading(true);
-      uploadPhaseRef.current = "uploading";
-      setUploadState({
-        phase: "uploading",
-        fileName: file.name,
-        progress: 0,
-      });
-      const response = await PDFService.uploadPDF(file, (status) =>
-        handleUploadStatusChange(file.name, status),
-      );
-
-      // Actualizar rate limit info desde headers
-      if (response.rateLimit) {
-        if (response.rateLimit.remaining > 0) {
-          setRateLimitInfo(null);
-        } else {
-          setRateLimitInfo({
-            limit: response.rateLimit.limit,
-            remaining: response.rateLimit.remaining,
-            resetTime: response.rateLimit.retryAfter
-              ? new Date(Date.now() + response.rateLimit.retryAfter * 1000)
-              : undefined
-          });
-        }
-      } else {
-        setRateLimitInfo(null);
-      }
-
-      toast({
-        title: "Éxito",
-        description: "PDF subido correctamente",
-      });
-      setUploadState({
-        phase: "success",
-        fileName: file.name,
-      });
-      loadDocuments();
-    } catch (error: any) {
-      const message = error instanceof Error ? error.message : String(error);
-
-      // Manejar error de rate limit específicamente
-      if (error.type === 'RATE_LIMIT_EXCEEDED') {
-        const minutes = Math.ceil((error.retryAfter || 3600) / 60);
-        const hours = Math.floor(minutes / 60);
-        const remainingMins = minutes % 60;
-
-        const timeMessage = hours > 0
-          ? `${hours} hora${hours > 1 ? 's' : ''}${remainingMins > 0 ? ` y ${remainingMins} minutos` : ''}`
-          : `${minutes} minuto${minutes > 1 ? 's' : ''}`;
-
-        toast({
-          title: "⚠️ Límite de uploads alcanzado",
-          description: `Has alcanzado el límite de uploads por hora. Podrás subir más PDFs en ${timeMessage}.`,
-          variant: "destructive",
-          duration: 10000,
-        });
-
-        // Actualizar rate limit info
-        setRateLimitInfo({
-          limit: error.limit ?? 0,
-          remaining: typeof error.remaining === "number" ? error.remaining : 0,
-          resetTime: new Date(Date.now() + (error.retryAfter || 3600) * 1000)
-        });
-      } else if (message.toLowerCase().includes("contenido duplicado")) {
-        // Toast específico para duplicado
-        toast({
-          title: "Documento duplicado",
-          description:
-            "Este PDF está cargado, intenta agregando otro PDF diferente.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description:
-            error instanceof Error ? error.message : "No se pudo subir el PDF",
-          variant: "destructive",
-        });
-      }
-
-      setUploadState({
-        phase: "error",
-        fileName: file.name,
-        message,
-        failedPhase: uploadPhaseRef.current,
-      });
-    } finally {
-      setIsUploading(false);
-      uploadPhaseRef.current = "uploading";
-      // 👈 Esto permite volver a seleccionar el MISMO archivo
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    }
-  };
-
-  const handleDelete = async (filename: string) => {
-    try {
-      // Mantener simple: reutilizar el listado para bloquear acciones mientras se actualiza
-      setIsLoadingList(true);
-      await PDFService.deletePDF(filename);
-      toast({
-        title: "Éxito",
-        description: "PDF eliminado correctamente",
-      });
-      loadDocuments();
-    } catch (error) {
-      toast({
-        title: "Error",
-        description:
-          error instanceof Error ? error.message : "No se pudo eliminar el PDF",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoadingList(false);
-    }
-  };
-
-  const handlePreview = async (filename: string) => {
-    setPreviewError(null);
-    setPreviewUrl(null);
-    setPreviewFilename(filename);
-    setIsPreviewOpen(true);
-    setPreviewLoading(true);
-    try {
-      const url = await PDFService.getPDFBlobUrl(filename, "view");
-      setPreviewUrl(url);
-    } catch (error) {
-      setPreviewError(
-        error instanceof Error ? error.message : "No se pudo cargar el preview",
-      );
-    } finally {
-      setPreviewLoading(false);
-    }
-  };
-
-  // Limpiar URL de objeto al cerrar el modal para evitar fugas de memoria
-  useEffect(() => {
-    if (!isPreviewOpen && previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(null);
-      setPreviewFilename(null);
-      setPreviewError(null);
-    }
-  }, [isPreviewOpen, previewUrl]);
-
-  const handleDownload = async (filename: string) => {
-    const toastId = sonnerToast.loading(`Descargando ${filename}...`);
-    try {
-      setIsDownloading(true);
-      await PDFService.downloadPDFWithToken(filename);
-      sonnerToast.dismiss(toastId);
-      sonnerToast.success("Descarga iniciada");
-    } catch (error) {
-      sonnerToast.dismiss(toastId);
-      toast({
-        title: "Error",
-        description:
-          error instanceof Error
-            ? error.message
-            : "No se pudo descargar el PDF",
-        variant: "destructive",
-      });
-    } finally {
-      setIsDownloading(false);
-    }
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-  };
-
-  const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return "-";
-    const d = new Date(dateString);
-    if (isNaN(d.getTime())) return "-";
-    // Convertir a UTC-5 (Perú). Perú no observa DST.
-    const utcMs = d.getTime() + d.getTimezoneOffset() * 60000;
-    const lima = new Date(utcMs - 5 * 60 * 60000);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return `${lima.getFullYear()}-${pad(lima.getMonth() + 1)}-${pad(lima.getDate())} ${pad(lima.getHours())}:${pad(lima.getMinutes())}:${pad(lima.getSeconds())}`;
-  };
-
-  // Memoize filtered documents to prevent recalculation on every render
-  const filteredDocuments = useMemo(
-    () => documents.filter((doc) =>
-      doc.filename.toLowerCase().includes(searchTerm.toLowerCase()),
-    ),
-    [documents, searchTerm]
-  );
-
-  // Memoize total size calculation
-  const totalSize = useMemo(
-    () => documents.reduce((acc, doc) => acc + doc.size, 0),
-    [documents]
-  );
-
-  const handleButtonClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleDismissUploadState = useCallback(() => {
-    setUploadState({ phase: "idle" });
-  }, []);
-
-  const handleOpenClear = () => {
-    setClearResult(null);
-    setClearError(null);
-    setIsClearOpen(true);
-  };
-
-  const handleConfirmClear = async () => {
-    setIsClearing(true);
-    setClearError(null);
-    try {
-      const result = await ragService.clearRag();
-      setClearResult(result);
-      // Refrescar lista de documentos
-      await loadDocuments();
-      toast({ title: "Limpieza RAG", description: result.message });
-    } catch (error) {
-      const msg =
-        error instanceof Error ? error.message : "Error al limpiar el RAG";
-      setClearError(msg);
-      toast({ title: "Error", description: msg, variant: "destructive" });
-    } finally {
-      setIsClearing(false);
-    }
-  };
-
   return (
     <div className="space-y-8 animate-fade-in">
-      {/* Toaster de shadcn montado localmente para garantizar render de useToast */}
       <Toaster />
-      {/* Header */}
+
       <div className="space-y-2">
-        <h1 className="text-4xl font-bold text-foreground">
-          Gestión de Documentos
-        </h1>
+        <h1 className="text-4xl font-bold text-foreground">Gestión de Documentos</h1>
         <p className="text-xl text-muted-foreground">
           Administra los PDFs que alimentan el conocimiento del bot
         </p>
       </div>
-
-      {/* Banner de duplicado eliminado; se usa toast en su lugar */}
 
       <div className="space-y-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:justify-between">
@@ -709,20 +297,12 @@ export function DocumentManagement() {
               accept=".pdf"
               onChange={handleUpload}
               className="hidden"
-              disabled={
-                isUploading ||
-                isLoadingList ||
-                rateLimitInfo?.remaining === 0
-              }
+              disabled={isUploading || isLoadingList || rateLimitInfo?.remaining === 0}
             />
             <Button
               onClick={handleButtonClick}
               className="gradient-primary cursor-pointer hover:opacity-90"
-              disabled={
-                isUploading ||
-                isLoadingList ||
-                rateLimitInfo?.remaining === 0
-              }
+              disabled={isUploading || isLoadingList || rateLimitInfo?.remaining === 0}
             >
               <Upload className="mr-2 h-4 w-4" />
               {uploadState.phase === "processing"
@@ -732,80 +312,51 @@ export function DocumentManagement() {
                   : "Subir PDF"}
             </Button>
 
-            {rateLimitInfo &&
-              rateLimitInfo.remaining === 0 &&
-              countdown !== null &&
-              countdown > 0 && (
-                <div className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-400">
-                  <Clock className="h-3 w-3" />
-                  <span>Disponible en {formatCountdown(countdown)}</span>
-                </div>
-              )}
+            {rateLimitInfo && rateLimitInfo.remaining === 0 && countdown !== null && countdown > 0 && (
+              <div className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                <Clock className="h-3 w-3" />
+                <span>Disponible en {formatCountdown(countdown)}</span>
+              </div>
+            )}
 
-            <Button
-              variant="outline"
-              className="border-destructive text-destructive hover:bg-destructive/10"
-              onClick={handleOpenClear}
+            <ClearRAGDialog
+              onClearSuccess={loadDocuments}
               disabled={isUploading || isLoadingList}
-              title="Limpiar RAG"
-            >
-              Limpiar RAG
-            </Button>
+            />
           </div>
         </div>
 
-        <UploadStatusPanel
-          state={uploadState}
-          onDismiss={handleDismissUploadState}
-        />
+        <UploadStatusPanel state={uploadState} onDismiss={handleDismissUploadState} />
       </div>
 
-      {/* Estadísticas */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="border-border/50">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Documentos
-            </CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Documentos</CardTitle>
             <FileText className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              {isLoadingList ? (
-                <Skeleton className="h-6 w-16" />
-              ) : (
-                documents.length
-              )}
+              {isLoadingList ? <Skeleton className="h-6 w-16" /> : documents.length}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              PDFs en el sistema
-            </p>
+            <p className="text-xs text-muted-foreground mt-1">PDFs en el sistema</p>
           </CardContent>
         </Card>
 
         <Card className="border-border/50">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Tamaño Total
-            </CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Tamaño Total</CardTitle>
             <Upload className="h-4 w-4 text-accent" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              {isLoadingList ? (
-                <Skeleton className="h-6 w-24" />
-              ) : (
-                formatFileSize(totalSize)
-              )}
+              {isLoadingList ? <Skeleton className="h-6 w-24" /> : formatFileSize(totalSize)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Espacio utilizado
-            </p>
+            <p className="text-xs text-muted-foreground mt-1">Espacio utilizado</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Tabla de documentos */}
       <Card className="border-border/50">
         <CardHeader>
           <CardTitle>Documentos Subidos</CardTitle>
@@ -824,8 +375,7 @@ export function DocumentManagement() {
               </TableHeader>
               <TableBody>
                 {isLoadingList && documents.length === 0
-                  ? // Skeletons mientras carga por primera vez
-                  Array.from({ length: 3 }).map((_, idx) => (
+                  ? Array.from({ length: 3 }).map((_, idx) => (
                     <TableRow key={`skeleton-${idx}`}>
                       <TableCell className="py-4">
                         <div className="flex items-center gap-2">
@@ -833,15 +383,9 @@ export function DocumentManagement() {
                           <Skeleton className="h-4 w-40" />
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-32" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-24" />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Skeleton className="h-8 w-20 ml-auto" />
-                      </TableCell>
+                      <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
                     </TableRow>
                   ))
                   : filteredDocuments.map((doc) => (
@@ -870,9 +414,7 @@ export function DocumentManagement() {
                             variant="outline"
                             size="sm"
                             onClick={() => handleDownload(doc.filename)}
-                            disabled={
-                              isLoadingList || isUploading || isDownloading
-                            }
+                            disabled={isLoadingList || isUploading || isDownloading}
                             title="Download"
                             className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600"
                           >
@@ -896,71 +438,18 @@ export function DocumentManagement() {
           </div>
         </CardContent>
       </Card>
-      {/* Modal de Preview */}
-      <PdfViewerModal
-        isOpen={isPreviewOpen}
-        onClose={setIsPreviewOpen}
-        pdfUrl={previewUrl}
-        initialPage={null}
-      />
 
-      {/* Modal Limpiar RAG */}
-      <Dialog open={isClearOpen} onOpenChange={setIsClearOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Limpiar RAG</DialogTitle>
-            <DialogDescription>
-              Esta acción elimina todos los PDFs y limpia el almacén vectorial.
-              ¿Deseas continuar?
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            {clearError && (
-              <div className="text-sm text-destructive">{clearError}</div>
-            )}
-            {clearResult ? (
-              <div className="text-sm">
-                <p className="font-medium">{clearResult.message}</p>
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <div className="p-2 rounded border">
-                    <span className="text-muted-foreground text-xs">
-                      PDFs restantes
-                    </span>
-                    <div className="text-lg font-semibold">
-                      {clearResult.remaining_pdfs}
-                    </div>
-                  </div>
-                  <div className="p-2 rounded border">
-                    <span className="text-muted-foreground text-xs">
-                      Vector store
-                    </span>
-                    <div className="text-lg font-semibold">
-                      {clearResult.count ?? clearResult.vector_store_size ?? 0}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsClearOpen(false)}
-                  disabled={isClearing}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  onClick={handleConfirmClear}
-                  disabled={isClearing}
-                >
-                  {isClearing ? "Limpiando..." : "Confirmar"}
-                </Button>
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      {isPreviewOpen && (
+        <PdfViewerModal
+          isOpen={isPreviewOpen}
+          onClose={setIsPreviewOpen}
+          pdfUrl={previewUrl}
+          initialPage={null}
+          title={previewFilename ?? undefined}
+          isLoading={previewLoading}
+          error={previewError}
+        />
+      )}
     </div>
   );
 }

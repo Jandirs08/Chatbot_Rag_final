@@ -56,7 +56,7 @@ export function useUsersMutations() {
 
   const invalidateUsersLists = async () => {
     await mutate(
-      (key) => Array.isArray(key) && key[0] === USERS_SWR_KEY,
+      (key: unknown) => Array.isArray(key) && key[0] === USERS_SWR_KEY,
       undefined,
       { revalidate: true },
     );

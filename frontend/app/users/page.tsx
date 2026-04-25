@@ -1,87 +1,41 @@
-﻿"use client";
+"use client";
+
 import { useEffect, useState } from "react";
-import { useUsers, useUsersMutations } from "@/app/hooks/useUsers";
-import { Card, CardContent } from "../components/ui/card";
-import { Button } from "../components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "../components/ui/dropdown-menu";
-import { MoreHorizontal } from "lucide-react";
-import { Input } from "../components/ui/input";
-import { Label } from "../components/ui/label";
 import { toast } from "sonner";
-import { Switch } from "../components/ui/switch";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "../components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
-} from "../components/ui/alert-dialog";
-import { Skeleton } from "../components/ui/skeleton";
-import {
-  Select,
-  SelectTrigger,
-  SelectContent,
-  SelectItem,
-  SelectValue,
-} from "../components/ui/select";
-import { CreateUserData, UserListItem } from "../lib/services/userService";
+import { useUsers, useUsersMutations } from "@/app/hooks/useUsers";
+import { Button } from "@/app/components/ui/button";
+import { Card, CardContent } from "@/app/components/ui/card";
+import type {
+  CreateUserData,
+  UserListItem,
+} from "@/app/lib/services/userService";
+import { DeleteUserDialog } from "./_components/DeleteUserDialog";
+import { UserCreateDialog } from "./_components/UserCreateDialog";
+import { UserEditDialog } from "./_components/UserEditDialog";
+import { UserFilters } from "./_components/UserFilters";
+import { UserTable } from "./_components/UserTable";
 
 export default function UsuariosPage() {
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState<CreateUserData>({
-    email: "",
-    password: "",
-    full_name: "",
-    is_admin: true,
-  });
-  const [role, setRole] = useState<string>("admin");
-  const [passwordHints, setPasswordHints] = useState({
-    len: false,
-    upper: false,
-    special: false,
-  });
   const [editingUser, setEditingUser] = useState<UserListItem | null>(null);
-  const [editForm, setEditForm] = useState<{
-    email: string;
-    full_name: string;
-    role: string;
-    is_active: boolean;
-    password: string;
-  }>({
-    email: "",
-    full_name: "",
-    role: "admin",
-    is_active: true,
-    password: "",
-  });
-  const [editPasswordHints, setEditPasswordHints] = useState({
-    len: false,
-    upper: false,
-    special: false,
-  });
-  const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set());
-  const [pendingActiveById, setPendingActiveById] = useState<Record<string, boolean>>({});
   const [deleteUser, setDeleteUser] = useState<UserListItem | null>(null);
-  const [search, setSearch] = useState<string>("");
-  const [debouncedSearch, setDebouncedSearch] = useState<string>("");
-  const [roleFilter, setRoleFilter] = useState<string>("all");
-  const [activeFilter, setActiveFilter] = useState<string>("all");
-  const [skip, setSkip] = useState<number>(0);
-  const [limit, setLimit] = useState<number>(10);
+  const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set());
+  const [pendingActiveById, setPendingActiveById] = useState<
+    Record<string, boolean>
+  >({});
+
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [activeFilter, setActiveFilter] = useState("all");
+  const [skip, setSkip] = useState(0);
+  const [limit, setLimit] = useState(10);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 400);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const { data, error: listError, isLoading } = useUsers(
     {
@@ -111,60 +65,11 @@ export default function UsuariosPage() {
   const pageError =
     error || (listError instanceof Error ? listError.message : null);
 
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search.trim()), 400);
-    return () => clearTimeout(t);
-  }, [search]);
-
-  const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = e.target;
-    setForm((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-    if (name === "password") {
-      const len = value.length >= 8;
-      const upper = /[A-Z]/.test(value);
-      const special = /[^A-Za-z0-9]/.test(value);
-      setPasswordHints({ len, upper, special });
-    }
-  };
-
-  const onEditChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = e.target;
-    setEditForm((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-    if (name === "password") {
-      const len = value.length >= 8;
-      const upper = /[A-Z]/.test(value);
-      const special = /[^A-Za-z0-9]/.test(value);
-      setEditPasswordHints({ len, upper, special });
-    }
-  };
-
-  const createUser = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreateUser = async (payload: CreateUserData) => {
     setError(null);
-    if (!passwordHints.len || !passwordHints.upper || !passwordHints.special) {
-      setError(
-        "La contraseña debe tener mínimo 8 caracteres, una mayúscula y un carácter especial.",
-      );
-      return;
-    }
     try {
-      const payload: CreateUserData = {
-        email: form.email,
-        password: form.password,
-        full_name: form.full_name,
-        is_admin: role === "admin",
-      };
       await createUserAction(payload);
       setShowCreate(false);
-      setForm({ email: "", password: "", full_name: "", is_admin: true });
-      setRole("admin");
-      setPasswordHints({ len: false, upper: false, special: false });
       toast.success("Usuario creado correctamente");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al crear usuario");
@@ -172,48 +77,39 @@ export default function UsuariosPage() {
     }
   };
 
-  const openEdit = (u: UserListItem) => {
-    setEditingUser(u);
-    setEditForm({
-      email: u.email,
-      full_name: u.full_name || "",
-      role: u.is_admin ? "admin" : "user",
-      is_active: u.is_active,
-      password: "",
-    });
-    setEditPasswordHints({ len: false, upper: false, special: false });
-  };
-
-  const saveEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingUser) return;
+  const handleEditSubmit = async (
+    id: string,
+    payload: Record<string, unknown>,
+  ) => {
     try {
-      const updatePayload: any = {
-        email:
-          editForm.email !== editingUser.email ? editForm.email : undefined,
-        full_name: editForm.full_name,
-        is_admin: editForm.role === "admin",
-        is_active: editForm.is_active,
-      };
-      if (editForm.password) {
-        if (
-          !editPasswordHints.len ||
-          !editPasswordHints.upper ||
-          !editPasswordHints.special
-        ) {
-          toast.error("La nueva contraseña no cumple la política");
-          return;
-        }
-        updatePayload.password = editForm.password;
-      }
-
-      await updateUserAction(editingUser.id, updatePayload);
+      await updateUserAction(id, payload);
       setEditingUser(null);
       toast.success("Usuario actualizado correctamente");
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Error al actualizar usuario",
       );
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteUser) return;
+    try {
+      await deleteUserAction(deleteUser.id);
+      toast.success("Usuario eliminado");
+    } catch {
+      toast.error("Error al eliminar usuario");
+    } finally {
+      setDeleteUser(null);
+    }
+  };
+
+  const handleResetPassword = async (u: UserListItem) => {
+    try {
+      await requestPasswordReset(u.email);
+      toast.success(`Correo de recuperación enviado a ${u.email}`);
+    } catch {
+      toast.error("No se pudo enviar el correo de recuperación");
     }
   };
 
@@ -225,7 +121,7 @@ export default function UsuariosPage() {
       toast.success(
         updated.is_active ? "Usuario activado" : "Usuario desactivado",
       );
-    } catch (err) {
+    } catch {
       toast.error("No se pudo actualizar el estado del usuario");
     } finally {
       setTogglingIds((prev) => {
@@ -243,61 +139,24 @@ export default function UsuariosPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex flex-wrap gap-4 items-end">
-        <div className="space-y-2 w-full md:w-64">
-          <Label htmlFor="search">Buscar</Label>
-          <Input
-            id="search"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setSkip(0);
-            }}
-            placeholder="Email o usuario"
-          />
-        </div>
-        <div className="space-y-2 w-full md:w-56">
-          <Label htmlFor="filter_role">Rol</Label>
-          <Select
-            value={roleFilter}
-            onValueChange={(v) => {
-              setRoleFilter(v);
-              setSkip(0);
-            }}
-          >
-            <SelectTrigger id="filter_role" className="w-full">
-              <SelectValue placeholder="Rol" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              <SelectItem value="admin">Administrador</SelectItem>
-              <SelectItem value="user">Usuario</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2 w-full md:w-56">
-          <Label htmlFor="filter_active">Estado</Label>
-          <Select
-            value={activeFilter}
-            onValueChange={(v) => {
-              setActiveFilter(v);
-              setSkip(0);
-            }}
-          >
-            <SelectTrigger id="filter_active" className="w-full">
-              <SelectValue placeholder="Estado" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              <SelectItem value="active">Activo</SelectItem>
-              <SelectItem value="inactive">Inactivo</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Total: {total}</span>
-        </div>
-      </div>
+      <UserFilters
+        search={search}
+        onSearchChange={(v) => {
+          setSearch(v);
+          setSkip(0);
+        }}
+        roleFilter={roleFilter}
+        onRoleChange={(v) => {
+          setRoleFilter(v);
+          setSkip(0);
+        }}
+        activeFilter={activeFilter}
+        onActiveChange={(v) => {
+          setActiveFilter(v);
+          setSkip(0);
+        }}
+        total={total}
+      />
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Gestión de Usuarios</h1>
         <Button onClick={() => setShowCreate(true)}>Crear Usuario</Button>
@@ -307,348 +166,45 @@ export default function UsuariosPage() {
 
       <Card>
         <CardContent>
-          {loading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-6 w-48" />
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="flex items-center justify-between">
-                  <Skeleton className="h-5 w-40" />
-                  <Skeleton className="h-5 w-32" />
-                  <Skeleton className="h-5 w-28" />
-                  <Skeleton className="h-5 w-20" />
-                  <Skeleton className="h-8 w-24" />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="text-left border-b">
-                    <th className="py-2 text-gray-500 font-medium">Usuario</th>
-                    <th className="py-2 text-gray-500 font-medium">Email</th>
-                    <th className="py-2 text-gray-500 font-medium">Nombre</th>
-                    <th className="py-2 text-gray-500 font-medium">Activo</th>
-                    <th className="py-2 text-gray-500 font-medium">Rol</th>
-                    <th className="py-2 text-gray-500 font-medium">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((u) => (
-                    <tr key={u.id} className="border-b">
-                      <td className="py-2 align-middle">{u.username}</td>
-                      <td className="py-2 align-middle">{u.email}</td>
-                      <td className="py-2 align-middle">{u.full_name || "-"}</td>
-                      <td className="py-2 align-middle">
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            checked={pendingActiveById[u.id] ?? u.is_active}
-                            onCheckedChange={(checked) =>
-                              toggleActive(u, Boolean(checked))
-                            }
-                            disabled={togglingIds.has(u.id)}
-                            aria-label={`Cambiar estado activo para ${u.username}`}
-                          />
-                          <span className="text-sm text-muted-foreground">
-                            {(pendingActiveById[u.id] ?? u.is_active)
-                              ? "Activo"
-                              : "Inactivo"}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="py-2 align-middle">
-                        {u.is_admin ? "Administrador" : "Usuario"}
-                      </td>
-                      <td className="py-2 align-middle">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" aria-label="Acciones">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openEdit(u)}>
-                              Editar
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={async () => {
-                                try {
-                                  await requestPasswordReset(u.email);
-                                  toast.success(
-                                    `Correo de recuperación enviado a ${u.email}`,
-                                  );
-                                } catch (err) {
-                                  toast.error(
-                                    "No se pudo enviar el correo de recuperación",
-                                  );
-                                }
-                              }}
-                            >
-                              Enviar reset password
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="text-red-600 focus:text-red-600"
-                              onClick={() => setDeleteUser(u)}
-                            >
-                              Eliminar
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div className="flex items-center justify-end gap-2 mt-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={skip === 0}
-                  onClick={() => setSkip(Math.max(0, skip - limit))}
-                  className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600"
-                >
-                  Anterior
-                </Button>
-                <span className="text-sm">
-                  Página {Math.floor(skip / limit) + 1} de {Math.max(1, Math.ceil(total / limit))}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={skip + limit >= total}
-                  onClick={() => setSkip(skip + limit)}
-                  className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600"
-                >
-                  Siguiente
-                </Button>
-                <Select
-                  value={String(limit)}
-                  onValueChange={(v) => {
-                    setLimit(Number(v));
-                    setSkip(0);
-                  }}
-                >
-                  <SelectTrigger className="w-24">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="20">20</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
+          <UserTable
+            users={users}
+            loading={loading}
+            total={total}
+            skip={skip}
+            limit={limit}
+            onSkipChange={setSkip}
+            onLimitChange={setLimit}
+            togglingIds={togglingIds}
+            pendingActiveById={pendingActiveById}
+            onToggleActive={toggleActive}
+            onEdit={setEditingUser}
+            onResetPassword={handleResetPassword}
+            onDelete={setDeleteUser}
+          />
         </CardContent>
       </Card>
 
-      <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Crear Usuario</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={createUser} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                value={form.email}
-                onChange={onChange}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Contraseña</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                value={form.password}
-                onChange={onChange}
-                required
-              />
-              <div className="text-xs text-muted-foreground space-y-1 mt-1">
-                <p>Requisitos de contraseña:</p>
-                <p className={passwordHints.len ? "text-green-600" : ""}>
-                  • 8 caracteres mínimo
-                </p>
-                <p className={passwordHints.upper ? "text-green-600" : ""}>
-                  • Al menos una mayúscula
-                </p>
-                <p className={passwordHints.special ? "text-green-600" : ""}>
-                  • Al menos un carácter especial
-                </p>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="full_name">Nombre completo</Label>
-              <Input
-                id="full_name"
-                name="full_name"
-                value={form.full_name || ""}
-                onChange={onChange}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="role">Rol</Label>
-              <Select value={role} onValueChange={(v) => setRole(v)}>
-                <SelectTrigger id="role" className="w-full">
-                  <SelectValue placeholder="Selecciona un rol" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Administrador</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex gap-2 justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowCreate(false)}
-              >
-                Cancelar
-              </Button>
-              <Button type="submit">Crear</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <UserCreateDialog
+        open={showCreate}
+        onOpenChange={setShowCreate}
+        onSubmit={handleCreateUser}
+        onError={(message) => {
+          setError(message);
+          toast.error(message);
+        }}
+      />
 
-      <Dialog
-        open={!!editingUser}
-        onOpenChange={(open) => !open && setEditingUser(null)}
-      >
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Editar Usuario</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={saveEdit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit_email">Email</Label>
-              <Input
-                id="edit_email"
-                name="email"
-                type="email"
-                value={editForm.email}
-                onChange={onEditChange}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit_full_name">Nombre completo</Label>
-              <Input
-                id="edit_full_name"
-                name="full_name"
-                value={editForm.full_name}
-                onChange={onEditChange}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit_role">Rol</Label>
-              <Select
-                value={editForm.role}
-                onValueChange={(v) =>
-                  setEditForm((prev) => ({ ...prev, role: v }))
-                }
-              >
-                <SelectTrigger id="edit_role" className="w-full">
-                  <SelectValue placeholder="Selecciona un rol" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Administrador</SelectItem>
-                  <SelectItem value="user">Usuario</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit_is_active">Activo</Label>
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={!!editForm.is_active}
-                  onCheckedChange={(checked) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      is_active: Boolean(checked),
-                    }))
-                  }
-                  aria-label="Cambiar estado activo"
-                />
-                <span className="text-sm text-muted-foreground">
-                  {editForm.is_active ? "Activo" : "Inactivo"}
-                </span>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit_password">Nueva contraseña (opcional)</Label>
-              <Input
-                id="edit_password"
-                name="password"
-                type="password"
-                value={editForm.password}
-                onChange={onEditChange}
-              />
-              <div className="text-xs text-muted-foreground space-y-1 mt-1">
-                <p>Requisitos de contraseña:</p>
-                <p className={editPasswordHints.len ? "text-green-600" : ""}>
-                  • 8 caracteres mínimo
-                </p>
-                <p className={editPasswordHints.upper ? "text-green-600" : ""}>
-                  • Al menos una mayúscula
-                </p>
-                <p className={editPasswordHints.special ? "text-green-600" : ""}>
-                  • Al menos un carácter especial
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-2 justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setEditingUser(null)}
-              >
-                Cancelar
-              </Button>
-              <Button type="submit">Guardar</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <UserEditDialog
+        user={editingUser}
+        onClose={() => setEditingUser(null)}
+        onSubmit={handleEditSubmit}
+      />
 
-      <AlertDialog
-        open={!!deleteUser}
-        onOpenChange={(open) => !open && setDeleteUser(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-            <div className="text-sm text-muted-foreground">
-              Esta acción eliminará permanentemente al usuario <strong>{deleteUser?.email}</strong>.
-            </div>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700"
-              onClick={async () => {
-                if (!deleteUser) return;
-                try {
-                  await deleteUserAction(deleteUser.id);
-                  toast.success("Usuario eliminado");
-                } catch (e) {
-                  toast.error("Error al eliminar usuario");
-                } finally {
-                  setDeleteUser(null);
-                }
-              }}
-            >
-              Eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteUserDialog
+        user={deleteUser}
+        onClose={() => setDeleteUser(null)}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

@@ -83,6 +83,10 @@ const nextConfig = {
 
     if (!allowedEmbedHosts) allowedEmbedHosts = "*";
 
+    // NOTE: 'unsafe-inline' in script-src is required by Next.js 14 for its own
+    // inline hydration scripts. Removing it without nonce support breaks the app.
+    // TODO: migrate CSP to middleware with per-request nonces to eliminate 'unsafe-inline'.
+    // 'unsafe-eval' is restricted to dev only (isDev = NODE_ENV !== 'production').
     const chatCsp = `default-src 'self'; script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}; style-src 'unsafe-inline' 'self'; connect-src 'self' ${apiOrigin}; img-src 'self' data: ${apiOrigin}; frame-ancestors ${allowedEmbedHosts}`;
     const dashCsp = `default-src 'self'; script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}; style-src 'unsafe-inline' 'self'; connect-src 'self' ${apiOrigin}; img-src 'self' data: ${apiOrigin}; frame-src 'self' blob:; frame-ancestors 'self'`;
 

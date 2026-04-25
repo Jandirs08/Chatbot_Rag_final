@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import {
   REFRESH_TOKEN_COOKIE,
   applySessionCookies,
@@ -7,8 +7,12 @@ import {
   requestSessionRefresh,
   toClientSessionResponse,
 } from '@/app/lib/auth/sessionRefresh';
+import { rejectCrossOrigin } from '@/app/lib/auth/apiAuth';
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  const csrfRejection = rejectCrossOrigin(request);
+  if (csrfRejection) return csrfRejection;
+
   const cookieStore = cookies();
   const refreshToken = cookieStore.get(REFRESH_TOKEN_COOKIE)?.value;
 

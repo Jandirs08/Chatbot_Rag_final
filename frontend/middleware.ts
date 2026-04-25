@@ -6,9 +6,9 @@ import {
   REFRESH_TOKEN_COOKIE,
   applySessionCookies,
   clearSessionCookies,
-  isTokenExpired,
   requestSessionRefresh,
 } from "./app/lib/auth/sessionRefresh";
+import { verifyAccessToken } from "./app/lib/auth/jwtVerify";
 
 export async function middleware(req: NextRequest) {
   const pathname = normalizePath(req.nextUrl.pathname);
@@ -16,10 +16,12 @@ export async function middleware(req: NextRequest) {
   const refreshToken = req.cookies.get(REFRESH_TOKEN_COOKIE)?.value ?? null;
   const needsSsrSessionNormalization =
     isProtectedPath(pathname) || pathname.startsWith("/auth");
-  const hasValidAccessToken =
-    typeof accessToken === "string" &&
-    accessToken.length > 0 &&
-    !isTokenExpired(accessToken);
+
+  const verifiedClaims =
+    typeof accessToken === "string" && accessToken.length > 0
+      ? await verifyAccessToken(accessToken)
+      : null;
+  const hasValidAccessToken = verifiedClaims !== null;
 
   if (needsSsrSessionNormalization) {
     if (hasValidAccessToken) {

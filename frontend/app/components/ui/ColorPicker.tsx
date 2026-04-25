@@ -48,6 +48,11 @@ const ColorPicker = React.forwardRef<HTMLDivElement, ColorPickerProps>(
                 <button
                     type="button"
                     onClick={handleClick}
+                    aria-label={
+                        label
+                            ? `${label}, color actual ${value.toUpperCase()}. Click para cambiar.`
+                            : `Color actual ${value.toUpperCase()}. Click para cambiar.`
+                    }
                     className={cn(
                         "group flex items-center gap-3 w-full p-3 rounded-lg",
                         "bg-slate-50 dark:bg-slate-800",

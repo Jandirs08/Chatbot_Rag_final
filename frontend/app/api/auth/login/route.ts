@@ -1,7 +1,11 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { applySessionCookies, type SessionTokens } from '@/app/lib/auth/sessionRefresh';
+import { rejectCrossOrigin } from '@/app/lib/auth/apiAuth';
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const csrfRejection = rejectCrossOrigin(request);
+  if (csrfRejection) return csrfRejection;
+
   try {
     const body = await request.json();
     const { access_token, refresh_token, expires_in, token_type } = body;

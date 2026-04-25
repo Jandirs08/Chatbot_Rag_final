@@ -164,7 +164,7 @@ export function SettingsSystemTab({ isLoading }: SettingsSystemTabProps) {
                             setProgress(100);
                             setSuccess(true);
                             setProcessing(false);
-                          } catch (e: any) {
+                          } catch (e: unknown) {
                             if (timerRef.current) {
                               window.clearInterval(timerRef.current);
                               timerRef.current = null;
@@ -172,7 +172,7 @@ export function SettingsSystemTab({ isLoading }: SettingsSystemTabProps) {
                             setProgress(100);
                             setProcessing(false);
                             setError(
-                              String(e?.message || "Error inesperado al eliminar")
+                              e instanceof Error ? e.message : "Error inesperado al eliminar"
                             );
                           }
                         }}

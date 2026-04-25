@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -14,51 +15,52 @@ import {
   Clock,
   Zap,
   MessageSquare,
-  Eye,
   Info,
   Shield,
   ShieldCheck,
   AlertTriangle,
   Ticket,
   Gauge,
-  X,
   BrainCircuit,
   Database,
   Ban,
+  Terminal,
+  Braces,
 } from "lucide-react";
-import PdfViewerModal from "@/app/components/modals/PdfViewerModal";
-import { ChevronRight, ChevronDown, Copy, Terminal, Braces } from "lucide-react";
+import { SourcesList } from "@/app/components/debug/SourcesList";
 
-type RetrievedDoc = {
-  text?: string;
-  preview?: string;
-  source?: string | null;
-  file_path?: string | null;
-  score?: number | null;
-  page_number?: number | null;
-};
+const PdfViewerModal = dynamic(
+  () => import("@/app/components/modals/PdfViewerModal"),
+  { ssr: false },
+);
 
-type DebugData = {
-  retrieved_documents?: RetrievedDoc[];
-  retrieved?: RetrievedDoc[];
-  prompt_used?: string;
-  model_params?: Record<string, any>;
-  rag_time?: number | null;
-  llm_time?: number | null;
-  history_ms?: number | null;
-  embedding_ms?: number | null;
-  dense_ms?: number | null;
-  lexical_ms?: number | null;
-  hydrate_ms?: number | null;
-  rerank_ms?: number | null;
-  first_token_ms?: number | null;
-  stream_total_ms?: number | null;
-  input_tokens?: number | null;
-  output_tokens?: number | null;
-  verification?: { is_grounded: boolean; reason?: string } | null;
-  gating_reason?: string | null;
-  is_cached?: boolean;
-};
+const PromptDrawer = dynamic(
+  () =>
+    import("@/app/components/debug/PromptDrawer").then((mod) => ({
+      default: mod.PromptDrawer,
+    })),
+  { ssr: false },
+);
+
+const JsonDrawer = dynamic(
+  () =>
+    import("@/app/components/debug/JsonDrawer").then((mod) => ({
+      default: mod.JsonDrawer,
+    })),
+  { ssr: false },
+);
+import {
+  GATING_EXPLAIN,
+  GATING_MAP,
+  GATING_TONE_MAP,
+  fmtMsVal,
+  fmtSVal,
+  fmtTokVal,
+  type DebugData,
+  type RetrievedDoc,
+} from "@/app/components/debug/utils";
+
+export type { DebugData, RetrievedDoc };
 
 export function DebugInspector({ data }: { data?: DebugData | null }) {
   const [pdfOpen, setPdfOpen] = useState(false);
@@ -66,26 +68,15 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
   const [pdfPage, setPdfPage] = useState<number | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [showJson, setShowJson] = useState(false);
-  const [expandedDocs, setExpandedDocs] = useState<Record<number, boolean>>({});
-  const [activeTab, setActiveTab] = useState<string>("veredicto");
-  const [promptRawMode, setPromptRawMode] = useState(false);
-  const [promptFold, setPromptFold] = useState<Record<string, boolean>>({
-    context: false,
-    history: false,
-    instructions: true,
-  });
-  const [jsonCollapsed, setJsonCollapsed] = useState<Record<string, boolean>>({});
 
   // Cleanup Object URL when PDF modal closes to prevent memory leaks
   React.useEffect(() => {
-    // Only cleanup when modal is closed and we have a URL
     if (!pdfOpen && pdfUrl) {
       URL.revokeObjectURL(pdfUrl);
       setPdfUrl(null);
     }
   }, [pdfOpen, pdfUrl]);
 
-  // Cleanup on unmount as safety net
   React.useEffect(() => {
     return () => {
       if (pdfUrl) {
@@ -93,336 +84,101 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
       }
     };
   }, [pdfUrl]);
-  const SEGMENTS = ["context", "history", "instructions"] as const;
-  const ORDERED_SEGMENTS = ["instructions", "context", "history"] as const;
+
   const promptText = (data?.prompt_used ?? "") as string;
-  const segRegex = (name: string) => new RegExp(`<${name}>[\s\S]*?<\/${name}>`);
-  const extractInner = (name: string) => {
-    const regex = new RegExp(`<${name}>[\\s\\S]*?<\/${name}>`, "i");
-    const match = String(promptText || "").match(regex);
-    if (!match) return "";
-    return match[0].replace(new RegExp(`</?${name}>`, "gi"), "").trim();
-  };
-  const promptSegmentsCount = SEGMENTS.reduce((acc, s) => (segRegex(s).test(String(promptText)) ? acc + 1 : acc), 0);
-  const promptCharCount = String(promptText || "").length;
-  const formatGeneral = (s: string) => {
-    let t = String(s || "");
-    t = t.replace(/\s{2,}/g, " ");
-    t = t.replace(/([\.;:])\s+/g, "$1\n\n");
-    t = t.replace(/\n{3,}/g, "\n\n");
-    t = t.replace(/(^|\n)\s+/g, "$1");
-    t = t.replace(/^\s*•\s+/gm, "    - ");
-    t = t.replace(/^\s*-\s+/gm, "    - ");
-    t = t.replace(/^\s*(\d+)\.\s*\n\s*/gm, "$1. ");
-    return t;
-  };
-  const splitInstructions = (s: string) => {
-    const t = formatGeneral(s);
-    const parts = t.split(/(?=\n?\s*\d+\.)/g).filter((x) => x.trim().length > 0);
-    return parts;
-  };
-  const emphasize = (s: string) => {
-    const re = /(PRIORIDAD MÁXIMA|MANEJO DE VACÍOS|FORMATO)/g;
-    const chunks = String(s).split(re);
-    return (
-      <>
-        {chunks.map((c, i) =>
-          re.test(c) ? (
-            <span key={i} className="font-semibold">
-              {c}
-            </span>
-          ) : (
-            <span key={i}>{c}</span>
-          ),
-        )}
-      </>
-    );
-  };
 
-  const jsonStats = (v: any): { keys: number; arrays: number; objects: number } => {
-    if (v === null || typeof v !== "object") return { keys: 0, arrays: 0, objects: 0 };
-    if (Array.isArray(v)) {
-      const inner = v.map(jsonStats).reduce((a, b) => ({ keys: a.keys + b.keys, arrays: a.arrays + b.arrays, objects: a.objects + b.objects }), { keys: 0, arrays: 0, objects: 0 });
-      return { keys: inner.keys, arrays: inner.arrays + 1, objects: inner.objects };
+  const docs = useMemo<RetrievedDoc[]>(() => {
+    if (Array.isArray(data?.retrieved_documents)) {
+      return data!.retrieved_documents as RetrievedDoc[];
     }
-    const entries = Object.entries(v);
-    const inner = entries.map(([, val]) => jsonStats(val)).reduce((a, b) => ({ keys: a.keys + b.keys, arrays: a.arrays + b.arrays, objects: a.objects + b.objects }), { keys: 0, arrays: 0, objects: 0 });
-    return { keys: inner.keys + entries.length, arrays: inner.arrays, objects: inner.objects + 1 };
-  };
-  const rootStats = jsonStats(data);
-  const isCollapsed = (path: string, value: any) => {
-    if (path === "root") return false;
-    if (Array.isArray(value) && (path.endsWith("retrieved") || path.endsWith("retrieved_documents"))) return true;
-    if (path.includes("verification")) return false;
-    return Boolean(jsonCollapsed[path]);
-  };
-  const toggleCollapsed = (path: string) => setJsonCollapsed((s) => ({ ...(s || {}), [path]: !s?.[path] }));
-  const docs: RetrievedDoc[] = Array.isArray(data?.retrieved_documents)
-    ? (data?.retrieved_documents as RetrievedDoc[])
-    : Array.isArray(data?.retrieved)
-      ? (data?.retrieved as RetrievedDoc[])
-      : [];
+    if (Array.isArray(data?.retrieved)) {
+      return data!.retrieved as RetrievedDoc[];
+    }
+    return [];
+  }, [data]);
 
-  const modelParams = data?.model_params || {};
-  const modelName = String(modelParams.model_name ?? modelParams.model ?? "-");
-  const temperature =
-    typeof modelParams.temperature === "number"
-      ? modelParams.temperature
-      : undefined;
+  const metrics = useMemo(() => {
+    const num = (v: unknown): number | null =>
+      typeof v === "number" ? v : null;
+    return {
+      modelName: String(
+        data?.model_params?.model_name ?? data?.model_params?.model ?? "-",
+      ),
+      ragTime: num(data?.rag_time),
+      llmTime: num(data?.llm_time),
+      historyMs: num(data?.history_ms),
+      embeddingMs: num(data?.embedding_ms),
+      denseMs: num(data?.dense_ms),
+      lexicalMs: num(data?.lexical_ms),
+      hydrateMs: num(data?.hydrate_ms),
+      rerankMs: num(data?.rerank_ms),
+      firstTokenMs: num(data?.first_token_ms),
+      streamTotalMs: num(data?.stream_total_ms),
+      inTok: num(data?.input_tokens),
+      outTok: num(data?.output_tokens),
+    };
+  }, [data]);
 
-  const ragTime = typeof data?.rag_time === "number" ? data!.rag_time! : null;
-  const llmTime = typeof data?.llm_time === "number" ? data!.llm_time! : null;
-  const historyMs = typeof data?.history_ms === "number" ? data.history_ms : null;
-  const embeddingMs = typeof data?.embedding_ms === "number" ? data.embedding_ms : null;
-  const denseMs = typeof data?.dense_ms === "number" ? data.dense_ms : null;
-  const lexicalMs = typeof data?.lexical_ms === "number" ? data.lexical_ms : null;
-  const hydrateMs = typeof data?.hydrate_ms === "number" ? data.hydrate_ms : null;
-  const rerankMs = typeof data?.rerank_ms === "number" ? data.rerank_ms : null;
-  const firstTokenMs = typeof data?.first_token_ms === "number" ? data.first_token_ms : null;
-  const streamTotalMs = typeof data?.stream_total_ms === "number" ? data.stream_total_ms : null;
-  const inTok =
-    typeof data?.input_tokens === "number" ? data!.input_tokens! : null;
-  const outTok =
-    typeof data?.output_tokens === "number" ? data!.output_tokens! : null;
-  const fmtSVal = (v: number | null) => (v === null ? "-" : v.toFixed(2));
-  const fmtMsVal = (v: number | null) =>
-    v === null ? "-" : v >= 1000 ? `${(v / 1000).toFixed(2)}s` : `${v.toFixed(0)} ms`;
-  const fmtTokVal = (v: number | null) =>
-    v === null ? "-" : v.toLocaleString();
-  const ragColor =
-    ragTime === null
-      ? "text-muted-foreground"
-      : ragTime < 1
-        ? "text-emerald-500"
-        : ragTime > 3
-          ? "text-rose-500"
-          : "text-amber-500";
-  const totalTime =
-    typeof streamTotalMs === "number"
-      ? streamTotalMs / 1000
-      : 
-    typeof ragTime === "number" && typeof llmTime === "number"
-      ? ragTime + llmTime
-      : typeof ragTime === "number"
-        ? ragTime
-        : typeof llmTime === "number"
-          ? llmTime
-          : null;
-  const stageMetrics = [
-    { key: "history_ms", label: "History", value: historyMs, help: "Carga del historial en memoria/Mongo" },
-    { key: "embedding_ms", label: "Embedding", value: embeddingMs, help: "Embedding de la consulta" },
-    { key: "dense_ms", label: "Dense", value: denseMs, help: "Busqueda vectorial en Qdrant" },
-    { key: "lexical_ms", label: "Lexical", value: lexicalMs, help: "Busqueda lexical/hibrida" },
-    { key: "hydrate_ms", label: "Hydrate", value: hydrateMs, help: "Hidratacion de parents/documentos" },
-    { key: "rerank_ms", label: "Rerank", value: rerankMs, help: "Reranking de candidatos" },
-    { key: "first_token_ms", label: "First Token", value: firstTokenMs, help: "Tiempo hasta el primer chunk visible" },
-    { key: "stream_total_ms", label: "Stream Total", value: streamTotalMs, help: "Tiempo total del stream" },
-  ].filter((item) => item.value !== null);
-  const totalTokens =
-    typeof inTok === "number" && typeof outTok === "number"
-      ? inTok + outTok
-      : typeof inTok === "number"
-        ? inTok
-        : typeof outTok === "number"
-          ? outTok
-          : null;
-  // costo eliminado
-  const gatingMap: Record<string, string> = {
-    semantic_match: "Búsqueda Semántica",
-    keyword_match: "Búsqueda por Palabras Clave",
-    qa: "Pregunta y Respuesta",
-    small_talk: "Charla",
-    chatty: "Charla",
-    low_intent: "Charla",
-    no_corpus: "Sin Corpus",
-    too_short: "Consulta Muy Corta",
-    error: "Error",
-  };
+  const {
+    modelName,
+    ragTime,
+    llmTime,
+    historyMs,
+    embeddingMs,
+    denseMs,
+    lexicalMs,
+    hydrateMs,
+    rerankMs,
+    firstTokenMs,
+    streamTotalMs,
+    inTok,
+    outTok,
+  } = metrics;
+
+  const totalTime = useMemo(() => {
+    if (streamTotalMs !== null) return streamTotalMs / 1000;
+    if (ragTime !== null && llmTime !== null) return ragTime + llmTime;
+    if (ragTime !== null) return ragTime;
+    if (llmTime !== null) return llmTime;
+    return null;
+  }, [streamTotalMs, ragTime, llmTime]);
+
+  const stageMetrics = useMemo(
+    () =>
+      [
+        { key: "history_ms", label: "History", value: historyMs, help: "Carga del historial en memoria/Mongo" },
+        { key: "embedding_ms", label: "Embedding", value: embeddingMs, help: "Embedding de la consulta" },
+        { key: "dense_ms", label: "Dense", value: denseMs, help: "Busqueda vectorial en Qdrant" },
+        { key: "lexical_ms", label: "Lexical", value: lexicalMs, help: "Busqueda lexical/hibrida" },
+        { key: "hydrate_ms", label: "Hydrate", value: hydrateMs, help: "Hidratacion de parents/documentos" },
+        { key: "rerank_ms", label: "Rerank", value: rerankMs, help: "Reranking de candidatos" },
+        { key: "first_token_ms", label: "First Token", value: firstTokenMs, help: "Tiempo hasta el primer chunk visible" },
+        { key: "stream_total_ms", label: "Stream Total", value: streamTotalMs, help: "Tiempo total del stream" },
+      ].filter((item) => item.value !== null),
+    [
+      historyMs,
+      embeddingMs,
+      denseMs,
+      lexicalMs,
+      hydrateMs,
+      rerankMs,
+      firstTokenMs,
+      streamTotalMs,
+    ],
+  );
+
   const gatingText = data?.gating_reason
-    ? gatingMap[data.gating_reason] || data.gating_reason
+    ? GATING_MAP[data.gating_reason] || data.gating_reason
     : "-";
   const cacheText = data?.is_cached ? "Cache: ON" : "Cache: OFF";
-  const gatingToneMap: Record<string, "green" | "indigo" | "amber" | "rose"> = {
-    semantic_match: "green",
-    keyword_match: "green",
-    qa: "green",
-    small_talk: "indigo",
-    chatty: "indigo",
-    low_intent: "indigo",
-    no_corpus: "amber",
-    too_short: "amber",
-    error: "rose",
-  };
   const gr = String(data?.gating_reason || "");
-  const decisionTone = gatingToneMap[gr];
-  const gatingExplain: Record<string, { title: string; subtitle: string }> = {
-    semantic_match: {
-      title: "Búsqueda Semántica",
-      subtitle: "Intención informativa detectada",
-    },
-    keyword_match: {
-      title: "Búsqueda Directa",
-      subtitle: "Coincidencias por palabras clave",
-    },
-    qa: {
-      title: "Pregunta y Respuesta",
-      subtitle: "Consulta compatible con corpus",
-    },
-    small_talk: { title: "Charla Casual", subtitle: "Intención social ligera" },
-    chatty: { title: "Charla Casual", subtitle: "Intención social ligera" },
-    low_intent: {
-      title: "Charla Casual",
-      subtitle: "Baja intención informativa",
-    },
-    no_corpus: { title: "Sin Corpus", subtitle: "No hay base documental" },
-    too_short: { title: "Consulta Muy Corta", subtitle: "Amplía la pregunta" },
-    error: { title: "Error", subtitle: "Gating con fallo" },
-    small_corpus: {
-      title: "Búsqueda Directa",
-      subtitle: "Corpus pequeño detectado",
-    },
-  };
+  const decisionTone = GATING_TONE_MAP[gr];
 
-  const renderPromptWithHighlights = (text: string) => {
-    const colors: Record<string, string> = {
-      context: "text-indigo-400",
-      history: "text-violet-400",
-      instructions: "text-emerald-400",
-    };
-    const bgColors: Record<string, string> = {
-      context: "bg-indigo-900/20",
-      history: "bg-violet-900/20",
-      instructions: "bg-emerald-900/20",
-    };
-    let i = 0;
-    const out: React.ReactNode[] = [];
-    const src = String(text || "");
-    while (i < src.length) {
-      const openMatch = src.slice(i).match(/<(context|history|instructions)>/);
-      if (!openMatch) {
-        const rest = src.slice(i);
-        if (rest)
-          out.push(
-            <span key={i} className="text-slate-300 leading-7 break-words">
-              {rest}
-            </span>,
-          );
-        break;
-      }
-      const openIdx = i + (openMatch.index || 0);
-      const tagName = openMatch[1] as keyof typeof colors;
-      const before = src.slice(i, openIdx);
-      if (before)
-        out.push(
-          <span key={i} className="text-slate-300 leading-7 break-words">
-            {before}
-          </span>,
-        );
-      const openTagLen = `<${tagName}>`.length;
-      const afterOpen = openIdx + openTagLen;
-      const closeRe = new RegExp(`</${tagName}>`);
-      const closeMatch = src.slice(afterOpen).match(closeRe);
-      if (!closeMatch) {
-        out.push(
-          <span
-            key={`open-${openIdx}`}
-            className={cn("px-1 font-semibold", colors[tagName])}
-          >{`<${tagName}>`}</span>,
-        );
-        i = afterOpen;
-        continue;
-      }
-      const closeIdx = afterOpen + (closeMatch.index || 0);
-      out.push(
-        <span
-          key={`open-${openIdx}`}
-          className={cn("px-1 font-semibold", colors[tagName])}
-        >{`<${tagName}>`}</span>,
-      );
-      const inner = src.slice(afterOpen, closeIdx);
-      out.push(
-        <span
-          key={`inner-${openIdx}`}
-          className={cn(
-            "px-2 py-1 inline-block rounded",
-            bgColors[tagName],
-            "text-slate-300 leading-7 break-words",
-          )}
-        >
-          {inner}
-        </span>,
-      );
-      const closeTagLen = `</${tagName}>`.length;
-      out.push(
-        <span
-          key={`close-${closeIdx}`}
-          className="px-1 font-semibold text-slate-400"
-        >{`</${tagName}>`}</span>,
-      );
-      i = closeIdx + closeTagLen;
-    }
-    return <>{out}</>;
-  };
-
-  const renderJsonWithHighlights = (value: any, depth = 0): React.ReactNode => {
-    const pad = depth > 0 ? `pl-${Math.min(depth * 4, 24)}` : "";
-    if (value === null) {
-      return <span className="text-slate-400">null</span>;
-    }
-    if (typeof value === "string") {
-      return (
-        <span className="text-green-300 break-words">&quot;{value}&quot;</span>
-      );
-    }
-    if (typeof value === "number") {
-      return <span className="text-amber-300">{String(value)}</span>;
-    }
-    if (typeof value === "boolean") {
-      return <span className="text-violet-300">{String(value)}</span>;
-    }
-    if (Array.isArray(value)) {
-      return (
-        <span className="text-zinc-100">
-          <span className="text-slate-400">[</span>
-          <div className={cn("", pad)}>
-            {value.map((v, i) => (
-              <div key={i} className="leading-7">
-                {renderJsonWithHighlights(v, depth + 1)}
-                {i < value.length - 1 && (
-                  <span className="text-slate-400">,</span>
-                )}
-              </div>
-            ))}
-          </div>
-          <span className="text-slate-400">]</span>
-        </span>
-      );
-    }
-    if (typeof value === "object") {
-      const entries = Object.entries(value);
-      return (
-        <span className="text-zinc-100">
-          <span className="text-slate-400">{`{`}</span>
-          <div className={cn("", pad)}>
-            {entries.map(([k, v], i) => (
-              <div key={k} className="leading-7">
-                <span className="text-sky-300 font-semibold break-words">
-                  &quot;{k}&quot;
-                </span>
-                <span className="text-slate-400">: </span>
-                {renderJsonWithHighlights(v, depth + 1)}
-                {i < entries.length - 1 && (
-                  <span className="text-slate-400">,</span>
-                )}
-              </div>
-            ))}
-          </div>
-          <span className="text-slate-400">{`}`}</span>
-        </span>
-      );
-    }
-    return <span className="text-zinc-100">{String(value)}</span>;
-  };
+  const handleOpenPdf = useCallback((url: string, page: number | null) => {
+    setPdfUrl(url);
+    setPdfPage(page);
+    setPdfOpen(true);
+  }, []);
 
   if (!data) {
     return (
@@ -548,110 +304,106 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                         oPct = oPct + Math.abs(extra);
                       }
                     }
+                    const intentCompleted = Boolean(gr || gatingText);
+                    const searchCompleted = ragTime !== null;
+                    const retrievalCompleted = docs.length > 0;
+                    const responseCompleted = llmTime !== null;
+                    const verdictCompleted = Boolean(data?.verification);
+                    const activeStage = verdictCompleted
+                      ? "veredicto"
+                      : responseCompleted
+                        ? "respuesta"
+                        : retrievalCompleted
+                          ? "razonamiento"
+                          : searchCompleted
+                            ? "recuperacion"
+                            : intentCompleted
+                              ? "busqueda"
+                              : "intencion";
+                    const node = (
+                      completed: boolean,
+                      active: boolean,
+                      icon: React.ReactNode,
+                      label: string,
+                    ) => (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div
+                            className={cn(
+                              "relative flex items-center justify-center w-5 h-5 rounded-full",
+                              completed
+                                ? "bg-success"
+                                : active
+                                  ? "bg-primary"
+                                  : "bg-muted",
+                              active && "ring-2 ring-primary/50 animate-pulse",
+                            )}
+                          >
+                            <div className="text-primary-foreground">{icon}</div>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent className="text-xs">{label}</TooltipContent>
+                      </Tooltip>
+                    );
+                    const line = (active: boolean) => (
+                      <div
+                        className={cn(
+                          "h-[2px] w-12",
+                          active ? "bg-primary" : "bg-muted",
+                          "transition-all duration-500",
+                        )}
+                      />
+                    );
                     return (
                       <div className="relative space-y-5">
                         <div className="flex items-center justify-center gap-3">
-                          {(() => {
-                            const intentCompleted = Boolean(gr || gatingText);
-                            const searchCompleted = ragTime !== null;
-                            const retrievalCompleted = docs.length > 0;
-                            const responseCompleted = llmTime !== null;
-                            const verdictCompleted = Boolean(data?.verification);
-                            const activeStage = verdictCompleted
-                              ? "veredicto"
-                              : responseCompleted
-                                ? "respuesta"
-                                : retrievalCompleted
-                                  ? "razonamiento"
-                                  : searchCompleted
-                                    ? "recuperacion"
-                                    : intentCompleted
-                                      ? "busqueda"
-                                      : "intencion";
-                            const node = (
-                              completed: boolean,
-                              active: boolean,
-                              icon: React.ReactNode,
-                              label: string,
-                            ) => (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <div
-                                    className={cn(
-                                      "relative flex items-center justify-center w-5 h-5 rounded-full",
-                                      completed
-                                        ? "bg-success"
-                                        : active
-                                          ? "bg-primary"
-                                          : "bg-muted",
-                                      active && "ring-2 ring-primary/50 animate-pulse",
-                                    )}
-                                  >
-                                    <div className="text-primary-foreground">{icon}</div>
-                                  </div>
-                                </TooltipTrigger>
-                                <TooltipContent className="text-xs">{label}</TooltipContent>
-                              </Tooltip>
-                            );
-                            const line = (active: boolean) => (
-                              <div
-                                className={cn(
-                                  "h-[2px] w-12",
-                                  active ? "bg-primary" : "bg-muted",
-                                  "transition-all duration-500",
-                                )}
-                              />
-                            );
-                            return (
-                              <div className="flex flex-wrap md:flex-nowrap items-center justify-center gap-2 overflow-x-auto md:overflow-visible">
-                                {node(
-                                  intentCompleted,
-                                  activeStage === "intencion",
-                                  <BrainCircuit className="w-3 h-3" />,
-                                  "Intención",
-                                )}
-                                {line(activeStage === "busqueda")}
-                                {node(
-                                  searchCompleted,
-                                  activeStage === "busqueda",
-                                  <Database className="w-3 h-3" />,
-                                  "Búsqueda RAG",
-                                )}
-                                {line(activeStage === "recuperacion")}
-                                {node(
-                                  retrievalCompleted,
-                                  activeStage === "recuperacion",
-                                  <Database className="w-3 h-3" />,
-                                  "Recuperación",
-                                )}
-                                {line(activeStage === "razonamiento")}
-                                {node(
-                                  responseCompleted,
-                                  activeStage === "razonamiento",
-                                  <Zap className="w-3 h-3" />,
-                                  "Razonamiento",
-                                )}
-                                {line(activeStage === "respuesta")}
-                                {node(
-                                  responseCompleted,
-                                  activeStage === "respuesta",
-                                  <MessageSquare className="w-3 h-3" />,
-                                  "Respuesta",
-                                )}
-                                {line(activeStage === "veredicto")}
-                                {node(
-                                  verdictCompleted,
-                                  activeStage === "veredicto",
-                                  data?.verification?.is_grounded ? (
-                                    <ShieldCheck className="w-3 h-3" />
-                                  ) : (
-                                    <Shield className="w-3 h-3" />
-                                  ),
-                                  "Veredicto",
-                                )}
-                              </div>
-                            );
-                          })()}
+                          <div className="flex flex-wrap md:flex-nowrap items-center justify-center gap-2 overflow-x-auto md:overflow-visible">
+                            {node(
+                              intentCompleted,
+                              activeStage === "intencion",
+                              <BrainCircuit className="w-3 h-3" />,
+                              "Intención",
+                            )}
+                            {line(activeStage === "busqueda")}
+                            {node(
+                              searchCompleted,
+                              activeStage === "busqueda",
+                              <Database className="w-3 h-3" />,
+                              "Búsqueda RAG",
+                            )}
+                            {line(activeStage === "recuperacion")}
+                            {node(
+                              retrievalCompleted,
+                              activeStage === "recuperacion",
+                              <Database className="w-3 h-3" />,
+                              "Recuperación",
+                            )}
+                            {line(activeStage === "razonamiento")}
+                            {node(
+                              responseCompleted,
+                              activeStage === "razonamiento",
+                              <Zap className="w-3 h-3" />,
+                              "Razonamiento",
+                            )}
+                            {line(activeStage === "respuesta")}
+                            {node(
+                              responseCompleted,
+                              activeStage === "respuesta",
+                              <MessageSquare className="w-3 h-3" />,
+                              "Respuesta",
+                            )}
+                            {line(activeStage === "veredicto")}
+                            {node(
+                              verdictCompleted,
+                              activeStage === "veredicto",
+                              data?.verification?.is_grounded ? (
+                                <ShieldCheck className="w-3 h-3" />
+                              ) : (
+                                <Shield className="w-3 h-3" />
+                              ),
+                              "Veredicto",
+                            )}
+                          </div>
                         </div>
                         <div className="w-full">
                           <div className="flex mb-2 text-xs text-slate-800">
@@ -721,109 +473,106 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                     </div>
                   </div>
                 )}
-                <div>
-                  <div className="grid grid-cols-1 gap-3 rounded-[20px] border border-border/60 bg-surface/80 p-4 md:grid-cols-3 dark:bg-slate-900 dark:border-slate-800">
-                    <div className="flex flex-col gap-2">
-                      <div className="text-xs font-semibold text-foreground">Motor</div>
-                      <div className="flex flex-wrap items-center gap-3">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="inline-flex items-center gap-2">
-                              <Info className="w-4 h-4 text-muted-foreground" />
-                              <Badge variant="outline" className="px-2 py-[3px] text-[11px] font-mono text-foreground bg-muted/50 border-border">{modelName}</Badge>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent className="text-xs">Modelo LLM utilizado</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="inline-flex items-center gap-2">
-                              <Ticket className="w-4 h-4 text-muted-foreground" />
-                              <Badge className={cn(
-                                "px-2 py-[3px] text-[11px]",
-                                data?.is_cached
-                                  ? "bg-success/10 text-success border border-success/20"
-                                  : "bg-muted text-muted-foreground border border-border"
-                              )}>{cacheText}</Badge>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent className="text-xs">Indica si se respondió desde caché</TooltipContent>
-                        </Tooltip>
-
-                      </div>
+                <div className="grid grid-cols-1 gap-3 rounded-[20px] border border-border/60 bg-surface/80 p-4 md:grid-cols-3 dark:bg-slate-900 dark:border-slate-800">
+                  <div className="flex flex-col gap-2">
+                    <div className="text-xs font-semibold text-foreground">Motor</div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="inline-flex items-center gap-2">
+                            <Info className="w-4 h-4 text-muted-foreground" />
+                            <Badge variant="outline" className="px-2 py-[3px] text-[11px] font-mono text-foreground bg-muted/50 border-border">{modelName}</Badge>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent className="text-xs">Modelo LLM utilizado</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="inline-flex items-center gap-2">
+                            <Ticket className="w-4 h-4 text-muted-foreground" />
+                            <Badge className={cn(
+                              "px-2 py-[3px] text-[11px]",
+                              data?.is_cached
+                                ? "bg-success/10 text-success border border-success/20"
+                                : "bg-muted text-muted-foreground border border-border"
+                            )}>{cacheText}</Badge>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent className="text-xs">Indica si se respondió desde caché</TooltipContent>
+                      </Tooltip>
                     </div>
-                    <div className="flex flex-col gap-2">
-                      <div className="text-xs font-semibold text-foreground">Consumo Tokens</div>
-                      <div className="space-y-2">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-muted-foreground">Input</span>
-                              <span className="font-mono text-slate-900">{fmtTokVal(inTok)}</span>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent className="text-xs">Cantidad de tokens procesados</TooltipContent>
-                        </Tooltip>
-                        <div className="h-2 rounded-full bg-slate-100 overflow-hidden dark:bg-slate-800/70">
-                          <div
-                            className="h-full bg-emerald-400 transition-all"
-                            style={{ width: `${Math.max(0, Math.min(100, ((inTok ?? 0) / Math.max(1, ((inTok ?? 0) + (outTok ?? 0)))) * 100))}%` }}
-                          />
-                        </div>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-muted-foreground">Output</span>
-                              <span className="font-mono text-slate-900">{fmtTokVal(outTok)}</span>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent className="text-xs">Cantidad de tokens procesados</TooltipContent>
-                        </Tooltip>
-                        <div className="h-2 rounded-full bg-slate-100 overflow-hidden dark:bg-slate-800/70">
-                          <div
-                            className="h-full bg-blue-400 transition-all"
-                            style={{ width: `${Math.max(0, Math.min(100, ((outTok ?? 0) / Math.max(1, ((inTok ?? 0) + (outTok ?? 0)))) * 100))}%` }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <div className="text-xs font-semibold text-foreground">Diagnóstico</div>
-                      <div className="flex flex-wrap items-center gap-3">
-                        {(() => {
-                          const isRagOn = docs.length > 0 || (ragTime ?? 0) > 0;
-                          const label = isRagOn ? "RAG: ON" : "RAG: OFF";
-                          const cls = isRagOn
-                            ? "bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800"
-                            : "bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700";
-                          return (
-                            <span className="inline-flex items-center gap-2">
-                              {isRagOn ? (
-                                <Database className="w-4 h-4 text-blue-700" />
-                              ) : (
-                                <Ban className="w-4 h-4 text-slate-600" />
-                              )}
-                              <Badge className={cn("px-2 py-[3px] text-[11px]", cls)}>{label}</Badge>
-                            </span>
-                          );
-                        })()}
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <div className="text-xs font-semibold text-foreground">Consumo Tokens</div>
+                    <div className="space-y-2">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground">Input</span>
+                            <span className="font-mono text-slate-900">{fmtTokVal(inTok)}</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent className="text-xs">Cantidad de tokens procesados</TooltipContent>
+                      </Tooltip>
+                      <div className="h-2 rounded-full bg-slate-100 overflow-hidden dark:bg-slate-800/70">
                         <div
-                          className={cn(
-                            "inline-flex items-center gap-2 rounded-md px-2 py-[3px] border text-[11px]",
-                            decisionTone === "green"
-                              ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                              : decisionTone === "indigo"
-                                ? "bg-indigo-50 border-indigo-200 text-indigo-700"
-                                : decisionTone === "amber"
-                                  ? "bg-amber-50 border-amber-200 text-amber-700"
-                                  : decisionTone === "rose"
-                                    ? "bg-rose-50 border-rose-200 text-rose-700"
-                                    : "bg-slate-50 border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300"
-                          )}
-                        >
-                          <Shield className="w-3.5 h-3.5" />
-                          <span className="font-semibold">{gatingExplain[gr]?.title || gatingText}</span>
-                        </div>
+                          className="h-full bg-emerald-400 transition-all"
+                          style={{ width: `${Math.max(0, Math.min(100, ((inTok ?? 0) / Math.max(1, ((inTok ?? 0) + (outTok ?? 0)))) * 100))}%` }}
+                        />
+                      </div>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground">Output</span>
+                            <span className="font-mono text-slate-900">{fmtTokVal(outTok)}</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent className="text-xs">Cantidad de tokens procesados</TooltipContent>
+                      </Tooltip>
+                      <div className="h-2 rounded-full bg-slate-100 overflow-hidden dark:bg-slate-800/70">
+                        <div
+                          className="h-full bg-blue-400 transition-all"
+                          style={{ width: `${Math.max(0, Math.min(100, ((outTok ?? 0) / Math.max(1, ((inTok ?? 0) + (outTok ?? 0)))) * 100))}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <div className="text-xs font-semibold text-foreground">Diagnóstico</div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      {(() => {
+                        const isRagOn = docs.length > 0 || (ragTime ?? 0) > 0;
+                        const label = isRagOn ? "RAG: ON" : "RAG: OFF";
+                        const cls = isRagOn
+                          ? "bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800"
+                          : "bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700";
+                        return (
+                          <span className="inline-flex items-center gap-2">
+                            {isRagOn ? (
+                              <Database className="w-4 h-4 text-blue-700" />
+                            ) : (
+                              <Ban className="w-4 h-4 text-slate-600" />
+                            )}
+                            <Badge className={cn("px-2 py-[3px] text-[11px]", cls)}>{label}</Badge>
+                          </span>
+                        );
+                      })()}
+                      <div
+                        className={cn(
+                          "inline-flex items-center gap-2 rounded-md px-2 py-[3px] border text-[11px]",
+                          decisionTone === "green"
+                            ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                            : decisionTone === "indigo"
+                              ? "bg-indigo-50 border-indigo-200 text-indigo-700"
+                              : decisionTone === "amber"
+                                ? "bg-amber-50 border-amber-200 text-amber-700"
+                                : decisionTone === "rose"
+                                  ? "bg-rose-50 border-rose-200 text-rose-700"
+                                  : "bg-slate-50 border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300"
+                        )}
+                      >
+                        <Shield className="w-3.5 h-3.5" />
+                        <span className="font-semibold">{GATING_EXPLAIN[gr]?.title || gatingText}</span>
                       </div>
                     </div>
                   </div>
@@ -833,422 +582,34 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
           </section>
 
           <TooltipProvider delayDuration={0}>
-
-
-
-
-
-
-            <section>
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold text-foreground mb-1">
-                    Fuentes
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Fragmentos recuperados y similitud
-                  </div>
-                </div>
-                <Badge
-                  variant="outline"
-                  className="rounded-full px-2.5 py-1 text-[10px] font-medium"
-                >
-                  {docs.length} fragmentos
-                </Badge>
-              </div>
-              <div className="rounded-[24px] border border-border/70 bg-card p-4 text-[13px] leading-relaxed shadow-sm dark:bg-slate-900 dark:border-slate-800">
-                {docs.length === 0 ? (
-                  <div className="inline-flex items-center rounded-xl border border-border bg-muted px-3 py-2 text-sm text-muted-foreground dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700">
-                    Salto de Búsqueda
-                  </div>
-                ) : (
-                  <div>
-                    <div className="space-y-3">
-                      {docs.map((d, idx) => {
-                        const score =
-                          typeof d.score === "number" ? d.score : undefined;
-                        const pct =
-                          score !== undefined
-                            ? Math.max(0, Math.min(1, score)) * 100
-                            : undefined;
-                        const contentText = String(
-                          d.text ?? d.preview ?? "",
-                        ).trim();
-                        const src = d.source ?? d.file_path ?? null;
-                        const pageNum =
-                          typeof d.page_number === "number"
-                            ? d.page_number
-                            : null;
-                        const fileName = src
-                          ? String(src).split("/").pop()
-                          : undefined;
-                        const scoreColorHex =
-                          score !== undefined
-                            ? score > 0.7
-                              ? "#10b981"
-                              : score > 0.4
-                                ? "#f59e0b"
-                                : "#f43f5e"
-                            : "#94a3b8";
-                        const confidenceLabel =
-                          score === undefined
-                            ? "Sin score"
-                            : score > 0.7
-                              ? "High semantic match"
-                              : score > 0.4
-                                ? "Medium semantic match"
-                                : "Low semantic match";
-                        const confidenceClass = "bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700";
-                        const scoreToneClass =
-                          score === undefined
-                            ? "bg-slate-100 text-slate-700 border border-slate-200"
-                            : score > 0.7
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              : score > 0.4
-                                ? "bg-amber-50 text-amber-700 border-amber-200"
-                                : "bg-rose-50 text-rose-700 border-rose-200";
-                        return (
-                          <div
-                            key={idx}
-                            className={cn(
-                              "overflow-hidden rounded-[20px] border border-border bg-background shadow-sm transition ease-out duration-200 hover:border-border/90 hover:shadow-md dark:bg-slate-900 dark:border-slate-800",
-                            )}
-                            style={{ borderLeftColor: scoreColorHex }}
-                          >
-                            <div className="flex items-center justify-between px-3 py-2">
-                              <div className="text-sm font-medium text-foreground">
-                                {fileName || `Fragmento #${idx + 1}`}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {pageNum && pageNum > 0 && (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-[10px]"
-                                  >
-                                    Pág. {pageNum}
-                                  </Badge>
-                                )}
-                                {typeof score === "number" && (
-                                  <Badge className={cn("text-[10px]", scoreToneClass)}>
-                                    Score {Math.round(score * 100) / 100}
-                                  </Badge>
-                                )}
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Badge
-                                      className={cn(
-                                        "text-[10px]",
-                                        confidenceClass,
-                                      )}
-                                    >
-                                      {confidenceLabel}
-                                    </Badge>
-                                  </TooltipTrigger>
-                                  <TooltipContent className="text-xs">
-                                    Confianza basada en similitud semántica
-                                  </TooltipContent>
-                                </Tooltip>
-                                {d.source && (
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-7 w-7"
-                                          onClick={async () => {
-                                            try {
-                                              const url = await (
-                                                await import(
-                                                  "@/app/lib/services/pdfService"
-                                                )
-                                              ).PDFService.getPDFBlobUrl(
-                                                d.source as string,
-                                                "view",
-                                              );
-                                              setPdfUrl(url);
-                                              setPdfPage(pageNum);
-                                              setPdfOpen(true);
-                                            } catch (_) { }
-                                          }}
-                                        >
-                                          <Eye className="w-4 h-4" />
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        Ver documento original
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                )}
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() =>
-                                    setExpandedDocs((s) => ({
-                                      ...(s || {}),
-                                      [idx]: !s?.[idx],
-                                    }))
-                                  }
-                                >
-                                  {expandedDocs?.[idx] ? "Ver menos" : "Ver más"}
-                                </Button>
-                              </div>
-                            </div>
-                            <div className="px-3 pb-3">
-                              {pct !== undefined && (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <div className="flex items-center gap-2 mb-2">
-                                      <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
-                                        <div
-                                          className="h-full"
-                                          style={{
-                                            width: `${Math.round(pct)}%`,
-                                            backgroundColor: scoreColorHex,
-                                          }}
-                                        />
-                                      </div>
-                                      <span className="text-xs text-slate-500">
-                                        {Math.round(pct)}%
-                                      </span>
-                                    </div>
-                                  </TooltipTrigger>
-                                  <TooltipContent className="text-xs">
-                                    Similitud semántica del fragmento
-                                  </TooltipContent>
-                                </Tooltip>
-                              )}
-                              <div className="bg-slate-50 text-slate-500 rounded-md px-3 py-2 text-xs font-mono leading-relaxed">
-                                {expandedDocs?.[idx]
-                                  ? contentText
-                                  : contentText.length > 220
-                                    ? contentText.slice(0, 220) + "…"
-                                    : contentText}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </section>
-
-
+            <SourcesList docs={docs} onOpenPdf={handleOpenPdf} />
           </TooltipProvider>
         </div>
       </div>
 
-      <PdfViewerModal
-        isOpen={pdfOpen}
-        onClose={setPdfOpen}
-        pdfUrl={pdfUrl}
-        initialPage={pdfPage ?? null}
-      />
+      {pdfOpen && (
+        <PdfViewerModal
+          isOpen={pdfOpen}
+          onClose={setPdfOpen}
+          pdfUrl={pdfUrl}
+          initialPage={pdfPage ?? null}
+        />
+      )}
 
       {showPrompt && (
-        <div className="fixed inset-0 z-50">
-          <div
-            className="absolute inset-0 bg-black/20"
-            onClick={() => setShowPrompt(false)}
-          />
-          <div className="absolute inset-y-0 right-0 w-[min(85vw,680px)] h-full bg-card border-l border-border shadow-xl transform transition-transform duration-300 translate-x-0 flex flex-col dark:bg-slate-900 dark:border-slate-800">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border dark:border-slate-800">
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-muted border border-border dark:bg-slate-800 dark:border-slate-700">
-                  <MessageSquare className="w-4 h-4 text-muted-foreground" />
-                </span>
-                <span className="text-sm font-semibold text-foreground">
-                  Prompt Efectivo
-                </span>
-              </div>
-              <button
-                className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border hover:bg-muted focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-700"
-                onClick={() => setShowPrompt(false)}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="px-4 py-2 border-b border-border flex items-center justify-between text-xs text-muted-foreground dark:border-slate-800">
-              <div className="flex items-center gap-3">
-                <span>{promptCharCount} caracteres</span>
-                <span>{promptSegmentsCount} segmentos</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" className="h-8" onClick={() => navigator.clipboard?.writeText(String(promptText || ""))}>
-                  <Copy className="w-4 h-4 mr-2" />
-                  Copiar
-                </Button>
-                <Button variant="outline" className="h-8" onClick={() => setPromptRawMode((v) => !v)}>
-                  {promptRawMode ? "Ver highlight" : "Limpiar highlight"}
-                </Button>
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4">
-              {promptRawMode ? (
-                <div className="rounded-md border bg-[#0F1115] text-slate-100 p-4 max-h-screen overflow-auto">
-                  <div className="text-[13px] font-mono whitespace-pre-line break-words leading-7" style={{ overflowWrap: "anywhere" }}>
-                    {String(promptText || "")}
-                  </div>
-                </div>
-              ) : (
-                <div className="rounded-md border bg-[#0F1115] text-slate-100 p-4 max-h-[calc(100vh-65px)] overflow-y-auto space-y-2">
-                  {ORDERED_SEGMENTS.map((name) => {
-                    const inner = extractInner(name);
-                    const open = Boolean(promptFold[name]);
-                    const title = name === "context" ? "CONTEXTO" : name === "history" ? "HISTORIAL" : "INSTRUCCIONES";
-                    return (
-                      <div key={name} className="rounded-md bg-[#0F1115] border border-white/10">
-                        <button
-                          className="w-full flex items-center justify-between px-4 py-3 text-sm hover:bg-slate-800/30 transition-colors font-mono text-[14px] text-slate-100"
-                          onClick={() => setPromptFold((s) => ({ ...(s || {}), [name]: !s?.[name] }))}
-                        >
-                          <div className="flex items-center gap-2">
-                            {open ? (
-                              <ChevronDown className="w-4 h-4 transition-transform duration-200" />
-                            ) : (
-                              <ChevronRight className="w-4 h-4 transition-transform duration-200" />
-                            )}
-                            <span>{title}</span>
-                          </div>
-                          <span className="text-xs text-slate-200">{inner.length} chars</span>
-                        </button>
-                        <div className={cn("px-4 pb-4 transition-opacity duration-150", open ? "opacity-100" : "opacity-0 hidden")}>
-                          <div className="text-slate-100 font-mono text-[14px]" style={{ overflowWrap: "anywhere" }}>
-                            <div className="text-slate-300 mb-2">────────────────────────────────────────────────</div>
-                            {name === "instructions" ? (
-                              <div className={cn("px-4 py-3 inline-block rounded leading-7 break-words", "bg-emerald-500/15")}>
-                                {splitInstructions(inner).map((item, idx) => {
-                                  const m = item.match(/^\s*(\d+)\.\s*([\s\S]*)$/);
-                                  const number = m ? m[1] : String(idx + 1);
-                                  const rest = m ? m[2] : item;
-                                  return (
-                                    <div key={idx} className="mb-3 whitespace-pre-wrap break-words">
-                                      <div className="mb-1"><span className="inline-block w-full break-words">[{number}] {emphasize(rest)}</span></div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            ) : (
-                              <pre className={cn("px-4 py-3 inline-block rounded leading-7 whitespace-pre-wrap break-words", name === "context" ? "bg-indigo-500/15" : "bg-violet-500/15")}>
-                                {formatGeneral(inner)}
-                              </pre>
-                            )}
-                          </div>
-                        </div>
-                        <div className="px-4"><div className="h-px bg-white/10" /></div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <PromptDrawer
+          open={showPrompt}
+          onClose={() => setShowPrompt(false)}
+          promptText={promptText}
+        />
       )}
 
       {showJson && (
-        <div className="fixed inset-0 z-50">
-          <div
-            className="absolute inset-0 bg-black/20"
-            onClick={() => setShowJson(false)}
-          />
-          <div className="absolute inset-y-0 right-0 w-[min(85vw,560px)] bg-card border-l border-border shadow-xl transform transition-transform duration-300 translate-x-0 dark:bg-slate-900 dark:border-slate-800">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border dark:border-slate-800">
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-muted border border-border dark:bg-slate-800 dark:border-slate-700">
-                  <Info className="w-4 h-4 text-muted-foreground" />
-                </span>
-                <span className="text-sm font-semibold text-foreground">JSON Crudo</span>
-              </div>
-              <button
-                className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border hover:bg-muted focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-700"
-                onClick={() => setShowJson(false)}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="px-4 py-2 border-b border-border flex items-center justify-between text-xs text-muted-foreground dark:border-slate-800">
-              <div className="flex items-center gap-3">
-                <span>{rootStats.keys} claves</span>
-                <span>{rootStats.arrays} arrays</span>
-                <span>{rootStats.objects} objetos</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" className="h-8" onClick={() => navigator.clipboard?.writeText(JSON.stringify(data, null, 2))}>
-                  <Copy className="w-4 h-4 mr-2" />
-                  Copiar
-                </Button>
-              </div>
-            </div>
-            <div className="p-4">
-              <div className="rounded-md border bg-zinc-950 text-zinc-100 p-4 max-h-screen overflow-auto">
-                <div className="text-[13px] font-mono leading-7" style={{ overflowWrap: "anywhere" }}>
-                  {(function renderNode(value: any, path: string, depth: number): React.ReactNode {
-                    if (value === null) return <span className="text-slate-400">null</span>;
-                    if (typeof value === "string") return <span className="text-green-300 break-words">&quot;{value}&quot;</span>;
-                    if (typeof value === "number") return <span className="text-amber-300">{String(value)}</span>;
-                    if (typeof value === "boolean") return <span className="text-violet-300">{String(value)}</span>;
-                    const pad = `pl-${Math.min(depth * 4, 24)}`;
-                    if (Array.isArray(value)) {
-                      const collapsed = isCollapsed(path, value);
-                      return (
-                        <div className={cn(pad)}>
-                          <button className="flex items-center gap-2 cursor-pointer text-zinc-100 hover:text-white transition-colors" onClick={() => toggleCollapsed(path)}>
-                            {collapsed ? (
-                              <ChevronRight className="w-4 h-4 transition-transform duration-200" />
-                            ) : (
-                              <ChevronDown className="w-4 h-4 transition-transform duration-200" />
-                            )}
-                            <span className="text-slate-300">[</span>
-                            <span className="text-slate-400">{value.length} items</span>
-                            <span className="text-slate-300">]</span>
-                          </button>
-                          <div className={cn("transition-opacity duration-150", collapsed ? "opacity-0 hidden" : "opacity-100")}>
-                            {value.map((v, i) => (
-                              <div key={`${path}|${i}`} className="leading-7">
-                                {renderNode(v, `${path}|${i}`, depth + 1)}
-                                {i < value.length - 1 && <span className="text-slate-400">,</span>}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    }
-                    const entries = Object.entries(value);
-                    const collapsed = isCollapsed(path, value);
-                    return (
-                      <div className={cn(pad)}>
-                        <button className="flex items-center gap-2 cursor-pointer text-zinc-100 hover:text-white transition-colors" onClick={() => toggleCollapsed(path)}>
-                          {collapsed ? (
-                            <ChevronRight className="w-4 h-4 transition-transform duration-200" />
-                          ) : (
-                            <ChevronDown className="w-4 h-4 transition-transform duration-200" />
-                          )}
-                          <span className="text-slate-300">{`{`}</span>
-                          <span className="text-slate-400">{entries.length} keys</span>
-                          <span className="text-slate-300">{`}`}</span>
-                        </button>
-                        <div className={cn("transition-opacity duration-150", collapsed ? "opacity-0 hidden" : "opacity-100")}>
-                          {entries.map(([k, v], i) => (
-                            <div key={`${path}|${k}`} className="leading-7">
-                              <span className="text-sky-300 font-semibold break-words">&quot;{k}&quot;</span>
-                              <span className="text-slate-400">: </span>
-                              {renderNode(v, `${path}|${k}`, depth + 1)}
-                              {i < entries.length - 1 && <span className="text-slate-400">,</span>}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })(data, "root", 0)}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <JsonDrawer
+          open={showJson}
+          onClose={() => setShowJson(false)}
+          data={data}
+        />
       )}
     </div>
   );

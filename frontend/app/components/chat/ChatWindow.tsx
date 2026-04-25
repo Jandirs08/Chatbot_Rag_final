@@ -4,7 +4,7 @@ import React, { useRef, useEffect } from "react";
 import Image from "next/image";
 import { EmptyState } from "./EmptyState";
 import { ChatMessageBubble, TypingIndicator } from "./ChatMessageBubble";
-import { AutoResizeTextarea } from "@/shared/components/ui/AutoResizeTextarea";
+import { AutoResizeTextarea } from "@/app/components/ui/AutoResizeTextarea";
 import { Button } from "@/app/components/ui/button";
 import { ArrowUp, MessageCircle, Trash } from "lucide-react";
 import { useChatStream } from "@/app/hooks/useChatStream";
@@ -12,6 +12,7 @@ import { usePublicBotConfig } from "@/app/hooks/usePublicBotConfig";
 import { botService } from "@/app/lib/services/botService";
 import { TokenManager } from "@/app/lib/services/authService";
 import { API_URL } from "@/app/lib/config";
+import type { DebugData } from "@/app/components/debug/utils";
 import { cn } from "@/lib/utils";
 
 export function ChatWindow(props: {
@@ -21,7 +22,7 @@ export function ChatWindow(props: {
   initialMessages?: import("@/types/chat").Message[];
   forceDebug?: boolean;
   enableVerification?: boolean;
-  onDebugData?: (data: any) => void;
+  onDebugData?: (data: DebugData | null | undefined) => void;
   onNewChat?: () => void;
   variant?: "default" | "playground";
 }) {
@@ -80,7 +81,7 @@ export function ChatWindow(props: {
   const resetIdle = React.useCallback(() => {
     setShowPulse(false);
     if (idleTimerRef.current) {
-      clearTimeout(idleTimerRef.current as any);
+      clearTimeout(idleTimerRef.current);
       idleTimerRef.current = null;
     }
     idleTimerRef.current = setTimeout(() => {
@@ -254,8 +255,8 @@ export function ChatWindow(props: {
           const lastIsAssistantWithContent =
             !!last &&
             last.role === "assistant" &&
-            (last as any).content &&
-            (last as any).content.length > 0;
+            typeof last.content === "string" &&
+            last.content.length > 0;
           const showTyping = isLoading && !lastIsAssistantWithContent;
           return showTyping ? (
             <div className="flex justify-start">

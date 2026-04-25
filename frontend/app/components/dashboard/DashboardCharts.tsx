@@ -47,8 +47,8 @@ function formatLabel(dateIso: string, range: "7d" | "30d" | "3m"): string {
 
 type TooltipProps = {
   active?: boolean;
-  payload?: any[];
-  label?: string;
+  payload?: ReadonlyArray<{ value?: number }>;
+  label?: string | number;
   metricLabel: string;
   color: string;
 };
@@ -126,7 +126,7 @@ export default function DashboardCharts() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)}>
+          <Tabs value={activeTab} onValueChange={(v: string) => setActiveTab(v as "consultas" | "usuarios")}>
             <TabsList className="h-9 bg-slate-100 dark:bg-slate-800 p-1">
               <TabsTrigger
                 value="consultas"
@@ -142,7 +142,7 @@ export default function DashboardCharts() {
               </TabsTrigger>
             </TabsList>
           </Tabs>
-          <Select value={range} onValueChange={(v: any) => setRange(v)}>
+          <Select value={range} onValueChange={(v: string) => setRange(v as "7d" | "30d" | "3m")}>
             <SelectTrigger
               className="w-40 h-9 text-sm bg-white dark:bg-slate-900"
               aria-label="Rango de tiempo"
@@ -197,7 +197,7 @@ export default function DashboardCharts() {
               />
 
               <Tooltip
-                content={(props: any) => (
+                content={(props) => (
                   <CustomTooltip
                     {...props}
                     metricLabel={

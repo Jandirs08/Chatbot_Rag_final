@@ -1,34 +1,16 @@
-# Usa Ubuntu 22.04 LTS como base - completamente estable
-FROM ubuntu:22.04
+FROM python:3.11-slim
 
-# Evita prompts interactivos durante la instalación
 ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV HOST=0.0.0.0
 
-# Establece el directorio de trabajo dentro del contenedor
-WORKDIR /app
-
-# Instala Python 3.11 y pip
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    software-properties-common \
-    && add-apt-repository ppa:deadsnakes/ppa \
-    && apt-get update && apt-get install -y --no-install-recommends \
-    python3.11 \
-    python3.11-dev \
-    python3.11-venv \
-    python3-pip \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
-# Crea un enlace simbólico para python
-RUN ln -s /usr/bin/python3.11 /usr/bin/python
-
-# Instala dependencias del sistema necesarias para las librerías Python
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     pkg-config \
     libpoppler-cpp-dev \
-    libgl1-mesa-glx \
+    libgl1 \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
@@ -47,25 +29,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Establece variables de entorno para Python
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-ENV HOST=0.0.0.0
-
-# Copia solo el archivo de requerimientos para aprovechar el cache de Docker
 WORKDIR /app/backend
+
 COPY backend/requirements.txt ./requirements.txt
 
-# Instala las dependencias de Python
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
     && pip install --no-cache-dir -r requirements.txt
 
-# Copiar el código de la aplicación (necesario en plataformas como Render)
 COPY backend/ .
 
-# Expone el puerto que usará la aplicación
+RUN useradd --system --no-create-home --shell /bin/false appuser \
+    && chown -R appuser:appuser /app
+
+USER appuser
+
 EXPOSE 8000
 
-# Comando por defecto: respetar la variable de entorno PORT de Render
-# Usamos forma de shell para que ${PORT} se expanda correctamente
 CMD sh -c "python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"

@@ -1,13 +1,32 @@
 "use client";
 
 import React from "react";
-import { ChatWindow } from "@/features/chat/components/ChatWindow";
-import { DebugInspector } from "@/app/components/DebugInspector";
+import dynamic from "next/dynamic";
+import { ChatWindow } from "@/app/components/chat/ChatWindow";
 import type { Message as HookMessage } from "@/types/chat";
 import { API_URL } from "@/app/lib/config";
 import { Switch } from "@/app/components/ui/switch";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
+import { Skeleton } from "@/app/components/ui/skeleton";
+import { useConversationId } from "@/app/hooks/useConversationId";
+import { authenticatedFetch } from "@/app/lib/services/authService";
+import type { DebugData } from "@/app/components/debug/utils";
+
+const DebugInspector = dynamic(
+  () =>
+    import("@/app/components/DebugInspector").then((mod) => ({
+      default: mod.DebugInspector,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full w-full items-center justify-center p-6">
+        <Skeleton className="w-full h-full rounded-xl" />
+      </div>
+    ),
+  },
+);
 import {
   FlaskConical,
   MessageSquareText,
@@ -18,51 +37,22 @@ import {
 const PLAYGROUND_STORAGE_KEY = "playground_conversation_id";
 
 export default function PlaygroundPage() {
-  const [conversationId, setConversationId] = React.useState<string | null>(null);
+  const [conversationId, resetConversationId] = useConversationId(PLAYGROUND_STORAGE_KEY);
   const [initialMessages, setInitialMessages] = React.useState<
     HookMessage[] | null
   >(null);
-  const [debugData, setDebugData] = React.useState<any | null>(null);
+  const [debugData, setDebugData] = React.useState<DebugData | null>(null);
   const [enableVerification, setEnableVerification] = React.useState(false);
-
-  React.useEffect(() => {
-    try {
-      const existing =
-        typeof window !== "undefined"
-          ? window.localStorage.getItem(PLAYGROUND_STORAGE_KEY)
-          : null;
-      if (existing && existing.trim()) {
-        setConversationId(existing);
-        return;
-      }
-
-      const newId = crypto?.randomUUID
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random()}`;
-
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(PLAYGROUND_STORAGE_KEY, newId);
-      }
-
-      setConversationId(newId);
-    } catch {
-      const newId = crypto?.randomUUID
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random()}`;
-      setConversationId(newId);
-    }
-  }, []);
 
   React.useEffect(() => {
     const loadHistory = async () => {
       if (!conversationId) return;
 
       try {
-        const response = await fetch(`${API_URL}/chat/history/${conversationId}`, {
-          method: "GET",
-          headers: { Accept: "application/json" },
-          credentials: "include",
-        });
+        const response = await authenticatedFetch(
+          `${API_URL}/chat/history/${conversationId}`,
+          { method: "GET" },
+        );
 
         if (!response.ok) {
           setInitialMessages([]);
@@ -71,12 +61,12 @@ export default function PlaygroundPage() {
 
         const data = await response.json();
         const normalized: HookMessage[] = Array.isArray(data)
-          ? data.map((message: any, index: number) => ({
+          ? data.map((message: { content?: unknown; role?: unknown; timestamp?: unknown }, index: number) => ({
               id: `${conversationId}-${index}-${message.timestamp ?? Date.now()}`,
               content: String(message?.content ?? ""),
               role: (message?.role ?? "assistant") as HookMessage["role"],
               createdAt: message?.timestamp
-                ? new Date(message.timestamp)
+                ? new Date(message.timestamp as string)
                 : undefined,
             }))
           : [];
@@ -91,18 +81,10 @@ export default function PlaygroundPage() {
   }, [conversationId]);
 
   const resetConversation = React.useCallback(() => {
-    const newId = crypto?.randomUUID
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random()}`;
-
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(PLAYGROUND_STORAGE_KEY, newId);
-    }
-
-    setConversationId(newId);
+    resetConversationId();
     setInitialMessages([]);
     setDebugData(null);
-  }, []);
+  }, [resetConversationId]);
 
   return (
     <div className="flex h-[calc(100vh-4rem)] min-h-[680px] flex-col gap-3">
@@ -203,7 +185,7 @@ export default function PlaygroundPage() {
                 initialMessages={initialMessages || undefined}
                 forceDebug
                 enableVerification={enableVerification}
-                onDebugData={(data) => setDebugData(data)}
+                onDebugData={(data) => setDebugData(data ?? null)}
                 onNewChat={resetConversation}
                 variant="playground"
               />

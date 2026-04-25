@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -v \":0$\")",
+      "Bash(xargs wc *)",
+      "Bash(npx tsc *)",
+      "Bash(yarn add *)",
+      "Bash(xargs grep *)",
+      "Bash(yarn typecheck *)",
+      "Bash(yarn lint *)"
+    ]
+  }
+}

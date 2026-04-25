@@ -30,6 +30,100 @@ import {
   authenticatedFetch,
 } from "@/app/lib/services/authService";
 
+type PreviewProps = {
+  name: string;
+  avatarUrl?: string;
+  brandColor: string;
+  placeholder: string;
+  starters: string[];
+};
+
+function PhonePreview(p: PreviewProps) {
+  return (
+    <div className="w-[320px] h-[600px] bg-white border-[14px] border-gray-900 rounded-[2.5rem] shadow-2xl relative overflow-hidden mx-auto">
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 mt-1 h-6 w-28 bg-gray-900 rounded-b-2xl" />
+      <div className="flex h-full w-full flex-col">
+        <div
+          className="h-16 flex items-center justify-between px-4 text-white"
+          style={{ backgroundColor: p.brandColor }}
+        >
+          <div className="flex items-center gap-3">
+            {p.avatarUrl ? (
+              <Image src={p.avatarUrl} alt="avatar" width={32} height={32} className="h-8 w-8 rounded-full object-cover" unoptimized />
+            ) : (
+              <div className="h-8 w-8 rounded-full bg-white/90 flex items-center justify-center text-gray-700 font-semibold">
+                {p.name.charAt(0) || "A"}
+              </div>
+            )}
+            <div className="text-sm font-semibold">{p.name || "Asistente IA"}</div>
+          </div>
+          <div className="h-8 w-8 rounded-full bg-white/20" />
+        </div>
+        <div className="flex-1 bg-gray-50 p-3 overflow-y-auto space-y-3">
+          {p.starters.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {p.starters.map((s, i) => (
+                <div key={`${s}-${i}`} className="rounded-full border px-3 py-1 bg-white text-gray-700 text-xs">{s}</div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="h-16 bg-white border-t flex items-center px-3">
+          <div className="flex-1 h-10 rounded-full border bg-gray-50 flex items-center px-4 text-gray-500 text-sm">
+            <span className="truncate">{p.placeholder}</span>
+          </div>
+          <div className="ml-2 h-10 w-10 rounded-full bg-gray-200" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DesktopPreview(p: PreviewProps) {
+  return (
+    <div className="relative w-full h-full">
+      <div className="absolute inset-0 bg-[radial-gradient(circle,_rgba(226,232,240,0.6)_1px,_transparent_1px)] [background-size:16px_16px]" />
+      <div className="absolute bottom-8 right-8 w-[380px] h-[520px] bg-white rounded-xl shadow-2xl border overflow-hidden">
+        <div
+          className="h-14 flex items-center justify-between px-4 text-white"
+          style={{ backgroundColor: p.brandColor }}
+        >
+          <div className="flex items-center gap-3">
+            {p.avatarUrl ? (
+              <Image src={p.avatarUrl} alt="avatar" width={32} height={32} className="h-8 w-8 rounded-full object-cover" unoptimized />
+            ) : (
+              <div className="h-8 w-8 rounded-full bg-white/90 flex items-center justify-center text-gray-700 font-semibold">
+                {p.name.charAt(0) || "A"}
+              </div>
+            )}
+            <div className="text-sm font-semibold">{p.name || "Asistente IA"}</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-2 w-2 rounded-full bg-white/70" />
+            <div className="h-2 w-2 rounded-full bg-white/70" />
+            <div className="h-2 w-2 rounded-full bg-white/70" />
+          </div>
+        </div>
+        <div className="flex-1 bg-gray-50 p-3 overflow-y-auto space-y-3">
+          {p.starters.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {p.starters.map((s, i) => (
+                <div key={`${s}-${i}`} className="rounded-full border px-3 py-1 bg-white text-gray-700 text-xs">{s}</div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="h-16 bg-white border-t flex items-center px-3">
+          <div className="flex-1 h-10 rounded-md border bg-gray-50 flex items-center px-4 text-gray-500 text-sm">
+            <span className="truncate">{p.placeholder}</span>
+          </div>
+          <div className="ml-2 h-10 w-10 rounded-md bg-gray-200" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface SettingsAppearanceTabProps {
   isLoading: boolean;
   config: {
@@ -84,128 +178,6 @@ export function SettingsAppearanceTab({
       setFocusIdx(null);
     }
   }, [focusIdx, config.starters]);
-
-  const PhonePreview = (p: {
-    name: string;
-    avatarUrl?: string;
-    brandColor: string;
-    placeholder: string;
-    starters: string[];
-  }) => (
-    <div className="w-[320px] h-[600px] bg-white border-[14px] border-gray-900 rounded-[2.5rem] shadow-2xl relative overflow-hidden mx-auto">
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 mt-1 h-6 w-28 bg-gray-900 rounded-b-2xl" />
-      <div className="flex h-full w-full flex-col">
-        <div
-          className="h-16 flex items-center justify-between px-4 text-white"
-          style={{ backgroundColor: p.brandColor }}
-        >
-          <div className="flex items-center gap-3">
-            {p.avatarUrl ? (
-              <Image
-                src={p.avatarUrl}
-                alt="avatar"
-                width={32}
-                height={32}
-                className="h-8 w-8 rounded-full object-cover"
-                unoptimized
-              />
-            ) : (
-              <div className="h-8 w-8 rounded-full bg-white/90 flex items-center justify-center text-gray-700 font-semibold">
-                {p.name.charAt(0) || "A"}
-              </div>
-            )}
-            <div className="text-sm font-semibold">
-              {p.name || "Asistente IA"}
-            </div>
-          </div>
-          <div className="h-8 w-8 rounded-full bg-white/20" />
-        </div>
-        <div className="flex-1 bg-gray-50 p-3 overflow-y-auto space-y-3">
-          {p.starters.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {p.starters.map((s, i) => (
-                <div
-                  key={`${s}-${i}`}
-                  className="rounded-full border px-3 py-1 bg-white text-gray-700 text-xs"
-                >
-                  {s}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="h-16 bg-white border-t flex items-center px-3">
-          <div className="flex-1 h-10 rounded-full border bg-gray-50 flex items-center px-4 text-gray-500 text-sm">
-            <span className="truncate">{p.placeholder}</span>
-          </div>
-          <div className="ml-2 h-10 w-10 rounded-full bg-gray-200" />
-        </div>
-      </div>
-    </div>
-  );
-
-  const DesktopPreview = (p: {
-    name: string;
-    avatarUrl?: string;
-    brandColor: string;
-    placeholder: string;
-    starters: string[];
-  }) => (
-    <div className="relative w-full h-full">
-      <div className="absolute inset-0 bg-[radial-gradient(circle,_rgba(226,232,240,0.6)_1px,_transparent_1px)] [background-size:16px_16px]" />
-      <div className="absolute bottom-8 right-8 w-[380px] h-[520px] bg-white rounded-xl shadow-2xl border overflow-hidden">
-        <div
-          className="h-14 flex items-center justify-between px-4 text-white"
-          style={{ backgroundColor: p.brandColor }}
-        >
-          <div className="flex items-center gap-3">
-            {p.avatarUrl ? (
-              <Image
-                src={p.avatarUrl}
-                alt="avatar"
-                width={32}
-                height={32}
-                className="h-8 w-8 rounded-full object-cover"
-                unoptimized
-              />
-            ) : (
-              <div className="h-8 w-8 rounded-full bg-white/90 flex items-center justify-center text-gray-700 font-semibold">
-                {p.name.charAt(0) || "A"}
-              </div>
-            )}
-            <div className="text-sm font-semibold">
-              {p.name || "Asistente IA"}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="h-2 w-2 rounded-full bg-white/70" />
-            <div className="h-2 w-2 rounded-full bg-white/70" />
-            <div className="h-2 w-2 rounded-full bg-white/70" />
-          </div>
-        </div>
-        <div className="flex-1 bg-gray-50 p-3 overflow-y-auto space-y-3">
-          {p.starters.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {p.starters.map((s, i) => (
-                <div
-                  key={`${s}-${i}`}
-                  className="rounded-full border px-3 py-1 bg-white text-gray-700 text-xs"
-                >
-                  {s}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="h-16 bg-white border-t flex items-center px-3">
-          <div className="flex-1 h-10 rounded-md border bg-gray-50 flex items-center px-4 text-gray-500 text-sm">
-            <span className="truncate">{p.placeholder}</span>
-          </div>
-          <div className="ml-2 h-10 w-10 rounded-md bg-gray-200" />
-        </div>
-      </div>
-    </div>
-  );
 
   return (
     <div className="flex flex-col lg:grid lg:grid-cols-12 gap-6 min-h-0 h-auto lg:h-full">

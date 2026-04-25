@@ -1,6 +1,22 @@
 import { API_URL } from "../constants";
 import { authService, authenticatedFetch } from "./authService";
 
+export class RateLimitError extends Error {
+  readonly type = "RATE_LIMIT_EXCEEDED" as const;
+  retryAfter: number;
+  limit?: number;
+  remaining: number;
+  serverMessage?: string;
+
+  constructor(opts: { retryAfter: number; limit?: number; remaining: number; serverMessage?: string }) {
+    super("Límite de uploads alcanzado");
+    this.retryAfter = opts.retryAfter;
+    this.limit = opts.limit;
+    this.remaining = opts.remaining;
+    this.serverMessage = opts.serverMessage;
+  }
+}
+
 export type PDFUploadStatus =
   | {
       phase: "uploading";
@@ -10,20 +26,6 @@ export type PDFUploadStatus =
       phase: "processing";
     };
 
-// Normaliza el base URL y evita duplicar el prefijo "/api/v1" al construir endpoints
-function buildApiUrl(base: string, path: string): string {
-  // Limpia barras finales y colapsa múltiples "/api/v1" en el base
-  let cleanBase = base.replace(/\/+$/, "");
-  // Si accidentalmente el base tiene "/api/v1" repetido (p. ej. "/api/v1/api/v1"), colapsa a uno solo
-  cleanBase = cleanBase.replace(/(\/api\/v1)+(?=\/|$)/, "/api/v1");
-  const cleanPath = path.startsWith("/") ? path : `/${path}`;
-  // Si el base ya incluye /api/v1, evita repetirlo en el path
-  if (/\/api\/v1(?:\/|$)/.test(cleanBase)) {
-    const foldedPath = cleanPath.replace(/^\/api\/v1/, "");
-    return `${cleanBase}${foldedPath}`;
-  }
-  return `${cleanBase}${cleanPath}`;
-}
 
 export class PDFService {
   static async uploadPDF(
@@ -43,7 +45,7 @@ export class PDFService {
     // Usar XMLHttpRequest para poder obtener eventos de progreso de subida
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-      const url = buildApiUrl(API_URL, "/api/v1/pdfs/upload");
+      const url = `${API_URL}/pdfs/upload`;
       xhr.open("POST", url);
       const token = authService.getAuthToken();
       if (token) {
@@ -123,15 +125,12 @@ export class PDFService {
               // ignorar si no es JSON
             }
 
-            const errorObj: any = new Error("Límite de uploads alcanzado");
-            errorObj.type = 'RATE_LIMIT_EXCEEDED';
-            errorObj.retryAfter = retryAfter
-              ? parseInt(retryAfter)
-              : bodyRetryAfter ?? 3600;
-            errorObj.limit = rateLimitLimit ? parseInt(rateLimitLimit) : undefined;
-            errorObj.remaining = rateLimitRemaining ? parseInt(rateLimitRemaining) : 0;
-            errorObj.serverMessage = bodyDetail;
-            reject(errorObj);
+            reject(new RateLimitError({
+              retryAfter: retryAfter ? parseInt(retryAfter) : bodyRetryAfter ?? 3600,
+              limit: rateLimitLimit ? parseInt(rateLimitLimit) : undefined,
+              remaining: rateLimitRemaining ? parseInt(rateLimitRemaining) : 0,
+              serverMessage: bodyDetail,
+            }));
           } else {
             try {
               const errJson = JSON.parse(xhr.responseText);
@@ -161,10 +160,7 @@ export class PDFService {
       last_modified: string;
     }>;
   }> {
-    const token = authService.getAuthToken();
-    const response = await authenticatedFetch(buildApiUrl(API_URL, "/api/v1/pdfs/list"), {
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    });
+    const response = await authenticatedFetch(`${API_URL}/pdfs/list`);
 
     if (!response.ok) {
       const error = await response.json();
@@ -175,10 +171,8 @@ export class PDFService {
   }
 
   static async deletePDF(filename: string): Promise<{ message: string }> {
-    const token = authService.getAuthToken();
-    const response = await authenticatedFetch(buildApiUrl(API_URL, `/api/v1/pdfs/${filename}`), {
+    const response = await authenticatedFetch(`${API_URL}/pdfs/${filename}`, {
       method: "DELETE",
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     });
 
     if (!response.ok) {
@@ -190,11 +184,11 @@ export class PDFService {
   }
 
   static getPDFViewUrl(filename: string): string {
-    return buildApiUrl(API_URL, `/api/v1/pdfs/view/${encodeURIComponent(filename)}`);
+    return `${API_URL}/pdfs/view/${encodeURIComponent(filename)}`;
   }
 
   static getPDFDownloadUrl(filename: string): string {
-    return buildApiUrl(API_URL, `/api/v1/pdfs/download/${encodeURIComponent(filename)}`);
+    return `${API_URL}/pdfs/download/${encodeURIComponent(filename)}`;
   }
 
   // Obtiene el PDF como Blob usando Authorization y devuelve una URL de objeto para previsualización/descarga
@@ -202,14 +196,11 @@ export class PDFService {
     filename: string,
     mode: "view" | "download" = "view"
   ): Promise<string> {
-    const token = authService.getAuthToken();
     const endpoint = mode === "view"
       ? this.getPDFViewUrl(filename)
       : this.getPDFDownloadUrl(filename);
 
-    const response = await authenticatedFetch(endpoint, {
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    });
+    const response = await authenticatedFetch(endpoint);
 
     if (!response.ok) {
       let detail = "Error al obtener el PDF";

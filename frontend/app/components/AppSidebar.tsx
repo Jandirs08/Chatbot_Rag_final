@@ -16,7 +16,7 @@ import {
   FlaskConical,
   type LucideIcon,
 } from "lucide-react";
-import React from "react";
+import React, { useMemo, useCallback } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -34,6 +34,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "../hooks/useAuth";
 import { useBotConfig } from "../hooks/useBotConfig";
+import { useTheme } from "../hooks/useTheme";
 import { logger } from "@/app/lib/logger";
 import { toast } from "sonner";
 
@@ -47,13 +48,13 @@ export function AppSidebar() {
     revalidateOnFocus: false,
   });
   const router = useRouter();
-  const [isDark, setIsDark] = React.useState(false);
   const pathname = usePathname();
+  const { isDark, toggle: toggleTheme } = useTheme();
 
-  const isUrlActive = (url: string) => {
+  const isUrlActive = useCallback((url: string) => {
     if (url === "/") return pathname === "/";
     return pathname?.startsWith(url) ?? false;
-  };
+  }, [pathname]);
 
   const handleLogout = async () => {
     try {
@@ -66,38 +67,24 @@ export function AppSidebar() {
     }
   };
 
-  React.useEffect(() => {
-    if (typeof document !== "undefined") {
-      setIsDark(document.documentElement.classList.contains("dark"));
-    }
-  }, [pathname]);
-
-  const toggleTheme = () => {
-    if (typeof document === "undefined") return;
-    const next = !document.documentElement.classList.contains("dark");
-    document.documentElement.classList.toggle("dark", next);
-    localStorage.setItem("theme", next ? "dark" : "light");
-    setIsDark(next);
-  };
-
-  const operationItems: MenuItem[] = [
+  const operationItems = useMemo<MenuItem[]>(() => [
     { title: "Home", url: "/", icon: BarChart3 },
     { title: "Chat", url: "/chat", icon: MessageCircle },
     ...(isAdmin
       ? [{ title: "Buzón", url: "/admin/inbox", icon: MessageSquare }]
       : []),
-  ];
+  ], [isAdmin]);
 
-  const channelItems: MenuItem[] = [
+  const channelItems = useMemo<MenuItem[]>(() => [
     { title: "Web", url: "/widget", icon: Code },
     { title: "WhatsApp", url: "/whatsapp-settings", icon: MessageSquareText },
-  ];
+  ], []);
 
-  const knowledgeItems: MenuItem[] = [
+  const knowledgeItems = useMemo<MenuItem[]>(() => [
     { title: "Documentos", url: "/docs", icon: FileText },
-  ];
+  ], []);
 
-  const systemItems: MenuItem[] = isAdmin
+  const systemItems = useMemo<MenuItem[]>(() => isAdmin
     ? [
         { title: "Usuarios", url: "/users", icon: Users },
         { title: "Configuración", url: "/admin/settings", icon: Settings },
@@ -107,11 +94,11 @@ export function AppSidebar() {
           icon: FlaskConical,
         },
       ]
-    : [];
+    : [], [isAdmin]);
 
   const botName = user ? botConfig?.bot_name : undefined;
 
-  const renderMenuGroup = (label: string, items: MenuItem[]) => {
+  const renderMenuGroup = useCallback((label: string, items: MenuItem[]) => {
     if (items.length === 0) return null;
 
     return (
@@ -162,7 +149,7 @@ export function AppSidebar() {
         </SidebarGroupContent>
       </SidebarGroup>
     );
-  };
+  }, [state, isMobile, setOpenMobile, isUrlActive]);
 
   return (
     <Sidebar className="flex-shrink-0 h-screen transition-all duration-200">

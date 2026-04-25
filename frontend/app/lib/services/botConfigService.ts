@@ -1,4 +1,5 @@
 import { API_URL } from "../config";
+import { publicFetch } from "../fetchUtils";
 import { authenticatedFetch } from "./authService";
 
 export interface BotConfigDTO {
@@ -37,10 +38,8 @@ export const getBotConfig = async (): Promise<BotConfigDTO> => {
 };
 
 export const getPublicBotConfig = async (): Promise<Pick<BotConfigDTO, "bot_name" | "theme_color" | "starters" | "input_placeholder">> => {
-  const res = await fetch(`${API_URL}/bot/config/public`, {
+  const res = await publicFetch(`${API_URL}/bot/config/public`, {
     method: "GET",
-    headers: { "Accept": "application/json" },
-    credentials: "include",
   });
   if (!res.ok) {
     throw new Error(`Error obteniendo configuración pública: ${res.status}`);

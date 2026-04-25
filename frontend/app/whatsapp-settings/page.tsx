@@ -89,8 +89,8 @@ export default function ConfiguracionWhatsAppPage() {
       setBaselineToken(twilioToken);
       setBaselineFrom(twilioFrom);
       setStatus("dirty");
-    } catch (e: any) {
-      toast.error(e?.message || "Error al guardar configuración");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Error al guardar configuración");
     } finally {
       setLoading(false);
     }

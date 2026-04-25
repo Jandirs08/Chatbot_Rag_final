@@ -1,5 +1,6 @@
 import { API_URL } from "../config";
 import { authenticatedFetch } from "./authService";
+import { logger } from "@/app/lib/logger";
  
 
 class ExportService {
@@ -37,7 +38,7 @@ class ExportService {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (error) {
-      console.error("Error al exportar conversaciones:", error);
+      logger.error("Error al exportar conversaciones:", error);
       throw error;
     }
   }

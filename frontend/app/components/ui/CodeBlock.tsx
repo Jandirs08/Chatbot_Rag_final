@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { Copy, Check } from "lucide-react";
+import { logger } from "@/app/lib/logger";
 
 interface CodeBlockProps extends React.HTMLAttributes<HTMLDivElement> {
     /** The code content to display */
@@ -42,11 +43,11 @@ const CodeBlock = React.forwardRef<HTMLDivElement, CodeBlockProps>(
                 onCopy?.();
                 setTimeout(() => setCopied(false), 2000);
             } catch (err) {
-                console.error("Failed to copy:", err);
+                logger.error("Failed to copy:", err);
             }
         };
 
-        const lines = code.split('\n');
+        const lines = useMemo(() => code.split('\n'), [code]);
 
         return (
             <div
@@ -126,4 +127,7 @@ const CodeBlock = React.forwardRef<HTMLDivElement, CodeBlockProps>(
 
 CodeBlock.displayName = "CodeBlock";
 
-export { CodeBlock };
+const MemoizedCodeBlock = React.memo(CodeBlock);
+MemoizedCodeBlock.displayName = "CodeBlock";
+
+export { MemoizedCodeBlock as CodeBlock };

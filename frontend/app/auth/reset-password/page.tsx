@@ -50,8 +50,8 @@ function ResetPasswordContent() {
       setSuccess(true);
       toast({ title: "Contraseña actualizada", description: "Ahora puedes iniciar sesión" });
       setTimeout(() => router.push("/auth/login"), 1500);
-    } catch (err: any) {
-      if (err?.status === 401) {
+    } catch (err: unknown) {
+      if (err instanceof Error && (err as Error & { status?: number }).status === 401) {
         setError("El enlace ha expirado");
       } else {
         setError(err instanceof Error ? err.message : "Error al actualizar contraseña");
@@ -99,11 +99,13 @@ function ResetPasswordContent() {
         ) : (
           <form onSubmit={onSubmit}>
             <CardContent className="space-y-4">
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
+              <div role="alert" aria-live="polite" aria-atomic="true">
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Nueva Contraseña</Label>
                 <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo 8 caracteres" disabled={loading} />

@@ -148,18 +148,22 @@ export function RegisterForm({ onSuccess, redirectTo = "/auth/login" }: Register
       
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-          
-          {success && (
-            <Alert>
-              <CheckCircle className="h-4 w-4" />
-              <AlertDescription>{success}</AlertDescription>
-            </Alert>
-          )}
+          <div role="alert" aria-live="polite" aria-atomic="true">
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+          </div>
+
+          <div role="status" aria-live="polite" aria-atomic="true">
+            {success && (
+              <Alert>
+                <CheckCircle className="h-4 w-4" />
+                <AlertDescription>{success}</AlertDescription>
+              </Alert>
+            )}
+          </div>
           
           <div className="space-y-2">
             <Label htmlFor="username">Nombre de Usuario *</Label>

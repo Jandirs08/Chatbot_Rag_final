@@ -2,6 +2,14 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { logger } from "@/app/lib/logger";
 import { API_URL } from "../lib/config";
 import type { Message } from "@/types/chat";
+import type { DebugData } from "@/app/components/debug/utils";
+
+type ChatRequestExtras = Record<string, unknown>;
+
+interface SendMessageOptions {
+  debug?: boolean;
+  body?: ChatRequestExtras;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -20,10 +28,10 @@ function generateId(): string {
 export interface UseChatStreamReturn {
   messages: Message[];
   isLoading: boolean;
-  debugData?: any;
+  debugData?: DebugData | null;
   sendMessage: (
     message: string,
-    opts?: { debug?: boolean; body?: Record<string, any> },
+    opts?: SendMessageOptions,
   ) => Promise<void>;
   clearMessages: () => void;
   cancelStream: () => void;
@@ -39,7 +47,9 @@ export function useChatStream(
 ): UseChatStreamReturn {
   const [messages, setMessages] = useState<Message[]>(initialMessages ?? []);
   const [isLoading, setIsLoading] = useState(false);
-  const [debugData, setDebugData] = useState<any | undefined>(undefined);
+  const [debugData, setDebugData] = useState<DebugData | null | undefined>(
+    undefined,
+  );
 
   // ---- Refs for streaming performance ----
   // pendingDelta accumulates SSE text between animation frames so we batch
@@ -138,10 +148,7 @@ export function useChatStream(
   // sendMessage – initiates a new SSE stream.
   // -----------------------------------------------------------------------
   const sendMessage = useCallback(
-    async (
-      messageText: string,
-      opts?: { debug?: boolean; body?: Record<string, any> },
-    ) => {
+    async (messageText: string, opts?: SendMessageOptions) => {
       if (isLoadingRef.current || !messageText.trim()) {
         return;
       }
@@ -233,9 +240,11 @@ export function useChatStream(
 
             if (msg.data) {
               try {
-                const chunk = JSON.parse(msg.data);
-                const delta: string | undefined =
-                  chunk.stream ?? chunk.streamed_output;
+                const chunk = JSON.parse(msg.data) as {
+                  stream?: string;
+                  streamed_output?: string;
+                };
+                const delta = chunk.stream ?? chunk.streamed_output;
                 if (typeof delta === "string" && delta.length > 0) {
                   // Accumulate delta and schedule a batched flush.
                   pendingDeltaRef.current += delta;
@@ -258,7 +267,7 @@ export function useChatStream(
               }
             } else if (msg.event === "debug") {
               try {
-                const dataObj = JSON.parse(msg.data ?? "{}");
+                const dataObj = JSON.parse(msg.data ?? "{}") as DebugData;
                 if (mountedRef.current) setDebugData(dataObj);
               } catch (e) {
                 logger.warn("No se pudo parsear debug data", e);
@@ -271,7 +280,9 @@ export function useChatStream(
               let errorContent =
                 "Lo siento, ocurrió un error procesando tu mensaje. Por favor, inténtalo nuevamente.";
               try {
-                const errorPayload = JSON.parse(msg.data ?? "{}");
+                const errorPayload = JSON.parse(msg.data ?? "{}") as {
+                  message?: string;
+                };
                 if (
                   typeof errorPayload?.message === "string" &&
                   errorPayload.message.trim()

@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { logger } from "@/app/lib/logger";
+import { requireAuth } from "@/app/lib/auth/apiAuth";
 
 import { Client } from "langsmith";
 
@@ -10,6 +11,9 @@ export const runtime = "edge";
 const client = new Client();
 
 export async function POST(req: NextRequest) {
+  const auth = await requireAuth(req);
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await req.json();
     const { run_id, key = "user_score", ...rest } = body;
@@ -26,13 +30,16 @@ export async function POST(req: NextRequest) {
       { result: "posted feedback successfully" },
       { status: 200 },
     );
-  } catch (e: any) {
+  } catch (e: unknown) {
     logger.error(e);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return NextResponse.json({ error: e instanceof Error ? e.message : "Internal error" }, { status: 500 });
   }
 }
 
 export async function PATCH(req: NextRequest) {
+  const auth = await requireAuth(req);
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await req.json();
     const { feedback_id, score, comment } = body;
@@ -49,8 +56,8 @@ export async function PATCH(req: NextRequest) {
       { result: "patched feedback successfully" },
       { status: 200 },
     );
-  } catch (e: any) {
+  } catch (e: unknown) {
     logger.error(e);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return NextResponse.json({ error: e instanceof Error ? e.message : "Internal error" }, { status: 500 });
   }
 }

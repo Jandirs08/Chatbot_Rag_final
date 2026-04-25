@@ -122,7 +122,7 @@ export default function AdminSettingsPage() {
     if (typeof window !== "undefined") {
       const hash = window.location.hash.replace("#", "");
       if (hash === "appearance" || hash === "brain" || hash === "system") {
-        setActiveTab(hash as any);
+        setActiveTab(hash as "appearance" | "brain" | "system");
       }
     }
     if (data) {
@@ -180,8 +180,8 @@ export default function AdminSettingsPage() {
       });
       toast.success("Configuración guardada");
       mutate();
-    } catch (e: any) {
-      toast.error(e?.message || "Error al guardar configuración");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Error al guardar configuración");
     } finally {
       setSaving(false);
     }
@@ -234,9 +234,10 @@ export default function AdminSettingsPage() {
       setBaselineTemperature(updated.temperature ?? temperature);
       setFieldsLocked(true);
       toast.success("Configuración guardada. Cambios aplicados al bot.");
-    } catch (e: any) {
-      setErrorBrain(e?.message || "Error al guardar configuración");
-      toast.error(e?.message || "No se pudo guardar");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Error al guardar configuración";
+      setErrorBrain(msg);
+      toast.error(msg);
     } finally {
       setSavingBrain(false);
     }
@@ -250,9 +251,10 @@ export default function AdminSettingsPage() {
       setUiExtra("");
       setBaselineUiExtra("");
       toast.success("Configuración restablecida y limpiada en backend.");
-    } catch (e: any) {
-      setErrorBrain(e?.message || "Error al restablecer configuración");
-      toast.error(`Error al restablecer: ${e?.message || e}`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Error al restablecer configuración";
+      setErrorBrain(msg);
+      toast.error(`Error al restablecer: ${msg}`);
     } finally {
       setSavingBrain(false);
     }
@@ -268,8 +270,8 @@ export default function AdminSettingsPage() {
       const rt = await getBotRuntime();
       setRuntimeData(rt);
       setRuntimeOpen(true);
-    } catch (e: any) {
-      toast.error(`Error al obtener runtime: ${e?.message || e}`);
+    } catch (e: unknown) {
+      toast.error(`Error al obtener runtime: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setRuntimeLoading(false);
     }

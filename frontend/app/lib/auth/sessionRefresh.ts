@@ -67,7 +67,13 @@ export function isTokenExpired(
   return expiry <= Date.now() + skewMs;
 }
 
-export async function requestSessionRefresh(
+// Dedupe concurrent refresh attempts by token within the same runtime instance.
+// Note: Edge/Node workers do not share memory across instances; this only
+// dedupes within a single worker. Cross-instance protection requires a
+// distributed lock (Redis, etc.) and is out of scope here.
+const inFlightRefreshes = new Map<string, Promise<SessionTokens | null>>();
+
+async function performSessionRefresh(
   refreshToken: string,
 ): Promise<SessionTokens | null> {
   try {
@@ -88,6 +94,22 @@ export async function requestSessionRefresh(
   } catch {
     return null;
   }
+}
+
+export async function requestSessionRefresh(
+  refreshToken: string,
+): Promise<SessionTokens | null> {
+  const existing = inFlightRefreshes.get(refreshToken);
+  if (existing) {
+    return existing;
+  }
+
+  const pending = performSessionRefresh(refreshToken).finally(() => {
+    inFlightRefreshes.delete(refreshToken);
+  });
+
+  inFlightRefreshes.set(refreshToken, pending);
+  return pending;
 }
 
 export function applySessionCookies(

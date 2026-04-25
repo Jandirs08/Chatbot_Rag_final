@@ -1,5 +1,10 @@
 import { API_URL } from "@/app/lib/config";
-import { fetchWithRetrySafe } from "@/app/lib/fetchUtils";
+import {
+  fetchWithRetrySafe,
+  parseApiError,
+  publicFetch,
+} from "@/app/lib/fetchUtils";
+import { logger } from "@/app/lib/logger";
 
 export interface LoginCredentials {
   email: string;
@@ -115,46 +120,37 @@ class TokenManager {
 export const authService = {
   async register(userData: RegisterData): Promise<User> {
     try {
-      const response = await fetch(`${API_URL}/auth/register`, {
+      const response = await publicFetch(`${API_URL}/auth/register`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(userData),
       });
 
       if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ detail: "Error en el registro" }));
-        throw new Error(errorData.detail || "Error al registrar usuario");
+        throw await parseApiError(response, "Error al registrar usuario");
       }
 
       return await response.json();
     } catch (error) {
-      console.error("Register error:", error);
+      logger.error("Register error:", error);
       throw error;
     }
   },
 
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
     try {
-      const response = await fetch(`${API_URL}/auth/login`, {
+      const response = await publicFetch(`${API_URL}/auth/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(credentials),
       });
 
       if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ detail: "Error de autenticacion" }));
-        throw new Error(errorData.detail || "Error al iniciar sesion");
+        throw await parseApiError(response, "Error al iniciar sesion");
       }
 
       const authData: AuthResponse = await response.json();
 
-      const cookieResponse = await fetch("/api/auth/login", {
+      const cookieResponse = await publicFetch("/api/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           access_token: authData.access_token,
           refresh_token: authData.refresh_token,
@@ -173,21 +169,20 @@ export const authService = {
 
       return authData;
     } catch (error) {
-      console.error("Login error:", error);
+      logger.error("Login error:", error);
       throw error;
     }
   },
 
   async logout(): Promise<void> {
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      await publicFetch("/api/auth/logout", { method: "POST" });
 
       const token = TokenManager.getAccessToken();
       if (token) {
-        await fetch(`${API_URL}/auth/logout`, {
+        await publicFetch(`${API_URL}/auth/logout`, {
           method: "POST",
           headers: {
-            "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
         });
@@ -215,7 +210,7 @@ export const authService = {
     { silent = false }: { silent?: boolean } = {},
   ): Promise<AuthResponse> {
     try {
-      const response = await fetch("/api/auth/refresh", {
+      const response = await publicFetch("/api/auth/refresh", {
         method: "POST",
       });
 
@@ -241,40 +236,24 @@ export const authService = {
   },
 
   async requestPasswordReset(email: string): Promise<void> {
-    try {
-      const response = await fetch(`${API_URL}/auth/forgot-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
+    const response = await publicFetch(`${API_URL}/auth/forgot-password`, {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
 
-      if (!response.ok) {
-        const e = await response.json().catch(() => ({}) as any);
-        const err: any = new Error(e?.detail || `Error ${response.status}`);
-        err.status = response.status;
-        throw err;
-      }
-    } catch (error) {
-      throw error;
+    if (!response.ok) {
+      throw await parseApiError(response, `Error ${response.status}`);
     }
   },
 
   async resetPassword(token: string, newPassword: string): Promise<void> {
-    try {
-      const response = await fetch(`${API_URL}/auth/reset-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, new_password: newPassword }),
-      });
+    const response = await publicFetch(`${API_URL}/auth/reset-password`, {
+      method: "POST",
+      body: JSON.stringify({ token, new_password: newPassword }),
+    });
 
-      if (!response.ok) {
-        const e = await response.json().catch(() => ({}) as any);
-        const err: any = new Error(e?.detail || `Error ${response.status}`);
-        err.status = response.status;
-        throw err;
-      }
-    } catch (error) {
-      throw error;
+    if (!response.ok) {
+      throw await parseApiError(response, `Error ${response.status}`);
     }
   },
 

@@ -2,6 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { RootLayoutClient } from "./components/RootLayoutClient";
+import { SWRProvider } from "./components/SWRProvider";
 import { AuthProvider } from "./contexts/AuthContext";
 import { resolveServerSession } from "./lib/auth/serverSession";
 import { Toaster } from "sonner";
@@ -23,9 +24,11 @@ export default async function RootLayout({
   return (
     <html lang="es" className="h-full">
       <body className={`${inter.className} h-full`}>
-        <AuthProvider initialSession={initialSession}>
-          <RootLayoutClient>{children}</RootLayoutClient>
-        </AuthProvider>
+        <SWRProvider>
+          <AuthProvider initialSession={initialSession}>
+            <RootLayoutClient>{children}</RootLayoutClient>
+          </AuthProvider>
+        </SWRProvider>
         <Toaster richColors position="bottom-right" />
       </body>
     </html>
