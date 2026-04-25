@@ -127,7 +127,17 @@ class Settings(BaseSettings):
     rag_child_first_context_window_tokens: int = Field(default=200, env="RAG_CHILD_FIRST_CONTEXT_WINDOW_TOKENS")
     rag_reranker_model_name: Optional[str] = Field(default=None, env="RAG_RERANKER_MODEL_NAME")
     rag_reranker_timeout_seconds: float = Field(default=12.0, env="RAG_RERANKER_TIMEOUT_SECONDS")
-    
+    rag_reranker_type: str = Field(default="openai", env="RAG_RERANKER_TYPE")  # heuristic/openai/cross_encoder/cohere
+    cross_encoder_model_name: str = Field(default="cross-encoder/ms-marco-MiniLM-L-6-v2", env="CROSS_ENCODER_MODEL_NAME")
+    cohere_api_key: Optional[SecretStr] = Field(default=None, env="COHERE_API_KEY")
+    cohere_rerank_model: str = Field(default="rerank-multilingual-v3.0", env="COHERE_RERANK_MODEL")
+    enable_hyde: bool = Field(default=False, env="ENABLE_HYDE")
+    hyde_max_tokens: int = Field(default=150, env="HYDE_MAX_TOKENS")
+    hyde_model_name: Optional[str] = Field(default=None, env="HYDE_MODEL_NAME")
+    enable_semantic_chunking: bool = Field(default=False, env="ENABLE_SEMANTIC_CHUNKING")
+    semantic_chunk_threshold: float = Field(default=0.5, env="SEMANTIC_CHUNK_THRESHOLD")
+    semantic_chunk_model: str = Field(default="all-MiniLM-L6-v2", env="SEMANTIC_CHUNK_MODEL")
+
     # Configuraciones de RAG - Ingesta
     batch_size: int = Field(default=100, env="BATCH_SIZE")
     deduplication_threshold: float = Field(default=0.95, validation_alias="DEDUP_THRESHOLD")

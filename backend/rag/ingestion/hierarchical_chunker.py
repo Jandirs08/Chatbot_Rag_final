@@ -80,6 +80,9 @@ class HierarchicalChunker:
                 exc_info=True,
             )
             self.encoding = _FallbackEncoding()
+        self._semantic_model = None
+        self._semantic_model_failed = False
+        self._semantic_threshold: float = 0.5
 
     async def chunk_pdf(self, pdf_path: Path, *, doc_id: str) -> HierarchicalChunkingResult:
         pages = await self._load_pages(pdf_path)
@@ -231,10 +234,43 @@ class HierarchicalChunker:
         flush_current()
         return blocks
 
+    def _get_or_load_semantic_model(self):
+        from config import settings as _s
+        if not getattr(_s, "enable_semantic_chunking", False):
+            return None
+        if self._semantic_model_failed:
+            return None
+        if self._semantic_model is None:
+            try:
+                from sentence_transformers import SentenceTransformer
+                model_name = getattr(_s, "semantic_chunk_model", "all-MiniLM-L6-v2")
+                self._semantic_model = SentenceTransformer(model_name)
+                self._semantic_threshold = float(getattr(_s, "semantic_chunk_threshold", 0.5))
+                logger.info("Semantic chunking model loaded: %s (threshold=%.2f)", model_name, self._semantic_threshold)
+            except Exception as exc:
+                logger.warning("Semantic chunking model load failed (%s); disabling semantic chunking", exc)
+                self._semantic_model_failed = True
+                return None
+        return self._semantic_model
+
+    def _is_semantic_topic_shift(self, model, block_a: StructuralBlock, block_b: StructuralBlock) -> bool:
+        try:
+            import numpy as np
+            embs = model.encode([block_a.content[:500], block_b.content[:500]], show_progress_bar=False)
+            norm_a = float(np.linalg.norm(embs[0]))
+            norm_b = float(np.linalg.norm(embs[1]))
+            if norm_a < 1e-8 or norm_b < 1e-8:
+                return False
+            cos_sim = float(np.dot(embs[0], embs[1]) / (norm_a * norm_b))
+            return cos_sim < self._semantic_threshold
+        except Exception:
+            return False
+
     def _group_blocks_into_parents(self, blocks: Sequence[StructuralBlock]) -> list[list[StructuralBlock]]:
         groups: list[list[StructuralBlock]] = []
         current_group: list[StructuralBlock] = []
         current_tokens = 0
+        semantic_model = self._get_or_load_semantic_model()
 
         for block in blocks:
             block_tokens = max(1, block.token_count)
@@ -258,6 +294,23 @@ class HierarchicalChunker:
                 groups.append(current_group)
                 current_group = []
                 current_tokens = 0
+
+            # Semantic topic-shift split (only when group has minimum content)
+            if (
+                not should_flush
+                and not starts_new_section
+                and semantic_model is not None
+                and current_group
+                and current_tokens >= self.parent_min_tokens // 2
+                and block.block_type not in {"header"}
+            ):
+                last_content = next(
+                    (b for b in reversed(current_group) if b.block_type not in {"header"}), None
+                )
+                if last_content is not None and self._is_semantic_topic_shift(semantic_model, last_content, block):
+                    groups.append(current_group)
+                    current_group = []
+                    current_tokens = 0
 
             current_group.append(block)
             current_tokens += block_tokens

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from dataclasses import dataclass, replace
@@ -180,10 +181,77 @@ class OpenAIParentReranker(BaseParentReranker):
         return {}
 
 
+class CrossEncoderParentReranker(BaseParentReranker):
+    def __init__(self, model_name: str | None = None) -> None:
+        from sentence_transformers import CrossEncoder
+        self._model = CrossEncoder(model_name or settings.cross_encoder_model_name)
+
+    async def rerank(self, *, query: str, candidates: Sequence[ParentCandidate], limit: int) -> list[ParentCandidate]:
+        if not candidates:
+            return []
+        try:
+            pairs = [(query, c.parent.content[:2000]) for c in candidates]
+            scores = await asyncio.to_thread(self._model.predict, pairs)
+            scored = sorted(zip(scores, candidates), key=lambda x: float(x[0]), reverse=True)
+            return [replace(c, rerank_score=float(s)) for s, c in scored[: max(1, limit)]]
+        except Exception as exc:
+            logger.warning("CrossEncoder reranker failed (%s); fallback to fused_score", exc)
+            ranked = sorted(candidates, key=lambda c: c.fused_score, reverse=True)
+            return [replace(c, rerank_score=c.fused_score) for c in ranked[: max(1, limit)]]
+
+
+class CohereParentReranker(BaseParentReranker):
+    def __init__(self, api_key: str | None = None, model: str | None = None) -> None:
+        import cohere
+        key = api_key or (settings.cohere_api_key.get_secret_value() if settings.cohere_api_key else None)
+        if not key:
+            raise ValueError("COHERE_API_KEY not set")
+        self._client = cohere.AsyncClientV2(api_key=key)
+        self._model = model or settings.cohere_rerank_model
+
+    async def rerank(self, *, query: str, candidates: Sequence[ParentCandidate], limit: int) -> list[ParentCandidate]:
+        if not candidates:
+            return []
+        try:
+            docs = [c.parent.content[:2000] for c in candidates]
+            response = await self._client.rerank(
+                model=self._model,
+                query=query,
+                documents=docs,
+                top_n=max(1, limit),
+            )
+            candidate_list = list(candidates)
+            return [replace(candidate_list[r.index], rerank_score=float(r.relevance_score)) for r in response.results]
+        except Exception as exc:
+            logger.warning("Cohere reranker failed (%s); fallback to fused_score", exc)
+            ranked = sorted(candidates, key=lambda c: c.fused_score, reverse=True)
+            return [replace(c, rerank_score=c.fused_score) for c in ranked[: max(1, limit)]]
+
+
 def build_parent_reranker() -> BaseParentReranker:
     if not getattr(settings, "enable_llm_reranker", True):
         return HeuristicParentReranker()
 
+    reranker_type = getattr(settings, "rag_reranker_type", "openai")
+
+    if reranker_type == "heuristic":
+        return HeuristicParentReranker()
+
+    if reranker_type == "cross_encoder":
+        try:
+            return CrossEncoderParentReranker()
+        except Exception as exc:
+            logger.warning("CrossEncoder reranker init failed (%s); falling back to heuristic", exc)
+            return HeuristicParentReranker()
+
+    if reranker_type == "cohere":
+        try:
+            return CohereParentReranker()
+        except Exception as exc:
+            logger.warning("Cohere reranker init failed (%s); falling back to heuristic", exc)
+            return HeuristicParentReranker()
+
+    # default: openai
     try:
         return OpenAIParentReranker()
     except Exception as exc:

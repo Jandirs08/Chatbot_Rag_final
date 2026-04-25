@@ -176,6 +176,24 @@ class HierarchicalRetriever(RAGRetriever):
         )
         return documents
 
+    async def _generate_hyde_embedding(self, query: str) -> list[float] | None:
+        """Embed a hypothetical answer to the query (HyDE) for better dense recall."""
+        try:
+            from langchain_openai import ChatOpenAI
+            hyde_model = getattr(settings, "hyde_model_name", None) or getattr(settings, "base_model_name", "gpt-4o-mini")
+            hyde_max_tokens = int(getattr(settings, "hyde_max_tokens", 150))
+            llm = ChatOpenAI(model_name=hyde_model, max_tokens=hyde_max_tokens, temperature=0)
+            response = await llm.ainvoke(
+                f"Write a short, factual paragraph that directly answers: {query}"
+            )
+            hyp_text = response.content if hasattr(response, "content") else str(response)
+            if not hyp_text.strip():
+                return None
+            return await self._embed_query_async(hyp_text)
+        except Exception as exc:
+            logger.warning("HyDE embedding failed (%s); using original query embedding", exc)
+            return None
+
     async def retrieve_parents(
         self,
         *,
@@ -190,7 +208,21 @@ class HierarchicalRetriever(RAGRetriever):
             return []
 
         child_k = self._candidate_child_k(k)
-        query_embedding = await self._embed_query_async(normalized_query)
+
+        if getattr(settings, "enable_hyde", False):
+            raw_emb, hyde_emb = await asyncio.gather(
+                self._embed_query_async(normalized_query),
+                self._generate_hyde_embedding(normalized_query),
+            )
+            if raw_emb is not None and hyde_emb is not None:
+                import numpy as np
+                avg = np.array(raw_emb) + np.array(hyde_emb)
+                norm = float(np.linalg.norm(avg))
+                query_embedding = (avg / norm).tolist() if norm > 1e-8 else raw_emb
+            else:
+                query_embedding = raw_emb
+        else:
+            query_embedding = await self._embed_query_async(normalized_query)
 
         async def _timed_dense_search():
             dense_started_at = time.perf_counter()
