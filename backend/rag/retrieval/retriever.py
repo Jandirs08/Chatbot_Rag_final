@@ -819,7 +819,8 @@ class RAGRetriever:
                 remaining.remove(best_idx)
 
             return [docs[idx] for idx in selected_indices]
-        except Exception:
+        except Exception as exc:
+            logger.warning("MMR failed; returning top-k fallback: %s", exc, exc_info=True)
             return docs[:k]
 
     def format_context_from_documents(self, documents: List[Document]) -> str:

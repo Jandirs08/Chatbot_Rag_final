@@ -88,15 +88,15 @@ class VectorStore:
             from httpx import Limits
             
             http_limits = Limits(
-                max_connections=100,      # Conexiones totales máximas
-                max_keepalive_connections=20,  # Conexiones keep-alive
+                max_connections=int(getattr(settings, "qdrant_max_connections", 100)),
+                max_keepalive_connections=int(getattr(settings, "qdrant_keepalive_connections", 20)),
             )
-            
+
             self.client = QdrantClient(
                 url=settings.qdrant_url,
                 api_key=api_key,
                 limits=http_limits,
-                timeout=30,  # Timeout en segundos (QdrantClient espera un número)
+                timeout=int(getattr(settings, "qdrant_timeout_seconds", 30)),
             )
 
             dim = int(getattr(settings, "default_embedding_dimension", 1536))
@@ -326,11 +326,17 @@ class VectorStore:
         try:
             if hasattr(self.embedding_function, "embed_documents"):
                 func = self.embedding_function.embed_documents
-                if asyncio.iscoroutinefunction(func):
-                    return await func(texts)
-                return await asyncio.to_thread(func, texts)
+                try:
+                    if asyncio.iscoroutinefunction(func):
+                        return await func(texts)
+                    return await asyncio.to_thread(func, texts)
+                except Exception as batch_exc:
+                    logger.warning(
+                        "embed_documents batch failed (%s); falling back to single-doc. texts=%d",
+                        batch_exc, len(texts),
+                    )
 
-            # Fallback uno a uno
+            # Fallback uno a uno (también alcanzado si el batch falló)
             results = []
             for t in texts:
                 emb = await self._get_document_embedding(t)
@@ -338,10 +344,8 @@ class VectorStore:
             return results
 
         except Exception as e:
-            # OJO: Esto antes devolvía [], lo cual causaba pérdida silenciosa. Mantengo el return[]
-            # pero add_documents ahora detecta mismatch y aborta el lote.
             logger.error("Error generando embeddings on-the-fly: %s", e, exc_info=True)
-            return []
+            raise
 
     async def _get_document_embedding(self, content: str) -> np.ndarray:
         """Obtiene embedding de un solo texto de forma segura."""

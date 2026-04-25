@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 from pathlib import Path
@@ -74,10 +75,24 @@ class HierarchicalIngestionService:
         *,
         replace_existing: bool = True,
         doc_id: str | None = None,
+        timeout_seconds: int = 300,
     ) -> dict[str, Any]:
         if not pdf_path.exists() or not pdf_path.is_file():
             raise FileNotFoundError(f"PDF not found: {pdf_path}")
 
+        try:
+            async with asyncio.timeout(timeout_seconds):
+                return await self._ingest_pdf_inner(pdf_path, replace_existing=replace_existing, doc_id=doc_id)
+        except asyncio.TimeoutError:
+            raise RuntimeError(f"PDF ingestion timeout (>{timeout_seconds}s) for {pdf_path.name}")
+
+    async def _ingest_pdf_inner(
+        self,
+        pdf_path: Path,
+        *,
+        replace_existing: bool = True,
+        doc_id: str | None = None,
+    ) -> dict[str, Any]:
         resolved_doc_id = doc_id or await self._build_doc_id(pdf_path)
         result = await self.chunker.chunk_pdf(pdf_path, doc_id=resolved_doc_id)
         if not result.parents or not result.children:
@@ -123,11 +138,11 @@ class HierarchicalIngestionService:
             await self.lexical_repository.delete_by_source(source)
 
     async def _build_doc_id(self, pdf_path: Path) -> str:
-        md5 = hashlib.md5()
+        sha256 = hashlib.sha256()
         async with aiofiles.open(pdf_path, "rb") as pdf_file:
             while chunk := await pdf_file.read(1024 * 1024):
-                md5.update(chunk)
-        return f"doc_{md5.hexdigest()}"
+                sha256.update(chunk)
+        return f"doc_{sha256.hexdigest()}"
 
     def _child_to_langchain_document(self, child: ChildChunk) -> Document:
         metadata = {
