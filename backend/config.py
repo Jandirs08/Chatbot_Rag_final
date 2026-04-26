@@ -63,6 +63,9 @@ class Settings(BaseSettings):
     global_rate_limit: str = Field(default="100/minute", env="GLOBAL_RATE_LIMIT")
     chat_rate_limit: str = Field(default="10/minute", env="CHAT_RATE_LIMIT")
     pdf_upload_rate_limit: str = Field(default="5/hour", env="PDF_UPLOAD_RATE_LIMIT")
+    login_rate_limit: str = Field(default="10/minute", env="LOGIN_RATE_LIMIT")
+    auth_refresh_rate_limit: str = Field(default="30/minute", env="AUTH_REFRESH_RATE_LIMIT")
+    auth_register_rate_limit: str = Field(default="5/hour", env="AUTH_REGISTER_RATE_LIMIT")
     max_message_length: int = Field(default=2000, env="MAX_MESSAGE_LENGTH")
     
     # Configuraciones del Modelo

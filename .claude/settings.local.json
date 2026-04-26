@@ -20,7 +20,8 @@
       "Bash(docker-compose up *)",
       "Bash(docker pull *)",
       "Bash(docker run *)",
-      "Bash(docker rm *)"
+      "Bash(docker rm *)",
+      "Skill(update-config)"
     ]
   }
 }

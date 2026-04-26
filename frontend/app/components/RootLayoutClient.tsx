@@ -5,6 +5,7 @@ import { AppSidebar } from "./AppSidebar";
 import { SidebarProvider, SidebarTrigger } from "./ui/sidebar";
 import { isProtectedPath } from "@/app/lib/auth/routeAccess";
 import { useTheme } from "@/app/hooks/useTheme";
+import { useInactivityTimeout } from "@/app/hooks/useInactivityTimeout";
 
 export function RootLayoutClient({ children }: { children: React.ReactNode }) {
   return (
@@ -18,6 +19,7 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const forcedLight = pathname.startsWith("/chat");
   useTheme(forcedLight);
+  useInactivityTimeout();
 
   const shouldShowSidebar = isProtectedPath(pathname);
 

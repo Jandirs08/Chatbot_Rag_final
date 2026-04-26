@@ -56,6 +56,7 @@ class JWTHandler:
             ),
             "iat": now,
             "type": "access",
+            "jti": str(uuid4()),
         })
 
         return jwt.encode(payload, self.secret, algorithm=self.algorithm)

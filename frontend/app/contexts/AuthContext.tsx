@@ -233,11 +233,19 @@ export function AuthProvider({
       void checkAuthStatus();
     };
 
+    const handleCrossTabLogout = (e: StorageEvent) => {
+      if (e.key !== "auth:logout-event" || e.newValue === null) return;
+      TokenManager.clearTokens();
+      dispatch({ type: "AUTH_LOGOUT" });
+      window.location.replace("/auth/login");
+    };
+
     window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, handleSessionExpired);
     window.addEventListener(
       AUTH_STATE_INVALIDATED_EVENT,
       handleStateInvalidated,
     );
+    window.addEventListener("storage", handleCrossTabLogout);
 
     return () => {
       window.removeEventListener(
@@ -248,6 +256,7 @@ export function AuthProvider({
         AUTH_STATE_INVALIDATED_EVENT,
         handleStateInvalidated,
       );
+      window.removeEventListener("storage", handleCrossTabLogout);
     };
   }, [checkAuthStatus]);
 

@@ -10,6 +10,14 @@ import {
 } from "./app/lib/auth/sessionRefresh";
 import { verifyAccessToken } from "./app/lib/auth/jwtVerify";
 
+function buildLoginUrl(req: NextRequest, from: string): URL {
+  const url = new URL("/auth/login", req.url);
+  if (from && from !== "/auth/login") {
+    url.searchParams.set("from", from);
+  }
+  return url;
+}
+
 export async function middleware(req: NextRequest) {
   const pathname = normalizePath(req.nextUrl.pathname);
   const accessToken = req.cookies.get(ACCESS_TOKEN_COOKIE)?.value ?? null;
@@ -25,6 +33,9 @@ export async function middleware(req: NextRequest) {
 
   if (needsSsrSessionNormalization) {
     if (hasValidAccessToken) {
+      if (pathname.startsWith("/auth")) {
+        return NextResponse.redirect(new URL("/", req.url));
+      }
       return NextResponse.next();
     }
 
@@ -37,6 +48,12 @@ export async function middleware(req: NextRequest) {
           refreshedSession.access_token,
         );
 
+        if (pathname.startsWith("/auth")) {
+          const response = NextResponse.redirect(new URL("/", req.url));
+          applySessionCookies(response, refreshedSession, refreshToken);
+          return response;
+        }
+
         const response = NextResponse.next({
           request: {
             headers: requestHeaders,
@@ -47,7 +64,7 @@ export async function middleware(req: NextRequest) {
       }
 
       const response = isProtectedPath(pathname)
-        ? NextResponse.redirect(new URL("/auth/login", req.url))
+        ? NextResponse.redirect(buildLoginUrl(req, pathname))
         : NextResponse.next();
       clearSessionCookies(response);
       return response;
@@ -55,7 +72,7 @@ export async function middleware(req: NextRequest) {
   }
 
   if (isProtectedPath(pathname)) {
-    const response = NextResponse.redirect(new URL("/auth/login", req.url));
+    const response = NextResponse.redirect(buildLoginUrl(req, pathname));
     if (accessToken && !hasValidAccessToken) {
       clearSessionCookies(response);
     }

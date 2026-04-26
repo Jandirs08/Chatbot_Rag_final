@@ -34,14 +34,15 @@ oauth2_scheme = OAuth2PasswordBearer(
 class AuthDependencies:
     """Container for auth-related operations."""
 
-    def __init__(self, user_repository: UserRepository):
+    def __init__(self, user_repository: UserRepository, token_blacklist=None):
         self.user_repository = user_repository
+        self.token_blacklist = token_blacklist
 
     async def extract_user_from_token(
         self,
         credentials: Optional[HTTPAuthorizationCredentials],
     ) -> User:
-        """Decode JWT, validate it, and load user from DB."""
+        """Decode JWT, validate it, check revocation, and load user from DB."""
         if not credentials:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -53,6 +54,15 @@ class AuthDependencies:
 
         try:
             payload = verify_token(token, token_type="access")
+
+            jti = payload.get("jti")
+            if self.token_blacklist and jti and self.token_blacklist.is_blacklisted(jti):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Token has been revoked",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+
             user_id = payload.get("sub")
 
             if not user_id:
@@ -160,6 +170,11 @@ async def require_admin(
     deps: AuthDependencies = Depends(_get_auth_deps),
 ) -> User:
     return await deps.ensure_admin(user)
+
+
+def get_token_blacklist(request: Request):
+    """Get TokenBlacklist from app.state. Returns None if Redis unavailable."""
+    return getattr(request.app.state, "token_blacklist", None)
 
 
 async def get_optional_current_user(

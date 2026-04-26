@@ -511,11 +511,29 @@ async def lifespan(app: FastAPI):
             if s.environment.lower() == "production":
                 raise RuntimeError(f"MongoDB no disponible en producción: {e}") from e
         try:
+            from auth.token_blacklist import build_token_blacklist
+            redis_url = (
+                s.redis_url.get_secret_value()
+                if hasattr(s.redis_url, "get_secret_value")
+                else str(s.redis_url)
+            )
+            app.state.token_blacklist = build_token_blacklist(redis_url)
+            if app.state.token_blacklist:
+                logger.info("TokenBlacklist inicializado (Redis).")
+            else:
+                logger.warning("TokenBlacklist no disponible — revocación de tokens desactivada.")
+        except Exception as e:
+            logger.warning(f"TokenBlacklist init error: {e}")
+            app.state.token_blacklist = None
+        try:
             from auth.dependencies import AuthDependencies
             from database.user_repository import get_user_repository
-            
+
             user_repo = get_user_repository()
-            app.state.auth_deps = AuthDependencies(user_repo)
+            app.state.auth_deps = AuthDependencies(
+                user_repo,
+                token_blacklist=app.state.token_blacklist,
+            )
             logger.info("AuthDependencies inicializado correctamente en app.state.")
         except Exception as e:
             logger.error(f"Error inicializando AuthDependencies: {e}", exc_info=True)

@@ -121,6 +121,10 @@ class LogoutResponse(BaseModel):
             }
         }
 
+class LogoutRequest(BaseModel):
+    refresh_token: Optional[str] = Field(None, description="Refresh token to revoke")
+
+
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr = Field(...)
 

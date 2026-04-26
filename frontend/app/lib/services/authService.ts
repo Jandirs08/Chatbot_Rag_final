@@ -191,6 +191,11 @@ export const authService = {
       // Ignore network failures on logout.
     } finally {
       TokenManager.clearTokens();
+      try {
+        localStorage.setItem("auth:logout-event", Date.now().toString());
+      } catch {
+        // localStorage unavailable (SSR, private mode edge cases)
+      }
     }
   },
 

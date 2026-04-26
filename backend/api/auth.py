@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status, Response
 
 from models.auth import (
     LoginRequest,
+    LogoutRequest,
     TokenResponse,
     RefreshTokenRequest,
     UserProfileResponse,
@@ -19,13 +20,14 @@ from auth.jwt_handler import (
     create_refresh_token,
     create_reset_token,
     verify_token,
+    decode_token,
     TokenExpiredError,
     InvalidTokenError,
     JWTError,
 )
 from auth.password_handler import verify_password, hash_password
 from services.email_service import EmailService
-from auth.dependencies import get_current_user, get_current_active_user
+from auth.dependencies import get_current_user, get_current_active_user, get_token_blacklist
 from config import get_settings
 from utils.rate_limiter import conditional_limit
 
@@ -49,11 +51,14 @@ settings = get_settings()
         200: {"description": "Login successful", "model": TokenResponse},
         400: {"description": "Invalid request", "model": AuthErrorResponse},
         401: {"description": "Invalid credentials", "model": AuthErrorResponse},
+        429: {"description": "Too many requests"},
         422: {"description": "Validation error"},
         500: {"description": "Internal server error", "model": AuthErrorResponse}
     }
 )
+@conditional_limit(settings.login_rate_limit)
 async def login(
+    request: Request,
     login_data: LoginRequest,
     user_repository: UserRepository = Depends(get_user_repository),
     response: Response = None,
@@ -200,13 +205,17 @@ async def get_current_user_profile(
     responses={
         200: {"description": "Token refreshed successfully", "model": TokenResponse},
         401: {"description": "Invalid or expired refresh token", "model": AuthErrorResponse},
+        429: {"description": "Too many requests"},
         422: {"description": "Validation error"},
         500: {"description": "Internal server error", "model": AuthErrorResponse}
     }
 )
+@conditional_limit(settings.auth_refresh_rate_limit)
 async def refresh_access_token(
+    request: Request,
     refresh_data: RefreshTokenRequest,
     user_repository: UserRepository = Depends(get_user_repository),
+    token_blacklist=Depends(get_token_blacklist),
     response: Response = None,
 ) -> TokenResponse:
     """
@@ -226,13 +235,23 @@ async def refresh_access_token(
         # Verify refresh token
         payload = verify_token(refresh_data.refresh_token, token_type="refresh")
         user_id = payload.get("sub")
-        
+        jti = payload.get("jti")
+
         if not user_id:
             logger.warning("Refresh token missing user ID")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid refresh token",
                 headers={"WWW-Authenticate": "Bearer"}
+            )
+
+        # Reject blacklisted (already-used) refresh tokens
+        if token_blacklist and jti and token_blacklist.is_blacklisted(jti):
+            logger.warning("Reuse of blacklisted refresh token jti=%s", jti)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token already used",
+                headers={"WWW-Authenticate": "Bearer"},
             )
         
         # Get user from database
@@ -264,7 +283,12 @@ async def refresh_access_token(
         # Create new tokens
         access_token = create_access_token(data=token_data)
         new_refresh_token = create_refresh_token(data={"sub": str(user.id)})
-        
+
+        # Blacklist the consumed refresh token's JTI
+        if token_blacklist and jti:
+            exp = payload.get("exp", 0)
+            token_blacklist.blacklist(jti, int(exp))
+
         logger.info(f"Token refreshed for user: {user.email}")
         
         if response is not None:
@@ -328,24 +352,44 @@ async def refresh_access_token(
     }
 )
 async def logout(
+    request: Request,
+    logout_data: LogoutRequest = None,
     current_user: User = Depends(get_current_user),
+    token_blacklist=Depends(get_token_blacklist),
     response: Response = None,
 ) -> Dict[str, str]:
-    """
-    Logout current user.
-    
-    Note: This is primarily a client-side operation. The client should
-    remove the tokens from storage. In a production environment, you might
-    want to implement token blacklisting.
-    
-    Args:
-        current_user: Current authenticated user
-        
-    Returns:
-        Logout confirmation message
-    """
+    """Logout current user and revoke both access and refresh tokens."""
     logger.info(f"User logged out: {current_user.email}")
-    
+
+    if token_blacklist:
+        # Revoke the access token
+        auth_header = request.headers.get("Authorization", "")
+        access_token_str = (
+            auth_header[7:]
+            if auth_header.startswith("Bearer ")
+            else request.cookies.get("access_token")
+        )
+        if access_token_str:
+            try:
+                payload = decode_token(access_token_str)
+                jti = payload.get("jti")
+                exp = payload.get("exp", 0)
+                if jti:
+                    token_blacklist.blacklist(jti, int(exp))
+            except Exception:
+                pass
+
+        # Revoke the refresh token
+        if logout_data and logout_data.refresh_token:
+            try:
+                payload = verify_token(logout_data.refresh_token, token_type="refresh")
+                jti = payload.get("jti")
+                exp = payload.get("exp", 0)
+                if jti:
+                    token_blacklist.blacklist(jti, int(exp))
+            except Exception:
+                pass
+
     if response is not None:
         response.delete_cookie(key="access_token", path="/")
     return {"message": "Successfully logged out"}

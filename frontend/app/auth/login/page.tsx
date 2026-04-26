@@ -10,11 +10,22 @@ export const metadata: Metadata = {
   description: "Inicia sesión en el panel de administración del chatbot",
 };
 
-export default async function LoginPage() {
+function safeRedirectPath(from: string | undefined): string {
+  if (!from) return "/";
+  if (!from.startsWith("/") || from.startsWith("//")) return "/";
+  return from;
+}
+
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: { from?: string };
+}) {
   const session = await resolveServerSession();
+  const redirectTo = safeRedirectPath(searchParams.from);
 
   if (session) {
-    redirect("/");
+    redirect(redirectTo);
   }
 
   return (
@@ -28,7 +39,7 @@ export default async function LoginPage() {
             <h1 className="text-4xl tracking-tight font-extrabold text-slate-900">Bienvenido<span className="text-orange-600">.</span></h1>
             <p className="mt-2 text-lg text-slate-500">Ingresa a tu cuenta para gestionar al agente.</p>
           </div>
-          <LoginForm />
+          <LoginForm redirectTo={redirectTo} />
         </div>
 
         <div className="absolute bottom-4 left-0 right-0 text-center">
