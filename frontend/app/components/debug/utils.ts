@@ -11,11 +11,11 @@ export type RetrievedDoc = {
 
 export type DebugData = {
   retrieved_documents?: RetrievedDoc[];
-  retrieved?: RetrievedDoc[];
   prompt_used?: string;
   model_params?: Record<string, unknown>;
   rag_time?: number | null;
   llm_time?: number | null;
+  llm_ms?: number | null;
   history_ms?: number | null;
   embedding_ms?: number | null;
   dense_ms?: number | null;
@@ -29,6 +29,8 @@ export type DebugData = {
   verification?: { is_grounded: boolean; reason?: string } | null;
   gating_reason?: string | null;
   is_cached?: boolean;
+  tokens_estimated?: boolean;
+  context_truncated?: boolean;
 };
 
 export const PROMPT_SEGMENTS = ["context", "history", "instructions"] as const;
@@ -48,6 +50,14 @@ export const GATING_MAP: Record<string, string> = {
   no_corpus: "Sin Corpus",
   too_short: "Consulta Muy Corta",
   error: "Error",
+  accepted: "Recuperación Exitosa",
+  no_usable_documents: "Sin Documentos Útiles",
+  embedding_failed: "Error de Embedding",
+  no_candidates: "Sin Candidatos",
+  retrieval_backend_unavailable: "Backend No Disponible",
+  reranker_empty: "Reranker Vacío",
+  no_parent_candidates: "Sin Fragmentos Padre",
+  lexical_only: "Solo Léxico",
 };
 
 export const GATING_TONE_MAP: Record<
@@ -57,12 +67,20 @@ export const GATING_TONE_MAP: Record<
   semantic_match: "green",
   keyword_match: "green",
   qa: "green",
+  accepted: "green",
   small_talk: "indigo",
   chatty: "indigo",
   low_intent: "indigo",
+  lexical_only: "indigo",
   no_corpus: "amber",
   too_short: "amber",
+  no_usable_documents: "amber",
+  no_candidates: "amber",
+  reranker_empty: "amber",
+  no_parent_candidates: "amber",
   error: "rose",
+  embedding_failed: "rose",
+  retrieval_backend_unavailable: "rose",
 };
 
 export const GATING_EXPLAIN: Record<
@@ -93,6 +111,38 @@ export const GATING_EXPLAIN: Record<
   small_corpus: {
     title: "Búsqueda Directa",
     subtitle: "Corpus pequeño detectado",
+  },
+  accepted: {
+    title: "Recuperación Exitosa",
+    subtitle: "Documentos relevantes encontrados",
+  },
+  no_usable_documents: {
+    title: "Sin Documentos Útiles",
+    subtitle: "Fragmentos sin contenido válido",
+  },
+  embedding_failed: {
+    title: "Error de Embedding",
+    subtitle: "Fallo al vectorizar la consulta",
+  },
+  no_candidates: {
+    title: "Sin Candidatos",
+    subtitle: "Vector search sin resultados",
+  },
+  retrieval_backend_unavailable: {
+    title: "Backend No Disponible",
+    subtitle: "Qdrant o embeddings no responden",
+  },
+  reranker_empty: {
+    title: "Reranker Vacío",
+    subtitle: "Reranking eliminó todos los candidatos",
+  },
+  no_parent_candidates: {
+    title: "Sin Fragmentos Padre",
+    subtitle: "Hidratación sin resultados",
+  },
+  lexical_only: {
+    title: "Solo Léxico",
+    subtitle: "Embedding falló, búsqueda por keywords",
   },
 };
 

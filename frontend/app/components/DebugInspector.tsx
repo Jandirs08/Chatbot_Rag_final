@@ -26,6 +26,8 @@ import {
   Ban,
   Terminal,
   Braces,
+  Thermometer,
+  Hash,
 } from "lucide-react";
 import { SourcesList } from "@/app/components/debug/SourcesList";
 
@@ -87,15 +89,10 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
 
   const promptText = (data?.prompt_used ?? "") as string;
 
-  const docs = useMemo<RetrievedDoc[]>(() => {
-    if (Array.isArray(data?.retrieved_documents)) {
-      return data!.retrieved_documents as RetrievedDoc[];
-    }
-    if (Array.isArray(data?.retrieved)) {
-      return data!.retrieved as RetrievedDoc[];
-    }
-    return [];
-  }, [data]);
+  const docs = useMemo<RetrievedDoc[]>(
+    () => (Array.isArray(data?.retrieved_documents) ? (data!.retrieved_documents as RetrievedDoc[]) : []),
+    [data],
+  );
 
   const metrics = useMemo(() => {
     const num = (v: unknown): number | null =>
@@ -112,6 +109,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
       lexicalMs: num(data?.lexical_ms),
       hydrateMs: num(data?.hydrate_ms),
       rerankMs: num(data?.rerank_ms),
+      llmMs: num(data?.llm_ms),
       firstTokenMs: num(data?.first_token_ms),
       streamTotalMs: num(data?.stream_total_ms),
       inTok: num(data?.input_tokens),
@@ -129,6 +127,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
     lexicalMs,
     hydrateMs,
     rerankMs,
+    llmMs,
     firstTokenMs,
     streamTotalMs,
     inTok,
@@ -146,25 +145,16 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
   const stageMetrics = useMemo(
     () =>
       [
-        { key: "history_ms", label: "History", value: historyMs, help: "Carga del historial en memoria/Mongo" },
-        { key: "embedding_ms", label: "Embedding", value: embeddingMs, help: "Embedding de la consulta" },
-        { key: "dense_ms", label: "Dense", value: denseMs, help: "Busqueda vectorial en Qdrant" },
-        { key: "lexical_ms", label: "Lexical", value: lexicalMs, help: "Busqueda lexical/hibrida" },
-        { key: "hydrate_ms", label: "Hydrate", value: hydrateMs, help: "Hidratacion de parents/documentos" },
-        { key: "rerank_ms", label: "Rerank", value: rerankMs, help: "Reranking de candidatos" },
-        { key: "first_token_ms", label: "First Token", value: firstTokenMs, help: "Tiempo hasta el primer chunk visible" },
-        { key: "stream_total_ms", label: "Stream Total", value: streamTotalMs, help: "Tiempo total del stream" },
+        { key: "history_ms", label: "History", value: historyMs, help: "Carga del historial en memoria/Mongo", accent: "border-l-violet-400" },
+        { key: "embedding_ms", label: "Embedding", value: embeddingMs, help: "Embedding de la consulta", accent: "border-l-blue-400" },
+        { key: "dense_ms", label: "Dense", value: denseMs, help: "Búsqueda vectorial en Qdrant", accent: "border-l-blue-500" },
+        { key: "lexical_ms", label: "Lexical", value: lexicalMs, help: "Búsqueda léxica/híbrida", accent: "border-l-sky-400" },
+        { key: "hydrate_ms", label: "Hydrate", value: hydrateMs, help: "Hidratación de parents/documentos", accent: "border-l-cyan-400" },
+        { key: "rerank_ms", label: "Rerank", value: rerankMs, help: "Reranking de candidatos", accent: "border-l-purple-400" },
+        { key: "llm_ms", label: "LLM", value: llmMs, help: "Inferencia del modelo de lenguaje", accent: "border-l-emerald-400" },
+        { key: "first_token_ms", label: "1st Token", value: firstTokenMs, help: "Tiempo hasta el primer chunk visible", accent: "border-l-amber-400" },
       ].filter((item) => item.value !== null),
-    [
-      historyMs,
-      embeddingMs,
-      denseMs,
-      lexicalMs,
-      hydrateMs,
-      rerankMs,
-      firstTokenMs,
-      streamTotalMs,
-    ],
+    [historyMs, embeddingMs, denseMs, lexicalMs, hydrateMs, rerankMs, llmMs, firstTokenMs],
   );
 
   const gatingText = data?.gating_reason
@@ -286,9 +276,11 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                   </div>
                 ) : (
                   (() => {
-                    const tot = (totalTime ?? 0) > 0 ? totalTime! : (ragTime ?? 0) + (llmTime ?? 0) || 0;
-                    const r = ragTime ?? 0;
-                    const l = llmTime ?? 0;
+                    const ragT = (docs.length > 0 || embeddingMs !== null) ? (ragTime ?? 0) : 0;
+                    const llmOnlyT = Math.max(0, (llmTime ?? 0) - ragT);
+                    const tot = (totalTime ?? 0) > 0 ? totalTime! : (ragT + llmOnlyT) || 0;
+                    const r = ragT;
+                    const l = llmOnlyT;
                     const overhead = Math.max(0, tot - (r + l));
                     const minSeg = 15;
                     let rPct = tot > 0 ? (r / tot) * 100 : 0;
@@ -304,8 +296,9 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                         oPct = oPct + Math.abs(extra);
                       }
                     }
+                    const ragActuallySearched = docs.length > 0 || embeddingMs !== null;
                     const intentCompleted = Boolean(gr || gatingText);
-                    const searchCompleted = ragTime !== null;
+                    const searchCompleted = ragActuallySearched;
                     const retrievalCompleted = docs.length > 0;
                     const responseCompleted = llmTime !== null;
                     const verdictCompleted = Boolean(data?.verification);
@@ -392,16 +385,20 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                               <MessageSquare className="w-3 h-3" />,
                               "Respuesta",
                             )}
-                            {line(activeStage === "veredicto")}
-                            {node(
-                              verdictCompleted,
-                              activeStage === "veredicto",
-                              data?.verification?.is_grounded ? (
-                                <ShieldCheck className="w-3 h-3" />
-                              ) : (
-                                <Shield className="w-3 h-3" />
-                              ),
-                              "Veredicto",
+                            {data?.verification != null && (
+                              <>
+                                {line(activeStage === "veredicto")}
+                                {node(
+                                  verdictCompleted,
+                                  activeStage === "veredicto",
+                                  data.verification.is_grounded ? (
+                                    <ShieldCheck className="w-3 h-3" />
+                                  ) : (
+                                    <Shield className="w-3 h-3" />
+                                  ),
+                                  "Veredicto",
+                                )}
+                              </>
                             )}
                           </div>
                         </div>
@@ -409,7 +406,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                           <div className="flex mb-2 text-xs text-slate-800">
                             <div style={{ width: `${Math.max(0, Math.min(100, rPct))}%` }} className="relative">
                               <div className="flex justify-center">
-                                {typeof ragTime === "number" && ragTime >= 0.01 && (
+                                {typeof ragTime === "number" && ragTime >= 0.01 && ragActuallySearched && (
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <span className="px-2 py-[2px] rounded bg-warning text-warning-foreground">RAG {fmtSVal(ragTime)}s</span>
@@ -423,9 +420,9 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                               <div className="flex justify-center">
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <span className="px-2 py-[2px] rounded bg-info text-info-foreground">LLM {fmtSVal(llmTime)}s</span>
+                                    <span className="px-2 py-[2px] rounded bg-info text-info-foreground">LLM {fmtSVal(l > 0 ? l : llmTime)}s</span>
                                   </TooltipTrigger>
-                                  <TooltipContent className="text-xs">Tiempo de generación del modelo</TooltipContent>
+                                  <TooltipContent className="text-xs">Inferencia del modelo (excluye RAG)</TooltipContent>
                                 </Tooltip>
                               </div>
                             </div>
@@ -456,7 +453,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                       {stageMetrics.map((metric) => (
                         <Tooltip key={metric.key}>
                           <TooltipTrigger asChild>
-                            <div className="rounded-2xl border border-border/60 bg-card px-3 py-2.5 dark:bg-slate-950 dark:border-slate-800">
+                            <div className={cn("rounded-2xl border border-border/60 bg-card px-3 py-2.5 border-l-[3px] dark:bg-slate-950 dark:border-slate-800", metric.accent)}>
                               <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                                 {metric.label}
                               </div>
@@ -486,6 +483,32 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                         </TooltipTrigger>
                         <TooltipContent className="text-xs">Modelo LLM utilizado</TooltipContent>
                       </Tooltip>
+                      {typeof data?.model_params?.temperature === "number" && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="inline-flex items-center gap-1.5">
+                              <Thermometer className="w-4 h-4 text-muted-foreground" />
+                              <Badge variant="outline" className="px-2 py-[3px] text-[11px] font-mono text-foreground bg-muted/50 border-border">
+                                T={data.model_params.temperature}
+                              </Badge>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent className="text-xs">Temperatura (0=determinista · 1=creativo)</TooltipContent>
+                        </Tooltip>
+                      )}
+                      {typeof data?.model_params?.max_tokens === "number" && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="inline-flex items-center gap-1.5">
+                              <Hash className="w-4 h-4 text-muted-foreground" />
+                              <Badge variant="outline" className="px-2 py-[3px] text-[11px] font-mono text-foreground bg-muted/50 border-border">
+                                max={data.model_params.max_tokens}
+                              </Badge>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent className="text-xs">Máximo de tokens en la respuesta</TooltipContent>
+                        </Tooltip>
+                      )}
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <div className="inline-flex items-center gap-2">
@@ -503,7 +526,12 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                     </div>
                   </div>
                   <div className="flex flex-col gap-2">
-                    <div className="text-xs font-semibold text-foreground">Consumo Tokens</div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-xs font-semibold text-foreground">Consumo Tokens</div>
+                      {data?.tokens_estimated !== false && (
+                        <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">~estimado</span>
+                      )}
+                    </div>
                     <div className="space-y-2">
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -541,7 +569,7 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                     <div className="text-xs font-semibold text-foreground">Diagnóstico</div>
                     <div className="flex flex-wrap items-center gap-3">
                       {(() => {
-                        const isRagOn = docs.length > 0 || (ragTime ?? 0) > 0;
+                        const isRagOn = docs.length > 0 || embeddingMs !== null;
                         const label = isRagOn ? "RAG: ON" : "RAG: OFF";
                         const cls = isRagOn
                           ? "bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800"
@@ -574,6 +602,11 @@ export function DebugInspector({ data }: { data?: DebugData | null }) {
                         <Shield className="w-3.5 h-3.5" />
                         <span className="font-semibold">{GATING_EXPLAIN[gr]?.title || gatingText}</span>
                       </div>
+                      {data?.context_truncated && (
+                        <span className="inline-flex items-center gap-1.5 rounded-md bg-rose-50 border border-rose-200 px-2 py-[3px] text-[11px] font-semibold text-rose-700 dark:bg-rose-900/20 dark:border-rose-800 dark:text-rose-400">
+                          <span>⚠</span> Contexto truncado
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

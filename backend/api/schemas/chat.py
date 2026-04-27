@@ -47,6 +47,7 @@ class DebugInfo(BaseModel):
     model_params: Dict[str, Any]
     rag_time: float | None = None
     llm_time: float | None = None
+    llm_ms: float | None = None
     history_ms: float | None = None
     embedding_ms: float | None = None
     dense_ms: float | None = None
@@ -60,5 +61,7 @@ class DebugInfo(BaseModel):
     verification: Optional[VerificationResult] = None
     gating_reason: Optional[str] = None
     is_cached: bool = False
+    tokens_estimated: bool = True
+    context_truncated: bool = False
 
 # Nota: ClearHistoryResponse eliminado por no tener dependencias activas

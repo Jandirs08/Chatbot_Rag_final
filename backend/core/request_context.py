@@ -25,6 +25,7 @@ class RequestContext:
     gating_reason: Optional[str] = None
     debug_info: Optional[Any] = None  # DebugInfo de api.schemas
     stage_timings_ms: dict[str, float] = field(default_factory=dict)
+    context_truncated: bool = False
 
     def set_stage_timing_ms(self, name: str, value: float | None) -> None:
         if not name or value is None:

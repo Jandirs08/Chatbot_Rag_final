@@ -44,6 +44,7 @@ export interface UseChatStreamReturn {
 export function useChatStream(
   conversationId: string,
   initialMessages?: Message[],
+  options?: { endpoint?: string },
 ): UseChatStreamReturn {
   const [messages, setMessages] = useState<Message[]>(initialMessages ?? []);
   const [isLoading, setIsLoading] = useState(false);
@@ -66,6 +67,10 @@ export function useChatStream(
 
   // isLoadingRef avoids recreating sendMessage every time isLoading toggles.
   const isLoadingRef = useRef(false);
+
+  // Stable ref so sendMessage closure doesn't stale when endpoint changes.
+  const endpointRef = useRef(options?.endpoint ?? "/chat/");
+  useEffect(() => { endpointRef.current = options?.endpoint ?? "/chat/"; }, [options?.endpoint]);
 
   // ---- Sync initialMessages ----
   useEffect(() => {
@@ -201,7 +206,7 @@ export function useChatStream(
 
         setDebugData(undefined);
 
-        await fetchEventSource(API_URL + "/chat/", {
+        await fetchEventSource(API_URL + endpointRef.current, {
           method: "POST",
           headers: {
             "Content-Type": "application/json; charset=utf-8",

@@ -300,7 +300,8 @@ class HierarchicalRetriever(RAGRetriever):
             )
         except Exception:
             pass
-        self._last_gating_reason = "accepted" if reranked else "reranker_empty"
+        if not reranked:
+            self._last_gating_reason = "reranker_empty"
         return reranked[: max(1, int(k))]
 
     async def retrieve_with_trace(

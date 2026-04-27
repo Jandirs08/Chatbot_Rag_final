@@ -422,17 +422,19 @@ class ChatManager:
 
             try:
                 pv = getattr(self.bot.chain_manager, "prompt_vars", {}) or {}
-                nombre = pv.get("nombre")
-                personality = pv.get("bot_personality")
-                hydrated = str(prompt_str).format(
-                    nombre=str(nombre or ""),
-                    bot_personality=str(personality or ""),
-                    context=str(ctx or ""),
-                    history=str(formatted_hist or ""),
-                    input=str(input_text or ""),
-                )
+                system_base = str(prompt_str).format(
+                    nombre=str(pv.get("nombre") or ""),
+                    bot_personality=str(pv.get("bot_personality") or ""),
+                    context="",
+                ).strip()
             except Exception:
-                hydrated = str(prompt_str)
+                system_base = str(prompt_str)
+
+            prompt_used = (
+                f"<instructions>{system_base}</instructions>\n\n"
+                f"<context>{ctx}</context>\n\n"
+                f"<history>{formatted_hist}</history>"
+            )
 
             input_tokens = (
                 _get_token_count(str(prompt_str))
@@ -443,6 +445,7 @@ class ChatManager:
             output_tokens = _get_token_count(str(final_text))
             rag_time = req_ctx.rag_time
             stage_timings_ms = dict(getattr(req_ctx, "stage_timings_ms", {}) or {})
+            context_truncated = bool(getattr(req_ctx, "context_truncated", False))
 
             llm_time = None
             try:
@@ -454,7 +457,7 @@ class ChatManager:
             gating_reason = req_ctx.gating_reason
             return DebugInfo(
                 retrieved_documents=items,
-                prompt_used=str(hydrated),
+                prompt_used=prompt_used,
                 model_params=dict(model_params),
                 rag_time=rag_time,
                 llm_time=llm_time,
@@ -464,6 +467,7 @@ class ChatManager:
                 lexical_ms=stage_timings_ms.get("lexical_ms"),
                 hydrate_ms=stage_timings_ms.get("hydrate_ms"),
                 rerank_ms=stage_timings_ms.get("rerank_ms"),
+                llm_ms=stage_timings_ms.get("llm_ms"),
                 first_token_ms=stage_timings_ms.get("first_token_ms"),
                 stream_total_ms=stage_timings_ms.get("stream_total_ms"),
                 input_tokens=input_tokens,
@@ -471,6 +475,8 @@ class ChatManager:
                 verification=verification,
                 gating_reason=gating_reason,
                 is_cached=bool(is_cached),
+                tokens_estimated=True,
+                context_truncated=context_truncated,
             )
         except Exception:
             gating_reason = req_ctx.gating_reason

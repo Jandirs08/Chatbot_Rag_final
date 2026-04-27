@@ -7,12 +7,11 @@ import { ChatMessageBubble, TypingIndicator } from "./ChatMessageBubble";
 import { AutoResizeTextarea } from "@/app/components/ui/AutoResizeTextarea";
 import { Button } from "@/app/components/ui/button";
 import { ArrowUp, MessageCircle, Trash } from "lucide-react";
-import { useChatStream } from "@/app/hooks/useChatStream";
+import { useChatStream, type UseChatStreamReturn } from "@/app/hooks/useChatStream";
 import { usePublicBotConfig } from "@/app/hooks/usePublicBotConfig";
 import { botService } from "@/app/lib/services/botService";
 import { TokenManager } from "@/app/lib/services/authService";
 import { API_URL } from "@/app/lib/config";
-import type { DebugData } from "@/app/components/debug/utils";
 import { cn } from "@/lib/utils";
 
 export function ChatWindow(props: {
@@ -20,9 +19,8 @@ export function ChatWindow(props: {
   titleText?: string;
   conversationId: string;
   initialMessages?: import("@/types/chat").Message[];
-  forceDebug?: boolean;
-  enableVerification?: boolean;
-  onDebugData?: (data: DebugData | null | undefined) => void;
+  /** Inject an external hook result (e.g. useDebugStream) instead of the internal useChatStream. */
+  chatHook?: UseChatStreamReturn;
   onNewChat?: () => void;
   variant?: "default" | "playground";
 }) {
@@ -37,9 +35,7 @@ export function ChatWindow(props: {
     titleText = "An LLM",
     conversationId,
     initialMessages,
-    forceDebug = false,
-    enableVerification = false,
-    onDebugData,
+    chatHook,
     onNewChat,
     variant = "default",
   } = props;
@@ -48,8 +44,9 @@ export function ChatWindow(props: {
   const [logoUrl, setLogoUrl] = React.useState<string | undefined>(undefined);
   const isPlayground = variant === "playground";
 
-  const { messages, isLoading, debugData, sendMessage, clearMessages, cancelStream } =
-    useChatStream(conversationId, initialMessages);
+  const internalHook = useChatStream(conversationId, initialMessages);
+  const { messages, isLoading, sendMessage, clearMessages, cancelStream } =
+    chatHook ?? internalHook;
 
   // --- Smart auto-scroll ---
   // Only auto-scroll if user is near the bottom (hasn't scrolled up to read).
@@ -116,12 +113,6 @@ export function ChatWindow(props: {
     })();
   }, []);
 
-  useEffect(() => {
-    if (typeof onDebugData === "function") {
-      onDebugData(debugData);
-    }
-  }, [debugData, onDebugData]);
-
   const handleSendMessage = async (message?: string) => {
     if (messageContainerRef.current) {
       messageContainerRef.current.classList.add("grow");
@@ -132,10 +123,7 @@ export function ChatWindow(props: {
     if (inputRef.current && !isLoading) {
       inputRef.current.focus();
     }
-    await sendMessage(messageValue, {
-      debug: forceDebug,
-      body: { enable_verification: enableVerification },
-    });
+    await sendMessage(messageValue);
   };
 
   return (

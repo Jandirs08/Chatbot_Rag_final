@@ -412,6 +412,10 @@ class Bot:
             "Context truncated: %d chars → %d chars (budget %d tokens)",
             len(context), len(truncated), context_budget,
         )
+        try:
+            get_request_context().context_truncated = True
+        except Exception:
+            pass
         return truncated + "\n[Contexto truncado por límite de tokens]"
 
     def _format_history_str(self, hist_list) -> str:

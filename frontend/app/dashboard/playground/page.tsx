@@ -2,16 +2,14 @@
 
 import React from "react";
 import dynamic from "next/dynamic";
-import { ChatWindow } from "@/app/components/chat/ChatWindow";
-import type { Message as HookMessage } from "@/types/chat";
-import { API_URL } from "@/app/lib/config";
+import { PlaygroundChatWindow } from "@/app/components/chat/PlaygroundChatWindow";
 import { Switch } from "@/app/components/ui/switch";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import { useConversationId } from "@/app/hooks/useConversationId";
-import { authenticatedFetch } from "@/app/lib/services/authService";
 import type { DebugData } from "@/app/components/debug/utils";
+import { FlaskConical, MessageSquareText, Radar, RotateCcw } from "lucide-react";
 
 const DebugInspector = dynamic(
   () =>
@@ -27,62 +25,16 @@ const DebugInspector = dynamic(
     ),
   },
 );
-import {
-  FlaskConical,
-  MessageSquareText,
-  Radar,
-  RotateCcw,
-} from "lucide-react";
 
 const PLAYGROUND_STORAGE_KEY = "playground_conversation_id";
 
 export default function PlaygroundPage() {
   const [conversationId, resetConversationId] = useConversationId(PLAYGROUND_STORAGE_KEY);
-  const [initialMessages, setInitialMessages] = React.useState<
-    HookMessage[] | null
-  >(null);
   const [debugData, setDebugData] = React.useState<DebugData | null>(null);
   const [enableVerification, setEnableVerification] = React.useState(false);
 
-  React.useEffect(() => {
-    const loadHistory = async () => {
-      if (!conversationId) return;
-
-      try {
-        const response = await authenticatedFetch(
-          `${API_URL}/chat/history/${conversationId}`,
-          { method: "GET" },
-        );
-
-        if (!response.ok) {
-          setInitialMessages([]);
-          return;
-        }
-
-        const data = await response.json();
-        const normalized: HookMessage[] = Array.isArray(data)
-          ? data.map((message: { content?: unknown; role?: unknown; timestamp?: unknown }, index: number) => ({
-              id: `${conversationId}-${index}-${message.timestamp ?? Date.now()}`,
-              content: String(message?.content ?? ""),
-              role: (message?.role ?? "assistant") as HookMessage["role"],
-              createdAt: message?.timestamp
-                ? new Date(message.timestamp as string)
-                : undefined,
-            }))
-          : [];
-
-        setInitialMessages(normalized);
-      } catch {
-        setInitialMessages([]);
-      }
-    };
-
-    loadHistory();
-  }, [conversationId]);
-
   const resetConversation = React.useCallback(() => {
     resetConversationId();
-    setInitialMessages([]);
     setDebugData(null);
   }, [resetConversationId]);
 
@@ -102,7 +54,7 @@ export default function PlaygroundPage() {
                 variant="outline"
                 className="rounded-full px-2.5 py-1 text-[10px] font-medium"
               >
-                Mismo flujo que /chat
+                Admin only · Sin persistencia
               </Badge>
             </div>
             <div>
@@ -178,16 +130,13 @@ export default function PlaygroundPage() {
           </div>
           <div className="h-[calc(100%-4rem)] min-h-0">
             {conversationId && (
-              <ChatWindow
-                titleText="Playground"
+              <PlaygroundChatWindow
                 key={conversationId}
                 conversationId={conversationId}
-                initialMessages={initialMessages || undefined}
-                forceDebug
+                titleText="Playground"
                 enableVerification={enableVerification}
                 onDebugData={(data) => setDebugData(data ?? null)}
                 onNewChat={resetConversation}
-                variant="playground"
               />
             )}
           </div>

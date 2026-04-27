@@ -152,6 +152,7 @@ from .routes.bot.config_routes import (
 )
 from .routes.assets.assets_routes import router as assets_router
 from .routes.users.users_routes import router as users_router
+from .routes.debug.debug_routes import router as debug_router
 from .auth import router as auth_router
 from auth.middleware import AuthenticationMiddleware
 
@@ -757,6 +758,7 @@ def create_app() -> FastAPI:
     app.include_router(bot_config_router, prefix="/api/v1/bot", tags=["bot"])
     app.include_router(users_router, prefix="/api/v1", tags=["users"])
     app.include_router(assets_router, prefix="/api/v1/assets", tags=["assets"])
+    app.include_router(debug_router, prefix="/api/v1/debug", tags=["debug"])
     
     main_logger.info("Routers registrados.")
     main_logger.info("Aplicación FastAPI creada y configurada exitosamente.")
