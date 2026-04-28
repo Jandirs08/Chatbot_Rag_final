@@ -276,7 +276,7 @@
 }
 
 .animate-bubble-in {
-  animation: bubbleIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation: bubbleIn 0.22s cubic-bezier(0.165, 0.84, 0.44, 1) both;
   will-change: transform, opacity;
 }
 

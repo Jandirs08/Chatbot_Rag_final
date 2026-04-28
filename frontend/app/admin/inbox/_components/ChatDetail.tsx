@@ -166,7 +166,6 @@ export function ChatDetail({
                       message={bubbleData}
                       isMostRecent={false}
                       messageCompleted={true}
-                      aiEmoji="🤖"
                       botName="Asistente IA"
                     />
                   </div>

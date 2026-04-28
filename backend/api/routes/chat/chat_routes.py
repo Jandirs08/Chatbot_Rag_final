@@ -79,10 +79,14 @@ async def chat_stream_log(
         logger.info(f"[CHAT] Request: '{input_text[:50]}...' conv={conversation_id}")
         
         async def generate():
+            stream_gen = chat_manager.generate_streaming_response(input_text, conversation_id, source, debug_mode, enable_verification)
             try:
                 logger.debug(f"[CHAT] Streaming iniciado | conv={conversation_id}")
-                stream_gen = chat_manager.generate_streaming_response(input_text, conversation_id, source, debug_mode, enable_verification)
                 async for chunk in stream_gen:
+                    if await request.is_disconnected():
+                        logger.info(f"[CHAT] Cliente desconectó durante streaming | conv={conversation_id}")
+                        await stream_gen.aclose()
+                        return
                     try:
                         payload = json.dumps({"stream": chunk})
                     except Exception:

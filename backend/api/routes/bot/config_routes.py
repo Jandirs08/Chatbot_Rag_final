@@ -5,6 +5,7 @@ Para restringir a admins: cambiar Depends(get_current_active_user) → Depends(r
 /config/public es público (exento en el middleware).
 """
 import logging
+import time
 from fastapi import APIRouter, HTTPException, Request, status, Depends
 
 from api.schemas.config import BotConfigDTO, UpdateBotConfigRequest
@@ -19,6 +20,10 @@ router = APIRouter(tags=["bot"])
 BOT_CONFIG_CACHE_KEY = "bot:config"
 BOT_PUBLIC_CONFIG_CACHE_KEY = "bot:config:public"
 BOT_PUBLIC_CONFIG_CACHE_TTL_SECONDS = 3600
+RUNTIME_CONFIG_LOCAL_TTL_SECONDS = 5.0
+
+_runtime_config_local_cache: dict | None = None
+_runtime_config_local_expires_at: float = 0.0
 BOT_CONFIG_CACHE_FIELDS = (
     "temperature",
     "bot_name",
@@ -115,18 +120,42 @@ def build_public_config_payload(config_obj: object) -> dict:
     }
 
 
+def _invalidate_runtime_config_local_cache() -> None:
+    global _runtime_config_local_cache, _runtime_config_local_expires_at
+    _runtime_config_local_cache = None
+    _runtime_config_local_expires_at = 0.0
+
+
 def read_runtime_config_from_cache() -> dict | None:
+    """Read runtime config with a short-TTL local cache to avoid hitting Redis
+    on every request to /chat, /bot, /whatsapp.
+
+    Trade-off: a config change on another worker is visible after at most
+    RUNTIME_CONFIG_LOCAL_TTL_SECONDS. Acceptable for runtime tuning knobs.
+    """
+    global _runtime_config_local_cache, _runtime_config_local_expires_at
+
+    now = time.monotonic()
+    if _runtime_config_local_cache is not None and now < _runtime_config_local_expires_at:
+        return _runtime_config_local_cache
+
     if not redis_coordination_available():
+        _invalidate_runtime_config_local_cache()
         return None
 
     try:
-        return normalize_runtime_config_payload(cache.get(BOT_CONFIG_CACHE_KEY))
+        normalized = normalize_runtime_config_payload(cache.get(BOT_CONFIG_CACHE_KEY))
     except Exception:
         return None
+
+    _runtime_config_local_cache = normalized
+    _runtime_config_local_expires_at = now + RUNTIME_CONFIG_LOCAL_TTL_SECONDS
+    return normalized
 
 
 def write_runtime_config_to_cache(config_obj: object) -> None:
     if not redis_coordination_available():
+        _invalidate_runtime_config_local_cache()
         return
 
     payload = config_obj if isinstance(config_obj, dict) else build_runtime_config_payload(config_obj)
@@ -138,6 +167,8 @@ def write_runtime_config_to_cache(config_obj: object) -> None:
         cache.set(BOT_CONFIG_CACHE_KEY, normalized, ttl=0)
     except Exception:
         pass
+
+    _invalidate_runtime_config_local_cache()
 
 
 def read_public_config_from_cache() -> dict | None:

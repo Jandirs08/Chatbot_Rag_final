@@ -171,6 +171,10 @@ BOT_CONFIG_COLLECTION = "bot_config"
 BOT_CONFIG_DOC_ID = "default"
 BOT_IS_ACTIVE_CACHE_KEY = "bot:is_active"
 RUNTIME_SYNC_PATH_PREFIXES = ("/api/v1/bot", "/api/v1/chat", "/api/v1/whatsapp")
+BOT_IS_ACTIVE_LOCAL_TTL_SECONDS = 5.0
+
+_bot_is_active_local_cache: bool | None = None
+_bot_is_active_local_expires_at: float = 0.0
 
 
 def _redis_coordination_available() -> bool:
@@ -194,24 +198,49 @@ def _normalize_is_active(value: object) -> bool | None:
     return None
 
 
+def _invalidate_bot_is_active_local_cache() -> None:
+    global _bot_is_active_local_cache, _bot_is_active_local_expires_at
+    _bot_is_active_local_cache = None
+    _bot_is_active_local_expires_at = 0.0
+
+
 def _read_bot_is_active_from_cache() -> bool | None:
+    """Local-TTL wrapper over Redis to avoid a Redis hop per request.
+
+    Other workers' updates are visible after at most BOT_IS_ACTIVE_LOCAL_TTL_SECONDS.
+    """
+    global _bot_is_active_local_cache, _bot_is_active_local_expires_at
+
+    now = time.monotonic()
+    if _bot_is_active_local_cache is not None and now < _bot_is_active_local_expires_at:
+        return _bot_is_active_local_cache
+
     if not _redis_coordination_available():
+        _invalidate_bot_is_active_local_cache()
         return None
 
     try:
-        return _normalize_is_active(cache.get(BOT_IS_ACTIVE_CACHE_KEY))
+        value = _normalize_is_active(cache.get(BOT_IS_ACTIVE_CACHE_KEY))
     except Exception:
         return None
+
+    if value is not None:
+        _bot_is_active_local_cache = value
+        _bot_is_active_local_expires_at = now + BOT_IS_ACTIVE_LOCAL_TTL_SECONDS
+    return value
 
 
 def _write_bot_is_active_to_cache(value: bool) -> None:
     if not _redis_coordination_available():
+        _invalidate_bot_is_active_local_cache()
         return
 
     try:
         cache.set(BOT_IS_ACTIVE_CACHE_KEY, bool(value), ttl=0)
     except Exception:
         pass
+
+    _invalidate_bot_is_active_local_cache()
 
 
 async def _read_bot_is_active_from_mongo(mongo_client) -> bool | None:

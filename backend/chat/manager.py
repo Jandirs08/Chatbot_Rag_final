@@ -573,15 +573,32 @@ class ChatManager:
             final_text = ""
             t_llm_start = time.perf_counter()
             first_chunk_sent = False
-            async for chunk in stream:
-                if not first_chunk_sent:
-                    first_chunk_sent = True
-                    req_ctx.set_stage_timing_ms(
-                        "first_token_ms",
-                        (time.perf_counter() - stream_started_at) * 1000,
-                    )
-                final_text += chunk
-                yield chunk
+            client_cancelled = False
+            try:
+                async for chunk in stream:
+                    if not first_chunk_sent:
+                        first_chunk_sent = True
+                        req_ctx.set_stage_timing_ms(
+                            "first_token_ms",
+                            (time.perf_counter() - stream_started_at) * 1000,
+                        )
+                    final_text += chunk
+                    yield chunk
+            except (asyncio.CancelledError, GeneratorExit):
+                client_cancelled = True
+                logger.info(
+                    "[CHAT] Stream cancelado por cliente | conv=%s tokens_parciales=%d",
+                    conversation_id, len(final_text),
+                )
+                if final_text and not debug_mode:
+                    try:
+                        await self._persist_messages_safely(conversation_id, input_text, final_text, source)
+                        await self.bot.add_to_memory(human=input_text, ai=final_text, conversation_id=conversation_id)
+                    except Exception as persist_err:
+                        logger.warning(
+                            "No se pudo persistir respuesta parcial tras cancelación: %s", persist_err
+                        )
+                raise
 
             if not debug_mode:
                 await self._persist_messages_safely(conversation_id, input_text, final_text, source)

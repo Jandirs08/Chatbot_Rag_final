@@ -177,18 +177,44 @@ class HierarchicalRetriever(RAGRetriever):
         return documents
 
     async def _generate_hyde_embedding(self, query: str) -> list[float] | None:
-        """Embed a hypothetical answer to the query (HyDE) for better dense recall."""
+        """Embed a hypothetical answer to the query (HyDE) for better dense recall.
+
+        The hypothetical paragraph is cached by query hash to avoid paying the LLM
+        call on every repeated query (TTL 24h — hypothetical text is stable enough).
+        """
+        from cache.manager import cache as _cache
+        from utils.hashing import hash_for_cache_key
+
+        hyde_model = getattr(settings, "hyde_model_name", None) or getattr(settings, "base_model_name", "gpt-4o-mini")
+        cache_key = f"hyde:hyp:{hyde_model}:{hash_for_cache_key((query or '').strip().lower())}"
+        hyp_text: str | None = None
         try:
-            from langchain_openai import ChatOpenAI
-            hyde_model = getattr(settings, "hyde_model_name", None) or getattr(settings, "base_model_name", "gpt-4o-mini")
-            hyde_max_tokens = int(getattr(settings, "hyde_max_tokens", 150))
-            llm = ChatOpenAI(model_name=hyde_model, max_tokens=hyde_max_tokens, temperature=0)
-            response = await llm.ainvoke(
-                f"Write a short, factual paragraph that directly answers: {query}"
-            )
-            hyp_text = response.content if hasattr(response, "content") else str(response)
-            if not hyp_text.strip():
+            cached = _cache.get(cache_key)
+            if isinstance(cached, str) and cached.strip():
+                hyp_text = cached
+        except Exception:
+            hyp_text = None
+
+        if hyp_text is None:
+            try:
+                from langchain_openai import ChatOpenAI
+                hyde_max_tokens = int(getattr(settings, "hyde_max_tokens", 150))
+                llm = ChatOpenAI(model_name=hyde_model, max_tokens=hyde_max_tokens, temperature=0)
+                response = await llm.ainvoke(
+                    f"Write a short, factual paragraph that directly answers: {query}"
+                )
+                hyp_text = response.content if hasattr(response, "content") else str(response)
+                if not hyp_text or not hyp_text.strip():
+                    return None
+                try:
+                    _cache.set(cache_key, hyp_text, ttl=86400)
+                except Exception:
+                    pass
+            except Exception as exc:
+                logger.warning("HyDE LLM call failed (%s); using original query embedding", exc)
                 return None
+
+        try:
             return await self._embed_query_async(hyp_text)
         except Exception as exc:
             logger.warning("HyDE embedding failed (%s); using original query embedding", exc)

@@ -21,7 +21,18 @@
       "Bash(docker pull *)",
       "Bash(docker run *)",
       "Bash(docker rm *)",
-      "Skill(update-config)"
+      "Bash(netstat -ano)",
+      "Bash(findstr :3000)",
+      "Bash(tasklist /FI \"PID eq 12248\")",
+      "Bash(powershell -NoProfile -Command \"Get-Process -Id 12248 | Select-Object Id,ProcessName,Path | Format-List\")",
+      "Bash(taskkill *)",
+      "Bash(docker compose up *)",
+      "Bash(node *)",
+      "Bash(pip show *)",
+      "Bash(python -m pytest tests/ -x -q)",
+      "Bash(python -m pytest tests/ -q --deselect tests/test_gating.py::TestIsTrivialQuery::test_saludo_hola_ben)",
+      "Bash(python -c \"from utils.rate_limiter import limiter; print\\('storage:', type\\(limiter._storage\\).__name__\\)\")",
+      "Bash(python -m py_compile backend/api/app.py backend/api/routes/bot/config_routes.py backend/api/routes/chat/chat_routes.py backend/chat/manager.py backend/rag/retrieval/hierarchical_retriever.py backend/utils/rate_limiter.py)"
     ]
   }
 }
