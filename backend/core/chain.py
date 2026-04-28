@@ -50,14 +50,26 @@ class ChainManager:
             parameters=model_kwargs
         )
 
-        # Prompt — prefer ChatPromptTemplate (_SYSTEM variant) over legacy PromptTemplate
+        # Prompt — prefer ChatPromptTemplate (_SYSTEM variant) over legacy PromptTemplate.
+        #
+        # Layout (cache-friendly):
+        #   system  → estático tras partial de bot_name/personality (≥1024 tok ideal)
+        #   history → MessagesPlaceholder dinámico
+        #   human   → "<context>\n{context}\n</context>\n\n{input}" (parte dinámica)
+        #
+        # Mover `{context}` al human deja el system 100% estable entre requests, lo
+        # que activa el prompt caching automático de OpenAI (50% off en gpt-4o, 75%
+        # off en gpt-4o-mini sobre el prefijo cacheado).
         prompt_name = self.settings.main_prompt_name
         system_prompt_str = getattr(prompt_module, f"{prompt_name}_SYSTEM", None)
         if system_prompt_str is not None:
+            human_template = getattr(
+                prompt_module, "HUMAN_TURN_TEMPLATE", "{input}"
+            )
             self._prompt = ChatPromptTemplate.from_messages([
                 ("system", system_prompt_str),
                 MessagesPlaceholder(variable_name="history", optional=True),
-                ("human", "{input}"),
+                ("human", human_template),
             ])
         else:
             # Legacy fallback for custom prompt names without a _SYSTEM variant
