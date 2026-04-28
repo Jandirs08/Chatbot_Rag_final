@@ -16,45 +16,27 @@ from fastapi import FastAPI
 
 from utils.logging_utils import get_logger
 from cache.manager import cache
-from database.config_repository import ConfigRepository
+
+from .bot_state_repo import (
+    BOT_IS_ACTIVE_CACHE_KEY,
+    normalize_is_active,
+    read_is_active_from_mongo,
+    read_runtime_config_from_mongo,
+    redis_coordination_available,
+)
 from .routes.bot.config_routes import (
     apply_runtime_config,
-    build_runtime_config_payload,
     read_runtime_config_from_cache,
     write_runtime_config_to_cache,
 )
 
 
-BOT_CONFIG_COLLECTION = "bot_config"
-BOT_CONFIG_DOC_ID = "default"
-BOT_IS_ACTIVE_CACHE_KEY = "bot:is_active"
 RUNTIME_SYNC_PATH_PREFIXES = ("/api/v1/bot", "/api/v1/chat", "/api/v1/whatsapp")
 BOT_IS_ACTIVE_LOCAL_TTL_SECONDS = 5.0
 
 
 _bot_is_active_local_cache: Optional[bool] = None
 _bot_is_active_local_expires_at: float = 0.0
-
-
-def _redis_coordination_available() -> bool:
-    try:
-        return bool(cache.get_health_status().get("redis_connected"))
-    except Exception:
-        return False
-
-
-def _normalize_is_active(value: object) -> Optional[bool]:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)):
-        return bool(value)
-    if isinstance(value, str):
-        normalized = value.strip().lower()
-        if normalized in {"1", "true", "yes", "on"}:
-            return True
-        if normalized in {"0", "false", "no", "off"}:
-            return False
-    return None
 
 
 def _invalidate_bot_is_active_local_cache() -> None:
@@ -64,7 +46,7 @@ def _invalidate_bot_is_active_local_cache() -> None:
 
 
 def _read_bot_is_active_from_cache() -> Optional[bool]:
-    """Local-TTL wrapper sobre Redis para evitar 1 hop por request.
+    """Wrapper con TTL local sobre la lectura Redis para evitar 1 hop por request.
 
     Cambios de otros workers se ven a lo más en BOT_IS_ACTIVE_LOCAL_TTL_SECONDS.
     """
@@ -74,12 +56,12 @@ def _read_bot_is_active_from_cache() -> Optional[bool]:
     if _bot_is_active_local_cache is not None and now < _bot_is_active_local_expires_at:
         return _bot_is_active_local_cache
 
-    if not _redis_coordination_available():
+    if not redis_coordination_available():
         _invalidate_bot_is_active_local_cache()
         return None
 
     try:
-        value = _normalize_is_active(cache.get(BOT_IS_ACTIVE_CACHE_KEY))
+        value = normalize_is_active(cache.get(BOT_IS_ACTIVE_CACHE_KEY))
     except Exception:
         return None
 
@@ -90,7 +72,7 @@ def _read_bot_is_active_from_cache() -> Optional[bool]:
 
 
 def _write_bot_is_active_to_cache(value: bool) -> None:
-    if not _redis_coordination_available():
+    if not redis_coordination_available():
         _invalidate_bot_is_active_local_cache()
         return
 
@@ -102,45 +84,16 @@ def _write_bot_is_active_to_cache(value: bool) -> None:
     _invalidate_bot_is_active_local_cache()
 
 
-async def _read_bot_is_active_from_mongo(mongo_client) -> Optional[bool]:
-    try:
-        if mongo_client is None:
-            return None
-
-        doc = await mongo_client.db.get_collection(BOT_CONFIG_COLLECTION).find_one(
-            {"_id": BOT_CONFIG_DOC_ID},
-            {"is_active": 1},
-        )
-        if not doc:
-            return None
-
-        return _normalize_is_active(doc.get("is_active"))
-    except Exception:
-        return None
-
-
-async def _read_runtime_config_from_mongo(mongo_client) -> Optional[dict]:
-    try:
-        if mongo_client is None:
-            return None
-
-        repo = ConfigRepository(mongo=mongo_client)
-        config = await repo.get_config()
-        return build_runtime_config_payload(config)
-    except Exception:
-        return None
-
-
 async def load_shared_runtime_snapshot(mongo_client) -> tuple[Optional[dict], Optional[bool]]:
     runtime_config = read_runtime_config_from_cache()
     if runtime_config is None:
-        runtime_config = await _read_runtime_config_from_mongo(mongo_client)
+        runtime_config = await read_runtime_config_from_mongo(mongo_client)
         if runtime_config is not None:
             write_runtime_config_to_cache(runtime_config)
 
     is_active = _read_bot_is_active_from_cache()
     if is_active is None:
-        is_active = await _read_bot_is_active_from_mongo(mongo_client)
+        is_active = await read_is_active_from_mongo(mongo_client)
         if is_active is not None:
             _write_bot_is_active_to_cache(is_active)
 
