@@ -3,6 +3,52 @@
 FastAPI + LangChain RAG chatbot. See `docs/observability.md` for health, readiness,
 and operational endpoints.
 
+---
+
+## TODO — pendientes opcionales
+
+Dos workflows están listos pero NO activados todavía. No estorban; quedan dormidos
+hasta que decidas usarlos.
+
+### [ ] 1. Generar lock real de dependencias con `pip-compile`
+
+Hoy `requirements.txt` usa rangos (`fastapi>=0.104,<1.0`), así que builds Docker
+no son 100% reproducibles. Cuando quieras cerrar eso:
+
+```bash
+cd backend
+pip install pip-tools
+pip-compile --generate-hashes --output-file=requirements.txt requirements.in
+pip-compile --generate-hashes --output-file=requirements-dev.txt requirements-dev.in
+git add requirements*.txt requirements*.in
+git commit -m "Regenerate dependency locks"
+```
+
+Después de esto, `pip install -r requirements.txt` instala versiones EXACTAS con
+hashes verificados. Repetir el `pip-compile` cada vez que cambies un `.in`.
+
+**Si no lo haces:** todo sigue funcionando como hoy. Solo pierdes la garantía de
+"build hoy = build mañana".
+
+### [ ] 2. Activar evals nocturnas en GitHub Actions
+
+Workflow `.github/workflows/rag-evals-nightly.yml` corre la suite RAG E2E cada
+noche contra el backend levantado con servicios reales (Mongo, Qdrant, Redis).
+Útil para detectar regresiones de calidad antes de subir LangChain a 0.3 o tocar
+el prompt.
+
+Para activarlo en GitHub:
+1. Settings → Secrets and variables → Actions
+2. **Secrets** → New repository secret → `OPENAI_API_KEY` con tu key real
+3. **Variables** → New repository variable → `ENABLE_NIGHTLY_EVALS` = `true`
+4. Listo. Corre 06:00 UTC daily + manual via "Run workflow".
+
+**Costo aproximado:** $0.10–$1 por corrida (OpenAI tokens). ~$3–30/mes nocturno.
+
+**Si no lo activas:** workflow queda dormido, cero costo, cero impacto.
+
+---
+
 ## Dependency management
 
 Source of truth for dependencies lives in `requirements.in` (runtime) and
