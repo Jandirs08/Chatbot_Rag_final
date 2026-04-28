@@ -1,221 +1,76 @@
-"""Configuration management for the chatbot application."""
+"""Configuration management for the chatbot application.
+
+Settings se compone por herencia múltiple desde fragmentos por dominio definidos
+en `config_fragments.py`. La intención es:
+- mantener un único `settings` global y la API existente (`from config import settings`)
+- agrupar campos por área para que sean fáciles de localizar y editar
+- concentrar validators y reglas de producción aquí (no en los fragmentos)
+"""
 import os
-from typing import Optional, List, Union
-from pydantic import Field, field_validator, model_validator, SecretStr, ValidationError
-from pydantic import ValidationInfo
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
+
 from dotenv import load_dotenv
+from pydantic import ValidationError, ValidationInfo, field_validator, model_validator
+from pydantic_settings import SettingsConfigDict
+
+from config_fragments import (
+    AppMetaFields,
+    AuthFields,
+    BotUIFields,
+    CORSFields,
+    CacheFields,
+    EmailFields,
+    MemoryFields,
+    ModelFields,
+    MongoFields,
+    MonitoringFields,
+    RAGChunkingFields,
+    RAGEmbeddingFields,
+    RAGRetrievalFields,
+    RAGVectorStoreFields,
+    RateLimitFields,
+    RedisFields,
+    ServerFields,
+    StorageFields,
+    WhatsAppFields,
+)
 
 # Carga el .env con ruta absoluta (más fiable que env_file relativo al CWD).
 # pydantic-settings no necesita env_file porque las vars ya están en os.environ.
 load_dotenv(Path(__file__).parent / '.env')
 
-class Settings(BaseSettings):
-    """Configuraciones de la aplicación."""
-    # pydantic-settings: no se usa env_file porque load_dotenv() ya cargó el .env
-    # a os.environ con ruta absoluta (más confiable en Docker y distintos CWD).
-    model_config = SettingsConfigDict(
-        case_sensitive=False,
-        extra="ignore"
-    )
-    
-    # Configuraciones del Servidor
-    host: str = Field(default="0.0.0.0", env="HOST")
-    port: int = Field(default=8000, env="PORT")
-    workers: int = Field(default=4, env="WORKERS")
-    
-    # Configuraciones de Seguridad
-    # JWT - Configuraciones para autenticación
-    jwt_secret: Optional[SecretStr] = Field(default=None, env="JWT_SECRET")
-    jwt_algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
-    jwt_access_token_expire_minutes: int = Field(default=30, env="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
-    jwt_refresh_token_expire_days: int = Field(default=7, env="JWT_REFRESH_TOKEN_EXPIRE_DAYS")
-    reset_token_expire_minutes: int = Field(default=15, env="RESET_TOKEN_EXPIRE_MINUTES")
-    
-    # CORS - Configuraciones de origen cruzado (acepta string o lista para evitar errores de parseo)
-    cors_origins: Union[str, List[str]] = Field(default=["*"], env="CORS_ORIGINS")
-    cors_origins_widget: Union[str, List[str]] = Field(default=[], env="CORS_ORIGINS_WIDGET")
-    cors_origins_admin: Union[str, List[str]] = Field(default=[], env="CORS_ORIGINS_ADMIN")
-    # Origen del cliente (Frontend en Vercel)
-    client_origin_url: Optional[str] = Field(default=None, env="CLIENT_ORIGIN_URL")
-    frontend_url: Optional[str] = Field(default=None, env="FRONTEND_URL")
-    cors_max_age: int = Field(default=3600, env="CORS_MAX_AGE")
-    
-    
-    
-    # Configuraciones de la App
-    app_title: str = Field(default="ChatBot RAG API")
-    app_description: str = Field(default="API para el ChatBot con RAG")
-    app_version: str = Field(default="1.0.0")
-    environment: str = Field(default="development", env="ENVIRONMENT")
-    debug: bool = Field(default=False, env="DEBUG")
-    
-    # Configuraciones de Logging
-    log_level: str = Field(default="DEBUG", env="LOG_LEVEL")
-    
-    # Mock Mode para pruebas de carga
-    mock_mode: bool = Field(default=False, env="MOCK_MODE")
-    
-    # Rate Limiting
-    enable_rate_limiting: bool = Field(default=True, env="ENABLE_RATE_LIMITING")
-    rate_limit_strategy: str = Field(default="fixed-window", env="RATE_LIMIT_STRATEGY")
-    global_rate_limit: str = Field(default="100/minute", env="GLOBAL_RATE_LIMIT")
-    chat_rate_limit: str = Field(default="10/minute", env="CHAT_RATE_LIMIT")
-    pdf_upload_rate_limit: str = Field(default="5/hour", env="PDF_UPLOAD_RATE_LIMIT")
-    login_rate_limit: str = Field(default="10/minute", env="LOGIN_RATE_LIMIT")
-    auth_refresh_rate_limit: str = Field(default="30/minute", env="AUTH_REFRESH_RATE_LIMIT")
-    auth_register_rate_limit: str = Field(default="5/hour", env="AUTH_REGISTER_RATE_LIMIT")
-    max_message_length: int = Field(default=2000, env="MAX_MESSAGE_LENGTH")
-    
-    # Configuraciones del Modelo
-    model_type: str = Field(default="OPENAI", env="MODEL_TYPE")
-    openai_api_key: SecretStr = Field(..., env="OPENAI_API_KEY")
-    base_model_name: str = Field(default="gpt-3.5-turbo", env="BASE_MODEL_NAME")
-    max_tokens: int = Field(default=2000, env="MAX_TOKENS")
-    temperature: float = Field(default=0.7, env="TEMPERATURE")
-    stream_min_chunk_chars: int = Field(default=32, env="STREAM_MIN_CHUNK_CHARS")
-    
-    # Dynamic UI-driven config (complemento seguro)
-    bot_name: Optional[str] = Field(default=None, env="BOT_NAME")
-    ui_prompt_extra: Optional[str] = Field(default=None)
-    theme_color: str = Field(default="#F97316", env="THEME_COLOR")
-    starters: list[str] = Field(default_factory=list)
-    input_placeholder: Optional[str] = Field(default="Escribe aquí...", env="INPUT_PLACEHOLDER")
-    main_prompt_name: str = Field(default="BASE_PROMPT_TEMPLATE", env="MAIN_PROMPT_NAME")
-    ai_prefix: str = Field(default="assistant", env="AI_PREFIX")
-    human_prefix: str = Field(default="user", env="HUMAN_PREFIX")
-    
-    # Configuraciones de MongoDB
-    # Canonizamos a `MONGO_URI` (como en docker-compose), con fallback a `MONGODB_URI`
-    mongo_uri: Optional[SecretStr] = Field(default=None, env="MONGO_URI")
-    mongo_database_name: str = Field(default="chatbot_rag_db", env="MONGO_DATABASE_NAME")
-    mongo_collection_name: str = Field(default="chat_history", env="MONGO_COLLECTION_NAME")
-    mongo_max_pool_size: int = Field(default=500, env="MONGO_MAX_POOL_SIZE")
-    mongo_timeout_ms: int = Field(default=5000, env="MONGO_TIMEOUT_MS")
-    mongo_wait_queue_timeout_ms: int = Field(default=5000, env="MONGO_WAIT_QUEUE_TIMEOUT_MS")
-    
-    # Configuraciones de Redis
-    # Nota: Se usa redis_url como configuración principal, no configuraciones individuales
-    redis_url: Optional[SecretStr] = Field(default=None, env="REDIS_URL")
-    redis_max_connections: int = Field(default=200, env="REDIS_MAX_CONNECTIONS")
-    cache_retry_attempts: int = Field(default=3, env="CACHE_RETRY_ATTEMPTS")
-    cache_retry_delay_base: float = Field(default=0.5, env="CACHE_RETRY_DELAY_BASE")
-    
-    
-    # Configuraciones de Memoria
-    memory_type: str = Field(default="BASE_MEMORY", env="MEMORY_TYPE")
-    memory_window_size: int = Field(default=20, env="MEMORY_WINDOW_SIZE")
-    max_memory_entries: int = Field(default=1000, env="MAX_MEMORY_ENTRIES")
-    
-    # Configuraciones de RAG - Procesamiento de PDFs
-    chunk_size: int = Field(default=500, validation_alias="RAG_CHUNK_SIZE")
-    chunk_overlap: int = Field(default=50, validation_alias="RAG_CHUNK_OVERLAP")
-    min_chunk_length: int = Field(default=100, validation_alias="MIN_CHUNK_LENGTH")
-    max_file_size_mb: int = Field(default=10, validation_alias="MAX_FILE_SIZE_MB")
-    rag_child_overlap_tokens: int = Field(default=40, env="RAG_CHILD_OVERLAP_TOKENS")
-    llm_context_window: int = Field(default=16000, env="LLM_CONTEXT_WINDOW")
-    
-    # Configuraciones de RAG - Recuperación
-    retrieval_k: int = Field(default=4, env="RETRIEVAL_K")
-    retrieval_k_multiplier: int = Field(default=3, env="RETRIEVAL_K_MULTIPLIER")
-    mmr_lambda_mult: float = Field(default=0.5, env="MMR_LAMBDA_MULT")
-    similarity_threshold: float = Field(default=0.3, env="SIMILARITY_THRESHOLD")
-    rag_gating_similarity_threshold: float = Field(default=0.20, env="RAG_GATING_SIMILARITY_THRESHOLD")
-    enable_hybrid_search: bool = Field(default=True, env="ENABLE_HYBRID_SEARCH")
-    enable_llm_reranker: bool = Field(default=True, env="ENABLE_LLM_RERANKER")
-    hybrid_rrf_k: int = Field(default=60, env="HYBRID_RRF_K")
-    hybrid_child_candidate_limit: int = Field(default=12, env="HYBRID_CHILD_CANDIDATE_LIMIT")
-    hybrid_parent_candidate_limit: int = Field(default=6, env="HYBRID_PARENT_CANDIDATE_LIMIT")
-    rag_child_first_context_enabled: bool = Field(default=False, env="RAG_CHILD_FIRST_CONTEXT_ENABLED")
-    rag_child_first_context_top_children: int = Field(default=3, env="RAG_CHILD_FIRST_CONTEXT_TOP_CHILDREN")
-    rag_child_first_context_window_tokens: int = Field(default=200, env="RAG_CHILD_FIRST_CONTEXT_WINDOW_TOKENS")
-    rag_reranker_model_name: Optional[str] = Field(default=None, env="RAG_RERANKER_MODEL_NAME")
-    rag_reranker_timeout_seconds: float = Field(default=12.0, env="RAG_RERANKER_TIMEOUT_SECONDS")
-    rag_reranker_type: str = Field(default="openai", env="RAG_RERANKER_TYPE")  # heuristic/openai/cross_encoder/cohere
-    cross_encoder_model_name: str = Field(default="cross-encoder/ms-marco-MiniLM-L-6-v2", env="CROSS_ENCODER_MODEL_NAME")
-    cohere_api_key: Optional[SecretStr] = Field(default=None, env="COHERE_API_KEY")
-    cohere_rerank_model: str = Field(default="rerank-multilingual-v3.0", env="COHERE_RERANK_MODEL")
-    enable_hyde: bool = Field(default=False, env="ENABLE_HYDE")
-    hyde_max_tokens: int = Field(default=150, env="HYDE_MAX_TOKENS")
-    hyde_model_name: Optional[str] = Field(default=None, env="HYDE_MODEL_NAME")
-    enable_semantic_chunking: bool = Field(default=False, env="ENABLE_SEMANTIC_CHUNKING")
-    semantic_chunk_threshold: float = Field(default=0.5, env="SEMANTIC_CHUNK_THRESHOLD")
-    semantic_chunk_model: str = Field(default="all-MiniLM-L6-v2", env="SEMANTIC_CHUNK_MODEL")
 
-    # Configuraciones de RAG - Ingesta
-    batch_size: int = Field(default=100, env="BATCH_SIZE")
-    deduplication_threshold: float = Field(default=0.95, validation_alias="DEDUP_THRESHOLD")
-    
-    
-    # Configuraciones de RAG - Vector Store
-    vector_store_path: str = Field(default="./backend/storage/vector_store/chroma_db", env="VECTOR_STORE_PATH")
-    distance_strategy: str = Field(default="cosine", env="DISTANCE_STRATEGY")
-    qdrant_url: str = Field(default="http://localhost:6333", env="QDRANT_URL")
-    qdrant_api_key: Optional[SecretStr] = Field(default=None, env="QDRANT_API_KEY")
-    qdrant_collection_name: str = Field(default="rag_collection", env="QDRANT_COLLECTION_NAME")
-    qdrant_max_connections: int = Field(default=200, env="QDRANT_MAX_CONNECTIONS")
-    qdrant_keepalive_connections: int = Field(default=40, env="QDRANT_KEEPALIVE_CONNECTIONS")
-    qdrant_timeout_seconds: int = Field(default=30, env="QDRANT_TIMEOUT_SECONDS")
-    qdrant_circuit_breaker_threshold: int = Field(default=5, env="QDRANT_CIRCUIT_BREAKER_THRESHOLD")
-    qdrant_circuit_breaker_recovery_s: float = Field(default=60.0, env="QDRANT_CIRCUIT_BREAKER_RECOVERY_S")
-    qdrant_retry_attempts: int = Field(default=2, env="QDRANT_RETRY_ATTEMPTS")
-    qdrant_retry_delay_base: float = Field(default=0.5, env="QDRANT_RETRY_DELAY_BASE")
-    rag_child_collection_name: str = Field(default="rag_child_chunks", env="RAG_CHILD_COLLECTION_NAME")
-    rag_child_lexical_collection_name: str = Field(default="rag_child_lexical_documents", env="RAG_CHILD_LEXICAL_COLLECTION_NAME")
-    rag_child_lexical_postings_collection_name: str = Field(default="rag_child_lexical_postings", env="RAG_CHILD_LEXICAL_POSTINGS_COLLECTION_NAME")
-    
-    # Configuraciones de RAG - Embeddings
-    embedding_model: str = Field(default="openai:text-embedding-3-small", env="EMBEDDING_MODEL")
-    embedding_batch_size: int = Field(default=32, env="EMBEDDING_BATCH_SIZE")
-    # Dimensión por defecto de embeddings (usada en fallbacks)
-    default_embedding_dimension: int = Field(default=1536, env="DEFAULT_EMBEDDING_DIMENSION")
+class Settings(
+    ServerFields,
+    AuthFields,
+    CORSFields,
+    AppMetaFields,
+    RateLimitFields,
+    ModelFields,
+    BotUIFields,
+    MongoFields,
+    RedisFields,
+    MemoryFields,
+    RAGChunkingFields,
+    RAGRetrievalFields,
+    RAGVectorStoreFields,
+    RAGEmbeddingFields,
+    CacheFields,
+    StorageFields,
+    MonitoringFields,
+    EmailFields,
+    WhatsAppFields,
+):
+    """Configuraciones de la aplicación.
 
-    # Configuraciones de caché locales (VectorStore / consultas)
-    max_cache_size: int = Field(default=1024, env="MAX_CACHE_SIZE")
-    
-    cache_store_embeddings: bool = Field(default=True, env="CACHE_STORE_EMBEDDINGS")
-    
-    # Configuraciones de RAG - Caché
-    enable_cache: bool = Field(default=True, env="ENABLE_CACHE")
-    cache_ttl: int = Field(default=3600, env="CACHE_TTL")  # 1 hora por defecto
-    
-    # Timeouts LLM
-    llm_request_timeout_seconds: float = Field(default=60.0, env="LLM_REQUEST_TIMEOUT_SECONDS")
-    llm_stream_chunk_timeout_seconds: float = Field(default=30.0, env="LLM_STREAM_CHUNK_TIMEOUT_SECONDS")
+    Toda la lista de campos vive en `config_fragments.py`. Aquí solo:
+    - `model_config` global (env case-insensitive, ignorar extras)
+    - validators a través de campos de varios dominios
+    - regla de producción anti-DEBUG
+    """
+    model_config = SettingsConfigDict(case_sensitive=False, extra="ignore")
 
-    # Feature Flag: Integración LCEL del RAG
-    enable_rag_lcel: bool = Field(default=False, env="ENABLE_RAG_LCEL")
-
-    rag_parent_collection_name: str = Field(default="rag_parent_documents", env="RAG_PARENT_COLLECTION_NAME")
-    
-    # Configuraciones de Directorios
-    storage_dir: str = Field(default="./backend/storage", env="STORAGE_DIR")
-    documents_dir: str = Field(default="./backend/storage/documents", env="DOCUMENTS_DIR")
-    pdfs_dir: str = Field(default="./backend/storage/documents/pdfs", env="PDFS_DIR")
-    cache_dir: str = Field(default="./backend/storage/cache", env="CACHE_DIR")
-    temp_dir: str = Field(default="./backend/storage/temp", env="TEMP_DIR")
-    backup_dir: str = Field(default="./backend/storage/backups", env="BACKUP_DIR")
-
-    # Monitoring
-    sentry_dsn: Optional[str] = Field(default=None, env="SENTRY_DSN")
-    sentry_traces_sample_rate: float = Field(default=0.1, env="SENTRY_TRACES_SAMPLE_RATE")
-
-    resend_api_key: Optional[SecretStr] = Field(default=None, env="RESEND_API_KEY")
-    email_from: Optional[str] = Field(default=None, env="EMAIL_FROM")
-    password_reset_url_base: Optional[str] = Field(default=None, env="PASSWORD_RESET_URL_BASE")
-    
-    
-
-    # Configuración personalizada para cantidad máxima de documentos recuperados
-    max_documents: int = Field(default=5, env="MAX_DOCUMENTS")
-
-    twilio_account_sid: Optional[str] = Field(default=None, env="TWILIO_ACCOUNT_SID")
-    twilio_auth_token: Optional[str] = Field(default=None, env="TWILIO_AUTH_TOKEN")
-    twilio_whatsapp_from: Optional[str] = Field(default=None, env="TWILIO_WHATSAPP_FROM")
-    twilio_api_base: str = Field(default="https://api.twilio.com", env="TWILIO_API_BASE")
-    
-    # Nota: Config ya no aplica en Pydantic v2; usamos model_config arriba.
+    # ---- Validators ----
 
     @field_validator("environment")
     @classmethod
@@ -224,7 +79,7 @@ class Settings(BaseSettings):
         if v not in allowed:
             raise ValueError(f"Environment must be one of {allowed}")
         return v
-        
+
     @field_validator("log_level")
     @classmethod
     def validate_log_level(cls, v: str):
@@ -233,23 +88,20 @@ class Settings(BaseSettings):
         if v not in allowed:
             raise ValueError(f"Log level must be one of {allowed}")
         return v
-        
+
     @field_validator("cors_origins", "cors_origins_widget", "cors_origins_admin", mode="after")
     @classmethod
     def validate_cors_origins(cls, v, info: ValidationInfo):
         env = (info.data or {}).get("environment")
-        # Normalizar: si viene como string vacío, convertir a lista vacía
         if isinstance(v, str):
             v_str = v.strip()
             if v_str == "":
                 v = []
             else:
-                # Permitir CSV sencillo: "https://a,https://b"
                 if "," in v_str and not v_str.startswith("["):
                     v = [origin.strip() for origin in v_str.split(",") if origin.strip()]
                 else:
                     v = [v_str]
-        # En producción, bloquear comodín
         if env == "production" and any(origin == "*" for origin in (v or [])):
             raise ValueError("Wildcard CORS origin (*) not allowed in production")
         return v
@@ -257,7 +109,7 @@ class Settings(BaseSettings):
     @field_validator("mongo_uri", mode="before")
     @classmethod
     def validate_mongo_uri(cls, v):
-        # Preferir MONGO_URI, con fallback a MONGODB_URI
+        # Preferir MONGO_URI, fallback a MONGODB_URI
         if v is None:
             primary = os.getenv("MONGO_URI")
             if primary:
@@ -267,21 +119,21 @@ class Settings(BaseSettings):
                 return fallback
             return None
         return v
-        
+
     @field_validator("temperature")
     @classmethod
     def validate_temperature(cls, v: float):
         if not 0 <= v <= 1:
             raise ValueError("Temperature must be between 0 and 1")
         return v
-        
+
     @field_validator("similarity_threshold", "deduplication_threshold")
     @classmethod
     def validate_threshold(cls, v: float):
         if not 0 <= v <= 1:
             raise ValueError("Threshold values must be between 0 and 1")
         return v
-        
+
     @field_validator("max_file_size_mb")
     @classmethod
     def validate_max_file_size(cls, v: int):
@@ -305,7 +157,9 @@ class Settings(BaseSettings):
             )
         return self
 
-# Create global settings instance
+
+# ---- Global instance ----
+
 try:
     settings = Settings()
 except ValidationError as e:
@@ -316,43 +170,30 @@ except ValidationError as e:
         if mongo:
             settings = Settings(mongo_uri=mongo)
         else:
-            # Crear instancia con mongo_uri=None para scripts que no tocan Mongo directamente
             settings = Settings(mongo_uri=None)
     else:
-        print("="*80)
+        print("=" * 80)
         print("ERROR: Faltan variables de entorno críticas para iniciar la aplicación.")
         print("La validación de configuración falló. Revise las siguientes variables en su configuración de entorno:")
-        error_messages = []
         for error in e.errors():
             field_name = str(error['loc'][0])
-            error_messages.append(f"  - Campo '{field_name}': {error['msg']}.")
-        print("\n".join(error_messages))
+            print(f"  - Campo '{field_name}': {error['msg']}.")
         print("\nSugerencia: Variables requeridas incluyen 'OPENAI_API_KEY', 'MONGO_URI' (o 'MONGODB_URI'), y 'JWT_SECRET'.")
-        print("="*80)
+        print("=" * 80)
         raise
 
 
 def get_settings() -> Settings:
-    """Get application settings.
-    
-    Returns:
-        Application settings object.
-    """
+    """Get application settings."""
     return settings
 
-# Endurecimiento de seguridad en producción:
-# - Si el entorno es "production" y JWT_SECRET no está definido o está vacío,
-#   abortar el arranque con un ValueError claro. Las plataformas cloud (Render, Railway)
-#   inyectan variables de entorno; esta validación evita arrancar sin un secreto adecuado.
-try:
-    if settings.environment.lower() == "production":
-        secret_value = (
-            settings.jwt_secret.get_secret_value() if settings.jwt_secret is not None else None
+
+# Endurecimiento de seguridad en producción: JWT_SECRET es obligatorio.
+if settings.environment.lower() == "production":
+    secret_value = (
+        settings.jwt_secret.get_secret_value() if settings.jwt_secret is not None else None
+    )
+    if secret_value is None or secret_value.strip() == "":
+        raise ValueError(
+            "JWT_SECRET es obligatorio en producción. Configure la variable de entorno JWT_SECRET antes de iniciar."
         )
-        if secret_value is None or secret_value.strip() == "":
-            raise ValueError(
-                "JWT_SECRET es obligatorio en producción. Configure la variable de entorno JWT_SECRET antes de iniciar."
-            )
-except Exception:
-    # Re-lanzar para que el arranque falle y quede registrado por el logger de la app/uvicorn.
-    raise
