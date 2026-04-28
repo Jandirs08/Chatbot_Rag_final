@@ -8,6 +8,7 @@ import React, {
   useReducer,
   type ReactNode,
 } from "react";
+import { usePathname } from "next/navigation";
 import { logger } from "@/app/lib/logger";
 import type { AuthSessionSnapshot } from "@/app/lib/auth/session";
 import {
@@ -16,6 +17,7 @@ import {
   authService,
   TokenManager,
 } from "@/app/lib/services/authService";
+import { isPublicPath } from "@/app/lib/auth/routeAccess";
 import type { User } from "@/app/lib/services/authService";
 
 export interface AuthState {
@@ -142,6 +144,7 @@ export function AuthProvider({
   children,
   initialSession = null,
 }: AuthProviderProps) {
+  const pathname = usePathname();
   const [state, dispatch] = useReducer(
     authReducer,
     initialSession,
@@ -203,8 +206,13 @@ export function AuthProvider({
       return;
     }
 
+    if (isPublicPath(pathname)) {
+      dispatch({ type: "AUTH_LOGOUT" });
+      return;
+    }
+
     void checkAuthStatus();
-  }, [checkAuthStatus, initialSession]);
+  }, [checkAuthStatus, initialSession, pathname]);
 
   const refreshAuth = useCallback(async () => {
     try {

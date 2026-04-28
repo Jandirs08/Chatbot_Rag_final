@@ -7,7 +7,12 @@ import type { AuthSessionSnapshot } from "./session";
 import { SSR_ACCESS_TOKEN_HEADER } from "./session";
 import { ACCESS_TOKEN_COOKIE, decodeTokenExpiry } from "./sessionRefresh";
 
+const SERVER_SESSION_TIMEOUT_MS = 10_000;
+
 async function fetchCurrentUser(accessToken: string): Promise<User | null> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), SERVER_SESSION_TIMEOUT_MS);
+
   try {
     const response = await fetch(`${API_URL}/auth/me`, {
       method: "GET",
@@ -16,6 +21,7 @@ async function fetchCurrentUser(accessToken: string): Promise<User | null> {
         "Content-Type": "application/json",
       },
       cache: "no-store",
+      signal: controller.signal,
     });
 
     if (!response.ok) {
@@ -25,6 +31,8 @@ async function fetchCurrentUser(accessToken: string): Promise<User | null> {
     return (await response.json()) as User;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

@@ -72,12 +72,30 @@ export function isTokenExpired(
 // dedupes within a single worker. Cross-instance protection requires a
 // distributed lock (Redis, etc.) and is out of scope here.
 const inFlightRefreshes = new Map<string, Promise<SessionTokens | null>>();
+const SERVER_AUTH_TIMEOUT_MS = 10_000;
+
+async function fetchServerAuth(
+  input: string,
+  init: RequestInit,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), SERVER_AUTH_TIMEOUT_MS);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 async function performSessionRefresh(
   refreshToken: string,
 ): Promise<SessionTokens | null> {
   try {
-    const response = await fetch(`${API_URL}/auth/refresh`, {
+    const response = await fetchServerAuth(`${API_URL}/auth/refresh`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
