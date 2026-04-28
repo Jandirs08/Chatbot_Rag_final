@@ -1,208 +1,49 @@
-"""Chat manager for handling conversations with LLMs."""
-import json
-import re
-from typing import Any, Dict, List, Optional
-from utils.logging_utils import get_logger
-import time
-from fastapi import HTTPException
-from cache.manager import cache
-from utils.hashing import hash_for_cache_key
-import asyncio
+"""ChatManager: orquesta Bot, persistencia, locks, caché y debug.
 
+Lógica especializada vive en módulos vecinos:
+- locks.py     → ConversationLockManager
+- cache_key.py → build_response_cache_key
+- verifier.py  → ResponseVerifier (fact-checker en debug)
+- debug.py     → DebugInfoBuilder + log_stream_timing_summary
+"""
+from typing import Optional
+import asyncio
+import time
+
+from fastapi import HTTPException
+
+from utils.logging_utils import get_logger
+from cache.manager import cache
 from config import settings
 from database.mongodb import get_mongodb_client
 from common.constants import USER_ROLE, ASSISTANT_ROLE
 from common.objects import Message as BotMessage
-from api.schemas import DebugInfo, RetrievedDocument
 from core.bot import Bot
-from core.request_context import new_request_context, get_request_context
-from models.model_types import ModelTypes, MODEL_TO_CLASS
-from rag.corpus_state import get_corpus_cache_version
+from core.request_context import new_request_context
 from rag.retrieval.retriever import RetrievalBackendUnavailableError
+
+from chat.cache_key import build_response_cache_key
+from chat.debug import DebugInfoBuilder, log_stream_timing_summary
+from chat.locks import ConversationLockManager
+from chat.verifier import ResponseVerifier
 
 logger = get_logger(__name__)
 
-# Lazy loading para tiktoken: evitar costos cuando no se usa debug
-_TIKTOKEN_ENCODING = None
-
-def _get_token_count(text: str) -> int:
-    """Cuenta tokens usando tiktoken con lazy loading; fallback a len(text)//4."""
-    global _TIKTOKEN_ENCODING
-    try:
-        if _TIKTOKEN_ENCODING is None:
-            import tiktoken  # lazy import solo cuando se necesite
-            _TIKTOKEN_ENCODING = tiktoken.get_encoding("cl100k_base")
-        return int(len(_TIKTOKEN_ENCODING.encode(text or "")))
-    except Exception:
-        return int(max(0, (len(text or "") // 4)))
-
-
-def _parse_verification_json(text: str) -> Optional[Dict[str, Any]]:
-    """
-    Parsea JSON de verificación de forma robusta.
-    Maneja: JSON puro, JSON en markdown, comillas simples, booleanos Python.
-    """
-    if not text:
-        return None
-    
-    # 1. Intentar extraer JSON de bloques markdown ```json ... ```
-    md_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', text, re.IGNORECASE)
-    if md_match:
-        text = md_match.group(1).strip()
-    
-    # 2. Intentar extraer JSON suelto { ... }
-    json_match = re.search(r'\{[\s\S]*\}', text)
-    if json_match:
-        candidate = json_match.group(0)
-    else:
-        candidate = text.strip().strip('`')
-    
-    # 3. Normalizar para JSON válido
-    # Reemplazar comillas simples por dobles (común en outputs Python-style)
-    normalized = candidate.replace("'", '"')
-    # Normalizar booleanos Python -> JSON
-    normalized = re.sub(r'\bTrue\b', 'true', normalized)
-    normalized = re.sub(r'\bFalse\b', 'false', normalized)
-    normalized = re.sub(r'\bNone\b', 'null', normalized)
-    
-    try:
-        return json.loads(normalized)
-    except json.JSONDecodeError:
-        return None
 
 class ChatManager:
-    """Manager principal para la interacción con el Bot y almacenamiento en base de datos."""
+    """Manager principal para la interacción con el Bot y persistencia en Mongo."""
 
     def __init__(self, bot_instance: Bot):
         self.bot = bot_instance
         self.db = get_mongodb_client()
-        self._conversation_locks: Dict[str, asyncio.Lock] = {}
-        self._conversation_lock_refs: Dict[str, int] = {}
-        self._conversation_lock_last_used: Dict[str, float] = {}
-        self._conversation_locks_guard = asyncio.Lock()
-        self._lock_cleanup_interval_seconds = 60.0
-        self._lock_idle_ttl_seconds = 300.0
-        self._last_lock_cleanup_at = time.monotonic()
+        self._locks = ConversationLockManager()
+        self._debug_builder = DebugInfoBuilder(bot_instance)
+        self._verifier = ResponseVerifier(bot_instance)
 
         logger.debug(f"[DB] ChatManager inicializado | client_id={id(self.db)}")
 
     def _build_response_cache_key(self, conversation_id: str, input_text: str) -> str:
-        corpus_version = get_corpus_cache_version()
-        chain_settings = getattr(getattr(self.bot, "chain_manager", None), "settings", None)
-        bot_settings = getattr(self.bot, "settings", None)
-        effective_settings = chain_settings or bot_settings
-
-        config_payload = {
-            "base_model_name": getattr(effective_settings, "base_model_name", ""),
-            "temperature": getattr(effective_settings, "temperature", ""),
-            "main_prompt_name": getattr(effective_settings, "main_prompt_name", ""),
-            "ui_prompt_extra": getattr(effective_settings, "ui_prompt_extra", ""),
-            "enable_rag_lcel": bool(getattr(effective_settings, "enable_rag_lcel", False)),
-        }
-        config_hash = hash_for_cache_key(
-            json.dumps(config_payload, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
-        )
-        input_hash = hash_for_cache_key(input_text)
-        return f"resp:v={corpus_version}:{conversation_id}:{config_hash}:{input_hash}"
-
-    def _get_redis_client(self):
-        """Return the Redis client if cache backend is Redis, else None."""
-        try:
-            if getattr(cache, "backend_type", None) == "RedisCache":
-                return cache.backend.client
-        except Exception:
-            pass
-        return None
-
-    async def _acquire_conversation_lock(self, conversation_id: str) -> tuple[object, bool]:
-        """Acquire per-conversation lock.
-
-        Uses Redis advisory lock when Redis is available (cross-worker safe).
-        Falls back to in-process asyncio.Lock when Redis is unavailable.
-        """
-        redis_client = self._get_redis_client()
-        if redis_client is not None:
-            return await self._acquire_redis_lock(conversation_id, redis_client)
-        return await self._acquire_local_lock(conversation_id)
-
-    async def _acquire_redis_lock(self, conversation_id: str, redis_client) -> tuple[object, bool]:
-        from utils.redis_lock import RedisAdvisoryLock
-        lock = RedisAdvisoryLock(
-            redis_client,
-            f"conv:lock:{conversation_id}",
-            acquire_timeout=10.0,
-        )
-        acquired = await lock.acquire()
-        return lock, acquired
-
-    async def _acquire_local_lock(self, conversation_id: str) -> tuple[Optional[asyncio.Lock], bool]:
-        now = time.monotonic()
-        async with self._conversation_locks_guard:
-            lock = self._conversation_locks.get(conversation_id)
-            if lock is None:
-                lock = asyncio.Lock()
-                self._conversation_locks[conversation_id] = lock
-                self._conversation_lock_refs[conversation_id] = 0
-
-            self._conversation_lock_refs[conversation_id] = (
-                self._conversation_lock_refs.get(conversation_id, 0) + 1
-            )
-            self._conversation_lock_last_used[conversation_id] = now
-
-        try:
-            await asyncio.wait_for(lock.acquire(), timeout=10.0)
-            return lock, True
-        except asyncio.TimeoutError:
-            logger.warning(
-                "[CHAT] Timeout adquiriendo lock local de conversación | conv=%s. Continuando sin lock.",
-                conversation_id,
-            )
-            await self._release_conversation_lock(conversation_id, lock, acquired=False)
-            return lock, False
-
-    async def _release_conversation_lock(
-        self,
-        conversation_id: str,
-        lock: object,
-        *,
-        acquired: bool,
-    ) -> None:
-        from utils.redis_lock import RedisAdvisoryLock
-        if isinstance(lock, RedisAdvisoryLock):
-            if acquired:
-                await lock.release()
-            return
-
-        # In-process asyncio.Lock path
-        now = time.monotonic()
-        async with self._conversation_locks_guard:
-            if acquired and lock is not None and isinstance(lock, asyncio.Lock) and lock.locked():
-                lock.release()
-
-            current_refs = self._conversation_lock_refs.get(conversation_id, 0)
-            if current_refs > 1:
-                self._conversation_lock_refs[conversation_id] = current_refs - 1
-                self._conversation_lock_last_used[conversation_id] = now
-            else:
-                self._conversation_lock_refs[conversation_id] = 0
-                self._conversation_lock_last_used[conversation_id] = now
-
-            if (now - self._last_lock_cleanup_at) >= self._lock_cleanup_interval_seconds:
-                self._cleanup_conversation_locks_locked(now)
-                self._last_lock_cleanup_at = now
-
-    def _cleanup_conversation_locks_locked(self, now: float) -> None:
-        stale_ids = []
-        for conversation_id, lock in self._conversation_locks.items():
-            refs = self._conversation_lock_refs.get(conversation_id, 0)
-            last_used = self._conversation_lock_last_used.get(conversation_id, now)
-            if refs <= 0 and not lock.locked() and (now - last_used) >= self._lock_idle_ttl_seconds:
-                stale_ids.append(conversation_id)
-
-        for conversation_id in stale_ids:
-            self._conversation_locks.pop(conversation_id, None)
-            self._conversation_lock_refs.pop(conversation_id, None)
-            self._conversation_lock_last_used.pop(conversation_id, None)
+        return build_response_cache_key(self.bot, conversation_id, input_text)
 
     async def _persist_messages_safely(
         self,
@@ -222,12 +63,18 @@ class ChatManager:
                 exc_info=True,
             )
 
-    async def generate_response(self, input_text: str, conversation_id: str, source: str | None = None, debug_mode: bool = False):
-        """Genera la respuesta usando el Bot (LCEL maneja el RAG automáticamente)."""
-        conversation_lock: Optional[asyncio.Lock] = None
+    async def generate_response(
+        self,
+        input_text: str,
+        conversation_id: str,
+        source: str | None = None,
+        debug_mode: bool = False,
+    ):
+        """Genera respuesta vía Bot. LCEL inyecta RAG automáticamente."""
+        conversation_lock: Optional[object] = None
         lock_acquired = False
         try:
-            conversation_lock, lock_acquired = await self._acquire_conversation_lock(conversation_id)
+            conversation_lock, lock_acquired = await self._locks.acquire(conversation_id)
             if not lock_acquired:
                 raise HTTPException(status_code=429, detail="Conversation busy, try again")
             req_ctx = new_request_context()
@@ -236,7 +83,6 @@ class ChatManager:
             else:
                 logger.warning("ENABLE_RAG_LCEL desactivado: la recuperación contextual no se aplicará.")
 
-            # Intentar obtener respuesta cacheada por (conversation_id + input_text)
             cache_key = self._build_response_cache_key(conversation_id, input_text)
             cached_response = None
             try:
@@ -251,7 +97,7 @@ class ChatManager:
                 t_llm_start = None
                 t_llm_end = None
                 if debug_mode:
-                    req_ctx.debug_info = await self._build_debug_info(
+                    req_ctx.debug_info = await self._debug_builder.build(
                         conversation_id=conversation_id,
                         input_text=input_text,
                         final_text=response_content,
@@ -277,11 +123,10 @@ class ChatManager:
 
                 ai_response_message = BotMessage(
                     message=result["output"],
-                    role=settings.ai_prefix
+                    role=settings.ai_prefix,
                 )
                 response_content = ai_response_message.message
 
-                # Guardar en cache
                 try:
                     if bool(getattr(settings, "enable_cache", True)):
                         cache.set(cache_key, response_content, cache.ttl)
@@ -292,7 +137,7 @@ class ChatManager:
                 await self._persist_messages_safely(conversation_id, input_text, response_content, source)
                 req_ctx.debug_info = None
             else:
-                req_ctx.debug_info = await self._build_debug_info(
+                req_ctx.debug_info = await self._debug_builder.build(
                     conversation_id=conversation_id,
                     input_text=input_text,
                     final_text=response_content,
@@ -301,17 +146,42 @@ class ChatManager:
                     verification=None,
                     is_cached=False,
                 )
-            logger.info(f"Respuesta generada{' y guardada' if not debug_mode else ''} para conversación {conversation_id}")
+            logger.info(
+                f"Respuesta generada{' y guardada' if not debug_mode else ''} para conversación {conversation_id}"
+            )
             return response_content
 
         except RetrievalBackendUnavailableError as e:
             logger.warning(f"Error de retrieval en ChatManager: {e}")
-            return str(e)
+            return (
+                "El servicio de búsqueda no está disponible en este momento. "
+                "Por favor, inténtalo nuevamente en unos minutos."
+            )
+        except asyncio.TimeoutError:
+            logger.warning("Timeout generando respuesta en ChatManager.")
+            return (
+                "La respuesta está tardando más de lo esperado. "
+                "Por favor, inténtalo nuevamente en unos segundos."
+            )
         except Exception as e:
+            err_name = type(e).__name__
+            err_str = str(e).lower()
+            if "ratelimit" in err_name.lower() or "rate_limit" in err_str or "429" in err_str:
+                logger.warning(f"Rate limit upstream en ChatManager: {e}")
+                return (
+                    "Estamos recibiendo mucho tráfico en este momento. "
+                    "Reintenta en unos segundos."
+                )
+            if "apiconnection" in err_name.lower() or "apitimeout" in err_name.lower():
+                logger.warning(f"Conectividad con proveedor LLM falló: {e}")
+                return (
+                    "No pudimos conectarnos al servicio de IA en este momento. "
+                    "Por favor, inténtalo nuevamente en unos minutos."
+                )
             logger.error(f"Error generando respuesta en ChatManager: {e}", exc_info=True)
-            return "Lo siento, hubo un error al procesar tu solicitud."
+            return "Hubo un problema procesando tu mensaje. Por favor, inténtalo nuevamente."
         finally:
-            await self._release_conversation_lock(
+            await self._locks.release(
                 conversation_id,
                 conversation_lock,
                 acquired=lock_acquired,
@@ -322,208 +192,18 @@ class ChatManager:
         await self.db.close()
         logger.info("MongoDB client cerrado en ChatManager.")
 
-    async def _verify_response(self, query, context, response) -> dict:
-        try:
-            current_llm = getattr(self.bot.chain_manager, "_model", None)
-            if current_llm is None:
-                return {"is_grounded": False, "reason": "Modelo no disponible"}
-
-            try:
-                mt = ModelTypes[getattr(settings, "model_type", "OPENAI").upper()]
-            except Exception:
-                mt = ModelTypes.OPENAI
-
-            verifier_kwargs: Dict[str, Any] = {"temperature": 0.0}
-            if mt == ModelTypes.OPENAI:
-                verifier_kwargs.update({
-                    "model_name": getattr(settings, "base_model_name", "gpt-3.5-turbo"),
-                    "max_tokens": getattr(settings, "max_tokens", 2000),
-                })
-            elif mt == ModelTypes.VERTEX:
-                verifier_kwargs.update({
-                    "model_name": getattr(settings, "base_model_name", "gpt-3.5-turbo"),
-                    "max_output_tokens": getattr(settings, "max_tokens", 2000),
-                    "top_p": 0.8,
-                    "top_k": 40,
-                })
-            else:
-                verifier_kwargs.update({
-                    "max_tokens": getattr(settings, "max_tokens", 2000),
-                })
-
-            try:
-                model_cls = MODEL_TO_CLASS[mt.value]
-                llm = model_cls(**verifier_kwargs)
-            except Exception:
-                llm = current_llm
-
-            prompt = (
-                "Eres un Auditor de Hechos (Fact-Checker) estricto. Tu única misión es validar si la RESPUESTA del asistente se basa EXCLUSIVAMENTE en el CONTEXTO provisto.\n\n"
-                "REGLAS DE AUDITORÍA:\n"
-                "1. Datos Duros: Si la respuesta contiene números, precios, fechas, nombres propios o códigos que NO aparecen textualmente en el contexto: ES ALUCINACIÓN (False).\n"
-                "2. Invención de Información: Si la respuesta afirma características, políticas o instrucciones que no existen en el contexto: ES ALUCINACIÓN (False).\n"
-                "3. Conocimiento Externo: Si la respuesta usa información general (que GPT sabe por entrenamiento) pero que no está en el documento (ej: 'El cielo es azul'): ES ALUCINACIÓN (False). Solo vale lo que está en el PDF.\n"
-                "4. Excepción Social: Ignora saludos ('Hola'), despedidas o frases de cortesía ('Estoy para ayudarte'). Eso NO es alucinación.\n\n"
-                "Analiza paso a paso y responde SOLO en formato JSON: { 'is_grounded': bool, 'reason': 'Explica brevemente qué dato específico no se encontró en el contexto' }\n\n"
-                f"CONSULTA:\n{str(query)}\n\n"
-                f"CONTEXTO:\n{str(context)}\n\n"
-                f"RESPUESTA:\n{str(response)}\n"
-            )
-
-            res = await llm.ainvoke(prompt)
-            txt = getattr(res, "content", None)
-            if not isinstance(txt, str):
-                txt = str(res)
-            
-            # Usar helper robusto para parsear JSON
-            obj = _parse_verification_json(txt)
-            if obj is not None:
-                isg = bool(obj.get("is_grounded", False))
-                rsn = str(obj.get("reason") or "")
-                return {"is_grounded": isg, "reason": rsn}
-            
-            # Fallback: heurística simple si no se pudo parsear
-            low = txt.lower()
-            # Buscar patrón "is_grounded": true/false
-            if '"is_grounded"' in low or "'is_grounded'" in low:
-                grounded = 'true' in low and 'false' not in low.split('is_grounded')[1][:20]
-            else:
-                grounded = 'true' in low and 'false' not in low
-            return {"is_grounded": grounded, "reason": txt[:400]}
-        except Exception as e:
-            logger.warning(f"Error en verificación de respuesta: {e}")
-            return {"is_grounded": False, "reason": "Error verificando respuesta"}
-
-    async def _build_debug_info(self, conversation_id, input_text, final_text, t_start, t_end, verification=None, is_cached: bool = False) -> DebugInfo:
-        """Construye DebugInfo consolidando recuperación de docs, prompt, tokens y latencias.
-        Maneja errores internamente y retorna un DebugInfo mínimo si algo falla.
-        """
-        try:
-            req_ctx = get_request_context()
-            docs = req_ctx.retrieved_docs or []
-            items: List[RetrievedDocument] = []
-            for d in docs:
-                meta = getattr(d, "metadata", {}) or {}
-                items.append(
-                    RetrievedDocument(
-                        text=getattr(d, "page_content", "") or "",
-                        source=meta.get("source"),
-                        score=(meta.get("score") if isinstance(meta.get("score"), (int, float)) else None),
-                        file_path=meta.get("file_path"),
-                        page_number=(int(meta.get("page_number")) if isinstance(meta.get("page_number"), (int, float)) else None),
-                    )
-                )
-
-            prompt_str = getattr(self.bot.chain_manager, "prompt_template_str", "") or ""
-            model_params = getattr(self.bot.chain_manager, "model_kwargs", {}) or {}
-            hist = await self.bot.memory.get_history(conversation_id)
-            formatted_hist = self.bot._format_history_str(hist)
-            ctx = req_ctx.context or ""
-
-            try:
-                pv = getattr(self.bot.chain_manager, "prompt_vars", {}) or {}
-                system_base = str(prompt_str).format(
-                    nombre=str(pv.get("nombre") or ""),
-                    bot_personality=str(pv.get("bot_personality") or ""),
-                    context="",
-                ).strip()
-            except Exception:
-                system_base = str(prompt_str)
-
-            prompt_used = (
-                f"<instructions>{system_base}</instructions>\n\n"
-                f"<context>{ctx}</context>\n\n"
-                f"<history>{formatted_hist}</history>"
-            )
-
-            input_tokens = (
-                _get_token_count(str(prompt_str))
-                + _get_token_count(str(formatted_hist))
-                + _get_token_count(str(ctx))
-                + _get_token_count(str(input_text))
-            )
-            output_tokens = _get_token_count(str(final_text))
-            rag_time = req_ctx.rag_time
-            stage_timings_ms = dict(getattr(req_ctx, "stage_timings_ms", {}) or {})
-            context_truncated = bool(getattr(req_ctx, "context_truncated", False))
-
-            llm_time = None
-            try:
-                if (t_start is not None) and (t_end is not None):
-                    llm_time = float(t_end - t_start)
-            except Exception:
-                llm_time = None
-
-            gating_reason = req_ctx.gating_reason
-            return DebugInfo(
-                retrieved_documents=items,
-                prompt_used=prompt_used,
-                model_params=dict(model_params),
-                rag_time=rag_time,
-                llm_time=llm_time,
-                history_ms=stage_timings_ms.get("history_ms"),
-                embedding_ms=stage_timings_ms.get("embedding_ms"),
-                dense_ms=stage_timings_ms.get("dense_ms"),
-                lexical_ms=stage_timings_ms.get("lexical_ms"),
-                hydrate_ms=stage_timings_ms.get("hydrate_ms"),
-                rerank_ms=stage_timings_ms.get("rerank_ms"),
-                llm_ms=stage_timings_ms.get("llm_ms"),
-                first_token_ms=stage_timings_ms.get("first_token_ms"),
-                stream_total_ms=stage_timings_ms.get("stream_total_ms"),
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                verification=verification,
-                gating_reason=gating_reason,
-                is_cached=bool(is_cached),
-                tokens_estimated=True,
-                context_truncated=context_truncated,
-            )
-        except Exception:
-            gating_reason = req_ctx.gating_reason
-            return DebugInfo(
-                retrieved_documents=[],
-                prompt_used="",
-                model_params={},
-                gating_reason=gating_reason,
-                is_cached=bool(is_cached),
-            )
-
-    @staticmethod
-    def _fmt_ms(value: float | int | None) -> str:
-        if value is None:
-            return "-"
-        try:
-            return f"{float(value):.1f}"
-        except Exception:
-            return "-"
-
-    def _log_stream_timing_summary(self, conversation_id: str, is_cached: bool = False) -> None:
-        try:
-            req_ctx = get_request_context()
-            timings = dict(getattr(req_ctx, "stage_timings_ms", {}) or {})
-            logger.info(
-                "[CHAT][PERF] conv=%s cached=%s history_ms=%s embedding_ms=%s dense_ms=%s lexical_ms=%s hydrate_ms=%s rerank_ms=%s first_token_ms=%s rag_ms=%s llm_ms=%s stream_total_ms=%s",
-                conversation_id,
-                int(bool(is_cached)),
-                self._fmt_ms(timings.get("history_ms")),
-                self._fmt_ms(timings.get("embedding_ms")),
-                self._fmt_ms(timings.get("dense_ms")),
-                self._fmt_ms(timings.get("lexical_ms")),
-                self._fmt_ms(timings.get("hydrate_ms")),
-                self._fmt_ms(timings.get("rerank_ms")),
-                self._fmt_ms(timings.get("first_token_ms")),
-                self._fmt_ms((req_ctx.rag_time * 1000) if req_ctx.rag_time is not None else None),
-                self._fmt_ms(timings.get("llm_ms")),
-                self._fmt_ms(timings.get("stream_total_ms")),
-            )
-        except Exception:
-            pass
-
-    async def generate_streaming_response(self, input_text: str, conversation_id: str, source: str | None = None, debug_mode: bool = False, enable_verification: bool = False):
-        conversation_lock: Optional[asyncio.Lock] = None
+    async def generate_streaming_response(
+        self,
+        input_text: str,
+        conversation_id: str,
+        source: str | None = None,
+        debug_mode: bool = False,
+        enable_verification: bool = False,
+    ):
+        conversation_lock: Optional[object] = None
         lock_acquired = False
         try:
-            conversation_lock, lock_acquired = await self._acquire_conversation_lock(conversation_id)
+            conversation_lock, lock_acquired = await self._locks.acquire(conversation_id)
             if not lock_acquired:
                 raise HTTPException(status_code=429, detail="Conversation busy, try again")
             logger.debug(f"[CHAT] Streaming start | conv={conversation_id}")
@@ -549,8 +229,7 @@ class ChatManager:
                     await self.bot.add_to_memory(human=input_text, ai=final_text, conversation_id=conversation_id)
                     req_ctx.debug_info = None
                 else:
-                    # Construye debug info incluso en cache hit para mantener métricas en UI
-                    req_ctx.debug_info = await self._build_debug_info(
+                    req_ctx.debug_info = await self._debug_builder.build(
                         conversation_id=conversation_id,
                         input_text=input_text,
                         final_text=final_text,
@@ -564,7 +243,7 @@ class ChatManager:
                     "stream_total_ms",
                     (time.perf_counter() - stream_started_at) * 1000,
                 )
-                self._log_stream_timing_summary(conversation_id, is_cached=True)
+                log_stream_timing_summary(conversation_id, is_cached=True)
                 return
 
             bot_input = {"input": input_text, "conversation_id": conversation_id}
@@ -573,7 +252,6 @@ class ChatManager:
             final_text = ""
             t_llm_start = time.perf_counter()
             first_chunk_sent = False
-            client_cancelled = False
             try:
                 async for chunk in stream:
                     if not first_chunk_sent:
@@ -585,7 +263,6 @@ class ChatManager:
                     final_text += chunk
                     yield chunk
             except (asyncio.CancelledError, GeneratorExit):
-                client_cancelled = True
                 logger.info(
                     "[CHAT] Stream cancelado por cliente | conv=%s tokens_parciales=%d",
                     conversation_id, len(final_text),
@@ -616,10 +293,10 @@ class ChatManager:
                 try:
                     if enable_verification:
                         ctx = req_ctx.context or ""
-                        verification = await self._verify_response(input_text, ctx, final_text)
+                        verification = await self._verifier.verify(input_text, ctx, final_text)
                 except Exception:
                     verification = None
-                req_ctx.debug_info = await self._build_debug_info(
+                req_ctx.debug_info = await self._debug_builder.build(
                     conversation_id=conversation_id,
                     input_text=input_text,
                     final_text=final_text,
@@ -638,13 +315,13 @@ class ChatManager:
                 "stream_total_ms",
                 (time.perf_counter() - stream_started_at) * 1000,
             )
-            self._log_stream_timing_summary(conversation_id, is_cached=False)
+            log_stream_timing_summary(conversation_id, is_cached=False)
             logger.debug(f"[CHAT] Streaming end | conv={conversation_id} len={len(final_text)}")
         except Exception as e:
             logger.error(f"Error generando respuesta streaming en ChatManager: {e}", exc_info=True)
             raise
         finally:
-            await self._release_conversation_lock(
+            await self._locks.release(
                 conversation_id,
                 conversation_lock,
                 acquired=lock_acquired,
