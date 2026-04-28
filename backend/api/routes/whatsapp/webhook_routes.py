@@ -4,6 +4,8 @@ from fastapi.responses import JSONResponse
 from database.whatsapp_session_repository import WhatsAppSessionRepository
 from utils.whatsapp.formatter import format_text
 from utils.whatsapp.client import WhatsAppClient
+from utils.whatsapp.rate_limit import check_and_increment, should_notify_once
+from utils.whatsapp.idempotency import claim_message
 from config import settings
 import httpx
 import re
@@ -28,6 +30,19 @@ def log_error(message: str, wa_id: str = None):
         logger.error(msg)
     except Exception:
         pass
+
+async def _send_rate_limit_notice(wa_id: str):
+    """Envía un único aviso al usuario cuando excede el rate limit en el window."""
+    try:
+        client = WhatsAppClient()
+        msg = (
+            "Estás enviando mensajes demasiado rápido. "
+            "Por favor, espera unos segundos antes de continuar."
+        )
+        await client.send_text(wa_id, msg)
+    except Exception as e:
+        log_error(f"No se pudo enviar aviso de rate limit: {e}", wa_id)
+
 
 async def process_message_background(text: str, wa_id: str, app_state, conversation_id: str):
     """
@@ -119,6 +134,28 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
     if not text:
         # A veces llegan actualizaciones de estado (sent/delivered), las ignoramos con 200 OK
         return JSONResponse(status_code=200, content={"status": "ignored_empty"})
+
+    # 3.4 Idempotencia: descartar reintentos de Twilio con el mismo MessageSid.
+    # Twilio reintenta el webhook si no recibe 200 dentro de ~11s. Como el LLM
+    # corre en background, los reintentos generaban respuestas duplicadas.
+    message_sid = str(form.get("MessageSid", "")).strip()
+    if message_sid and not claim_message(message_sid):
+        logger.info(f"[Webhook] Duplicado descartado wa_id={wa_id} sid={message_sid}")
+        return JSONResponse(status_code=200, content={"status": "duplicate_ignored"})
+
+    # 3.5 Rate limit por número WhatsApp
+    rl_limit = int(getattr(settings, "whatsapp_rate_limit_per_window", 15))
+    rl_window = int(getattr(settings, "whatsapp_rate_limit_window_seconds", 60))
+    if bool(getattr(settings, "enable_rate_limiting", True)):
+        is_limited, count = check_and_increment(wa_id, rl_limit, rl_window)
+        if is_limited:
+            logger.warning(f"[Webhook] Rate limit excedido wa_id={wa_id} count={count} limit={rl_limit}")
+            if should_notify_once(wa_id, rl_window):
+                background_tasks.add_task(
+                    _send_rate_limit_notice,
+                    wa_id=wa_id,
+                )
+            return JSONResponse(status_code=200, content={"status": "rate_limited"})
 
     # 4. Gestión de Sesión
     conversation_id = None
