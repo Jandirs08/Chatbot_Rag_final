@@ -2,7 +2,7 @@
 Script para obtener el token de autorización (JWT) del backend.
 
 Uso básico (Windows/PowerShell):
-  python utils/auth/get_token.py --base-url http://localhost:8000
+  python tools/auth/get_token.py --base-url http://localhost:8000
 
 Por defecto usa el endpoint `/api/v1/auth/login` y las credenciales
 proporcionadas por ti, pero puedes sobreescribirlas por argumentos o
@@ -17,7 +17,7 @@ Argumentos opcionales:
   --base-url       Base URL del backend (default: http://localhost:8000)
   --email          Email del usuario
   --password       Password del usuario
-  --out            Ruta para guardar el JSON del token (default: utils/auth/token.json)
+  --out            Ruta para guardar el JSON del token (default: tools/auth/token.json)
 
 El script imprime en consola el access_token y refresh_token, y guarda
 la respuesta completa en el archivo indicado.
@@ -105,7 +105,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--out",
-        default=str(Path("utils/auth/token.json")),
+        default=str(Path("tools/auth/token.json")),
         help="Ruta para guardar el JSON del token",
     )
 

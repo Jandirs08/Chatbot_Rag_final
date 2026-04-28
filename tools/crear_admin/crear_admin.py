@@ -14,7 +14,7 @@ Requisitos:
 Cómo ejecutarlo:
   1) Configura la variable de entorno `MONGODB_URI` (o `MONGO_URI`)
      Ejemplo local (docker-compose): mongodb://localhost:27018/chatbot_rag_db
-  2) Ejecuta: python utils/crear_admin/crear_admin.py
+  2) Ejecuta: python tools/crear_admin/crear_admin.py
 """
 
 import os

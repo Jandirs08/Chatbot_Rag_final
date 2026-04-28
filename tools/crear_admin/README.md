@@ -24,7 +24,7 @@ hash del backend si está disponible) y asegura índices básicos.
 ## Ejecución
 Desde la raíz del proyecto:
 ```powershell
-python utils/crear_admin/crear_admin.py
+python tools/crear_admin/crear_admin.py
 ```
 
 Sigue los prompts:
