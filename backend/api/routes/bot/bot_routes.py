@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from datetime import datetime, timezone
 
 from auth.dependencies import get_current_active_user
+from auth.permissions import require_manage_bot_config
 from models.user import User
 from api.bot_state_repo import (
     read_is_active_from_mongo,
@@ -97,7 +98,7 @@ async def get_bot_state(
 @router.post("/toggle", response_model=BotStateResponse)
 async def toggle_bot_state(
     request: Request,
-    _: User = Depends(get_current_active_user),
+    _: User = Depends(require_manage_bot_config),
 ):
     """Activar o desactivar el bot."""
     try:
@@ -123,7 +124,7 @@ async def toggle_bot_state(
 @router.get("/runtime", response_model=BotRuntimeResponse)
 async def get_bot_runtime(
     request: Request,
-    _: User = Depends(get_current_active_user),
+    _: User = Depends(require_manage_bot_config),
 ):
     """Inspeccionar configuración runtime actual del bot (modelo, temperatura, prompt efectivo)."""
     try:

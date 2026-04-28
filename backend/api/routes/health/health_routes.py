@@ -148,7 +148,7 @@ async def _check_mongodb(request: Request) -> DependencyStatus:
         start = time.perf_counter()
         
         # Obtener cliente desde el state de la app
-        db_client = getattr(request.app.state, "db_client", None)
+        db_client = getattr(request.app.state, "mongodb_client", None)
         if db_client is None:
             from database.mongodb import get_mongodb_client
             db_client = get_mongodb_client()

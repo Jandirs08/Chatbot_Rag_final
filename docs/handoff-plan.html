@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Handoff humano &mdash; Plan completo</title>
+            <style>
+/* From extension vscode.github */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.vscode-dark img[src$=\#gh-light-mode-only],
+.vscode-light img[src$=\#gh-dark-mode-only],
+.vscode-high-contrast:not(.vscode-high-contrast-light) img[src$=\#gh-light-mode-only],
+.vscode-high-contrast-light img[src$=\#gh-dark-mode-only] {
+	display: none;
+}
+
+</style>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex/dist/katex.min.css">
+<link href="https://cdn.jsdelivr.net/npm/katex-copytex@latest/dist/katex-copytex.min.css" rel="stylesheet" type="text/css">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/markdown.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/highlight.css">
+<style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
+                font-size: 14px;
+                line-height: 1.6;
+            }
+        </style>
+        <style>
+.task-list-item {
+    list-style-type: none;
+}
+
+.task-list-item-checkbox {
+    margin-left: -20px;
+    vertical-align: middle;
+    pointer-events: none;
+}
+</style>
+<style>
+:root {
+  --color-note: #0969da;
+  --color-tip: #1a7f37;
+  --color-warning: #9a6700;
+  --color-severe: #bc4c00;
+  --color-caution: #d1242f;
+  --color-important: #8250df;
+}
+
+</style>
+<style>
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-note: #2f81f7;
+    --color-tip: #3fb950;
+    --color-warning: #d29922;
+    --color-severe: #db6d28;
+    --color-caution: #f85149;
+    --color-important: #a371f7;
+  }
+}
+
+</style>
+<style>
+.markdown-alert {
+  padding: 0.5rem 1rem;
+  margin-bottom: 16px;
+  color: inherit;
+  border-left: .25em solid #888;
+}
+
+.markdown-alert>:first-child {
+  margin-top: 0
+}
+
+.markdown-alert>:last-child {
+  margin-bottom: 0
+}
+
+.markdown-alert .markdown-alert-title {
+  display: flex;
+  font-weight: 500;
+  align-items: center;
+  line-height: 1
+}
+
+.markdown-alert .markdown-alert-title .octicon {
+  margin-right: 0.5rem;
+  display: inline-block;
+  overflow: visible !important;
+  vertical-align: text-bottom;
+  fill: currentColor;
+}
+
+.markdown-alert.markdown-alert-note {
+  border-left-color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-note .markdown-alert-title {
+  color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-important {
+  border-left-color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-important .markdown-alert-title {
+  color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-warning {
+  border-left-color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-warning .markdown-alert-title {
+  color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-tip {
+  border-left-color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-tip .markdown-alert-title {
+  color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-caution {
+  border-left-color: var(--color-caution);
+}
+
+.markdown-alert.markdown-alert-caution .markdown-alert-title {
+  color: var(--color-caution);
+}
+
+</style>
+        
+        </head>
+        <body class="vscode-body vscode-light">
+            <h1 id="handoff-humano--plan-completo">Handoff humano — Plan completo</h1>
+<p>Plan estándar de industria para handoff bot → agente humano en chatbots conversacionales (soporte, ventas, educación). Basado en patrones de Intercom, Zendesk, Kommo, Kustomer, HubSpot, Drift, Front.</p>
+<p><strong>Glosario rápido:</strong></p>
+<ul>
+<li><strong>Agente</strong> = asesor = persona real que opera el inbox y toma conversaciones. Términos intercambiables.</li>
+<li><strong>Conversación</strong> = hilo único entre un cliente y el sistema, identificado por <code>conversation_id</code>, sin importar canal.</li>
+<li><strong>Canal</strong> = medio (WhatsApp, web widget, Instagram, email).</li>
+<li><strong>Handoff</strong> = transferencia de control bot → humano (o humano → bot).</li>
+<li><strong>Inbox</strong> = panel del agente donde ve y responde conversaciones.</li>
+</ul>
+<hr>
+<h2 id="tabla-de-contenidos">Tabla de contenidos</h2>
+<ul>
+<li><a href="#tier-0--fundamentos-modelo-de-datos">Tier 0 — Fundamentos (modelo de datos)</a></li>
+<li><a href="#tier-1--handoff-manual-m%C3%ADnimo">Tier 1 — Handoff manual mínimo</a></li>
+<li><a href="#tier-2--agente-responde-desde-el-inbox">Tier 2 — Agente responde desde el inbox</a></li>
+<li><a href="#tier-3--triggers-de-handoff-c%C3%B3mo-se-inicia">Tier 3 — Triggers de handoff (cómo se inicia)</a></li>
+<li><a href="#tier-4--disponibilidad-presence-asignaci%C3%B3n-sla">Tier 4 — Disponibilidad, presence, asignación, SLA</a></li>
+<li><a href="#tier-5--colaboraci%C3%B3n-entre-agentes">Tier 5 — Colaboración entre agentes</a></li>
+<li><a href="#tier-6--real-time-push-sse--websocket">Tier 6 — Real-time push (SSE / WebSocket)</a></li>
+<li><a href="#tier-7--multi-canal-y-escala">Tier 7 — Multi-canal y escala</a></li>
+<li><a href="#tier-8--analytics-y-observabilidad">Tier 8 — Analytics y observabilidad</a></li>
+<li><a href="#casos-l%C3%ADmite-que-debes-resolver">Casos límite que debes resolver</a></li>
+<li><a href="#anti-patrones-a-evitar">Anti-patrones a evitar</a></li>
+</ul>
+<hr>
+<h2 id="tier-0--fundamentos-modelo-de-datos">Tier 0 — Fundamentos (modelo de datos)</h2>
+<p>Sin esto nada funciona. Refactor base.</p>
+<h3 id="colección-conversations-nueva-o-extendida">Colección <code>conversations</code> (nueva o extendida)</h3>
+<pre><code>conversation_id        : str (PK)
+channel                : &quot;whatsapp&quot; | &quot;web&quot; | &quot;instagram&quot; | ...
+external_id            : str   # wa_id, session_id, etc.
+mode                   : &quot;bot&quot; | &quot;pending&quot; | &quot;human&quot; | &quot;paused&quot;
+status                 : &quot;open&quot; | &quot;snoozed&quot; | &quot;resolved&quot; | &quot;archived&quot;
+assigned_agent_id      : str | None
+priority               : 0 (normal) | 1 (alta) | 2 (urgente)
+tags                   : [str]
+created_at             : datetime
+updated_at             : datetime
+last_user_msg_at       : datetime
+last_agent_msg_at      : datetime | None
+unread_for_agent       : int
+sla_first_response_at  : datetime | None   # deadline
+sla_resolution_at      : datetime | None
+metadata               : dict   # email cliente, nombre, etc.
+</code></pre>
+<p><strong>Estados <code>mode</code>:</strong></p>
+<ul>
+<li><code>bot</code> — bot responde, agente no involucrado.</li>
+<li><code>pending</code> — cliente pidió humano, sin agente asignado, en cola.</li>
+<li><code>human</code> — agente asignado y responde.</li>
+<li><code>paused</code> — bot apagado, ningún agente asignado (modo monitoreo / debug).</li>
+</ul>
+<p><strong>Estados <code>status</code></strong> (ortogonal a <code>mode</code>):</p>
+<ul>
+<li><code>open</code> — activa.</li>
+<li><code>snoozed</code> — pausada hasta cierta fecha.</li>
+<li><code>resolved</code> — agente cerró.</li>
+<li><code>archived</code> — fría, &gt;N días sin actividad.</li>
+</ul>
+<h3 id="colección-messages-extender">Colección <code>messages</code> (extender)</h3>
+<pre><code>message_id, conversation_id, timestamp, content
+sender_type   : &quot;user&quot; | &quot;bot&quot; | &quot;agent&quot; | &quot;system&quot;
+agent_id      : str | None
+internal      : bool   # True = nota interna, no visible al cliente
+delivery      : &quot;sending&quot; | &quot;sent&quot; | &quot;delivered&quot; | &quot;read&quot; | &quot;failed&quot;
+attachments   : [...]
+</code></pre>
+<p><code>sender_type=system</code> cubre eventos visibles al cliente (&quot;Te conectamos con un asesor&quot;) y notas internas (<code>internal=true</code>).</p>
+<h3 id="colección-agents">Colección <code>agents</code></h3>
+<pre><code>user_id            : FK a users
+display_name       : str
+avatar_url         : str
+status             : &quot;online&quot; | &quot;busy&quot; | &quot;offline&quot;
+capacity           : int   # max chats concurrentes (típico 3-5)
+current_load       : int   # cuántos chats human asignados
+last_heartbeat_at  : datetime
+skills             : [str]   # routing por tema (opcional)
+</code></pre>
+<h3 id="colección-conversation_events-auditoría">Colección <code>conversation_events</code> (auditoría)</h3>
+<pre><code>event_id, conversation_id, timestamp, type, actor_id, payload
+</code></pre>
+<p>Tipos: <code>mode_changed</code>, <code>assigned</code>, <code>transferred</code>, <code>note_added</code>, <code>tag_added</code>, <code>resolved</code>, <code>reopened</code>.</p>
+<h3 id="índices-mongodb">Índices MongoDB</h3>
+<pre><code>conversations: (mode, status, updated_at)
+conversations: (assigned_agent_id, status)
+conversations: (channel, external_id)   # unique
+messages:      (conversation_id, timestamp)
+events:        (conversation_id, timestamp)
+</code></pre>
+<hr>
+<h2 id="tier-1--handoff-manual-mínimo">Tier 1 — Handoff manual mínimo</h2>
+<p><strong>Objetivo:</strong> agente puede tomar control y devolver. Bot deja de responder cuando hay humano.</p>
+<h3 id="backend">Backend</h3>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Función</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST /conversations/{id}/takeover</code></td>
+<td>Asigna agente actual, <code>mode=human</code>, log evento, decrementa <code>current_load</code> previo si reasigna.</td>
+</tr>
+<tr>
+<td><code>POST /conversations/{id}/release</code></td>
+<td><code>mode=bot</code>, libera agente, log.</td>
+</tr>
+<tr>
+<td><code>POST /conversations/{id}/pause</code></td>
+<td><code>mode=paused</code>, bot apagado sin asignación.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Modificación crítica al webhook entrante (WhatsApp / chat web):</strong></p>
+<pre><code class="language-python"><span class="hljs-keyword">async</span> <span class="hljs-keyword">def</span> <span class="hljs-title function_">handle_incoming_message</span>(<span class="hljs-params">conv, text</span>):
+    <span class="hljs-keyword">if</span> conv.mode <span class="hljs-keyword">in</span> (<span class="hljs-string">&quot;human&quot;</span>, <span class="hljs-string">&quot;pending&quot;</span>, <span class="hljs-string">&quot;paused&quot;</span>):
+        <span class="hljs-keyword">await</span> save_message(conv, text, sender_type=<span class="hljs-string">&quot;user&quot;</span>)
+        <span class="hljs-keyword">await</span> publish_event(<span class="hljs-string">&quot;new_message&quot;</span>, conv)
+        <span class="hljs-keyword">return</span>  <span class="hljs-comment"># NO llama LLM</span>
+    <span class="hljs-comment"># else: flujo bot normal</span>
+    <span class="hljs-keyword">await</span> bot_respond(conv, text)
+</code></pre>
+<p>Lock estricto. Bug aquí = doble respuesta = experiencia rota.</p>
+<h3 id="frontend-inbox">Frontend (inbox)</h3>
+<ul>
+<li>Badge <code>[BOT]</code> / <code>[HUMANO]</code> / <code>[PENDIENTE]</code> en cada conversación.</li>
+<li>Botón &quot;Tomar&quot; en conversación seleccionada.</li>
+<li>Botón &quot;Devolver al bot&quot; cuando humano.</li>
+<li>System message visible en historial cuando cambia modo: &quot;— Juan tomó la conversación —&quot;.</li>
+</ul>
+<h3 id="casos-cubiertos">Casos cubiertos</h3>
+<ul>
+<li>Cliente sigue escribiendo, agente ve mensajes nuevos en panel.</li>
+<li>Agente termina, devuelve al bot, bot retoma con contexto.</li>
+</ul>
+<h3 id="lo-que-no-cubre-todavía">Lo que NO cubre todavía</h3>
+<ul>
+<li>Real-time push (sigue con polling).</li>
+<li>Cliente no tiene forma de pedir humano (solo agente proactivo).</li>
+<li>Sin presence ni horario.</li>
+</ul>
+<hr>
+<h2 id="tier-2--agente-responde-desde-el-inbox">Tier 2 — Agente responde desde el inbox</h2>
+<p><strong>Objetivo:</strong> agente envía mensajes al cliente vía el mismo canal de origen.</p>
+<h3 id="backend-1">Backend</h3>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Función</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST /conversations/{id}/agent-message</code></td>
+<td>Valida agente asignado, persiste msg con <code>sender_type=agent</code>, llama adaptador del canal (WhatsAppClient.send_text, web push), publica evento.</td>
+</tr>
+</tbody>
+</table>
+<p>Adaptador por canal: una función <code>send(conversation, text)</code> que enruta según <code>channel</code>. Hoy solo WhatsApp y web — fácil de extender.</p>
+<h3 id="frontend">Frontend</h3>
+<ul>
+<li>Composer (textarea + botón) abajo de cada conversación humana.</li>
+<li>Enter envía, Shift+Enter newline.</li>
+<li>Optimistic update: pinta msg en gris hasta confirmación.</li>
+<li>Estados visibles: <code>enviando</code> / <code>enviado</code> / <code>fallido</code> con retry.</li>
+<li>Ctrl+K para foco rápido.</li>
+</ul>
+<h3 id="casos-cubiertos-1">Casos cubiertos</h3>
+<ul>
+<li>Conversación humana bidireccional real.</li>
+<li>Cliente recibe mensaje firmado/sin firmar según convención.</li>
+</ul>
+<h3 id="convención-de-firma-recomendada">Convención de firma (recomendada)</h3>
+<ul>
+<li><strong>Primer</strong> mensaje del agente firmado: <code>*Hola, soy Juan del equipo. [respuesta]*</code>.</li>
+<li>Mensajes siguientes sin firma para no ser ruidoso.</li>
+<li>Cuando otro agente toma (transfer): nuevo mensaje firmado con su nombre.</li>
+</ul>
+<hr>
+<h2 id="tier-3--triggers-de-handoff-cómo-se-inicia">Tier 3 — Triggers de handoff (cómo se inicia)</h2>
+<p>Tres caminos. Industria los usa todos en paralelo.</p>
+<h3 id="a-explícito-por-cliente-no-negociable-primer-feature">A. Explícito por cliente (no negociable, primer feature)</h3>
+<p><strong>Web widget:</strong></p>
+<ul>
+<li>Botón &quot;Hablar con asesor&quot; en header.</li>
+<li>Click → POST <code>/conversations/{id}/request-human</code>.</li>
+<li>Bot envía system message: &quot;Te paso con un asesor&quot;.</li>
+</ul>
+<p><strong>WhatsApp:</strong></p>
+<ul>
+<li>Keywords detectados al inicio del flujo bot: <code>asesor</code>, <code>humano</code>, <code>agente</code>, <code>persona</code>, <code>reclamo</code>, <code>queja</code>, <code>hablar con alguien</code>.</li>
+<li>Comando explícito <code>/asesor</code> o <code>/humano</code>.</li>
+<li>Lista parametrizable en config.</li>
+</ul>
+<h3 id="b-implícito-bot-decide-ofrecer">B. Implícito (bot decide ofrecer)</h3>
+<p>Solo agregar después de Tier 2 estable. Triggers conservadores:</p>
+<ul>
+<li><strong>Confidence baja del RAG</strong>: si el retrieval no encuentra docs relevantes y el bot iba a responder &quot;no encontré info&quot; → mejor &quot;¿quieres que te pase con un asesor?&quot;.</li>
+<li><strong>Repetición</strong>: cliente reformula misma intención 3 veces → ofrecer humano.</li>
+<li><strong>Sentiment fuerte negativo</strong>: detector simple (insultos, &quot;horrible&quot;, &quot;pésimo&quot;, mayúsculas excesivas) → ofrecer humano.</li>
+<li><strong>Off-topic claro</strong>: pregunta fuera del scope del bot → ofrecer humano.</li>
+</ul>
+<p><strong>Patrón:</strong> bot <strong>ofrece</strong>, no transfiere unilateral. &quot;Veo que esto es complejo, ¿prefieres hablar con un asesor?&quot;. Cliente confirma → handoff.</p>
+<h3 id="c-proactivo-agente">C. Proactivo agente</h3>
+<ul>
+<li>Agente entra al inbox, ve conversación complicada, hace takeover sin que cliente pida.</li>
+<li>Útil para QA y supervisión.</li>
+</ul>
+<h3 id="implementación-handoff-request">Implementación handoff request</h3>
+<pre><code class="language-python"><span class="hljs-keyword">async</span> <span class="hljs-keyword">def</span> <span class="hljs-title function_">request_human_handoff</span>(<span class="hljs-params">conv_id</span>):
+    conv = <span class="hljs-keyword">await</span> get_conversation(conv_id)
+    <span class="hljs-keyword">if</span> <span class="hljs-keyword">not</span> is_within_business_hours():
+        <span class="hljs-keyword">return</span> <span class="hljs-keyword">await</span> offline_reply(conv)
+    <span class="hljs-keyword">if</span> <span class="hljs-keyword">not</span> <span class="hljs-keyword">await</span> any_agent_online():
+        <span class="hljs-keyword">return</span> <span class="hljs-keyword">await</span> all_busy_reply(conv)
+    conv.mode = <span class="hljs-string">&quot;pending&quot;</span>
+    <span class="hljs-keyword">await</span> publish_event(<span class="hljs-string">&quot;handoff_requested&quot;</span>, conv)
+    <span class="hljs-keyword">await</span> send_to_user(conv, <span class="hljs-string">&quot;Te conectamos con un asesor, espera un momento.&quot;</span>)
+    <span class="hljs-comment"># Si auto-asignación está activada (Tier 4), encolar en queue</span>
+</code></pre>
+<hr>
+<h2 id="tier-4--disponibilidad-presence-asignación-sla">Tier 4 — Disponibilidad, presence, asignación, SLA</h2>
+<p><strong>Objetivo:</strong> sistema sabe quién está, asigna solo, mide tiempos. Sin esto el handoff es prometer al vacío.</p>
+<h3 id="horario-laboral">Horario laboral</h3>
+<p>Config global o por canal:</p>
+<pre><code>business_hours: { mon: &quot;09:00-18:00&quot;, ..., sat: null, sun: null }
+timezone: &quot;America/Lima&quot;
+holidays: [&quot;2026-01-01&quot;, ...]
+</code></pre>
+<h3 id="mensajes-automáticos-según-contexto">Mensajes automáticos según contexto</h3>
+<table>
+<thead>
+<tr>
+<th>Situación</th>
+<th>Mensaje al cliente</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pide humano, hay agente online en horario</td>
+<td>&quot;Te conectamos con un asesor, te responde en breve.&quot;</td>
+</tr>
+<tr>
+<td>Pide humano, en horario pero todos busy</td>
+<td>&quot;Todos los asesores ocupados. Hay X esperando, tiempo estimado Y min.&quot;</td>
+</tr>
+<tr>
+<td>Pide humano, fuera de horario</td>
+<td>&quot;Atendemos L-V 9-18h. Tu mensaje queda registrado, te respondemos al volver. Mientras, puedo seguir ayudándote yo.&quot;</td>
+</tr>
+<tr>
+<td>Pide humano, día festivo</td>
+<td>Variante de fuera de horario.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Regla de oro:</strong> no prometer humano si no hay nadie. Honestidad &gt; optimismo.</p>
+<h3 id="presence-heartbeat">Presence (heartbeat)</h3>
+<ul>
+<li>Frontend agente: <code>POST /agent/heartbeat</code> cada 20s mientras la pestaña está visible.</li>
+<li>Backend: actualiza <code>last_heartbeat_at</code> en Redis con TTL 60s.</li>
+<li>Cron cada 30s: agentes con TTL expirado → <code>status=offline</code>, libera sus chats activos → vuelven a <code>pending</code>.</li>
+</ul>
+<h3 id="asignación-automática">Asignación automática</h3>
+<p>Cuando una conversación entra <code>mode=pending</code>:</p>
+<pre><code>agentes_candidatos = agents.filter(
+    status=&quot;online&quot;,
+    current_load &lt; capacity,
+    skills ⊇ conv.required_skills
+)
+si vacío: queue (espera evento agente_disponible)
+elegir: el de menor current_load (least-loaded)
+   o: round-robin
+   o: por skill match (routing avanzado)
+asignar: conv.assigned_agent_id = X, mode=human, agent.current_load += 1
+publicar: assigned_to_agent (notif al agente)
+</code></pre>
+<p><strong>Lock optimista</strong> para evitar doble asignación bajo concurrencia:</p>
+<pre><code class="language-python">result = <span class="hljs-keyword">await</span> conversations.update_one(
+    {<span class="hljs-string">&quot;_id&quot;</span>: conv_id, <span class="hljs-string">&quot;assigned_agent_id&quot;</span>: <span class="hljs-literal">None</span>},
+    {<span class="hljs-string">&quot;$set&quot;</span>: {<span class="hljs-string">&quot;assigned_agent_id&quot;</span>: agent_id, <span class="hljs-string">&quot;mode&quot;</span>: <span class="hljs-string">&quot;human&quot;</span>}}
+)
+<span class="hljs-keyword">if</span> result.modified_count == <span class="hljs-number">0</span>:
+    <span class="hljs-comment"># alguien más lo tomó, retry o pasar</span>
+</code></pre>
+<h3 id="sla">SLA</h3>
+<p>Dos timers por conversación:</p>
+<ul>
+<li><strong>First response</strong> — cliente pide humano → debe haber respuesta agente en ≤N min (típico 2-5).</li>
+<li><strong>Resolution</strong> — desde apertura hasta <code>resolved</code> (típico 24h).</li>
+</ul>
+<p>Cron cada 30s busca conversaciones cerca de vencer:</p>
+<ul>
+<li>Faltan &lt;20% del tiempo: notif al supervisor (Slack/email).</li>
+<li>Vencido: escalate (reasignar a supervisor) o fallback bot con disculpa.</li>
+</ul>
+<h3 id="capacidad-por-agente">Capacidad por agente</h3>
+<p><code>capacity</code> típico 3-5 chats concurrentes. Configurable por agente (junior=2, senior=5). Evita asignar más allá. Si todos saturados → cola.</p>
+<hr>
+<h2 id="tier-5--colaboración-entre-agentes">Tier 5 — Colaboración entre agentes</h2>
+<p>Sin esto, equipo de &gt;2 agentes se pisa.</p>
+<ul>
+<li><strong>Notas internas</strong>: <code>messages.internal=true</code>, visible solo en inbox, nunca al cliente. UI las pinta diferente (fondo amarillo).</li>
+<li><strong>Mention</strong> <code>@nombre</code> en notas → notif al agente mencionado.</li>
+<li><strong>Transferir conversación</strong>: <code>POST /conversations/{id}/transfer { to_agent_id, reason }</code>. System message visible al cliente: &quot;— Te paso con María, especialista en X —&quot;.</li>
+<li><strong>Plantillas (canned responses)</strong>: colección <code>templates</code> con slash commands <code>/saludo</code>, <code>/cierre</code>. Variables: <code>{nombre_cliente}</code>, <code>{producto}</code>.</li>
+<li><strong>Tags + filtros</strong>: <code>tags=[&quot;billing&quot;, &quot;vip&quot;]</code>. Inbox filtra por tag.</li>
+<li><strong>Read receipts</strong> entre agentes: cuando supervisor lee, log; útil para auditoría.</li>
+<li><strong>Bulk actions</strong> en inbox: cerrar varias, reasignar varias.</li>
+</ul>
+<hr>
+<h2 id="tier-6--real-time-push-sse--websocket">Tier 6 — Real-time push (SSE / WebSocket)</h2>
+<p>Hasta aquí puedes vivir con polling SWR cada 5-10s. Si el volumen sube o quieres UX instantáneo:</p>
+<h3 id="sse--recomendado-por-defecto">SSE — recomendado por defecto</h3>
+<p><strong>Por qué SSE y no WebSocket:</strong></p>
+<ul>
+<li>Unidireccional server→cliente cubre 95% del caso (mensajes nuevos, eventos de estado).</li>
+<li>Cliente→server con POST normal funciona fino.</li>
+<li>Reconecta automático con <code>Last-Event-ID</code>.</li>
+<li>HTTP/2 multiplexa, atraviesa proxies, simple.</li>
+</ul>
+<h3 id="websocket--solo-si-necesitas">WebSocket — solo si necesitas</h3>
+<ul>
+<li>Typing indicators bidireccional (&quot;Juan está escribiendo…&quot;).</li>
+<li>Cursor compartido / co-browsing.</li>
+<li>Voz/video en el futuro.</li>
+</ul>
+<p><strong>Decisión:</strong> empezar SSE. WebSocket solo si typing indicator es requisito.</p>
+<h3 id="backplane-redis-pubsub">Backplane Redis Pub/Sub</h3>
+<p>Obligatorio cuando tienes &gt;1 worker uvicorn (deploy escalable). Sin Redis, agente conectado al worker A no recibe eventos publicados por worker B.</p>
+<pre><code>Canal global    : inbox:global               (todos los agentes)
+Canal por agente: agent:{id}:events           (solo asignados a él)
+Canal por conv  : conversation:{id}:events    (subscritos viendo el chat)
+</code></pre>
+<p><strong>Alternativa sin Redis:</strong> MongoDB Change Streams. Watcheas colección <code>messages</code> y <code>conversations</code>. Menos infra, más acoplado a DB. Válido en single-tenant.</p>
+<h3 id="endpoints-sse">Endpoints SSE</h3>
+<pre><code>GET /inbox/stream            → eventos globales del inbox del agente
+GET /conversations/{id}/stream → eventos de una conversación específica
+</code></pre>
+<p>Eventos tipados: <code>new_message</code>, <code>mode_changed</code>, <code>assigned</code>, <code>agent_typing</code>, <code>delivery_status</code>, <code>presence_changed</code>.</p>
+<h3 id="reconnection">Reconnection</h3>
+<ul>
+<li>Backend manda <code>id: &lt;ts&gt;</code> por evento.</li>
+<li>Cliente envía <code>Last-Event-ID</code> al reconectar.</li>
+<li>Backend reentrega eventos posteriores desde un buffer (Redis Stream con TTL 5min).</li>
+</ul>
+<hr>
+<h2 id="tier-7--multi-canal-y-escala">Tier 7 — Multi-canal y escala</h2>
+<h3 id="adaptadores-por-canal">Adaptadores por canal</h3>
+<p>Cada canal implementa interfaz común:</p>
+<pre><code class="language-python"><span class="hljs-keyword">class</span> <span class="hljs-title class_">ChannelAdapter</span>(<span class="hljs-title class_ inherited__">Protocol</span>):
+    <span class="hljs-keyword">async</span> <span class="hljs-keyword">def</span> <span class="hljs-title function_">send_text</span>(<span class="hljs-params">conv, text</span>): ...
+    <span class="hljs-keyword">async</span> <span class="hljs-keyword">def</span> <span class="hljs-title function_">send_template</span>(<span class="hljs-params">conv, template_id, <span class="hljs-built_in">vars</span></span>): ...
+    <span class="hljs-keyword">async</span> <span class="hljs-keyword">def</span> <span class="hljs-title function_">receive_webhook</span>(<span class="hljs-params">payload</span>): ...   <span class="hljs-comment"># normaliza a evento interno</span>
+    capabilities: { audio, image, buttons, <span class="hljs-built_in">list</span> }
+</code></pre>
+<p>Canales típicos: WhatsApp Business (Twilio/Cloud API), web widget, Instagram DM, Messenger, Telegram, email.</p>
+<h3 id="web-widget-embebible">Web widget embebible</h3>
+<p><code>&lt;script src=&quot;cdn.tu.com/widget.js&quot; data-bot=&quot;abc&quot;&gt;&lt;/script&gt;</code> → carga iframe → conecta al backend. Mismo modelo <code>conversation</code>, <code>channel=&quot;web&quot;</code>.</p>
+<h3 id="multi-tenant-saas">Multi-tenant (SaaS)</h3>
+<p>Si vendes a varios clientes:</p>
+<ul>
+<li><code>tenant_id</code> en TODAS las colecciones.</li>
+<li>Bot config por tenant.</li>
+<li>Corpus RAG separado por tenant.</li>
+<li>Aislamiento estricto en queries.</li>
+</ul>
+<h3 id="escala-estimada-por-tier">Escala estimada por tier</h3>
+<table>
+<thead>
+<tr>
+<th>Setup</th>
+<th>Capacidad cómoda</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 worker uvicorn + MongoDB + polling</td>
+<td>50-200 chats activos, 5 agentes</td>
+</tr>
+<tr>
+<td>2 workers + Redis pub/sub + SSE</td>
+<td>500-2000 chats, 50 agentes</td>
+</tr>
+<tr>
+<td>4+ workers + Redis cluster + sharding</td>
+<td>10k+ chats, 200+ agentes</td>
+</tr>
+</tbody>
+</table>
+<p>Para producto mediano (no SaaS gigante), Tier 6 con 2 workers basta.</p>
+<hr>
+<h2 id="tier-8--analytics-y-observabilidad">Tier 8 — Analytics y observabilidad</h2>
+<p>Sin métricas no sabes si el handoff funciona.</p>
+<h3 id="kpis-por-conversación">KPIs por conversación</h3>
+<ul>
+<li><strong>TTFR</strong> (Time To First Response) — desde request humano hasta primer msg agente.</li>
+<li><strong>AHT</strong> (Average Handle Time) — duración total conversación humana.</li>
+<li><strong>CSAT</strong> — encuesta post-chat 1-5 estrellas.</li>
+<li><strong>FCR</strong> (First Contact Resolution) — % resueltas sin reabrir.</li>
+<li><strong>Bot deflection</strong> — % conversaciones resueltas por bot sin handoff.</li>
+</ul>
+<h3 id="dashboards">Dashboards</h3>
+<ul>
+<li>Tiempo real: chats pending, agentes online, queue length.</li>
+<li>Histórico: TTFR/AHT/CSAT por agente, por día, por tag.</li>
+<li>Alertas: queue &gt; X, TTFR &gt; Y, CSAT &lt; Z.</li>
+</ul>
+<h3 id="logs-estructurados">Logs estructurados</h3>
+<p>Cada evento de handoff con: <code>conversation_id</code>, <code>tenant_id</code>, <code>agent_id</code>, <code>from_mode</code>, <code>to_mode</code>, <code>latency_ms</code>, <code>reason</code>.</p>
+<hr>
+<h2 id="casos-límite-que-debes-resolver">Casos límite que debes resolver</h2>
+<p>Lista exhaustiva. Cada uno necesita decisión explícita.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Caso</th>
+<th>Política recomendada</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Cliente pide humano, hay agente online en horario</td>
+<td>Auto-assign al de menor carga, mode=human.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Cliente pide humano, todos busy</td>
+<td>Queue + mensaje &quot;X delante de ti, ~Y min&quot;.</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Cliente pide humano, fuera de horario</td>
+<td>NO transferir. Mensaje &quot;atendemos L-V 9-18&quot;. Marcar <code>needs_human=true</code> para priorizar al abrir.</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Agente toma pero cierra browser sin liberar</td>
+<td>Heartbeat 20s, timeout 60s, libera y reasigna. Cliente no ve nada (transparente).</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Cliente desaparece (no responde) en mode=human</td>
+<td>Auto-resolve a las 24-48h sin actividad cliente.</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Agente responde, cliente nunca contesta</td>
+<td>Auto-resolve 48h.</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Doble respuesta (bot + agente simultáneo)</td>
+<td>Lock estricto webhook: <code>mode != bot</code> ⇒ bot calla. Crítico.</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Cliente quiere volver al bot</td>
+<td>Comando <code>/bot</code> + botón &quot;Volver al bot&quot; en widget.</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Múltiples agentes click &quot;Tomar&quot; simultáneo</td>
+<td>Lock optimista: <code>update_one({assigned_agent_id: None})</code>. Loser ve &quot;ya lo tomó X&quot;.</td>
+</tr>
+<tr>
+<td>10</td>
+<td>Agente quiere monitorear sin responder</td>
+<td>mode=paused: bot off, sin agente, supervisor lee.</td>
+</tr>
+<tr>
+<td>11</td>
+<td>Cliente WhatsApp manda audio/imagen en mode=human</td>
+<td>Persiste, agente ve, agente responde texto.</td>
+</tr>
+<tr>
+<td>12</td>
+<td>Cliente WhatsApp manda audio/imagen en mode=bot</td>
+<td>Bot dice &quot;solo texto por ahora&quot; o transcribe (Whisper).</td>
+</tr>
+<tr>
+<td>13</td>
+<td>Pasaron 24h en WhatsApp sin contactar al cliente</td>
+<td>Necesitas template aprobado por Meta para reabrir.</td>
+</tr>
+<tr>
+<td>14</td>
+<td>Agente transfiere a otro agente</td>
+<td>System message al cliente, reasigna, ambos ven historial completo.</td>
+</tr>
+<tr>
+<td>15</td>
+<td>Supervisor quiere intervenir conversación de junior</td>
+<td>Modo &quot;shadow&quot; (observa sin enviar) o takeover forzado con notif al junior.</td>
+</tr>
+<tr>
+<td>16</td>
+<td>Cliente envía info sensible (DNI, tarjeta)</td>
+<td>PII redaction antes de loggear, alerta al agente.</td>
+</tr>
+<tr>
+<td>17</td>
+<td>Bot detecta intent &quot;humano&quot; pero confianza baja</td>
+<td>Pregunta confirmación: &quot;¿quieres hablar con un asesor?&quot;.</td>
+</tr>
+<tr>
+<td>18</td>
+<td>Cliente abre múltiples sesiones (web + WhatsApp)</td>
+<td>Conversaciones separadas por <code>(channel, external_id)</code>. Identidad cliente unificada por <code>customer_id</code> opcional.</td>
+</tr>
+<tr>
+<td>19</td>
+<td>Cliente VIP entra</td>
+<td><code>priority=2</code>, salta a inicio de queue, agente notif.</td>
+</tr>
+<tr>
+<td>20</td>
+<td>Sistema cae mientras agente escribía</td>
+<td>Frontend persiste draft local. Al reconectar, restaura.</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="anti-patrones-a-evitar">Anti-patrones a evitar</h2>
+<ul>
+<li><strong>Prometer humano sin verificar disponibilidad.</strong> Daña confianza más que esperar.</li>
+<li><strong>Auto-handoff agresivo desde día 1.</strong> Falsos positivos enojan. Empieza explícito + manual.</li>
+<li><strong>Mezclar canales en un mismo <code>conversation_id</code>.</strong> Mantén separados, unifica identidad por <code>customer_id</code> aparte.</li>
+<li><strong>Bot respondiendo en <code>mode=human</code>.</strong> Lock estricto en webhook. Test exhaustivo.</li>
+<li><strong>Agente &quot;online&quot; sin heartbeat reciente.</strong> Confiar en flag manual = chats colgados.</li>
+<li><strong>WebSocket bidi en MVP.</strong> Sobreingeniería. SSE + POST cubre 95%.</li>
+<li><strong>Sin auditoría de transferencias.</strong> Imposible hacer QA. Log todo evento.</li>
+<li><strong>Asignación FIFO sin considerar carga.</strong> Junior con 5 chats no debe recibir el sexto. Usa least-loaded o capacity.</li>
+<li><strong>Plantillas hardcoded en el código.</strong> Cámbialas a colección editable por admin.</li>
+<li><strong>No tener forma de devolver al bot.</strong> Cliente queda atrapado en &quot;humano que ya cerró&quot;.</li>
+</ul>
+<hr>
+<h2 id="roadmap-sugerido-de-menos-a-más">Roadmap sugerido (de menos a más)</h2>
+<table>
+<thead>
+<tr>
+<th>Fase</th>
+<th>Tiers</th>
+<th>Esfuerzo</th>
+<th>Resultado</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sprint 1</td>
+<td>0 + 1</td>
+<td>3-5 días</td>
+<td>Modelo datos + handoff manual + lock webhook. Agente puede tomar y devolver.</td>
+</tr>
+<tr>
+<td>Sprint 2</td>
+<td>2</td>
+<td>2-3 días</td>
+<td>Composer en inbox. Agente envía mensajes al cliente.</td>
+</tr>
+<tr>
+<td>Sprint 3</td>
+<td>3A + 3C</td>
+<td>2 días</td>
+<td>Cliente pide humano vía botón/keyword. Agente proactivo.</td>
+</tr>
+<tr>
+<td>Sprint 4</td>
+<td>4</td>
+<td>3-4 días</td>
+<td>Horario, presence, auto-assign, SLA, mensajes contextuales.</td>
+</tr>
+<tr>
+<td>Sprint 5</td>
+<td>5</td>
+<td>3 días</td>
+<td>Notas internas, transferir, plantillas, tags.</td>
+</tr>
+<tr>
+<td>Sprint 6</td>
+<td>6</td>
+<td>3-4 días</td>
+<td>SSE + Redis pub/sub. UX en tiempo real.</td>
+</tr>
+<tr>
+<td>Sprint 7</td>
+<td>3B + 8</td>
+<td>4-5 días</td>
+<td>Auto-detect implícito conservador + analytics.</td>
+</tr>
+<tr>
+<td>Sprint 8+</td>
+<td>7</td>
+<td>continuo</td>
+<td>Multi-canal, multi-tenant, escala.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Total a producto completo:</strong> ~4-5 semanas de un dev full-time. MVP usable (Sprint 1+2+3A): <strong>~1 semana</strong>.</p>
+<hr>
+<h2 id="decisiones-que-necesitas-tomar-antes-de-codear">Decisiones que necesitas tomar antes de codear</h2>
+<ol>
+<li><strong>Live chat vs ticket.</strong> ¿Cliente espera respuesta en minutos o en horas? Cambia SLA, presence, UX.</li>
+<li><strong>Horario laboral fijo o 24/7.</strong> Define si necesitas mensaje fuera-de-horario.</li>
+<li><strong>Capacity por agente.</strong> Default 3, ajustar según industria.</li>
+<li><strong>Auto-assign o free-for-all.</strong> Auto = más complejo pero justo. Free = simple, pero agentes se pisan.</li>
+<li><strong>Redis sí o no.</strong> Si planeas &gt;1 worker → sí desde Tier 6. Single worker → MongoDB change streams ok.</li>
+<li><strong>WebSocket en algún momento.</strong> Solo si typing indicator es requisito. Si no, nunca.</li>
+<li><strong>Multi-tenant ahora o después.</strong> Si vas SaaS, Tier 0 debe incluir <code>tenant_id</code> desde el inicio. Refactor posterior es doloroso.</li>
+</ol>
+<p>Una vez decidas estos 7 puntos, el plan se concreta a tu caso.</p>
+
+            <script async src="https://cdn.jsdelivr.net/npm/katex-copytex@latest/dist/katex-copytex.min.js"></script>
+            
+        </body>
+        </html>

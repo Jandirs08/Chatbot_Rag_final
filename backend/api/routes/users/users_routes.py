@@ -1,8 +1,7 @@
 """API routes for user management.
 
-Protección: todos los endpoints requieren usuario autenticado y activo.
-Para restringir a admins en el futuro: cambiar Depends(get_current_active_user)
-→ Depends(require_admin) en los endpoints que corresponda.
+Proteccion: los endpoints requieren el permiso semantico manage_users.
+Hoy manage_users mapea a admin; la dependencia queda lista para roles futuros.
 """
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -13,7 +12,7 @@ from starlette.responses import Response
 
 from database.user_repository import UserRepository, get_user_repository
 from auth.password_handler import hash_password
-from auth.dependencies import get_current_active_user
+from auth.permissions import require_manage_users
 from models.user import User
 
 logger = logging.getLogger(__name__)
@@ -71,7 +70,7 @@ class UpdateUserRequest(BaseModel):
 
 @router.get("/users", response_model=PaginatedUsersResponse)
 async def list_users(
-    _: User = Depends(get_current_active_user),
+    _: User = Depends(require_manage_users),
     user_repository: UserRepository = Depends(get_user_repository),
     skip: int = 0,
     limit: int = 20,
@@ -116,7 +115,7 @@ async def list_users(
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(
     req: CreateUserRequest,
-    _: User = Depends(get_current_active_user),
+    _: User = Depends(require_manage_users),
     user_repository: UserRepository = Depends(get_user_repository),
 ):
     """Crea un usuario. Requiere: usuario autenticado."""
@@ -171,7 +170,7 @@ async def create_user(
 async def update_user(
     user_id: str,
     req: UpdateUserRequest,
-    _: User = Depends(get_current_active_user),
+    _: User = Depends(require_manage_users),
     user_repository: UserRepository = Depends(get_user_repository),
 ):
     """Actualiza un usuario. Requiere: usuario autenticado."""
@@ -234,7 +233,7 @@ async def update_user(
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
     user_id: str,
-    _: User = Depends(get_current_active_user),
+    _: User = Depends(require_manage_users),
     user_repository: UserRepository = Depends(get_user_repository),
 ):
     """Elimina un usuario. Requiere: usuario autenticado."""

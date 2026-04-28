@@ -6,6 +6,7 @@ import { useToast } from "@/app/hooks/use-toast";
 import {
   PDFService,
   RateLimitError,
+  type DocumentIngestionStatus,
   type PDFUploadStatus,
 } from "@/app/lib/services/pdfService";
 
@@ -14,14 +15,18 @@ export interface PDFDocument {
   path: string;
   size: number;
   last_modified: string;
+  ingestion_status: DocumentIngestionStatus;
+  ingestion_error?: string | null;
+  ingestion_updated_at?: string | null;
 }
 
 export type UploadState =
   | { phase: "idle" }
   | { phase: "uploading"; fileName: string; progress: number }
+  | { phase: "queued"; fileName: string }
   | { phase: "processing"; fileName: string }
   | { phase: "success"; fileName: string }
-  | { phase: "error"; fileName: string; message: string; failedPhase: "uploading" | "processing" };
+  | { phase: "error"; fileName: string; message: string; failedPhase: "uploading" | "queued" | "processing" };
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -45,7 +50,7 @@ export function useDocumentManagement() {
   const [countdown, setCountdown] = useState<number | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const uploadPhaseRef = useRef<"uploading" | "processing">("uploading");
+  const uploadPhaseRef = useRef<"uploading" | "queued" | "processing">("uploading");
   const { toast } = useToast();
 
   const loadDocuments = useCallback(async () => {
@@ -63,6 +68,57 @@ export function useDocumentManagement() {
   useEffect(() => {
     loadDocuments();
   }, [loadDocuments]);
+
+  useEffect(() => {
+    const hasActiveIngestion = documents.some(
+      (doc) => doc.ingestion_status === "queued" || doc.ingestion_status === "processing",
+    );
+    if (!hasActiveIngestion) return;
+
+    const timer = setInterval(() => {
+      void loadDocuments();
+    }, 3000);
+
+    return () => clearInterval(timer);
+  }, [documents, loadDocuments]);
+
+  useEffect(() => {
+    if (uploadState.phase !== "queued" && uploadState.phase !== "processing") return;
+
+    const doc = documents.find((item) => item.filename === uploadState.fileName);
+    if (!doc) return;
+
+    if (doc.ingestion_status === "queued") {
+      uploadPhaseRef.current = "queued";
+      if (uploadState.phase !== "queued") {
+        setUploadState({ phase: "queued", fileName: doc.filename });
+      }
+      return;
+    }
+
+    if (doc.ingestion_status === "processing") {
+      uploadPhaseRef.current = "processing";
+      if (uploadState.phase !== "processing") {
+        setUploadState({ phase: "processing", fileName: doc.filename });
+      }
+      return;
+    }
+
+    if (doc.ingestion_status === "ready") {
+      setUploadState({ phase: "success", fileName: doc.filename });
+      toast({ title: "Éxito", description: "PDF indexado correctamente" });
+      return;
+    }
+
+    const message = doc.ingestion_error || "No se pudo completar la ingesta del PDF";
+    setUploadState({
+      phase: "error",
+      fileName: doc.filename,
+      message,
+      failedPhase: uploadPhaseRef.current === "uploading" ? "processing" : uploadPhaseRef.current,
+    });
+    toast({ title: "Error", description: message, variant: "destructive" });
+  }, [documents, toast, uploadState]);
 
   // Rate limit countdown
   useEffect(() => {
@@ -113,6 +169,7 @@ export function useDocumentManagement() {
       const response = await PDFService.uploadPDF(file, (status) =>
         handleUploadStatusChange(file.name, status),
       );
+      const uploadedFilename = response.filename || file.name;
 
       if (response.rateLimit) {
         setRateLimitInfo(response.rateLimit.remaining > 0 ? null : {
@@ -126,9 +183,10 @@ export function useDocumentManagement() {
         setRateLimitInfo(null);
       }
 
-      toast({ title: "Éxito", description: "PDF subido correctamente" });
-      setUploadState({ phase: "success", fileName: file.name });
-      loadDocuments();
+      uploadPhaseRef.current = "queued";
+      setUploadState({ phase: "queued", fileName: uploadedFilename });
+      void loadDocuments();
+      toast({ title: "PDF subido", description: "La ingesta quedo en cola." });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
 

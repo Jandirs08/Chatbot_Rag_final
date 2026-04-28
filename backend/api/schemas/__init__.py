@@ -6,6 +6,7 @@ Los esquemas están organizados por dominio funcional.
 
 from .base import BaseResponse
 from .pdf import (
+    PDFIngestionStatusResponse,
     PDFListItem,
     PDFListResponse,
     PDFUploadResponse,
@@ -41,6 +42,7 @@ __all__ = [
     "PDFListItem",
     "PDFListResponse",
     "PDFUploadResponse",
+    "PDFIngestionStatusResponse",
     "PDFDeleteResponse",
     
     # Chat

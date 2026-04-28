@@ -6,7 +6,7 @@ from fastapi import APIRouter, UploadFile, HTTPException, Depends, status
 from fastapi.responses import FileResponse, JSONResponse
 
 from config import settings
-from auth import require_admin
+from auth.permissions import require_manage_documents
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["assets"])
@@ -21,7 +21,7 @@ def _assets_dir() -> Path:
 
 def _current_logo_path() -> Optional[Path]:
     d = _assets_dir()
-    for ext in ("png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"):
+    for ext in ("png", "jpg", "jpeg", "gif", "webp", "bmp"):
         p = d / f"logo.{ext}"
         if p.exists():
             return p
@@ -37,7 +37,6 @@ def _content_type_for(path: Path) -> str:
         "gif": "image/gif",
         "webp": "image/webp",
         "bmp": "image/bmp",
-        "svg": "image/svg+xml",
     }
     return mapping.get(ext, "application/octet-stream")
 
@@ -55,7 +54,7 @@ async def get_logo():
 
 
 @router.post("/logo", status_code=status.HTTP_201_CREATED)
-async def upload_logo(file: UploadFile, _admin=Depends(require_admin)) -> JSONResponse:
+async def upload_logo(file: UploadFile, _admin=Depends(require_manage_documents)) -> JSONResponse:
     try:
         ct = (file.content_type or "").lower()
         if not ct.startswith("image/"):
@@ -76,12 +75,11 @@ async def upload_logo(file: UploadFile, _admin=Depends(require_admin)) -> JSONRe
             "image/gif": "gif",
             "image/webp": "webp",
             "image/bmp": "bmp",
-            "image/svg+xml": "svg",
         }
         ext = ext_map.get(ct, None)
         if not ext:
             name = (file.filename or "").lower()
-            for cand in ("png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"):
+            for cand in ("png", "jpg", "jpeg", "gif", "webp", "bmp"):
                 if name.endswith("." + cand):
                     ext = cand
                     break
@@ -102,7 +100,7 @@ async def upload_logo(file: UploadFile, _admin=Depends(require_admin)) -> JSONRe
 
 
 @router.delete("/logo", status_code=status.HTTP_200_OK)
-async def delete_logo(_admin=Depends(require_admin)) -> JSONResponse:
+async def delete_logo(_admin=Depends(require_manage_documents)) -> JSONResponse:
     try:
         d = _assets_dir()
         removed = False

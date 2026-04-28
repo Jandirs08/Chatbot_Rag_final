@@ -22,7 +22,7 @@ from rag.ingestion.hierarchical_chunker import HierarchicalChunker
 from rag.ingestion.hierarchical_ingestion_service import HierarchicalIngestionService
 from storage.documents import PDFManager
 from storage.pdf_processor_adapter import PDFProcessorAdapter
-from database import RAGChildLexicalRepository, RAGParentDocumentRepository
+from database import DocumentIngestionStatusRepository, RAGChildLexicalRepository, RAGParentDocumentRepository
 from database.whatsapp_session_repository import WhatsAppSessionRepository
 from core.bot import Bot
 from memory import MemoryTypes
@@ -119,6 +119,7 @@ async def lifespan(app: FastAPI):
         app.state.rag_retriever = None
         app.state.rag_parent_repository = None
         app.state.rag_child_lexical_repository = None
+        app.state.document_ingestion_status_repository = None
         app.state.hierarchical_chunker = None
 
         try:
@@ -182,6 +183,10 @@ async def lifespan(app: FastAPI):
                     postings_collection_name=s.rag_child_lexical_postings_collection_name,
                 )
                 await app.state.rag_child_lexical_repository.ensure_indexes()
+                app.state.document_ingestion_status_repository = DocumentIngestionStatusRepository(
+                    mongodb_client=app.state.mongodb_client,
+                )
+                await app.state.document_ingestion_status_repository.ensure_indexes()
                 app.state.hierarchical_chunker = HierarchicalChunker()
                 app.state.rag_ingestor = HierarchicalIngestionService(
                     chunker=app.state.hierarchical_chunker,
@@ -203,6 +208,7 @@ async def lifespan(app: FastAPI):
             except Exception as e_idx:
                 app.state.rag_parent_repository = None
                 app.state.rag_child_lexical_repository = None
+                app.state.document_ingestion_status_repository = None
                 app.state.hierarchical_chunker = None
                 app.state.rag_ingestor = None
                 app.state.rag_retriever = None

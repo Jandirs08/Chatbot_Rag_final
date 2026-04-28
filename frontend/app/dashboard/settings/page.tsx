@@ -9,4 +9,3 @@ export default function SettingsPage() {
   }, [router]);
   return null;
 }
-import { botService } from "@/app/lib/services/botService";

@@ -4,6 +4,7 @@ import React, { Suspense, useMemo, useState } from "react";
 import useSWR from "swr";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/app/hooks/useAuth";
+import { hasPermission } from "@/app/lib/auth/permissions";
 import { API_URL } from "@/app/lib/config";
 import { authenticatedFetch } from "@/app/lib/services/authService";
 import { Badge } from "@/app/components/ui/badge";
@@ -28,8 +29,8 @@ const fetcher = async (url: string) => {
 };
 
 function AdminInboxContent() {
-  const { isAdmin } = useAuth();
-  const isAuthorized = isAdmin;
+  const { user } = useAuth();
+  const isAuthorized = hasPermission(user, "view_debug");
   const router = useRouter();
   const searchParams = useSearchParams();
 

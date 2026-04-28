@@ -32,7 +32,30 @@
       "Bash(python -m pytest tests/ -x -q)",
       "Bash(python -m pytest tests/ -q --deselect tests/test_gating.py::TestIsTrivialQuery::test_saludo_hola_ben)",
       "Bash(python -c \"from utils.rate_limiter import limiter; print\\('storage:', type\\(limiter._storage\\).__name__\\)\")",
-      "Bash(python -m py_compile backend/api/app.py backend/api/routes/bot/config_routes.py backend/api/routes/chat/chat_routes.py backend/chat/manager.py backend/rag/retrieval/hierarchical_retriever.py backend/utils/rate_limiter.py)"
+      "Bash(python -m py_compile backend/api/app.py backend/api/routes/bot/config_routes.py backend/api/routes/chat/chat_routes.py backend/chat/manager.py backend/rag/retrieval/hierarchical_retriever.py backend/utils/rate_limiter.py)",
+      "Bash(grep -E \"\\(admin|whatsapp|rag|chat|auth|memory\\)$\")",
+      "Bash(python *)",
+      "Bash(py -V)",
+      "Bash(python3 -V)",
+      "PowerShell(python -c \"import sys; sys.path.insert\\(0,'backend'\\); from utils.whatsapp.idempotency import claim_message; print\\(claim_message\\('SM123'\\)\\); print\\(claim_message\\('SM123'\\)\\); print\\(claim_message\\('SM456'\\)\\)\")",
+      "PowerShell($py = \"$env:LOCALAPPDATA\\\\Programs\\\\Python\\\\Python312\\\\python.exe\"; & $py -c \"import sys; sys.path.insert\\(0,'backend'\\); from utils.whatsapp.idempotency import claim_message; print\\('first:', claim_message\\('SM123'\\)\\); print\\('repeat:', claim_message\\('SM123'\\)\\); print\\('new:', claim_message\\('SM456'\\)\\); print\\('empty:', claim_message\\(''\\)\\)\")",
+      "PowerShell($py = \"$env:LOCALAPPDATA\\\\Programs\\\\Python\\\\Python312\\\\python.exe\"; & $py -c \"import pydantic; print\\(pydantic.VERSION\\)\" 2>&1)",
+      "PowerShell($py = \"$env:LOCALAPPDATA\\\\Programs\\\\Python\\\\Python312\\\\python.exe\"; & $py -m py_compile backend/api/app.py backend/api/lifespan.py backend/api/runtime_sync.py backend/api/cors_config.py backend/api/_logging_setup.py backend/utils/whatsapp/idempotency.py backend/api/routes/whatsapp/webhook_routes.py backend/tests/test_whatsapp_idempotency.py 2>&1)",
+      "PowerShell($py = \"$env:LOCALAPPDATA\\\\Programs\\\\Python\\\\Python312\\\\python.exe\"; & $py -m py_compile backend/chat/manager.py backend/chat/locks.py backend/chat/cache_key.py backend/chat/verifier.py backend/chat/debug.py backend/tests/test_chat_manager_cache_keys.py 2>&1)",
+      "PowerShell($py = \"$env:LOCALAPPDATA\\\\Programs\\\\Python\\\\Python312\\\\python.exe\"; & $py -m py_compile backend/chat/manager.py 2>&1)",
+      "PowerShell($py = \"$env:LOCALAPPDATA\\\\Programs\\\\Python\\\\Python312\\\\python.exe\"; & $py -m py_compile backend/config.py backend/config_fragments.py 2>&1)",
+      "Bash(grep -rln \"@/app\\\\|src/app\\\\|src/shared\\\\|from.*['\\\\\"]\\\\\\(\\\\\\\\.\\\\\\\\.\\\\\\\\/\\\\\\\\.\\\\\\\\.\\\\\\\\/\\\\\\)*src\" frontend/app frontend/types frontend/middleware.ts)",
+      "Bash(git rm *)",
+      "Bash(rm -rf pytest-cache-files-*)",
+      "Bash(git mv *)",
+      "Bash(python3 -c \"import json,sys;d=json.load\\(sys.stdin\\);print\\(f'Total cases: {len\\(d[\\\\\"cases\\\\\"]\\)}'\\);print\\('Categories:', set\\(c['category'] for c in d['cases']\\)\\)\")",
+      "PowerShell($py = \"$env:LOCALAPPDATA\\\\Programs\\\\Python\\\\Python312\\\\python.exe\"; & $py -c \"import json; d=json.load\\(open\\('backend/tests/evals/datasets/rag_e2e_cases.json',encoding='utf-8'\\)\\); print\\(f'Total cases: {len\\(d[\\\\\"cases\\\\\"]\\)}'\\); print\\('Categories:', set\\(c['category'] for c in d['cases']\\)\\); print\\('First 3:'\\); [print\\(f'  {c[\\\\\"id\\\\\"]}: [{c[\\\\\"category\\\\\"]}] {c[\\\\\"question\\\\\"][:60]}'\\) for c in d['cases'][:3]]\")",
+      "PowerShell(Remove-Item *)",
+      "PowerShell($py = \"$env:LOCALAPPDATA\\\\Programs\\\\Python\\\\Python312\\\\python.exe\"; & $py -m py_compile backend/rag/retrieval/hierarchical_retriever.py backend/tests/test_hierarchical_retriever.py 2>&1)",
+      "PowerShell(tail *)",
+      "PowerShell($py = \"$env:LOCALAPPDATA\\\\Programs\\\\Python\\\\Python312\\\\python.exe\"; & $py -m pip install tiktoken 2>&1 | Select-Object -Last 3)",
+      "PowerShell($py = \"$env:LOCALAPPDATA\\\\Programs\\\\Python\\\\Python312\\\\python.exe\"; & $py _count.py 2>&1)",
+      "PowerShell($py = \"$env:LOCALAPPDATA\\\\Programs\\\\Python\\\\Python312\\\\python.exe\"; & $py -m py_compile backend/core/prompt.py backend/core/chain.py 2>&1)"
     ]
   }
 }

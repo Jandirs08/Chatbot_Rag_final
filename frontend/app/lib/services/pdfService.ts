@@ -26,6 +26,18 @@ export type PDFUploadStatus =
       phase: "processing";
     };
 
+export type DocumentIngestionStatus = "queued" | "processing" | "ready" | "failed";
+
+export interface PDFIngestionStatusResponse {
+  filename: string;
+  status: DocumentIngestionStatus;
+  error?: string | null;
+  doc_id?: string | null;
+  parent_count: number;
+  child_count: number;
+  updated_at?: string | null;
+}
+
 
 export class PDFService {
   static async uploadPDF(
@@ -35,6 +47,8 @@ export class PDFService {
   ): Promise<{
     message: string;
     file_path: string;
+    filename: string;
+    ingestion_status: DocumentIngestionStatus;
     pdfs_in_directory: string[];
     rateLimit?: {
       limit: number;
@@ -106,6 +120,8 @@ export class PDFService {
               resolve({
                 message: "PDF subido exitosamente",
                 file_path: "",
+                filename: file.name,
+                ingestion_status: "queued",
                 pdfs_in_directory: [],
               });
             }
@@ -158,6 +174,9 @@ export class PDFService {
       path: string;
       size: number;
       last_modified: string;
+      ingestion_status: DocumentIngestionStatus;
+      ingestion_error?: string | null;
+      ingestion_updated_at?: string | null;
     }>;
   }> {
     const response = await authenticatedFetch(`${API_URL}/pdfs/list`);
@@ -165,6 +184,17 @@ export class PDFService {
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || "Error al listar los PDFs");
+    }
+
+    return response.json();
+  }
+
+  static async getIngestionStatus(filename: string): Promise<PDFIngestionStatusResponse> {
+    const response = await authenticatedFetch(`${API_URL}/pdfs/status/${encodeURIComponent(filename)}`);
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || "Error al consultar el estado de ingesta");
     }
 
     return response.json();

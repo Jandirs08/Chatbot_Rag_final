@@ -17,7 +17,8 @@ from api.schemas import (
 )
 from utils.rate_limiter import conditional_limit
 from config import settings
-from auth.dependencies import require_admin, get_current_active_user, get_optional_current_user
+from auth.dependencies import get_current_active_user, get_optional_current_user
+from auth.permissions import require_view_debug
 from models.user import User
 from core.request_context import get_request_context
 from rag.retrieval.retriever import RetrievalBackendUnavailableError
@@ -462,7 +463,7 @@ async def get_stats_history(
 
 
 @router.get("/conversations")
-async def list_recent_conversations(request: Request, limit: int = 50, skip: int = 0, current_user=Depends(require_admin)):
+async def list_recent_conversations(request: Request, limit: int = 50, skip: int = 0, current_user=Depends(require_view_debug)):
     try:
         chat_manager = request.app.state.chat_manager
         db = chat_manager.db
@@ -492,7 +493,7 @@ async def list_recent_conversations(request: Request, limit: int = 50, skip: int
         raise HTTPException(status_code=500, detail="Error al listar conversaciones")
 
 @router.delete("/history")
-async def clear_history(request: Request, current_user=Depends(require_admin)):
+async def clear_history(request: Request, current_user=Depends(require_view_debug)):
     """Borra todo el historial de conversaciones (colección 'messages'). Requiere admin."""
     try:
         chat_manager = request.app.state.chat_manager

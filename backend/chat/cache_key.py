@@ -16,6 +16,47 @@ from rag.corpus_state import get_corpus_cache_version
 from utils.hashing import hash_for_cache_key
 
 
+_RESPONSE_CACHE_SETTING_FIELDS = (
+    "base_model_name",
+    "max_tokens",
+    "temperature",
+    "main_prompt_name",
+    "bot_name",
+    "ui_prompt_extra",
+    "enable_rag_lcel",
+    "retrieval_k",
+    "retrieval_k_multiplier",
+    "similarity_threshold",
+    "rag_gating_similarity_threshold",
+    "max_documents",
+    "enable_hybrid_search",
+    "hybrid_rrf_k",
+    "hybrid_child_candidate_limit",
+    "hybrid_parent_candidate_limit",
+    "enable_llm_reranker",
+    "rag_reranker_type",
+    "rag_reranker_model_name",
+    "cross_encoder_model_name",
+    "cohere_rerank_model",
+    "rag_child_first_context_enabled",
+    "rag_child_first_context_top_children",
+    "rag_child_first_context_window_tokens",
+    "llm_context_window",
+    "enable_hyde",
+    "hyde_model_name",
+    "hyde_max_tokens",
+    "embedding_model",
+    "default_embedding_dimension",
+)
+
+
+def _build_response_cache_config_payload(settings_obj: object | None) -> dict[str, object]:
+    return {
+        field_name: getattr(settings_obj, field_name, None)
+        for field_name in _RESPONSE_CACHE_SETTING_FIELDS
+    }
+
+
 def build_response_cache_key(bot, conversation_id: str, input_text: str) -> str:
     """Construye la clave de caché para una respuesta LLM.
 
@@ -27,13 +68,7 @@ def build_response_cache_key(bot, conversation_id: str, input_text: str) -> str:
     bot_settings = getattr(bot, "settings", None)
     effective = chain_settings or bot_settings
 
-    config_payload = {
-        "base_model_name": getattr(effective, "base_model_name", ""),
-        "temperature": getattr(effective, "temperature", ""),
-        "main_prompt_name": getattr(effective, "main_prompt_name", ""),
-        "ui_prompt_extra": getattr(effective, "ui_prompt_extra", ""),
-        "enable_rag_lcel": bool(getattr(effective, "enable_rag_lcel", False)),
-    }
+    config_payload = _build_response_cache_config_payload(effective)
     config_hash = hash_for_cache_key(
         json.dumps(config_payload, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
     )

@@ -1,6 +1,7 @@
 "use client";
 import React, { useMemo, useState } from "react";
 import { useAuth } from "@/app/hooks/useAuth";
+import { hasPermission } from "@/app/lib/auth/permissions";
 import { useBotConfig } from "@/app/hooks/useBotConfig";
 import {
   Tabs,
@@ -36,8 +37,8 @@ import { SettingsBrainTab } from "@/app/components/admin/settings/SettingsBrainT
 import { SettingsSystemTab } from "@/app/components/admin/settings/SettingsSystemTab";
 
 export default function AdminSettingsPage() {
-  const { isAdmin } = useAuth();
-  const isAuthorized = isAdmin;
+  const { user } = useAuth();
+  const isAuthorized = hasPermission(user, "manage_bot_config");
   const [activeTab, setActiveTab] = useState<"appearance" | "brain" | "system">(
     "appearance",
   );

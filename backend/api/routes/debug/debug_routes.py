@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 from api.schemas import ChatRequest
-from auth.dependencies import require_admin
+from auth.permissions import require_view_debug
 from core.request_context import get_request_context
 from models.user import User
 from rag.retrieval.retriever import RetrievalBackendUnavailableError
@@ -19,7 +19,7 @@ router = APIRouter()
 @router.post("/chat")
 async def debug_chat_stream(
     request: Request,
-    _: User = Depends(require_admin),
+    _: User = Depends(require_view_debug),
 ):
     """Streaming debug chat — admin only.
 

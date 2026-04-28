@@ -19,6 +19,15 @@ from .dependencies import (
     require_admin,
     get_optional_current_user
 )
+from .permissions import (
+    Permission,
+    require_manage_bot_config,
+    require_manage_documents,
+    require_manage_users,
+    require_permission,
+    require_view_debug,
+    user_has_permission,
+)
 
 __all__ = [
     # JWT utilities
@@ -36,5 +45,12 @@ __all__ = [
     "get_current_user",
     "get_current_active_user",
     "require_admin",
-    "get_optional_current_user"
+    "get_optional_current_user",
+    "Permission",
+    "require_manage_bot_config",
+    "require_manage_documents",
+    "require_manage_users",
+    "require_permission",
+    "require_view_debug",
+    "user_has_permission",
 ]

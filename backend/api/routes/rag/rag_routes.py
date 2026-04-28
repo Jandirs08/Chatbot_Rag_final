@@ -18,7 +18,7 @@ from api.schemas import (
     RetrieveDebugRequest,
     RetrieveDebugResponse,
 )
-from auth.dependencies import get_current_active_user
+from auth.permissions import require_manage_documents, require_view_debug
 from models.user import User
 
 logger = logging.getLogger(__name__)
@@ -39,12 +39,18 @@ def _require_rag_pipeline(request: Request):
 @router.get("/rag-status", response_model=RAGStatusResponse)
 async def rag_status(
     request: Request,
-    _: User = Depends(get_current_active_user),
+    _: User = Depends(require_manage_documents),
 ):
     """Endpoint para obtener el estado actual del RAG."""
     pdf_processor = request.app.state.pdf_processor
     try:
         pdfs_raw = await pdf_processor.list_pdfs()
+        ingestion_repo = getattr(request.app.state, "document_ingestion_status_repository", None)
+        ingestion_statuses = (
+            await ingestion_repo.get_many([pdf["filename"] for pdf in pdfs_raw])
+            if ingestion_repo is not None
+            else {}
+        )
         vector_store_info_raw = pdf_processor.get_vector_store_info()
 
         pdf_details_list = [
@@ -53,6 +59,9 @@ async def rag_status(
                 path=str(pdf["path"]),
                 size=pdf["size"],
                 last_modified=datetime.datetime.fromtimestamp(pdf["last_modified"]),
+                ingestion_status=(ingestion_statuses.get(pdf["filename"]) or {}).get("status", "ready"),
+                ingestion_error=(ingestion_statuses.get(pdf["filename"]) or {}).get("error"),
+                ingestion_updated_at=(ingestion_statuses.get(pdf["filename"]) or {}).get("updated_at"),
             )
             for pdf in pdfs_raw
         ]
@@ -76,7 +85,7 @@ async def rag_status(
 @router.post("/clear-rag", response_model=ClearRAGResponse)
 async def clear_rag(
     request: Request,
-    _: User = Depends(get_current_active_user),
+    _: User = Depends(require_manage_documents),
 ):
     """Endpoint para limpiar completamente el RAG."""
     pdf_processor = request.app.state.pdf_processor
@@ -95,6 +104,10 @@ async def clear_rag(
         if rag_child_lexical_repository is not None:
             await rag_child_lexical_repository.clear()
             logger.info("Lexical repository limpiado")
+        ingestion_repo = getattr(request.app.state, "document_ingestion_status_repository", None)
+        if ingestion_repo is not None:
+            await ingestion_repo.clear()
+            logger.info("Estado de ingesta de documentos limpiado")
 
         result = await pdf_processor.clear_pdfs()
         if int(result.get("errors_count", 0) or 0) > 0:
@@ -161,7 +174,7 @@ async def clear_rag(
 async def retrieve_debug(
     request: Request,
     payload: RetrieveDebugRequest,
-    _: User = Depends(get_current_active_user),
+    _: User = Depends(require_view_debug),
 ):
     """Endpoint para auditar el retrieval parent-child activo."""
     rag_retriever, _ = _require_rag_pipeline(request)
@@ -201,21 +214,33 @@ async def retrieve_debug(
 async def reindex_pdf(
     request: Request,
     payload: ReindexPDFRequest,
-    _: User = Depends(get_current_active_user),
+    _: User = Depends(require_manage_documents),
 ):
     """Endpoint para forzar la reindexacion de un PDF especifico."""
     try:
         pdf_manager = request.app.state.pdf_file_manager
         _, rag_ingestor = _require_rag_pipeline(request)
+        ingestion_repo = getattr(request.app.state, "document_ingestion_status_repository", None)
 
         pdf_path = pdf_manager.pdf_dir / Path(payload.filename).name
         if not pdf_path.exists() or not pdf_path.is_file():
             raise HTTPException(status_code=404, detail=f"PDF '{payload.filename}' no encontrado")
 
+        if ingestion_repo is not None:
+            await ingestion_repo.mark_processing(pdf_path.name)
         result = await rag_ingestor.ingest_single_pdf(pdf_path, force_update=payload.force_update)
         if result.get("status") != "success":
             detail = result.get("error", result)
+            if ingestion_repo is not None:
+                await ingestion_repo.mark_failed(filename=pdf_path.name, error=str(detail))
             raise HTTPException(status_code=500, detail=f"Fallo en reindexacion: {detail}")
+        if ingestion_repo is not None:
+            await ingestion_repo.mark_ready(
+                filename=pdf_path.name,
+                doc_id=result.get("doc_id"),
+                parent_count=int(result.get("parent_count", 0) or 0),
+                child_count=int(result.get("child_count", 0) or 0),
+            )
 
         refresh_rag_corpus_state(request.app.state)
         return ReindexPDFResponse(

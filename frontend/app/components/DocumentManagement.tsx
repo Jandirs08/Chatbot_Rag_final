@@ -44,25 +44,45 @@ import { Toaster } from "@/app/components/ui/toaster";
 import { cn } from "@/lib/utils";
 import { ClearRAGDialog } from "@/app/components/documents/ClearRAGDialog";
 import { useDocumentManagement, type UploadState } from "@/app/hooks/useDocumentManagement";
+import { useAuthContext } from "@/app/contexts/AuthContext";
+import { hasPermission } from "@/app/lib/auth/permissions";
 
 const uploadSteps = [
   { key: "uploading", label: "Subiendo archivo", description: "Transferencia segura al servidor." },
+  { key: "queued", label: "En cola", description: "El backend ya recibio el PDF y agendo la ingesta." },
   { key: "processing", label: "Procesando e indexando", description: "Extraccion, embeddings y registro en Qdrant." },
 ] as const;
+
+const ingestionStatusLabels = {
+  queued: "En cola",
+  processing: "Indexando",
+  ready: "Listo",
+  failed: "Error",
+} as const;
+
+const ingestionStatusVariants = {
+  queued: "warning",
+  processing: "info",
+  ready: "success",
+  failed: "error",
+} as const;
 
 function UploadStatusPanel({ state, onDismiss }: { state: UploadState; onDismiss: () => void }) {
   if (state.phase === "idle") return null;
 
   const isUploading = state.phase === "uploading";
+  const isQueued = state.phase === "queued";
   const isProcessing = state.phase === "processing";
   const isSuccess = state.phase === "success";
   const isError = state.phase === "error";
-  const isBusy = isUploading || isProcessing;
+  const isBusy = isUploading || isQueued || isProcessing;
   const failedPhase = isError ? state.failedPhase : null;
-  const activeStep = isUploading ? "uploading" : "processing";
+  const activeStep = isUploading ? "uploading" : isQueued ? "queued" : "processing";
 
   const header = isUploading
     ? "Subiendo documento"
+    : isQueued
+      ? "Documento en cola de ingesta"
     : isProcessing
       ? "Procesando e indexando..."
       : isSuccess
@@ -71,6 +91,8 @@ function UploadStatusPanel({ state, onDismiss }: { state: UploadState; onDismiss
 
   const description = isUploading
     ? "El archivo aun no esta disponible. La indexacion comenzara cuando termine la transferencia."
+    : isQueued
+      ? "El archivo ya fue guardado. El backend lo tomara para procesarlo e indexarlo."
     : isProcessing
       ? "El archivo ya llego al backend. Ahora se extrae el contenido, se generan embeddings y se envia a Qdrant."
       : isSuccess
@@ -78,10 +100,10 @@ function UploadStatusPanel({ state, onDismiss }: { state: UploadState; onDismiss
         : state.message;
 
   const statusBadgeVariant: "info" | "warning" | "success" | "error" =
-    isUploading ? "info" : isProcessing ? "warning" : isSuccess ? "success" : "error";
+    isUploading ? "info" : isQueued || isProcessing ? "warning" : isSuccess ? "success" : "error";
 
-  const StatusIcon = isUploading ? Upload : isProcessing ? Loader2 : isSuccess ? CheckCircle2 : AlertCircle;
-  const statusPill = isUploading ? "Subiendo" : isProcessing ? "Indexando" : isSuccess ? "Completado" : "Con error";
+  const StatusIcon = isUploading ? Upload : isQueued ? Clock : isProcessing ? Loader2 : isSuccess ? CheckCircle2 : AlertCircle;
+  const statusPill = isUploading ? "Subiendo" : isQueued ? "En cola" : isProcessing ? "Indexando" : isSuccess ? "Completado" : "Con error";
 
   return (
     <div
@@ -127,6 +149,8 @@ function UploadStatusPanel({ state, onDismiss }: { state: UploadState; onDismiss
                 const isDone =
                   isSuccess ||
                   (step.key === "uploading" &&
+                    (isQueued || isProcessing || (isError && failedPhase !== "uploading"))) ||
+                  (step.key === "queued" &&
                     (isProcessing || (isError && failedPhase === "processing")));
 
                 return (
@@ -199,7 +223,7 @@ function UploadStatusPanel({ state, onDismiss }: { state: UploadState; onDismiss
       </div>
 
       <div className="mt-4">
-        {isUploading ? (
+      {isUploading ? (
           <div className="space-y-2">
             <Progress value={state.progress} className="h-2.5 bg-primary/10" />
             <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -207,14 +231,14 @@ function UploadStatusPanel({ state, onDismiss }: { state: UploadState; onDismiss
               <span>{state.progress}%</span>
             </div>
           </div>
-        ) : isProcessing ? (
+        ) : isQueued || isProcessing ? (
           <div className="space-y-2">
             <div className="h-2.5 overflow-hidden rounded-full bg-primary/10">
               <div className="h-full w-1/3 rounded-full bg-gradient-to-r from-primary/30 via-primary to-primary/30 animate-pulse" />
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-              <span>Procesando e indexando...</span>
+              <span>{isQueued ? "Esperando turno de ingesta..." : "Procesando e indexando..."}</span>
             </div>
           </div>
         ) : (
@@ -237,6 +261,8 @@ function UploadStatusPanel({ state, onDismiss }: { state: UploadState; onDismiss
 }
 
 export function DocumentManagement() {
+  const { user } = useAuthContext();
+  const canManageDocuments = hasPermission(user, "manage_documents");
   const {
     documents,
     searchTerm, setSearchTerm,
@@ -297,12 +323,12 @@ export function DocumentManagement() {
               accept=".pdf"
               onChange={handleUpload}
               className="hidden"
-              disabled={isUploading || isLoadingList || rateLimitInfo?.remaining === 0}
+              disabled={!canManageDocuments || isUploading || isLoadingList || rateLimitInfo?.remaining === 0}
             />
             <Button
               onClick={handleButtonClick}
               className="gradient-primary cursor-pointer hover:opacity-90"
-              disabled={isUploading || isLoadingList || rateLimitInfo?.remaining === 0}
+              disabled={!canManageDocuments || isUploading || isLoadingList || rateLimitInfo?.remaining === 0}
             >
               <Upload className="mr-2 h-4 w-4" />
               {uploadState.phase === "processing"
@@ -321,7 +347,7 @@ export function DocumentManagement() {
 
             <ClearRAGDialog
               onClearSuccess={loadDocuments}
-              disabled={isUploading || isLoadingList}
+              disabled={!canManageDocuments || isUploading || isLoadingList}
             />
           </div>
         </div>
@@ -368,6 +394,7 @@ export function DocumentManagement() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="py-4">Nombre</TableHead>
+                  <TableHead className="py-4">Estado</TableHead>
                   <TableHead className="py-4">Fecha</TableHead>
                   <TableHead className="py-4">Tamaño</TableHead>
                   <TableHead className="text-right py-4">Acciones</TableHead>
@@ -383,6 +410,7 @@ export function DocumentManagement() {
                           <Skeleton className="h-4 w-40" />
                         </div>
                       </TableCell>
+                      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-32" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                       <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
@@ -396,6 +424,18 @@ export function DocumentManagement() {
                           {doc.filename}
                         </div>
                       </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          <Badge variant={ingestionStatusVariants[doc.ingestion_status] ?? "secondary"}>
+                            {ingestionStatusLabels[doc.ingestion_status] ?? doc.ingestion_status}
+                          </Badge>
+                          {doc.ingestion_error && (
+                            <span className="max-w-[240px] truncate text-xs text-red-600 dark:text-red-400">
+                              {doc.ingestion_error}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>{formatDate(doc.last_modified)}</TableCell>
                       <TableCell>{formatFileSize(doc.size)}</TableCell>
                       <TableCell className="text-right">
@@ -404,7 +444,7 @@ export function DocumentManagement() {
                             variant="outline"
                             size="sm"
                             onClick={() => handlePreview(doc.filename)}
-                            disabled={isLoadingList || isUploading}
+                            disabled={isLoadingList || isUploading || doc.ingestion_status !== "ready"}
                             title="Preview"
                             className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600"
                           >
@@ -414,7 +454,7 @@ export function DocumentManagement() {
                             variant="outline"
                             size="sm"
                             onClick={() => handleDownload(doc.filename)}
-                            disabled={isLoadingList || isUploading || isDownloading}
+                            disabled={isLoadingList || isUploading || isDownloading || doc.ingestion_status !== "ready"}
                             title="Download"
                             className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600"
                           >
@@ -425,7 +465,7 @@ export function DocumentManagement() {
                             size="sm"
                             onClick={() => handleDelete(doc.filename)}
                             className="text-gray-500 hover:text-red-600 hover:bg-red-50 dark:text-slate-400 dark:hover:text-red-500 dark:bg-slate-700 dark:border-slate-600 dark:hover:bg-red-900/20"
-                            disabled={isLoadingList || isUploading}
+                            disabled={!canManageDocuments || isLoadingList || isUploading || doc.ingestion_status === "processing"}
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>

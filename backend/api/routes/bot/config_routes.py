@@ -1,8 +1,7 @@
 """API routes for bot configuration management.
 
-Protección: todos los endpoints (excepto /config/public) requieren usuario autenticado.
-Para restringir a admins: cambiar Depends(get_current_active_user) → Depends(require_admin).
-/config/public es público (exento en el middleware).
+Proteccion: todos los endpoints (excepto /config/public) requieren manage_bot_config.
+Hoy manage_bot_config mapea a admin; /config/public sigue publico para el widget.
 """
 import logging
 import time
@@ -10,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Request, status, Depends
 
 from api.schemas.config import BotConfigDTO, UpdateBotConfigRequest
 from database.config_repository import ConfigRepository
-from auth.dependencies import get_current_active_user
+from auth.permissions import require_manage_bot_config
 from models.user import User
 from cache.manager import cache
 
@@ -231,7 +230,7 @@ def _build_bot_config_dto(config_obj: object) -> BotConfigDTO:
 @router.get("/config", response_model=BotConfigDTO, status_code=status.HTTP_200_OK)
 async def get_bot_config(
     request: Request,
-    _: User = Depends(get_current_active_user),
+    _: User = Depends(require_manage_bot_config),
 ) -> BotConfigDTO:
     """Return current bot configuration. Requires: authenticated user."""
     try:
@@ -247,7 +246,7 @@ async def get_bot_config(
 async def update_bot_config(
     request: Request,
     payload: UpdateBotConfigRequest,
-    _: User = Depends(get_current_active_user),
+    _: User = Depends(require_manage_bot_config),
 ) -> BotConfigDTO:
     """Update bot configuration fields. Requires: authenticated user."""
     try:
@@ -290,7 +289,7 @@ async def update_bot_config(
 @router.post("/config/reset", response_model=BotConfigDTO, status_code=status.HTTP_200_OK)
 async def reset_bot_config(
     request: Request,
-    _: User = Depends(get_current_active_user),
+    _: User = Depends(require_manage_bot_config),
 ) -> BotConfigDTO:
     """Clear UI-driven fields and reload runtime. Requires: authenticated user."""
     try:

@@ -9,7 +9,7 @@ from utils.whatsapp.idempotency import claim_message
 from config import settings
 import httpx
 import re
-from auth import require_admin
+from auth.permissions import require_manage_bot_config
 
 # Intentar importar validación de Twilio
 try:
@@ -184,7 +184,7 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
 # --- RUTAS DE DIAGNÓSTICO (Mantenidas igual) ---
 
 @router.get("/test")
-async def whatsapp_test(current_user=Depends(require_admin)):
+async def whatsapp_test(current_user=Depends(require_manage_bot_config)):
     try:
         sid = getattr(settings, "twilio_account_sid", None)
         token = getattr(settings, "twilio_auth_token", None)
@@ -205,7 +205,7 @@ async def whatsapp_test(current_user=Depends(require_admin)):
         return {"status": "error", "message": str(e)}
 
 @router.get("/diag")
-async def whatsapp_diag(current_user=Depends(require_admin)):
+async def whatsapp_diag(current_user=Depends(require_manage_bot_config)):
     try:
         sid = getattr(settings, "twilio_account_sid", None) or ""
         token = getattr(settings, "twilio_auth_token", None) or ""
@@ -224,7 +224,7 @@ async def whatsapp_diag(current_user=Depends(require_admin)):
         return {"loaded": False}
 
 @router.get("/send-test")
-async def whatsapp_send_test(request: Request, current_user=Depends(require_admin)):
+async def whatsapp_send_test(request: Request, current_user=Depends(require_manage_bot_config)):
     try:
         params = dict(request.query_params)
         to = str(params.get("to", "")).strip()

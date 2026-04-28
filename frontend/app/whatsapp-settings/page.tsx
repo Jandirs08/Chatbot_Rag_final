@@ -1,6 +1,7 @@
 ﻿"use client";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/app/hooks/useAuth";
+import { hasPermission } from "@/app/lib/auth/permissions";
 import { useBotConfig } from "@/app/hooks/useBotConfig";
 import {
   Card,
@@ -18,8 +19,8 @@ import { CheckCircle, AlertTriangle, Circle } from "lucide-react";
 import { useUnsavedChanges } from "@/app/hooks/useUnsavedChanges";
 
 export default function ConfiguracionWhatsAppPage() {
-  const { isAdmin } = useAuth();
-  const isAuthorized = isAdmin;
+  const { user } = useAuth();
+  const isAuthorized = hasPermission(user, "manage_bot_config");
   const {
     data: botConfig,
     error: botConfigError,

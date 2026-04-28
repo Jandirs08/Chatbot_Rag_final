@@ -37,6 +37,7 @@ import { useBotConfig } from "../hooks/useBotConfig";
 import { useTheme } from "../hooks/useTheme";
 import { logger } from "@/app/lib/logger";
 import { toast } from "sonner";
+import { hasPermission } from "@/app/lib/auth/permissions";
 
 type MenuItem = { title: string; url: string; icon: LucideIcon };
 
@@ -50,6 +51,10 @@ export function AppSidebar() {
   const router = useRouter();
   const pathname = usePathname();
   const { isDark, toggle: toggleTheme } = useTheme();
+  const canManageDocuments = hasPermission(user, "manage_documents");
+  const canManageUsers = hasPermission(user, "manage_users");
+  const canViewDebug = hasPermission(user, "view_debug");
+  const canManageBotConfig = hasPermission(user, "manage_bot_config");
 
   const isUrlActive = useCallback((url: string) => {
     if (url === "/") return pathname === "/";
@@ -70,31 +75,37 @@ export function AppSidebar() {
   const operationItems = useMemo<MenuItem[]>(() => [
     { title: "Home", url: "/", icon: BarChart3 },
     { title: "Chat", url: "/chat", icon: MessageCircle },
-    ...(isAdmin
+    ...(canViewDebug
       ? [{ title: "Buzón", url: "/admin/inbox", icon: MessageSquare }]
       : []),
-  ], [isAdmin]);
+  ], [canViewDebug]);
 
   const channelItems = useMemo<MenuItem[]>(() => [
-    { title: "Web", url: "/widget", icon: Code },
-    { title: "WhatsApp", url: "/whatsapp-settings", icon: MessageSquareText },
-  ], []);
+    ...(canManageBotConfig
+      ? [
+          { title: "Web", url: "/widget", icon: Code },
+          { title: "WhatsApp", url: "/whatsapp-settings", icon: MessageSquareText },
+        ]
+      : []),
+  ], [canManageBotConfig]);
 
   const knowledgeItems = useMemo<MenuItem[]>(() => [
-    { title: "Documentos", url: "/docs", icon: FileText },
-  ], []);
+    ...(canManageDocuments
+      ? [{ title: "Documentos", url: "/docs", icon: FileText }]
+      : []),
+  ], [canManageDocuments]);
 
-  const systemItems = useMemo<MenuItem[]>(() => isAdmin
-    ? [
-        { title: "Usuarios", url: "/users", icon: Users },
-        { title: "Configuración", url: "/admin/settings", icon: Settings },
-        {
-          title: "Debug Chat",
-          url: "/dashboard/playground",
-          icon: FlaskConical,
-        },
-      ]
-    : [], [isAdmin]);
+  const systemItems = useMemo<MenuItem[]>(() => [
+    ...(canManageUsers
+      ? [{ title: "Usuarios", url: "/users", icon: Users }]
+      : []),
+    ...(canManageBotConfig
+      ? [{ title: "Configuración", url: "/admin/settings", icon: Settings }]
+      : []),
+    ...(canViewDebug
+      ? [{ title: "Debug Chat", url: "/dashboard/playground", icon: FlaskConical }]
+      : []),
+  ], [canManageBotConfig, canManageUsers, canViewDebug]);
 
   const botName = user ? botConfig?.bot_name : undefined;
 
