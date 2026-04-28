@@ -1,0 +1,23 @@
+# Top-level dev/tooling dependencies. Source of truth.
+# Generate the locked requirements-dev.txt with hashes:
+#
+#     pip-compile --generate-hashes --output-file=requirements-dev.txt requirements-dev.in
+#
+# Do NOT edit requirements-dev.txt by hand.
+
+# Constrain to the runtime lock so dev tools don't pull conflicting versions.
+-c requirements.txt
+
+# Lock generator itself
+pip-tools>=7.0.0
+
+# Test runner
+pytest>=7.4.3,<8.0.0
+pytest-asyncio>=0.21.1,<1.0.0
+pytest-cov>=4.1.0,<5.0.0
+
+# Style / type
+black>=23.10.1,<24.0.0
+isort>=5.12.0,<6.0.0
+flake8>=6.1.0,<7.0.0
+mypy>=1.6.1,<2.0.0
