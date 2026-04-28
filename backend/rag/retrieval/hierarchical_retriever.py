@@ -136,6 +136,12 @@ class HierarchicalRetriever(RAGRetriever):
         configured_limit = max(base, int(getattr(settings, "hybrid_child_candidate_limit", 12)))
         return min(max(base * self.child_fetch_multiplier, base), configured_limit)
 
+    def _parent_candidate_limit(self, k: int) -> int:
+        return max(
+            max(1, int(k)),
+            int(getattr(settings, "hybrid_parent_candidate_limit", 6)),
+        )
+
     async def retrieve_documents(
         self,
         query: str,
@@ -297,7 +303,11 @@ class HierarchicalRetriever(RAGRetriever):
             return []
 
         hydrate_started_at = time.perf_counter()
-        parent_candidates = await self._hydrate_parent_candidates(fused_children, k)
+        parent_candidate_limit = self._parent_candidate_limit(k)
+        parent_candidates = await self._hydrate_parent_candidates(
+            fused_children,
+            limit=parent_candidate_limit,
+        )
         try:
             get_request_context().set_stage_timing_ms(
                 "hydrate_ms",
@@ -309,15 +319,11 @@ class HierarchicalRetriever(RAGRetriever):
             self._last_gating_reason = "no_parent_candidates"
             return []
 
-        limit = max(
-            max(1, int(k)),
-            int(getattr(settings, "hybrid_parent_candidate_limit", 6)),
-        )
         rerank_started_at = time.perf_counter()
         reranked = (
-            await self.reranker.rerank(query=normalized_query, candidates=parent_candidates, limit=limit)
+            await self.reranker.rerank(query=normalized_query, candidates=parent_candidates, limit=parent_candidate_limit)
             if self.reranker is not None
-            else parent_candidates[:limit]
+            else parent_candidates[:parent_candidate_limit]
         )
         try:
             get_request_context().set_stage_timing_ms(
@@ -328,6 +334,25 @@ class HierarchicalRetriever(RAGRetriever):
             pass
         if not reranked:
             self._last_gating_reason = "reranker_empty"
+            return reranked
+
+        # Semantic gating post-retrieval: si el top candidate no supera el umbral
+        # de relevancia, descartamos todo. Evita inyectar contexto basura para
+        # preguntas off-topic (e.g. "capital de Francia") y ahorra tokens LLM.
+        gating_threshold = float(getattr(settings, "rag_gating_similarity_threshold", 0.0))
+        if gating_threshold > 0:
+            top_score = max(
+                (float(c.dense_score) for c in reranked),
+                default=0.0,
+            )
+            if top_score < gating_threshold:
+                self._last_gating_reason = "low_relevance_score"
+                logger.debug(
+                    "Gating: top dense_score=%.3f < threshold=%.3f — descartando contexto",
+                    top_score, gating_threshold,
+                )
+                return []
+
         return reranked[: max(1, int(k))]
 
     async def retrieve_with_trace(
@@ -506,7 +531,8 @@ class HierarchicalRetriever(RAGRetriever):
     async def _hydrate_parent_candidates(
         self,
         fused_children: list[dict[str, Any]],
-        k: int,
+        *,
+        limit: int,
     ) -> list[ParentCandidate]:
         grouped_children: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for child in fused_children:
@@ -515,7 +541,7 @@ class HierarchicalRetriever(RAGRetriever):
                 continue
             grouped_children[parent_id].append(child)
 
-        ranked_parent_ids = self._rank_parent_ids(grouped_children, limit=max(1, int(getattr(settings, "hybrid_parent_candidate_limit", 6))))
+        ranked_parent_ids = self._rank_parent_ids(grouped_children, limit=limit)
         parents = await self.parent_repository.get_by_parent_ids(ranked_parent_ids)
         parent_map = {parent.parent_id: parent for parent in parents}
 
@@ -554,7 +580,7 @@ class HierarchicalRetriever(RAGRetriever):
                     fused_score=fused_score,
                 )
             )
-        return candidates[: max(1, k)]
+        return candidates[: max(1, int(limit))]
 
     def _rank_parent_ids(
         self,

@@ -65,6 +65,23 @@ class _FakeReranker(BaseParentReranker):
         ]
 
 
+class _PreferHighestParentIndexReranker(BaseParentReranker):
+    async def rerank(self, *, query: str, candidates, limit: int):
+        del query
+        ranked = sorted(candidates, key=lambda candidate: candidate.parent.parent_index, reverse=True)
+        return [
+            ParentCandidate(
+                parent=candidate.parent,
+                evidence=candidate.evidence,
+                dense_score=candidate.dense_score,
+                lexical_score=candidate.lexical_score,
+                fused_score=candidate.fused_score,
+                rerank_score=float(candidate.parent.parent_index),
+            )
+            for candidate in ranked[:limit]
+        ]
+
+
 def _build_parent(parent_id: str, *, parent_index: int, source: str = "sample.pdf") -> ParentDocument:
     return ParentDocument(
         parent_id=parent_id,
@@ -156,6 +173,33 @@ async def test_hierarchical_retriever_groups_children_and_hydrates_parents():
     assert lexical_repo.calls[0]["limit"] == 8
 
 
+async def test_hierarchical_retriever_reranks_parent_pool_before_final_top_k():
+    dense_children = [
+        _build_child("parent_a", 0.99, "Evidencia A", child_id="child_a1", page_start=1),
+        _build_child("parent_b", 0.98, "Evidencia B", child_id="child_b1", page_start=2),
+        _build_child("parent_c", 0.97, "Evidencia C", child_id="child_c1", page_start=3),
+    ]
+    vector_store = _FakeChildVectorStore(dense_children)
+    repository = _FakeParentRepository([
+        _build_parent("parent_a", parent_index=0),
+        _build_parent("parent_b", parent_index=1),
+        _build_parent("parent_c", parent_index=2),
+    ])
+    retriever = HierarchicalRetriever(
+        child_vector_store=vector_store,
+        parent_repository=repository,
+        embedding_manager=_FakeEmbeddingManager(),
+        lexical_repository=_FakeLexicalRepository([]),
+        reranker=_PreferHighestParentIndexReranker(),
+        child_fetch_multiplier=4,
+    )
+
+    results = await retriever.retrieve_parents(query="consulta con varios padres candidatos", k=1)
+
+    assert [item.parent.parent_id for item in results] == ["parent_c"]
+    assert repository.calls == [["parent_a", "parent_b", "parent_c"]]
+
+
 async def test_hierarchical_retriever_trace_includes_context_and_timings():
     children = [
         _build_child("parent_a", 0.93, "La tabla muestra el valor 2026.", child_id="child_a1", page_start=1),
@@ -210,3 +254,57 @@ async def test_hierarchical_retriever_records_stage_timings():
     for key in ("embedding_ms", "dense_ms", "lexical_ms", "hydrate_ms", "rerank_ms"):
         assert key in req_ctx.stage_timings_ms
         assert req_ctx.stage_timings_ms[key] >= 0
+
+
+async def test_hierarchical_retriever_drops_results_below_gating_threshold(monkeypatch):
+    """Gating: top dense_score por debajo del umbral → ningún parent devuelto."""
+    from rag.retrieval import hierarchical_retriever as hr_module
+
+    children = [
+        _build_child("parent_a", 0.05, "evidencia muy debil", child_id="child_a1", page_start=1),
+    ]
+    vector_store = _FakeChildVectorStore(children)
+    repository = _FakeParentRepository([_build_parent("parent_a", parent_index=0)])
+    retriever = HierarchicalRetriever(
+        child_vector_store=vector_store,
+        parent_repository=repository,
+        embedding_manager=_FakeEmbeddingManager(),
+        lexical_repository=_FakeLexicalRepository([]),
+        reranker=_FakeReranker(),
+        child_fetch_multiplier=2,
+    )
+
+    monkeypatch.setattr(hr_module.settings, "rag_gating_similarity_threshold", 0.5, raising=False)
+
+    new_request_context()
+    results = await retriever.retrieve_parents(query="pregunta off-topic", k=1)
+
+    assert results == []
+    assert retriever._last_gating_reason == "low_relevance_score"
+
+
+async def test_hierarchical_retriever_keeps_results_above_gating_threshold(monkeypatch):
+    """Gating: top dense_score sobre umbral → parents pasan normal."""
+    from rag.retrieval import hierarchical_retriever as hr_module
+
+    children = [
+        _build_child("parent_a", 0.85, "evidencia fuerte", child_id="child_a1", page_start=1),
+    ]
+    vector_store = _FakeChildVectorStore(children)
+    repository = _FakeParentRepository([_build_parent("parent_a", parent_index=0)])
+    retriever = HierarchicalRetriever(
+        child_vector_store=vector_store,
+        parent_repository=repository,
+        embedding_manager=_FakeEmbeddingManager(),
+        lexical_repository=_FakeLexicalRepository([]),
+        reranker=_FakeReranker(),
+        child_fetch_multiplier=2,
+    )
+
+    monkeypatch.setattr(hr_module.settings, "rag_gating_similarity_threshold", 0.5, raising=False)
+
+    new_request_context()
+    results = await retriever.retrieve_parents(query="pregunta valida", k=1)
+
+    assert len(results) == 1
+    assert retriever._last_gating_reason != "low_relevance_score"
