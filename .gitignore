@@ -30,8 +30,12 @@ var/
 .installed.cfg
 *.egg
 .pytest_cache/
+pytest-cache-files-*/
 .coverage
 htmlcov/
+
+# Windows / Cygwin runtime debris
+*.stackdump
 
 # Node.js
 node_modules/
@@ -83,4 +87,6 @@ __pycache__/
 similar_cache_*/
 backend/tests/evals/generated/
 backend/tests/evals/reports/
+backend/tests/_tmp/
 backend/tests/_tmp_hier/
+backend/tests/_tmp_pdf_manager/

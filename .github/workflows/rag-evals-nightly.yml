@@ -1,0 +1,126 @@
+name: RAG Evals (nightly)
+
+# Runs the end-to-end RAG eval suite against a freshly booted backend with real
+# Mongo / Qdrant / Redis service containers. Skips automatically if the
+# OPENAI_API_KEY repository secret is missing (e.g., on forks).
+
+on:
+  schedule:
+    - cron: "0 6 * * *"    # 06:00 UTC daily
+  workflow_dispatch:
+
+jobs:
+  evals:
+    # Gate: opt-in via repository variable. Set ENABLE_NIGHTLY_EVALS=true in repo
+    # settings → Variables once OPENAI_API_KEY secret is configured. Until then
+    # the job is skipped instead of burning CI minutes on a guaranteed failure.
+    if: ${{ vars.ENABLE_NIGHTLY_EVALS == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval \"db.adminCommand('ping')\" --quiet"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      qdrant:
+        image: qdrant/qdrant:v1.10.1
+        ports:
+          - 6333:6333
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      ENVIRONMENT: testing
+      MONGO_URI: mongodb://localhost:27017/chatbot_rag_db
+      QDRANT_URL: http://localhost:6333
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET: ci-jwt-secret-not-for-prod
+      ENABLE_RAG_LCEL: "true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend deps
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          if [ -f requirements-evals.txt ]; then
+            pip install -r requirements-evals.txt
+          fi
+
+      - name: Start backend
+        working-directory: backend
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          nohup python -m uvicorn main:app --host 127.0.0.1 --port 8000 > backend.log 2>&1 &
+          echo $! > backend.pid
+
+      - name: Wait for readiness
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fs http://127.0.0.1:8000/api/v1/health/ready >/dev/null; then
+              echo "backend ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "backend did not become ready in time" >&2
+          tail -100 backend/backend.log || true
+          exit 1
+
+      - name: Run RAG E2E evals
+        working-directory: backend
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          RAG_EVAL_BASE_URL: http://127.0.0.1:8000
+        run: |
+          python tests/evals/run_rag_e2e_eval.py
+
+      - name: Upload eval reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rag-eval-reports
+          path: backend/tests/evals/reports/
+          if-no-files-found: ignore
+
+      - name: Upload backend log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-log
+          path: backend/backend.log
+          if-no-files-found: ignore
+
+      - name: Stop backend
+        if: always()
+        working-directory: backend
+        run: |
+          if [ -f backend.pid ]; then
+            kill "$(cat backend.pid)" || true
+          fi
