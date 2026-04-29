@@ -17,6 +17,23 @@ export async function release(conversationId: string): Promise<void> {
   if (!res.ok) throw new Error("Error al devolver la conversación");
 }
 
+export type HandoffStats = {
+  user_request: number;
+  low_confidence: number;
+  out_of_scope: number;
+  total: number;
+  period_days: number;
+};
+
+export async function getHandoffStats(days = 30): Promise<HandoffStats> {
+  const res = await authenticatedFetch(
+    `${API_URL}/inbox/handoff-stats?days=${days}`,
+    { method: "GET" },
+  );
+  if (!res.ok) throw new Error("Error al obtener métricas de handoff");
+  return res.json();
+}
+
 export async function sendAgentMessage(
   conversationId: string,
   content: string,

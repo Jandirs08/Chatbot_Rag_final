@@ -1,14 +1,16 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from pymongo import ASCENDING
+from pymongo import ASCENDING, DESCENDING, ReturnDocument
 
 from .mongodb import get_mongodb_client, MongodbClient
 
 logger = logging.getLogger(__name__)
 
 _URGENCY_ORDER = {"alta": 0, "media": 1, "baja": 2}
+
+HANDOFF_REASONS = ("user_request", "low_confidence", "out_of_scope")
 
 
 class ConversationRepository:
@@ -32,39 +34,40 @@ class ConversationRepository:
                 [("assigned_agent_id", ASCENDING), ("mode", ASCENDING)],
                 name="agent_mode",
             )
+            await coll.create_index(
+                [("handoff_at", DESCENDING)],
+                name="handoff_at_desc",
+            )
         except Exception as e:
             logger.error(f"Error ensuring conversations indexes: {e}")
 
     async def get_or_create(self, channel: str, external_id: str, conversation_id: str) -> dict:
         coll = self.mongodb_client.db[self.collection_name]
         now = datetime.now(timezone.utc)
-        doc = await coll.find_one({"channel": channel, "external_id": external_id})
-        if doc:
-            return doc
-        new_doc = {
-            "conversation_id": conversation_id,
-            "channel": channel,
-            "external_id": external_id,
-            "mode": "bot",
-            "category": None,
-            "urgency": None,
-            "ai_summary": None,
-            "assigned_agent_id": None,
-            "pending_since": None,
-            "lead_name": None,
-            "lead_email": None,
-            "lead_captured_at": None,
-            "created_at": now,
-            "updated_at": now,
-        }
-        try:
-            await coll.insert_one(new_doc)
-        except Exception:
-            # Race condition: another worker inserted it first
-            existing = await coll.find_one({"channel": channel, "external_id": external_id})
-            if existing:
-                return existing
-        return new_doc
+        doc = await coll.find_one_and_update(
+            {"channel": channel, "external_id": external_id},
+            {
+                "$setOnInsert": {
+                    "conversation_id": conversation_id,
+                    "channel": channel,
+                    "external_id": external_id,
+                    "mode": "bot",
+                    "category": None,
+                    "urgency": None,
+                    "ai_summary": None,
+                    "assigned_agent_id": None,
+                    "pending_since": None,
+                    "lead_name": None,
+                    "lead_email": None,
+                    "lead_captured_at": None,
+                    "created_at": now,
+                    "updated_at": now,
+                }
+            },
+            upsert=True,
+            return_document=ReturnDocument.AFTER,
+        )
+        return doc
 
     async def get_by_conversation_id(self, conversation_id: str) -> Optional[dict]:
         coll = self.mongodb_client.db[self.collection_name]
@@ -146,3 +149,43 @@ class ConversationRepository:
         coll = self.mongodb_client.db[self.collection_name]
         docs = await coll.find({"lead_email": {"$ne": None}, "mode": "bot"}).sort("updated_at", -1).to_list(length=200)
         return docs
+
+    async def set_handoff_reason(self, conversation_id: str, reason: str) -> None:
+        if reason not in HANDOFF_REASONS:
+            logger.warning(
+                "set_handoff_reason called with invalid reason=%s for conv=%s",
+                reason,
+                conversation_id,
+            )
+            return
+        coll = self.mongodb_client.db[self.collection_name]
+        now = datetime.now(timezone.utc)
+        await coll.update_one(
+            {"conversation_id": conversation_id},
+            {
+                "$set": {
+                    "handoff_reason": reason,
+                    "handoff_at": now,
+                    "updated_at": now,
+                }
+            },
+        )
+
+    async def get_handoff_reason_counts(self, days: int) -> dict[str, int]:
+        coll = self.mongodb_client.db[self.collection_name]
+        since = datetime.now(timezone.utc) - timedelta(days=max(1, int(days)))
+        pipeline = [
+            {
+                "$match": {
+                    "handoff_at": {"$gte": since},
+                    "handoff_reason": {"$in": list(HANDOFF_REASONS)},
+                }
+            },
+            {"$group": {"_id": "$handoff_reason", "count": {"$sum": 1}}},
+        ]
+        counts = {reason: 0 for reason in HANDOFF_REASONS}
+        async for doc in coll.aggregate(pipeline):
+            reason = doc.get("_id")
+            if reason in counts:
+                counts[reason] = int(doc.get("count", 0))
+        return counts

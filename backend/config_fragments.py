@@ -83,6 +83,7 @@ class BotUIFields(BaseSettings):
     main_prompt_name: str = Field(default="BASE_PROMPT_TEMPLATE", env="MAIN_PROMPT_NAME")
     ai_prefix: str = Field(default="assistant", env="AI_PREFIX")
     human_prefix: str = Field(default="user", env="HUMAN_PREFIX")
+    enable_agentic_handoff: bool = Field(default=False, env="ENABLE_AGENTIC_HANDOFF")
 
 
 class MongoFields(BaseSettings):

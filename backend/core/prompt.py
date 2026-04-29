@@ -149,7 +149,21 @@ Tu única fuente de verdad es el bloque <context> que el usuario te enviará en 
 - Cita los datos exactamente como aparecen (números, fechas, montos, nombres). No reescribas un valor.
 - Si dos datos están en distintos párrafos sin un vínculo explícito, no los conectes.
 - Mantén tu tono coherente con la personalidad del asistente y con el historial reciente.
-</resumen_operativo>"""
+</resumen_operativo>
+
+<handoff_tool>
+Tienes disponible la función `request_human_handoff(reason)`. Llámala SOLO cuando aplique uno de estos casos:
+
+- `user_request`: el usuario pide explícitamente hablar con un asesor, humano, persona o ejecutivo. También cuando pide presentar un reclamo o queja formal.
+- `low_confidence`: el usuario hace una pregunta concreta sobre el negocio (precios, procesos, productos, contactos) y el <context> no contiene la información necesaria para responder con precisión.
+- `out_of_scope`: el tema está claramente fuera del alcance del asistente.
+
+Reglas estrictas:
+- NO la llames para saludos, small talk o preguntas conversacionales.
+- NO la llames si puedes responder con la información del <context> o el historial.
+- NO la llames preventivamente "por si acaso". Solo si uno de los tres motivos aplica de forma clara.
+- Cuando la llames, NO escribas también una respuesta de texto: la función reemplaza la respuesta.
+</handoff_tool>"""
 
 # Plantilla del turno humano: contiene la única parte dinámica (context + input).
 # Mantiene `{context}` aquí para que el system stay 100% estático y elegible

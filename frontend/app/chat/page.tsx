@@ -34,8 +34,10 @@ export default function ChatPage() {
         }
         const data = await resp.json();
         const normalized: HookMessage[] = Array.isArray(data)
-          ? data.map((m: { content?: unknown; role?: unknown; timestamp?: unknown }, idx: number) => ({
-              id: `${conversationId}-${idx}-${m.timestamp ?? Date.now()}`,
+          ? data.map((m: { message_id?: unknown; content?: unknown; role?: unknown; timestamp?: unknown }, idx: number) => ({
+              id: typeof m?.message_id === "string"
+                ? m.message_id
+                : `${conversationId}-${idx}-${m.timestamp ?? Date.now()}`,
               content: String(m?.content ?? ""),
               role: (m?.role ?? "assistant") as HookMessage["role"],
               createdAt: m?.timestamp ? new Date(m.timestamp as string) : undefined,

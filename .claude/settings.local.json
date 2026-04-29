@@ -75,7 +75,12 @@
       "Bash(find C:\\\\\\\\Chatbot-final-jandir\\\\\\\\Chatbot_Rag_final\\\\\\\\backend\\\\\\\\api -name \"*.py\" -type f)",
       "Bash(grep -r \"ensure_indexes\\\\|conversation_repository\\\\|ConversationRepository\" C:\\\\\\\\Chatbot-final-jandir\\\\\\\\Chatbot_Rag_final\\\\\\\\backend --include=\"*.py\")",
       "Bash(python3 -m py_compile backend/api/routes/whatsapp/webhook_routes.py)",
-      "Bash(xargs head *)"
+      "Bash(xargs head *)",
+      "PowerShell(Get-ChildItem backend | Where-Object { $_.Name -match \"req\" } | Select-Object Name)",
+      "PowerShell(Get-ChildItem *)",
+      "Bash(grep -rn \"from chat import\\\\|^import chat$\" /c/Chatbot-final-jandir/Chatbot_Rag_final/backend --include=\"*.py\")",
+      "Bash(docker exec *)",
+      "Bash(grep -nB1 -A5 \"env_file\\\\|environment:\" /c/Chatbot-final-jandir/Chatbot_Rag_final/docker-compose.yml)"
     ]
   }
 }

@@ -158,6 +158,7 @@ from auth.middleware import AuthenticationMiddleware
 
 # Dependencias para inicializar managers
 from core.bot import Bot
+from core.tools import bootstrap_tools, registry as tool_registry
 from memory import MemoryTypes
 from rag.embeddings.embedding_manager import EmbeddingManager
 from rag.vector_store.vector_store import VectorStore
@@ -426,13 +427,15 @@ async def lifespan(app: FastAPI):
             except KeyError:
                 logger.warning(f"Tipo de memoria '{s.memory_type}' no válido en settings. Usando BASE_MEMORY.")
 
+        bootstrap_tools(s)
         app.state.bot_instance = Bot(
             settings=s,
             memory_type=bot_memory_type,
             memory_kwargs={"conversation_id": "default_session"},
             cache=None,
             model_type=None,
-            rag_retriever=app.state.rag_retriever
+            rag_retriever=app.state.rag_retriever,
+            tools=tool_registry.list_tools(),
         )
         if app.state.startup_bot_is_active is not None:
             app.state.bot_instance.is_active = app.state.startup_bot_is_active

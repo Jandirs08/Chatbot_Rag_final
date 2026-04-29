@@ -2,6 +2,9 @@
 pythonpath = ["."]
 testpaths = ["tests"]
 addopts = "-ra -p no:cacheprovider"
+markers = [
+    "integration: opt-in test that hits external services (LLMs, DBs) — requires real credentials",
+]
 filterwarnings = [
     "ignore::pydantic.warnings.PydanticDeprecatedSince20",
 ]

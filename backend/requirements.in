@@ -15,11 +15,13 @@ pydantic-settings>=2.0.3,<3.0.0
 python-dotenv>=1.0.0,<2.0.0
 
 # LangChain & RAG
-langchain-core==0.1.52
-langchain==0.1.17
-langchain-community==0.0.36
-langchain-openai==0.0.5
-tiktoken>=0.5.2,<0.6.0
+# Pins bumped for tool-calling support (bind_tools / tool_call_chunks).
+# Requires langchain-openai>=0.1.7; matching minor versions for langchain-core/langchain.
+langchain-core>=0.3.0,<0.4.0
+langchain>=0.3.0,<0.4.0
+langchain-community>=0.3.0,<0.4.0
+langchain-openai>=0.3.0,<0.4.0
+tiktoken>=0.7.0,<1.0.0
 openai>=1.0.0,<2.0.0
 qdrant-client>=1.7.0
 redis>=5.0.1

@@ -28,3 +28,11 @@ class AgentMessageRequest(BaseModel):
 class InboxResponse(BaseModel):
     items: list[ConversationCard]
     total: int
+
+
+class HandoffStatsResponse(BaseModel):
+    user_request: int
+    low_confidence: int
+    out_of_scope: int
+    total: int
+    period_days: int

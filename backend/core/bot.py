@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any, AsyncGenerator
+from typing import Optional, Dict, Any, AsyncGenerator, Sequence
 import time
 import asyncio
 from operator import itemgetter
@@ -17,6 +17,7 @@ from utils import CacheTypes, ChatbotCache
 from utils.logging_utils import get_logger
 from config import Settings, settings as app_settings
 from .chain import ChainManager
+from .tools import ToolDefinition
 from .request_context import get_request_context
 from rag.retrieval import RAGRetriever, RetrievalBackendUnavailableError
 
@@ -34,7 +35,8 @@ class Bot:
         memory_kwargs: Optional[dict] = None,
         cache: Optional[CacheTypes] = None,
         model_type: Optional[ModelTypes] = None,
-        rag_retriever: Optional[RAGRetriever] = None
+        rag_retriever: Optional[RAGRetriever] = None,
+        tools: Optional[Sequence[ToolDefinition]] = None,
     ):
         self.settings = settings if settings is not None else app_settings
         self.logger = get_logger(self.__class__.__name__)
@@ -69,10 +71,14 @@ class Bot:
         # RAG
         self.rag_retriever: Optional[RAGRetriever] = rag_retriever
 
-        # Chain (prompt + modelo)
+        # Tools (agentic). Stored so reload_chain can re-bind them.
+        self._tools: list[ToolDefinition] = list(tools) if tools else []
+
+        # Chain (prompt + modelo, opcionalmente con tools vinculadas)
         self.chain_manager = ChainManager(
             settings=self.settings,
-            model_type=model_type
+            model_type=model_type,
+            tools=self._tools,
         )
 
         # Compone pipeline LCEL completo
@@ -93,6 +99,7 @@ class Bot:
             self.chain_manager = ChainManager(
                 settings=self.settings,
                 model_type=None,
+                tools=self._tools,
             )
 
             # Reconstruir el pipeline completo
@@ -250,6 +257,18 @@ class Bot:
         )
 
         return {"output": final_text}
+
+    async def astream_raw(self, x: Dict[str, Any]) -> AsyncGenerator[Any, None]:
+        """Yield raw model chunks (AIMessageChunk-like). Used by tool dispatcher."""
+        if getattr(self.settings, "mock_mode", False):
+            return
+        conversation_id = x.get("conversation_id", "default_session")
+        inp = {
+            "input": x["input"],
+            "conversation_id": conversation_id,
+        }
+        async for part in self.chain_manager.runnable_chain.astream(inp):
+            yield part
 
     async def astream_chunked(self, x: Dict[str, Any], min_chunk_chars: int = 128) -> AsyncGenerator[str, None]:
         if getattr(self.settings, "mock_mode", False):

@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { RefreshCw } from "lucide-react";
 import { HandoffConversationCard } from "./_components/HandoffConversationCard";
 import { HandoffConversationDetail } from "./_components/HandoffConversationDetail";
+import { HandoffStatsCard } from "./_components/HandoffStatsCard";
 import type { HandoffConversation } from "./_components/HandoffConversationCard";
 
 type HandoffListResponse = {
@@ -149,6 +150,9 @@ function HandoffInboxContent() {
               Actualizar
             </Button>
           </div>
+        </div>
+        <div className="mt-3">
+          <HandoffStatsCard enabled={isAuthorized} days={30} />
         </div>
       </div>
 

@@ -54,7 +54,6 @@ export function useChatStream(
   const [debugData, setDebugData] = useState<DebugData | null | undefined>(undefined);
   const [convMode, setConvMode] = useState<string | null>(null);
   const [showLeadForm, setShowLeadForm] = useState(false);
-  const lastAgentTsRef = useRef<string | null>(null);
   const hasSentMessageRef = useRef(false);
 
   // ---- Refs for streaming performance ----
@@ -98,7 +97,6 @@ export function useChatStream(
 
   // ---- Reset agent polling state when conversation changes ----
   useEffect(() => {
-    lastAgentTsRef.current = null;
     hasSentMessageRef.current = false;
     setConvMode(null);
     setShowLeadForm(false);
@@ -119,28 +117,27 @@ export function useChatStream(
         const serverMode = res.headers.get("X-Conversation-Mode");
 
         const history = (await res.json()) as Array<{
+          message_id?: string;
           role: string;
           content: string;
           timestamp?: string;
         }>;
         const agentMsgs = history.filter(
-          (m) =>
-            m.role === "agent" &&
-            (!lastAgentTsRef.current ||
-              (m.timestamp && m.timestamp > lastAgentTsRef.current)),
+          (m) => m.role === "agent" && m.message_id,
         );
         if (agentMsgs.length > 0 && mountedRef.current) {
-          const newest = agentMsgs[agentMsgs.length - 1].timestamp ?? null;
-          lastAgentTsRef.current = newest;
-          setMessages((prev) => [
-            ...prev,
-            ...agentMsgs.map((m) => ({
-              id: generateId(),
-              content: m.content,
-              role: "assistant" as const,
-              createdAt: m.timestamp ? new Date(m.timestamp) : new Date(),
-            })),
-          ]);
+          setMessages((prev) => {
+            const seen = new Set(prev.map((p) => p.id));
+            const toAppend = agentMsgs
+              .filter((m) => m.message_id && !seen.has(m.message_id))
+              .map((m) => ({
+                id: m.message_id as string,
+                content: m.content,
+                role: "assistant" as const,
+                createdAt: m.timestamp ? new Date(m.timestamp) : new Date(),
+              }));
+            return toAppend.length > 0 ? [...prev, ...toAppend] : prev;
+          });
         }
 
         if (serverMode && mountedRef.current) {

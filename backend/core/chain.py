@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Sequence
 import logging
 
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
@@ -7,22 +7,25 @@ from langchain_core.runnables import Runnable
 from models import ModelTypes, MODEL_TO_CLASS
 from config import Settings, settings as app_settings
 from . import prompt as prompt_module
+from .tools import ToolDefinition
 
 
 class ChainManager:
     """
-    Maneja únicamente:
-    prompt → modelo
-    No agentes, no herramientas.
+    Maneja prompt → modelo. Si recibe `tools`, vincula via `bind_tools`
+    cuando el modelo lo soporta (ChatOpenAI). Detección de tool_calls en
+    streaming es responsabilidad del dispatcher (chat layer), no de aquí.
     """
 
     def __init__(
         self,
         settings: Optional[Settings] = None,
         model_type: Optional[ModelTypes] = None,
+        tools: Optional[Sequence[ToolDefinition]] = None,
     ):
         self.settings = settings if settings is not None else app_settings
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.tools: list[ToolDefinition] = list(tools) if tools else []
 
         # Prompt variables
         bot_name = getattr(self.settings, 'bot_name', None) or prompt_module.BOT_NAME
@@ -49,6 +52,23 @@ class ChainManager:
             model_type=model_type,
             parameters=model_kwargs
         )
+
+        # Bind tools si el modelo lo soporta y hay tools registradas.
+        # ChatOpenAI/ChatVertexAI exponen `bind_tools`; LlamaCpp no.
+        if self.tools and hasattr(self._model, "bind_tools"):
+            try:
+                self._model = self._model.bind_tools(
+                    [t.schema for t in self.tools]
+                )
+                self.logger.info(
+                    "Bound %d tool(s) to model: %s",
+                    len(self.tools),
+                    [t.name for t in self.tools],
+                )
+            except Exception as exc:
+                self.logger.warning(
+                    "bind_tools failed; continuing without tool binding: %s", exc
+                )
 
         # Prompt — prefer ChatPromptTemplate (_SYSTEM variant) over legacy PromptTemplate.
         #

@@ -25,7 +25,9 @@ from rag.retrieval.retriever import RetrievalBackendUnavailableError
 from chat.cache_key import build_response_cache_key
 from chat.debug import DebugInfoBuilder, log_stream_timing_summary
 from chat.locks import ConversationLockManager
+from chat.tool_dispatch import DispatchEvent, consume_stream
 from chat.verifier import ResponseVerifier
+from core.tools import ToolContext
 
 logger = get_logger(__name__)
 
@@ -180,6 +182,68 @@ class ChatManager:
                 )
             logger.error(f"Error generando respuesta en ChatManager: {e}", exc_info=True)
             return "Hubo un problema procesando tu mensaje. Por favor, inténtalo nuevamente."
+        finally:
+            await self._locks.release(
+                conversation_id,
+                conversation_lock,
+                acquired=lock_acquired,
+            )
+
+    async def stream_with_tools(
+        self,
+        input_text: str,
+        conversation_id: str,
+        source: str | None = None,
+        app_state=None,
+    ):
+        """Streaming variant that consumes raw model chunks via the tool dispatcher.
+
+        Yields `DispatchEvent`s. The route layer maps them to SSE frames.
+        Cache is intentionally bypassed: tool_call decisions are context-dependent
+        and a cached text response would shortcut handoff logic.
+        """
+        conversation_lock: Optional[object] = None
+        lock_acquired = False
+        text_accum = ""
+        tool_fired = False
+        try:
+            conversation_lock, lock_acquired = await self._locks.acquire(conversation_id)
+            if not lock_acquired:
+                raise HTTPException(status_code=429, detail="Conversation busy, try again")
+            new_request_context()
+
+            ctx = ToolContext(
+                conversation_id=conversation_id,
+                user_input=input_text,
+                app_state=app_state,
+            )
+            bot_input = {"input": input_text, "conversation_id": conversation_id}
+            raw_stream = self.bot.astream_raw(bot_input)
+            min_chars = int(getattr(settings, "stream_min_chunk_chars", 32))
+            async for event in consume_stream(raw_stream, ctx, min_chunk_chars=min_chars):
+                if event.kind == "text" and event.text:
+                    text_accum += event.text
+                elif event.kind == "tool_terminal":
+                    tool_fired = True
+                yield event
+
+            if tool_fired:
+                # Tool replaces assistant turn; persist user message only.
+                try:
+                    await self.db.add_message(conversation_id, USER_ROLE, input_text, source)
+                except Exception as exc:
+                    logger.error(
+                        "Could not persist user message on tool_terminal conv=%s: %s",
+                        conversation_id, exc,
+                    )
+            elif text_accum:
+                await self._persist_messages_safely(conversation_id, input_text, text_accum, source)
+                await self.bot.add_to_memory(
+                    human=input_text, ai=text_accum, conversation_id=conversation_id
+                )
+        except Exception as exc:
+            logger.error("stream_with_tools failed conv=%s: %s", conversation_id, exc, exc_info=True)
+            raise
         finally:
             await self._locks.release(
                 conversation_id,

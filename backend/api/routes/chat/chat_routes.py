@@ -25,7 +25,7 @@ from rag.retrieval.retriever import RetrievalBackendUnavailableError
 from database.conversation_repository import ConversationRepository
 from database.mongodb import get_mongodb_client
 from services.classification import classify_conversation
-from services.classification.keywords import HANDOFF_PHRASES, HANDOFF_SOFT_KEYWORDS
+from core.tools import registry as tool_registry
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -122,29 +122,48 @@ async def chat_stream_log(
                 yield "event: end\ndata: {}\n\n"
             return StreamingResponse(_in_human(), media_type="text/event-stream", headers=_sse_headers)
 
-        text_lower = input_text.lower()
-        phrase_match = any(p in text_lower for p in HANDOFF_PHRASES)
-        soft_match = any(s in text_lower for s in HANDOFF_SOFT_KEYWORDS)
-        trigger_lead = phrase_match
-        if not trigger_lead and soft_match:
-            try:
-                prior_user_msgs = await mongodb_client.db.messages.count_documents(
-                    {"conversation_id": conversation_id, "role": "user"}
-                )
-            except Exception:
-                prior_user_msgs = 0
-            if prior_user_msgs >= 2:
-                trigger_lead = True
+        agentic_handoff = (
+            bool(getattr(settings, "enable_agentic_handoff", False))
+            and tool_registry.has_tools()
+        )
+        lead_already_captured = bool(conv_doc.get("lead_email"))
 
-        if trigger_lead and not conv_doc.get("lead_email"):
-            logger.info(f"[LeadCapture] Keyword trigger web conv={conversation_id} phrase={phrase_match} soft={soft_match}")
-            background_tasks.add_task(_classify_web, conversation_id, request.app.state)
-            async def _lead_form():
-                yield f"event: lead_form\ndata: {json.dumps({'conversation_id': conversation_id})}\n\n"
-                msg = json.dumps({"stream": "Claro, para que un asesor te contacte deja tu nombre y correo electrónico."})
-                yield f"data: {msg}\n\n"
-                yield "event: end\ndata: {}\n\n"
-            return StreamingResponse(_lead_form(), media_type="text/event-stream", headers=_sse_headers)
+        if agentic_handoff and not lead_already_captured:
+            async def generate_agentic():
+                try:
+                    logger.debug(f"[CHAT] Agentic stream start | conv={conversation_id}")
+                    async for event in chat_manager.stream_with_tools(
+                        input_text=input_text,
+                        conversation_id=conversation_id,
+                        source=source,
+                        app_state=request.app.state,
+                    ):
+                        if await request.is_disconnected():
+                            logger.info(f"[CHAT] Cliente desconectó | conv={conversation_id}")
+                            return
+                        if event.kind == "text" and event.text:
+                            yield f"data: {json.dumps({'stream': event.text})}\n\n"
+                        elif event.kind == "tool_terminal" and event.sse_event == "lead_form":
+                            background_tasks.add_task(_classify_web, conversation_id, request.app.state)
+                            payload = event.sse_payload or {"conversation_id": conversation_id}
+                            yield f"event: lead_form\ndata: {json.dumps(payload)}\n\n"
+                            user_msg = payload.get("user_message")
+                            if user_msg:
+                                yield f"data: {json.dumps({'stream': user_msg})}\n\n"
+                        elif event.kind == "end":
+                            yield "event: end\ndata: {}\n\n"
+                except RetrievalBackendUnavailableError as e_stream:
+                    err_payload = json.dumps({"message": str(e_stream)})
+                    yield f"event: error\ndata: {err_payload}\n\n"
+                    yield "event: end\ndata: {}\n\n"
+                except Exception as e_stream:
+                    logger.error(f"Error en stream agentic: {e_stream}", exc_info=True)
+                    err_payload = json.dumps({
+                        "message": "Lo siento, ocurrió un error al procesar tu mensaje. Por favor, inténtalo nuevamente."
+                    })
+                    yield f"event: error\ndata: {err_payload}\n\n"
+                    yield "event: end\ndata: {}\n\n"
+            return StreamingResponse(generate_agentic(), media_type="text/event-stream", headers=_sse_headers)
 
         async def generate():
             stream_gen = chat_manager.generate_streaming_response(input_text, conversation_id, source, debug_mode, enable_verification)
@@ -226,12 +245,12 @@ async def get_history(conversation_id: str, request: Request):
         cursor = db.messages.find({
             "conversation_id": conversation_id
         }, {
-            "_id": 0,
+            "_id": 1,
             "role": 1,
             "content": 1,
             "timestamp": 1,
             "source": 1,
-        }).sort("timestamp", 1)
+        }).sort([("timestamp", 1), ("_id", 1)])
 
         docs = await cursor.to_list(length=None)
 
@@ -240,6 +259,7 @@ async def get_history(conversation_id: str, request: Request):
         for d in docs:
             ts = d.get("timestamp")
             history.append({
+                "message_id": str(d.get("_id")) if d.get("_id") is not None else None,
                 "role": d.get("role"),
                 "content": d.get("content"),
                 "timestamp": ts.isoformat() if hasattr(ts, "isoformat") else ts,

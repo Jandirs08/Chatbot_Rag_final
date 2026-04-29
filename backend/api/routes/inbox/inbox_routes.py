@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from utils.logging_utils import get_logger
 
@@ -9,7 +9,7 @@ from auth.dependencies import require_admin
 from database.conversation_repository import ConversationRepository
 from database.mongodb import get_mongodb_client
 
-from .schemas import AgentMessageRequest, ConversationCard, InboxResponse
+from .schemas import AgentMessageRequest, ConversationCard, HandoffStatsResponse, InboxResponse
 
 logger = get_logger(__name__)
 router = APIRouter(tags=["inbox"])
@@ -57,6 +57,24 @@ async def get_inbox(
     active_docs = await repo.list_all_active()
     items = [_to_card(d) for d in lead_docs] + [_to_card(d) for d in active_docs]
     return InboxResponse(items=items, total=len(items))
+
+
+@router.get("/inbox/handoff-stats", response_model=HandoffStatsResponse)
+async def get_handoff_stats(
+    days: int = Query(30, ge=1, le=365),
+    request: Request = None,
+    _current_user=Depends(require_admin),
+):
+    repo = _get_conv_repo(request)
+    counts = await repo.get_handoff_reason_counts(days)
+    total = sum(counts.values())
+    return HandoffStatsResponse(
+        user_request=counts.get("user_request", 0),
+        low_confidence=counts.get("low_confidence", 0),
+        out_of_scope=counts.get("out_of_scope", 0),
+        total=total,
+        period_days=days,
+    )
 
 
 @router.post("/conversations/{conversation_id}/takeover")
