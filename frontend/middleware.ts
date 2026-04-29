@@ -18,6 +18,23 @@ function buildLoginUrl(req: NextRequest, from: string): URL {
   return url;
 }
 
+function isLegacyLoginPath(pathname: string): boolean {
+  return pathname === "/login" || pathname === "/admin/login";
+}
+
+function redirectLegacyLogin(req: NextRequest, hasSession: boolean): NextResponse {
+  if (hasSession) {
+    return NextResponse.redirect(new URL("/", req.url));
+  }
+
+  const url = new URL("/auth/login", req.url);
+  const from = req.nextUrl.searchParams.get("from");
+  if (from) {
+    url.searchParams.set("from", from);
+  }
+  return NextResponse.redirect(url);
+}
+
 export async function middleware(req: NextRequest) {
   const pathname = normalizePath(req.nextUrl.pathname);
   const accessToken = req.cookies.get(ACCESS_TOKEN_COOKIE)?.value ?? null;
@@ -30,6 +47,10 @@ export async function middleware(req: NextRequest) {
       ? await verifyAccessToken(accessToken)
       : null;
   const hasValidAccessToken = verifiedClaims !== null;
+
+  if (isLegacyLoginPath(pathname) && hasValidAccessToken) {
+    return redirectLegacyLogin(req, true);
+  }
 
   if (needsSsrSessionNormalization) {
     if (hasValidAccessToken) {
@@ -48,7 +69,7 @@ export async function middleware(req: NextRequest) {
           refreshedSession.access_token,
         );
 
-        if (pathname.startsWith("/auth")) {
+        if (pathname.startsWith("/auth") || isLegacyLoginPath(pathname)) {
           const response = NextResponse.redirect(new URL("/", req.url));
           applySessionCookies(response, refreshedSession, refreshToken);
           return response;
@@ -69,6 +90,10 @@ export async function middleware(req: NextRequest) {
       clearSessionCookies(response);
       return response;
     }
+  }
+
+  if (isLegacyLoginPath(pathname)) {
+    return redirectLegacyLogin(req, false);
   }
 
   if (isProtectedPath(pathname)) {

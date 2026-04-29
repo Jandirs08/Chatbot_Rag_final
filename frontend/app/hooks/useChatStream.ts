@@ -54,7 +54,6 @@ export function useChatStream(
   const [debugData, setDebugData] = useState<DebugData | null | undefined>(undefined);
   const [convMode, setConvMode] = useState<string | null>(null);
   const [showLeadForm, setShowLeadForm] = useState(false);
-  const hasSentMessageRef = useRef(false);
 
   // ---- Refs for streaming performance ----
   // pendingDelta accumulates SSE text between animation frames so we batch
@@ -97,7 +96,6 @@ export function useChatStream(
 
   // ---- Reset agent polling state when conversation changes ----
   useEffect(() => {
-    hasSentMessageRef.current = false;
     setConvMode(null);
     setShowLeadForm(false);
   }, [conversationId]);
@@ -109,7 +107,6 @@ export function useChatStream(
     let cancelled = false;
 
     const poll = async () => {
-      if (!hasSentMessageRef.current) return; // skip until user has sent a message
       try {
         const res = await fetch(`${API_URL}/chat/history/${conversationId}`);
         if (!res.ok || !mountedRef.current || cancelled) return;
@@ -233,7 +230,6 @@ export function useChatStream(
       };
 
       setMessages((prev) => [...prev, userMessage]);
-      hasSentMessageRef.current = true;
       setIsLoading(true);
       isLoadingRef.current = true;
       pendingDeltaRef.current = "";
@@ -393,15 +389,51 @@ export function useChatStream(
   // submitLead – POSTs name/email to capture-lead endpoint.
   // -----------------------------------------------------------------------
   const submitLead = useCallback(async (name: string, email: string) => {
-    try {
-      await fetch(`${API_URL}/conversations/${conversationId}/capture-lead`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lead_name: name, lead_email: email }),
+    const appendBotMessage = (id: string, content: string, timestamp?: string) => {
+      if (!mountedRef.current) return;
+      setMessages((prev) => {
+        if (prev.some((p) => p.id === id)) return prev;
+        return [
+          ...prev,
+          {
+            id,
+            content,
+            role: "assistant" as const,
+            createdAt: timestamp ? new Date(timestamp) : new Date(),
+          },
+        ];
       });
+    };
+
+    const fallbackContent =
+      "No pudimos recibir tus datos. Intenta nuevamente o escríbenos por WhatsApp.";
+
+    try {
+      const res = await fetch(
+        `${API_URL}/conversations/${conversationId}/capture-lead`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lead_name: name, lead_email: email }),
+        },
+      );
       if (mountedRef.current) setShowLeadForm(false);
+      if (!res.ok) {
+        appendBotMessage(generateId(), fallbackContent);
+        return;
+      }
+      const data = (await res.json()) as {
+        status?: string;
+        message_id?: string;
+        content?: string;
+        timestamp?: string;
+      };
+      if (data?.content && data?.message_id) {
+        appendBotMessage(data.message_id, data.content, data.timestamp);
+      }
     } catch {
-      // non-fatal
+      if (mountedRef.current) setShowLeadForm(false);
+      appendBotMessage(generateId(), fallbackContent);
     }
   }, [conversationId]);
 
@@ -411,6 +443,8 @@ export function useChatStream(
   const clearMessages = useCallback(() => {
     cancelStream();
     setMessages([]);
+    setConvMode(null);
+    setShowLeadForm(false);
   }, [cancelStream]);
 
   return {

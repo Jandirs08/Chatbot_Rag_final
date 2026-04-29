@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any, Optional
 
 from config import settings
@@ -154,6 +155,22 @@ class CacheManager:
         new_value = base + int(delta)
         self.set(key, new_value, ttl=0)
         return new_value
+
+    # API async — usa to_thread para no bloquear event loop con redis-py sync.
+    async def aget(self, key: str) -> Optional[Any]:
+        return await asyncio.to_thread(self.get, key)
+
+    async def aset(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
+        await asyncio.to_thread(self.set, key, value, ttl)
+
+    async def adelete(self, key: str) -> None:
+        await asyncio.to_thread(self.delete, key)
+
+    async def ainvalidate_prefix(self, prefix: str) -> None:
+        await asyncio.to_thread(self.invalidate_prefix, prefix)
+
+    async def aincrement(self, key: str, delta: int = 1, initial: int = 0) -> int:
+        return await asyncio.to_thread(self.increment, key, delta, initial)
 
 
 # Instancia global accesible

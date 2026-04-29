@@ -48,12 +48,18 @@ export function ChatWindow(props: {
 }) {
   const messageContainerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const leadNameRef = useRef<HTMLInputElement | null>(null);
+  const prevShowLeadFormRef = useRef(false);
   const [input, setInput] = React.useState("");
   const [confirmClearOpen, setConfirmClearOpen] = React.useState(false);
   const [leadName, setLeadName] = React.useState("");
   const [leadEmail, setLeadEmail] = React.useState("");
   const [leadSubmitting, setLeadSubmitting] = React.useState(false);
-  const [leadSubmitted, setLeadSubmitted] = React.useState(false);
+  const [leadError, setLeadError] = React.useState<string | null>(null);
+
+  const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+  const isLeadEmailValid = EMAIL_REGEX.test(leadEmail.trim());
+  const isLeadFormValid = leadName.trim().length > 0 && isLeadEmailValid;
 
   const {
     placeholder,
@@ -98,10 +104,20 @@ export function ChatWindow(props: {
   }, [messages, isLoading, scrollToBottom]);
 
   useEffect(() => {
-    if (!isLoading && inputRef.current) {
+    if (!isLoading && inputRef.current && !showLeadForm) {
       inputRef.current.focus();
     }
-  }, [isLoading]);
+  }, [isLoading, showLeadForm]);
+
+  useEffect(() => {
+    const wasOpen = prevShowLeadFormRef.current;
+    if (showLeadForm && !wasOpen) {
+      leadNameRef.current?.focus();
+    } else if (!showLeadForm && wasOpen) {
+      inputRef.current?.focus();
+    }
+    prevShowLeadFormRef.current = showLeadForm;
+  }, [showLeadForm]);
 
   useEffect(() => {
     if (cfg) {
@@ -121,10 +137,14 @@ export function ChatWindow(props: {
   }, []);
 
   const handleLeadSubmit = async () => {
-    if (!leadName.trim() || !leadEmail.trim()) return;
+    if (!leadName.trim()) return;
+    if (!EMAIL_REGEX.test(leadEmail.trim())) {
+      setLeadError("Correo inválido");
+      return;
+    }
+    setLeadError(null);
     setLeadSubmitting(true);
     await submitLead(leadName.trim(), leadEmail.trim());
-    setLeadSubmitted(true);
     setLeadSubmitting(false);
   };
 
@@ -298,46 +318,74 @@ export function ChatWindow(props: {
       </div>
 
       {convMode === "human" && (
-        <div className="flex items-center justify-center gap-2 border-t border-emerald-100 bg-emerald-50 px-4 py-2 text-[12px] font-medium text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-400">
-          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-center justify-center gap-2 border-t border-emerald-100 bg-emerald-50 px-4 py-2 text-[12px] font-medium text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-400"
+        >
+          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" aria-hidden="true" />
           Conectado con un asesor
         </div>
       )}
-      {showLeadForm && !leadSubmitted && (
-        <div className="border-t border-blue-100 bg-blue-50 px-4 py-3 dark:border-blue-900/40 dark:bg-blue-950/30">
-          <p className="mb-2 text-[12px] font-medium text-blue-700 dark:text-blue-400">
+      {showLeadForm && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (isLeadFormValid && !leadSubmitting) handleLeadSubmit();
+          }}
+          aria-label="Formulario de contacto con asesor"
+          className="border-t border-blue-100 bg-blue-50 px-4 py-3 dark:border-blue-900/40 dark:bg-blue-950/30"
+        >
+          <p id="lead-form-title" className="mb-2 text-[12px] font-medium text-blue-700 dark:text-blue-400">
             Deja tus datos para que un asesor te contacte
           </p>
           <div className="flex flex-col gap-2">
+            <label htmlFor="lead-name" className="sr-only">Nombre</label>
             <input
+              id="lead-name"
+              ref={leadNameRef}
               type="text"
+              autoComplete="name"
               value={leadName}
               onChange={(e) => setLeadName(e.target.value)}
               placeholder="Tu nombre"
               className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-[13px] placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:bg-slate-900 dark:border-blue-800"
             />
+            <label htmlFor="lead-email" className="sr-only">Correo electrónico</label>
             <input
+              id="lead-email"
               type="email"
+              autoComplete="email"
+              inputMode="email"
+              aria-invalid={!!leadError}
+              aria-describedby={leadError ? "lead-email-error" : undefined}
               value={leadEmail}
-              onChange={(e) => setLeadEmail(e.target.value)}
+              onChange={(e) => {
+                setLeadEmail(e.target.value);
+                if (leadError) setLeadError(null);
+              }}
               placeholder="Tu correo electrónico"
               className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-[13px] placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:bg-slate-900 dark:border-blue-800"
             />
+            {leadError && (
+              <p
+                id="lead-email-error"
+                role="alert"
+                aria-live="polite"
+                className="text-[12px] font-medium text-red-600 dark:text-red-400"
+              >
+                {leadError}
+              </p>
+            )}
             <button
-              onClick={handleLeadSubmit}
-              disabled={leadSubmitting || !leadName.trim() || !leadEmail.trim()}
+              type="submit"
+              disabled={leadSubmitting || !isLeadFormValid}
               className="rounded-lg bg-blue-600 px-3 py-1.5 text-[13px] font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
               {leadSubmitting ? "Enviando…" : "Enviar"}
             </button>
           </div>
-        </div>
-      )}
-      {showLeadForm && leadSubmitted && (
-        <div className="flex items-center justify-center gap-2 border-t border-blue-100 bg-blue-50 px-4 py-2 text-[12px] font-medium text-blue-700 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-400">
-          <span className="h-2 w-2 rounded-full bg-blue-500" />
-          Datos recibidos. Un asesor te contactará pronto.
-        </div>
+        </form>
       )}
       <div
         className={cn(

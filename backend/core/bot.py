@@ -4,7 +4,7 @@ import asyncio
 from operator import itemgetter
 
 from langchain_core.runnables import RunnableLambda, RunnableMap, Runnable
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, AIMessageChunk
 
 from memory import (
     AbstractChatbotMemory,
@@ -299,6 +299,10 @@ class Bot:
     async def astream_messages(self, messages: list) -> AsyncGenerator[Any, None]:
         """Stream raw model chunks for an explicit message list (bypasses prompt)."""
         if getattr(self.settings, "mock_mode", False):
+            await asyncio.sleep(0.5)
+            yield AIMessageChunk(content="[MOCK] ")
+            await asyncio.sleep(0.5)
+            yield AIMessageChunk(content="Respuesta simulada para load test.")
             return
         async for part in self.chain_manager.bound_model.astream(messages):
             yield part
@@ -310,6 +314,10 @@ class Bot:
         with the accumulated tool results in `messages`.
         """
         if getattr(self.settings, "mock_mode", False):
+            await asyncio.sleep(0.5)
+            yield AIMessageChunk(content="[MOCK] ")
+            await asyncio.sleep(0.5)
+            yield AIMessageChunk(content="Fallback simulado.")
             return
         async for part in self.chain_manager.raw_model.astream(messages):
             yield part

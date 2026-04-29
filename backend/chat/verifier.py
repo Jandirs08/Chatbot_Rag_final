@@ -4,6 +4,7 @@ Reutiliza el LLM configurado en el bot pero con `temperature=0` para evitar
 veredictos inestables. Se ejecuta solo cuando el cliente pide verificación
 explícita en debug, NO en el camino productivo de streaming.
 """
+import asyncio
 from typing import Any, Dict
 
 from config import settings
@@ -78,7 +79,12 @@ class ResponseVerifier:
                 context=str(context),
                 response=str(response),
             )
-            res = await llm.ainvoke(prompt)
+            timeout = float(getattr(settings, "verifier_llm_timeout_seconds", 10.0))
+            try:
+                res = await asyncio.wait_for(llm.ainvoke(prompt), timeout=timeout)
+            except asyncio.TimeoutError:
+                logger.warning(f"Verifier LLM timeout ({timeout}s)")
+                return {"is_grounded": False, "reason": f"Timeout verificando respuesta ({timeout}s)"}
             txt = getattr(res, "content", None)
             if not isinstance(txt, str):
                 txt = str(res)

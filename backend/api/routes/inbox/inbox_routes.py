@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -128,6 +129,13 @@ class LeadCaptureRequest(BaseModel):
     lead_email: str
 
 
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_LEAD_BOT_REPLY = (
+    "¡Recibí tus datos! Un asesor te contactará pronto. "
+    "Mientras tanto, ¿hay algo más en lo que pueda ayudarte?"
+)
+
+
 @router.post("/conversations/{conversation_id}/capture-lead")
 async def capture_lead(
     conversation_id: str,
@@ -138,9 +146,40 @@ async def capture_lead(
     conv = await repo.get_by_conversation_id(conversation_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    await repo.set_lead(conversation_id, body.lead_name.strip(), body.lead_email.strip())
-    logger.info(f"[LeadCapture] conv={conversation_id} lead={body.lead_email}")
-    return {"status": "ok"}
+
+    lead_name = body.lead_name.strip()
+    lead_email = body.lead_email.strip()
+    if not lead_email or not _EMAIL_RE.match(lead_email):
+        logger.warning(f"[LeadCapture] conv={conversation_id} invalid email rejected")
+        raise HTTPException(status_code=400, detail="Invalid email format")
+
+    if conv.get("lead_email"):
+        logger.info(f"[LeadCapture] conv={conversation_id} already captured, skipping insert")
+        return {"status": "ok", "already_captured": True}
+
+    await repo.set_lead(conversation_id, lead_name, lead_email)
+    logger.info(f"[LeadCapture] conv={conversation_id} lead={lead_email}")
+
+    mongodb_client = getattr(request.app.state, "mongodb_client", None) or get_mongodb_client()
+    timestamp = datetime.now(timezone.utc)
+    msg_doc = {
+        "conversation_id": conversation_id,
+        "role": "assistant",
+        "content": _LEAD_BOT_REPLY,
+        "sender_type": "bot",
+        "timestamp": timestamp,
+        "source": conv.get("channel") or "web",
+    }
+    insert_result = await mongodb_client.db.messages.insert_one(msg_doc)
+    logger.info(
+        f"[LeadCapture] conv={conversation_id} bot reply inserted id={insert_result.inserted_id}"
+    )
+    return {
+        "status": "ok",
+        "message_id": str(insert_result.inserted_id),
+        "content": _LEAD_BOT_REPLY,
+        "timestamp": timestamp.isoformat(),
+    }
 
 
 @router.get("/conversations/{conversation_id}/messages")

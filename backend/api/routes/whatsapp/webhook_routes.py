@@ -7,6 +7,7 @@ from database.mongodb import get_mongodb_client
 from services.classification import classify_conversation
 from utils.whatsapp.formatter import format_text
 from utils.whatsapp.client import WhatsAppClient
+from utils.whatsapp.rate_limit import check_and_increment, should_notify_once
 from config import settings
 import httpx
 import re
@@ -149,7 +150,24 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
         # A veces llegan actualizaciones de estado (sent/delivered), las ignoramos con 200 OK
         return JSONResponse(status_code=200, content={"status": "ignored_empty"})
 
-    # 4. Gestión de Sesión
+    # 4. Rate limit por wa_id (protege contra bursts y abuso)
+    rl_limit = int(getattr(settings, "whatsapp_rate_limit_per_window", 10))
+    rl_window = int(getattr(settings, "whatsapp_rate_limit_window_seconds", 60))
+    is_limited, count = check_and_increment(wa_id, limit=rl_limit, window_seconds=rl_window)
+    if is_limited:
+        if should_notify_once(wa_id, window_seconds=rl_window):
+            try:
+                client = WhatsAppClient()
+                await client.send_text(
+                    wa_id,
+                    f"⚠️ Has enviado demasiados mensajes. Por favor espera {rl_window}s y vuelve a intentar.",
+                )
+            except Exception:
+                pass
+        logger.warning(f"[Webhook] Rate limit hit wa_id={wa_id} count={count} limit={rl_limit}")
+        return JSONResponse(status_code=200, content={"status": "rate_limited", "count": count})
+
+    # 5. Gestión de Sesión
     conversation_id = None
     try:
         repo = WhatsAppSessionRepository(getattr(request.app.state, "mongodb_client", None))
@@ -159,7 +177,7 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
         log_error(f"Error DB sesión: {e}", wa_id)
         conversation_id = f"fallback_{wa_id}"
     
-    # 5. Encolar Tarea (Background)
+    # 6. Encolar Tarea (Background)
     # Pasamos 'request.app.state' porque 'request' se destruye al retornar
     background_tasks.add_task(
         process_message_background,
@@ -169,7 +187,7 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
         conversation_id=conversation_id
     )
 
-    # 6. Respuesta Inmediata a Twilio
+    # 7. Respuesta Inmediata a Twilio
     logger.info(f"[Webhook] Recibido OK de {wa_id}. Procesando en background.")
     return JSONResponse(status_code=200, content={"status": "received"})
 

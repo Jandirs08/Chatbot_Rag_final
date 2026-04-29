@@ -86,7 +86,16 @@
       "Bash(docker --version)",
       "Bash(docker volume *)",
       "Bash(curl -s -X POST http://localhost:8000/api/v1/chat/ -H \"Content-Type: application/json\" -d '{\"input\":\"¿Cuánto Zinc tiene Algarium Semilla SC?\",\"conversation_id\":\"smoke-tool2-001\",\"source\":\"smoke\"}' --max-time 30)",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(echo \"EXIT: $?\")",
+      "PowerShell(docker exec chatbot-backend *)",
+      "Bash(docker restart chatbot-backend *)",
+      "Bash(where.exe k6 *)",
+      "PowerShell(docker run *)",
+      "PowerShell($pwd.Path; Test-Path .env; Test-Path backend\\\\.env; Test-Path \"C:\\\\Jandir2026\\\\DesarrolloJandir\\\\Chatbot_Rag_final\\\\backend\\\\.env\")",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/chat/ -H 'Content-Type: application/json' -d '{\"input\":\"prueba mock\",\"conversation_id\":\"sanity-mock-1\"}' --max-time 15)",
+      "PowerShell(Set-Content *)",
+      "Bash(docker stats chatbot-backend *)"
     ]
   }
 }

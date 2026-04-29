@@ -154,6 +154,20 @@ async def chat_stream_log(
                         if event.kind == "text" and event.text:
                             yield f"data: {json.dumps({'stream': event.text})}\n\n"
                         elif event.kind == "tool_terminal" and event.sse_event == "lead_form":
+                            # Suppress re-firing the lead form when the lead is
+                            # already on file (e.g. agentic_rag re-entered the
+                            # tool path). Inject a polite text reply instead.
+                            if lead_already_captured:
+                                logger.info(
+                                    f"[HandOff] conv={conversation_id} lead_form suppressed "
+                                    "(lead already captured)"
+                                )
+                                already_msg = (
+                                    "Ya tenemos tus datos, un asesor te contactará en breve. "
+                                    "¿Algo más?"
+                                )
+                                yield f"data: {json.dumps({'stream': already_msg})}\n\n"
+                                continue
                             background_tasks.add_task(_classify_web, conversation_id, request.app.state)
                             payload = event.sse_payload or {"conversation_id": conversation_id}
                             yield f"event: lead_form\ndata: {json.dumps(payload)}\n\n"

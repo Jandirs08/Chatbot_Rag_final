@@ -189,11 +189,22 @@ class CrossEncoderParentReranker(BaseParentReranker):
     async def rerank(self, *, query: str, candidates: Sequence[ParentCandidate], limit: int) -> list[ParentCandidate]:
         if not candidates:
             return []
+        timeout = float(getattr(settings, "rag_reranker_timeout_seconds", 12.0))
         try:
             pairs = [(query, c.parent.content[:2000]) for c in candidates]
-            scores = await asyncio.to_thread(self._model.predict, pairs)
+            scores = await asyncio.wait_for(
+                asyncio.to_thread(self._model.predict, pairs),
+                timeout=timeout,
+            )
             scored = sorted(zip(scores, candidates), key=lambda x: float(x[0]), reverse=True)
             return [replace(c, rerank_score=float(s)) for s, c in scored[: max(1, limit)]]
+        except asyncio.TimeoutError:
+            logger.warning(
+                "CrossEncoder reranker timeout (%.1fs); fallback to fused_score | n=%d",
+                timeout, len(candidates),
+            )
+            ranked = sorted(candidates, key=lambda c: c.fused_score, reverse=True)
+            return [replace(c, rerank_score=c.fused_score) for c in ranked[: max(1, limit)]]
         except Exception as exc:
             logger.warning("CrossEncoder reranker failed (%s); fallback to fused_score", exc)
             ranked = sorted(candidates, key=lambda c: c.fused_score, reverse=True)

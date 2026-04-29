@@ -37,12 +37,33 @@ logger = get_logger(__name__)
 # cap we stop calling tools and force the model to answer with what it has.
 MAX_TOOL_ITERS = 3
 
+# Idle timeout (seconds): max gap between events from a streaming iteration.
+# If the upstream LLM stops yielding tokens for this long we abort the iteration
+# and fall through to the forced-final path. Configurable via settings.
+_REACT_STREAM_IDLE_TIMEOUT = float(getattr(settings, "react_stream_idle_timeout_seconds", 30.0))
+
 # Soft budget on the total characters across the message list before each
 # additional tool round-trip. Approximates a token cap (≈4 chars/token →
 # 240k chars ≈ 60k tokens) leaving comfortable headroom inside gpt-4o-mini's
 # 128k context window for the model's response. Crossing it triggers the same
 # forced-final path as MAX_TOOL_ITERS.
 _MAX_TURN_CHARS = 240_000
+
+
+async def _stream_with_idle_timeout(agen, idle_timeout: float):
+    """Yield events from agen, raise TimeoutError if no event within idle_timeout seconds."""
+    while True:
+        try:
+            event = await asyncio.wait_for(agen.__anext__(), timeout=idle_timeout)
+        except StopAsyncIteration:
+            return
+        except asyncio.TimeoutError:
+            try:
+                await agen.aclose()
+            except Exception:
+                pass
+            raise
+        yield event
 
 # Defensive message surfaced when the cap-reached fallback stream also returns
 # zero text (rate limit, empty completion). Without it the user would only see
@@ -150,7 +171,7 @@ class ChatManager:
             cached_response = None
             try:
                 if bool(getattr(settings, "enable_cache", True)):
-                    cached_response = cache.get(cache_key)
+                    cached_response = await cache.aget(cache_key)
             except Exception:
                 cached_response = None
 
@@ -192,7 +213,7 @@ class ChatManager:
 
                 try:
                     if bool(getattr(settings, "enable_cache", True)):
-                        cache.set(cache_key, response_content, cache.ttl)
+                        await cache.aset(cache_key, response_content, cache.ttl)
                 except Exception:
                     pass
 
@@ -317,22 +338,34 @@ class ChatManager:
                     continuation: Optional[DispatchEvent] = None
                     stream_ended = False
 
-                    async for event in consume_stream(raw_stream, ctx, min_chunk_chars=min_chars):
-                        if event.kind == "text" and event.text:
-                            text_accum += event.text
-                            yield event
-                        elif event.kind == "tool_terminal":
-                            tool_fired = True
-                            yield event
-                        elif event.kind == "tool_continuation":
-                            continuation = event
-                            # Suppress "end" emission until we either iterate again
-                            # or hit the cap. Caller doesn't need to see intermediate
-                            # tool round-trips.
-                        elif event.kind == "end":
-                            if continuation is None:
-                                stream_ended = True
+                    try:
+                        async for event in _stream_with_idle_timeout(
+                            consume_stream(raw_stream, ctx, min_chunk_chars=min_chars),
+                            _REACT_STREAM_IDLE_TIMEOUT,
+                        ):
+                            if event.kind == "text" and event.text:
+                                text_accum += event.text
                                 yield event
+                            elif event.kind == "tool_terminal":
+                                tool_fired = True
+                                yield event
+                            elif event.kind == "tool_continuation":
+                                continuation = event
+                                # Suppress "end" emission until we either iterate again
+                                # or hit the cap. Caller doesn't need to see intermediate
+                                # tool round-trips.
+                            elif event.kind == "end":
+                                if continuation is None:
+                                    stream_ended = True
+                                    yield event
+                    except asyncio.TimeoutError:
+                        logger.warning(
+                            "[ReAct] iter=%s stream idle timeout (%.1fs) conv=%s — forced final",
+                            iteration + 1, _REACT_STREAM_IDLE_TIMEOUT, conversation_id,
+                        )
+                        forced_final = True
+                        forced_final_reason = f"stream_idle_timeout iter={iteration + 1}"
+                        break
 
                     if tool_fired or stream_ended:
                         break
@@ -469,7 +502,7 @@ class ChatManager:
             cached_response = None
             try:
                 if bool(getattr(settings, "enable_cache", True)):
-                    cached_response = cache.get(cache_key)
+                    cached_response = await cache.aget(cache_key)
             except Exception:
                 cached_response = None
 
@@ -539,7 +572,7 @@ class ChatManager:
 
             try:
                 if bool(getattr(settings, "enable_cache", True)):
-                    cache.set(cache_key, final_text, cache.ttl)
+                    await cache.aset(cache_key, final_text, cache.ttl)
             except Exception:
                 pass
             if debug_mode:

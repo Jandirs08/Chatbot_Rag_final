@@ -112,7 +112,7 @@ const nextConfig = {
       },
 
       {
-        source: "/login",
+        source: "/auth/login",
         headers: [
           { key: "X-Frame-Options", value: "DENY" },
           {
