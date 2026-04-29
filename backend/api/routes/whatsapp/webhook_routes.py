@@ -2,14 +2,16 @@ from utils.logging_utils import get_logger
 from fastapi import APIRouter, Request, HTTPException, BackgroundTasks, Depends
 from fastapi.responses import JSONResponse
 from database.whatsapp_session_repository import WhatsAppSessionRepository
+from database.conversation_repository import ConversationRepository
+from database.mongodb import get_mongodb_client
+from services.classification import classify_conversation
+from services.classification.keywords import HANDOFF_KEYWORDS
 from utils.whatsapp.formatter import format_text
 from utils.whatsapp.client import WhatsAppClient
-from utils.whatsapp.rate_limit import check_and_increment, should_notify_once
-from utils.whatsapp.idempotency import claim_message
 from config import settings
 import httpx
 import re
-from auth.permissions import require_manage_bot_config
+from auth import require_admin
 
 # Intentar importar validación de Twilio
 try:
@@ -31,17 +33,21 @@ def log_error(message: str, wa_id: str = None):
     except Exception:
         pass
 
-async def _send_rate_limit_notice(wa_id: str):
-    """Envía un único aviso al usuario cuando excede el rate limit en el window."""
+async def _run_classification(conversation_id: str, app_state) -> None:
     try:
-        client = WhatsAppClient()
-        msg = (
-            "Estás enviando mensajes demasiado rápido. "
-            "Por favor, espera unos segundos antes de continuar."
+        mongodb_client = getattr(app_state, "mongodb_client", None) or get_mongodb_client()
+        result = await classify_conversation(conversation_id, mongodb_client.db, settings)
+        if result is None:
+            return
+        conv_repo = ConversationRepository(mongodb_client)
+        await conv_repo.set_classification(
+            conversation_id,
+            category=result.category,
+            urgency=result.urgency,
+            ai_summary=result.summary,
         )
-        await client.send_text(wa_id, msg)
     except Exception as e:
-        log_error(f"No se pudo enviar aviso de rate limit: {e}", wa_id)
+        logger.error(f"[Classification] Background task error for conv={conversation_id}: {e}")
 
 
 async def process_message_background(text: str, wa_id: str, app_state, conversation_id: str):
@@ -50,6 +56,23 @@ async def process_message_background(text: str, wa_id: str, app_state, conversat
     Esto evita que el webhook de Twilio haga timeout.
     """
     try:
+        mongodb_client = getattr(app_state, "mongodb_client", None) or get_mongodb_client()
+        conv_repo = ConversationRepository(mongodb_client)
+        conv = await conv_repo.get_or_create("whatsapp", wa_id, conversation_id)
+
+        # HandOff guard: if conversation is in human/pending mode, skip LLM
+        if conv and conv.get("mode") in ("human", "pending"):
+            logger.info(f"[HandOff] conv={conversation_id} mode={conv.get('mode')}, skipping LLM")
+            return
+
+        text_lower = text.lower()
+        keyword_triggered = any(kw in text_lower for kw in HANDOFF_KEYWORDS)
+        if keyword_triggered:
+            await conv_repo.set_mode(conversation_id, "pending")
+            logger.info(f"[HandOff] Keyword trigger → conv={conversation_id} set to pending")
+            await _run_classification(conversation_id, app_state)
+            return
+
         # 1. Generar respuesta con el LLM
         chat_manager = app_state.chat_manager
         response_text = await chat_manager.generate_response(
@@ -57,18 +80,18 @@ async def process_message_background(text: str, wa_id: str, app_state, conversat
             conversation_id=conversation_id,
             source="whatsapp",
         )
-        
+
         # 2. Formatear y enviar
         formatted_text = format_text(response_text)
         client = WhatsAppClient()
-        
+
         ok = await client.send_text(wa_id, formatted_text)
-        
+
         if ok:
             logger.info(f"[Background] Mensaje enviado OK a {wa_id}")
         else:
             logger.warning(f"[Background] Falló el envío a {wa_id}")
-            
+
     except Exception as e:
         log_error(f"CRITICAL: Error en proceso de fondo (LLM/Send): {e}", wa_id)
 
@@ -135,28 +158,6 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
         # A veces llegan actualizaciones de estado (sent/delivered), las ignoramos con 200 OK
         return JSONResponse(status_code=200, content={"status": "ignored_empty"})
 
-    # 3.4 Idempotencia: descartar reintentos de Twilio con el mismo MessageSid.
-    # Twilio reintenta el webhook si no recibe 200 dentro de ~11s. Como el LLM
-    # corre en background, los reintentos generaban respuestas duplicadas.
-    message_sid = str(form.get("MessageSid", "")).strip()
-    if message_sid and not claim_message(message_sid):
-        logger.info(f"[Webhook] Duplicado descartado wa_id={wa_id} sid={message_sid}")
-        return JSONResponse(status_code=200, content={"status": "duplicate_ignored"})
-
-    # 3.5 Rate limit por número WhatsApp
-    rl_limit = int(getattr(settings, "whatsapp_rate_limit_per_window", 15))
-    rl_window = int(getattr(settings, "whatsapp_rate_limit_window_seconds", 60))
-    if bool(getattr(settings, "enable_rate_limiting", True)):
-        is_limited, count = check_and_increment(wa_id, rl_limit, rl_window)
-        if is_limited:
-            logger.warning(f"[Webhook] Rate limit excedido wa_id={wa_id} count={count} limit={rl_limit}")
-            if should_notify_once(wa_id, rl_window):
-                background_tasks.add_task(
-                    _send_rate_limit_notice,
-                    wa_id=wa_id,
-                )
-            return JSONResponse(status_code=200, content={"status": "rate_limited"})
-
     # 4. Gestión de Sesión
     conversation_id = None
     try:
@@ -184,7 +185,7 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
 # --- RUTAS DE DIAGNÓSTICO (Mantenidas igual) ---
 
 @router.get("/test")
-async def whatsapp_test(current_user=Depends(require_manage_bot_config)):
+async def whatsapp_test(current_user=Depends(require_admin)):
     try:
         sid = getattr(settings, "twilio_account_sid", None)
         token = getattr(settings, "twilio_auth_token", None)
@@ -205,7 +206,7 @@ async def whatsapp_test(current_user=Depends(require_manage_bot_config)):
         return {"status": "error", "message": str(e)}
 
 @router.get("/diag")
-async def whatsapp_diag(current_user=Depends(require_manage_bot_config)):
+async def whatsapp_diag(current_user=Depends(require_admin)):
     try:
         sid = getattr(settings, "twilio_account_sid", None) or ""
         token = getattr(settings, "twilio_auth_token", None) or ""
@@ -224,7 +225,7 @@ async def whatsapp_diag(current_user=Depends(require_manage_bot_config)):
         return {"loaded": False}
 
 @router.get("/send-test")
-async def whatsapp_send_test(request: Request, current_user=Depends(require_manage_bot_config)):
+async def whatsapp_send_test(request: Request, current_user=Depends(require_admin)):
     try:
         params = dict(request.query_params)
         to = str(params.get("to", "")).strip()

@@ -1,0 +1,13 @@
+3. kAI - Resumen Inteligente (Analítica Global) Ojo con esta vista, porque es diferente al botón de resumen que vimos antes. No está resumiendo un solo chat, está resumiendo toda la operación.
+
+La letra pequeña es la clave: Abajo dice "kAI analiza los últimos 50 usuarios activos y sus 50 mensajes más recientes".
+
+Técnicamente: Tienen un flujo en background que hace un RAG sobre la propia tabla de messages. Si un agente le pregunta "¿Qué es lo que más me están preguntando hoy?", el sistema extrae el texto de esas conversaciones recientes, se las pasa al LLM y este agrupa las intenciones (ej. "El 40% está teniendo problemas para registrarse en la plataforma hoy"). Es una herramienta brutal para control de calidad y detectar caídas de servicio.
+
+4. Crear Plantilla (Operaciones Meta) Esta vista es la integración directa con la API de Meta para WhatsApp Business.
+
+Técnicamente: Es un formulario que mapea exactamente con el endpoint de creación de Message Templates de Meta. Te obliga a separar el Header, el Body (con variables y Markdown) y el Footer, y maneja el estado de "Aprobado/Rechazado" de Meta.
+
+5. HandOff Chatbot
+
+6. Funcionalidad: Clasificación Automática de Leads (Auto-Triage). Lo pone en un estado de interesado oportunidad o alguno otro y el usuario puede ver como un kanban atenderlo y lo puede poner completado

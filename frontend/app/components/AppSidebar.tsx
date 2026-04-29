@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
   Bot,
@@ -10,13 +10,14 @@ import {
   MessageCircle,
   MessageSquareText,
   MessageSquare,
+  History,
   LogOut,
   Sun,
   Moon,
   FlaskConical,
   type LucideIcon,
 } from "lucide-react";
-import React, { useMemo, useCallback } from "react";
+import React from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -33,33 +34,24 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "../hooks/useAuth";
-import { useBotConfig } from "../hooks/useBotConfig";
-import { useTheme } from "../hooks/useTheme";
+import { getBotConfig } from "../lib/services/botConfigService";
 import { logger } from "@/app/lib/logger";
 import { toast } from "sonner";
-import { hasPermission } from "@/app/lib/auth/permissions";
 
 type MenuItem = { title: string; url: string; icon: LucideIcon };
 
 export function AppSidebar() {
   const { state, isMobile, setOpenMobile } = useSidebar();
-  const { user, logout, isAdmin, isInitialized } = useAuth();
-  const { data: botConfig } = useBotConfig({
-    enabled: isInitialized && !!user,
-    revalidateOnFocus: false,
-  });
+  const { user, logout, isAdmin } = useAuth();
   const router = useRouter();
+  const [isDark, setIsDark] = React.useState(false);
+  const [botName, setBotName] = React.useState<string | undefined>(undefined);
   const pathname = usePathname();
-  const { isDark, toggle: toggleTheme } = useTheme();
-  const canManageDocuments = hasPermission(user, "manage_documents");
-  const canManageUsers = hasPermission(user, "manage_users");
-  const canViewDebug = hasPermission(user, "view_debug");
-  const canManageBotConfig = hasPermission(user, "manage_bot_config");
 
-  const isUrlActive = useCallback((url: string) => {
+  const isUrlActive = (url: string) => {
     if (url === "/") return pathname === "/";
     return pathname?.startsWith(url) ?? false;
-  }, [pathname]);
+  };
 
   const handleLogout = async () => {
     try {
@@ -72,95 +64,34 @@ export function AppSidebar() {
     }
   };
 
-  const operationItems = useMemo<MenuItem[]>(() => [
-    { title: "Home", url: "/", icon: BarChart3 },
-    { title: "Chat", url: "/chat", icon: MessageCircle },
-    ...(canViewDebug
-      ? [{ title: "Buzón", url: "/admin/inbox", icon: MessageSquare }]
-      : []),
-  ], [canViewDebug]);
+  React.useEffect(() => {
+    if (typeof document !== "undefined") {
+      const saved = localStorage.getItem("theme");
+      const isDarkClass =
+        saved === "dark" || document.documentElement.classList.contains("dark");
+      document.documentElement.classList.toggle("dark", isDarkClass);
+      setIsDark(isDarkClass);
+    }
+  }, []);
 
-  const channelItems = useMemo<MenuItem[]>(() => [
-    ...(canManageBotConfig
-      ? [
-          { title: "Web", url: "/widget", icon: Code },
-          { title: "WhatsApp", url: "/whatsapp-settings", icon: MessageSquareText },
-        ]
-      : []),
-  ], [canManageBotConfig]);
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const cfg = await getBotConfig();
+        setBotName(cfg.bot_name || undefined);
+      } catch (_e) {
+        setBotName(undefined);
+      }
+    })();
+  }, []);
 
-  const knowledgeItems = useMemo<MenuItem[]>(() => [
-    ...(canManageDocuments
-      ? [{ title: "Documentos", url: "/docs", icon: FileText }]
-      : []),
-  ], [canManageDocuments]);
-
-  const systemItems = useMemo<MenuItem[]>(() => [
-    ...(canManageUsers
-      ? [{ title: "Usuarios", url: "/users", icon: Users }]
-      : []),
-    ...(canManageBotConfig
-      ? [{ title: "Configuración", url: "/admin/settings", icon: Settings }]
-      : []),
-    ...(canViewDebug
-      ? [{ title: "Debug Chat", url: "/dashboard/playground", icon: FlaskConical }]
-      : []),
-  ], [canManageBotConfig, canManageUsers, canViewDebug]);
-
-  const botName = user ? botConfig?.bot_name : undefined;
-
-  const renderMenuGroup = useCallback((label: string, items: MenuItem[]) => {
-    if (items.length === 0) return null;
-
-    return (
-      <SidebarGroup>
-        <SidebarGroupLabel className={state === "collapsed" ? "hidden" : ""}>
-          {label}
-        </SidebarGroupLabel>
-        <SidebarGroupContent>
-          <SidebarMenu>
-            {items.map((item) => (
-              <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton
-                  asChild
-                  isActive={isUrlActive(item.url)}
-                  className={`transition-all duration-200 ${
-                    state === "collapsed"
-                      ? "flex flex-col items-center justify-center"
-                      : ""
-                  }`}
-                  tooltip={{
-                    children: item.title,
-                    className:
-                      "bg-slate-900 text-white text-xs rounded px-2 py-1 z-50",
-                  }}
-                >
-                  <Link
-                    href={item.url}
-                    className={`flex ${
-                      state === "collapsed"
-                        ? "flex-col items-center justify-center"
-                        : "items-center"
-                    } gap-3`}
-                    onClick={() => {
-                      if (isMobile) setOpenMobile(false);
-                    }}
-                  >
-                    <item.icon
-                      className={`${
-                        state === "collapsed" ? "w-6 h-6" : "w-5 h-5"
-                      }`}
-                    />
-                    {state !== "collapsed" && <span>{item.title}</span>}
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
-        </SidebarGroupContent>
-      </SidebarGroup>
-    );
-  }, [state, isMobile, setOpenMobile, isUrlActive]);
+  const toggleTheme = () => {
+    if (typeof document === "undefined") return;
+    const next = !document.documentElement.classList.contains("dark");
+    document.documentElement.classList.toggle("dark", next);
+    localStorage.setItem("theme", next ? "dark" : "light");
+    setIsDark(next);
+  };
 
   return (
     <Sidebar className="flex-shrink-0 h-screen transition-all duration-200">
@@ -181,10 +112,163 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        {renderMenuGroup("Operación", operationItems)}
-        {renderMenuGroup("Canales", channelItems)}
-        {renderMenuGroup("Conocimiento", knowledgeItems)}
-        {renderMenuGroup("Sistema", systemItems)}
+        {/* Operación del bot */}
+        <SidebarGroup>
+          <SidebarGroupLabel className={state === "collapsed" ? "hidden" : ""}>
+            Operación
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {([
+                { title: "Home", url: "/", icon: BarChart3 },
+                { title: "Chat", url: "/chat", icon: MessageCircle },
+                ...(isAdmin ? [{ title: "Inbox", url: "/admin/inbox", icon: MessageSquare }] : []),
+                ...(isAdmin ? [{ title: "Conversaciones", url: "/admin/conversations", icon: History }] : []),
+              ] as MenuItem[]).map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isUrlActive(item.url)}
+                    className={`transition-all duration-200 ${state === "collapsed" ? "flex flex-col items-center justify-center" : ""}`}
+                    tooltip={{
+                      children: item.title,
+                      className:
+                        "bg-slate-900 text-white text-xs rounded px-2 py-1 z-50",
+                    }}
+                  >
+                    <Link
+                      href={item.url}
+                      className={`flex ${state === "collapsed" ? "flex-col items-center justify-center" : "items-center"} gap-3`}
+                      onClick={() => {
+                        if (isMobile) setOpenMobile(false);
+                      }}
+                    >
+                      <item.icon className={`${state === "collapsed" ? "w-6 h-6" : "w-5 h-5"}`} />
+                      {state !== "collapsed" && <span>{item.title}</span>}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Canales */}
+        <SidebarGroup>
+          <SidebarGroupLabel className={state === "collapsed" ? "hidden" : ""}>
+            Canales
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {([
+                { title: "Web", url: "/widget", icon: Code },
+                { title: "WhatsApp", url: "/whatsapp-settings", icon: MessageSquareText },
+              ] as MenuItem[]).map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isUrlActive(item.url)}
+                    className={`transition-all duration-200 ${state === "collapsed" ? "flex flex-col items-center justify-center" : ""}`}
+                    tooltip={{
+                      children: item.title,
+                      className:
+                        "bg-slate-900 text-white text-xs rounded px-2 py-1 z-50",
+                    }}
+                  >
+                    <Link
+                      href={item.url}
+                      className={`flex ${state === "collapsed" ? "flex-col items-center justify-center" : "items-center"} gap-3`}
+                      onClick={() => {
+                        if (isMobile) setOpenMobile(false);
+                      }}
+                    >
+                      <item.icon className={`${state === "collapsed" ? "w-6 h-6" : "w-5 h-5"}`} />
+                      {state !== "collapsed" && <span>{item.title}</span>}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Conocimiento */}
+        <SidebarGroup>
+          <SidebarGroupLabel className={state === "collapsed" ? "hidden" : ""}>
+            Conocimiento
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {([{ title: "Documentos", url: "/docs", icon: FileText }] as MenuItem[]).map(
+                (item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isUrlActive(item.url)}
+                      className={`transition-all duration-200 ${state === "collapsed" ? "flex flex-col items-center justify-center" : ""}`}
+                      tooltip={{
+                        children: item.title,
+                        className: "bg-slate-900 text-white text-xs rounded px-2 py-1 z-50",
+                      }}
+                    >
+                      <Link
+                        href={item.url}
+                        className={`flex ${state === "collapsed" ? "flex-col items-center justify-center" : "items-center"} gap-3`}
+                        onClick={() => {
+                          if (isMobile) setOpenMobile(false);
+                        }}
+                      >
+                        <item.icon className={`${state === "collapsed" ? "w-6 h-6" : "w-5 h-5"}`} />
+                        {state !== "collapsed" && <span>{item.title}</span>}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ),
+              )}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Sistema */}
+        <SidebarGroup>
+          <SidebarGroupLabel className={state === "collapsed" ? "hidden" : ""}>
+            Sistema
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {(
+                [
+                  ...(isAdmin ? [{ title: "Usuarios", url: "/users", icon: Users }] : []),
+                  ...(isAdmin ? [{ title: "Configuración", url: "/admin/settings", icon: Settings }] : []),
+                  ...(isAdmin ? [{ title: "Debug Chat", url: "/dashboard/playground", icon: FlaskConical }] : []),
+                ] as MenuItem[]
+              ).map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isUrlActive(item.url)}
+                    className={`transition-all duration-200 ${state === "collapsed" ? "flex flex-col items-center justify-center" : ""}`}
+                    tooltip={{
+                      children: item.title,
+                      className: "bg-slate-900 text-white text-xs rounded px-2 py-1 z-50",
+                    }}
+                  >
+                    <Link
+                      href={item.url}
+                      className={`flex ${state === "collapsed" ? "flex-col items-center justify-center" : "items-center"} gap-3`}
+                      onClick={() => {
+                        if (isMobile) setOpenMobile(false);
+                      }}
+                    >
+                      <item.icon className={`${state === "collapsed" ? "w-6 h-6" : "w-5 h-5"}`} />
+                      {state !== "collapsed" && <span>{item.title}</span>}
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
 
       <SidebarFooter className="px-3 py-3 border-t border-slate-200 dark:border-slate-800">
@@ -207,24 +291,18 @@ export function AppSidebar() {
             )}
             <button
               onClick={handleLogout}
-              className={`flex items-center w-full gap-2 px-2 py-1.5 text-[12px] text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-md transition-colors ${
-                state === "collapsed" ? "justify-center" : ""
-              }`}
+              className={`flex items-center w-full gap-2 px-2 py-1.5 text-[12px] text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-md transition-colors ${state === "collapsed" ? "justify-center" : ""}`}
             >
               <LogOut className="w-3.5 h-3.5" />
               {state !== "collapsed" && <span>Cerrar sesión</span>}
             </button>
             <div
-              className={`w-full ${
-                state === "collapsed" ? "flex justify-center" : "px-2"
-              }`}
+              className={`w-full ${state === "collapsed" ? "flex justify-center" : "px-2"}`}
             >
               <button
                 onClick={toggleTheme}
-                className="flex items-center gap-2 py-1 text-[11px] text-muted-foreground/60 hover:text-muted-foreground transition-colors"
-                aria-label={
-                  isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"
-                }
+                className={`flex items-center gap-2 py-1 text-[11px] text-muted-foreground/60 hover:text-muted-foreground transition-colors ${state === "collapsed" ? "" : ""}`}
+                aria-label={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
               >
                 {isDark ? (
                   <Sun className="w-3.5 h-3.5" />

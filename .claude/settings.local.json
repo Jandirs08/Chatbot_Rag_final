@@ -1,4 +1,7 @@
 {
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
   "permissions": {
     "allow": [
       "Bash(grep -v \":0$\")",
@@ -55,7 +58,20 @@
       "PowerShell(tail *)",
       "PowerShell($py = \"$env:LOCALAPPDATA\\\\Programs\\\\Python\\\\Python312\\\\python.exe\"; & $py -m pip install tiktoken 2>&1 | Select-Object -Last 3)",
       "PowerShell($py = \"$env:LOCALAPPDATA\\\\Programs\\\\Python\\\\Python312\\\\python.exe\"; & $py _count.py 2>&1)",
-      "PowerShell($py = \"$env:LOCALAPPDATA\\\\Programs\\\\Python\\\\Python312\\\\python.exe\"; & $py -m py_compile backend/core/prompt.py backend/core/chain.py 2>&1)"
+      "PowerShell($py = \"$env:LOCALAPPDATA\\\\Programs\\\\Python\\\\Python312\\\\python.exe\"; & $py -m py_compile backend/core/prompt.py backend/core/chain.py 2>&1)",
+      "Bash(git -C /c/Chatbot-final-jandir/Chatbot_Rag_final/.claude/worktrees/agent-ace0294c386bfaaf6 diff --name-only HEAD)",
+      "Bash(git -C /c/Chatbot-final-jandir/Chatbot_Rag_final/.claude/worktrees/agent-ace0294c386bfaaf6 status --short)",
+      "Bash(git *)",
+      "Bash(cp -r /c/Chatbot-final-jandir/Chatbot_Rag_final/.claude/worktrees/agent-a44661a582b24a1f2/backend/services/classification /c/Chatbot-final-jandir/Chatbot_Rag_final/backend/services/)",
+      "Bash(cp -r /c/Chatbot-final-jandir/Chatbot_Rag_final/.claude/worktrees/agent-a44661a582b24a1f2/backend/api/routes/inbox /c/Chatbot-final-jandir/Chatbot_Rag_final/backend/api/routes/)",
+      "PowerShell(Get-NetTCPConnection *)",
+      "PowerShell(netstat *)",
+      "PowerShell(netsh interface *)",
+      "Bash(docker compose *)",
+      "Bash(./node_modules/.bin/tsc --noEmit)",
+      "Bash(cp -r /c/Chatbot-final-jandir/Chatbot_Rag_final/.claude/worktrees/agent-aaa1d63abb7c74898/backend/services/classification /c/Chatbot-final-jandir/Chatbot_Rag_final/backend/services/)",
+      "Bash(cp -r /c/Chatbot-final-jandir/Chatbot_Rag_final/.claude/worktrees/agent-a6d5688622c0412b4/frontend/app/admin/conversations/. /c/Chatbot-final-jandir/Chatbot_Rag_final/frontend/app/admin/conversations/)",
+      "Bash(cp -r /c/Chatbot-final-jandir/Chatbot_Rag_final/.claude/worktrees/agent-a6d5688622c0412b4/frontend/app/admin/inbox/_components/. /c/Chatbot-final-jandir/Chatbot_Rag_final/frontend/app/admin/inbox/_components/)"
     ]
   }
 }

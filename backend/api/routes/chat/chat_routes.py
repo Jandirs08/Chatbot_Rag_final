@@ -4,7 +4,7 @@ import uuid
 import json
 import asyncio
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Request, Depends
+from fastapi import APIRouter, HTTPException, Request, Depends, BackgroundTasks
 from fastapi.responses import StreamingResponse, JSONResponse, Response
 from io import BytesIO
 from datetime import datetime
@@ -22,10 +22,29 @@ from auth.permissions import require_view_debug
 from models.user import User
 from core.request_context import get_request_context
 from rag.retrieval.retriever import RetrievalBackendUnavailableError
-
+from database.conversation_repository import ConversationRepository
+from database.mongodb import get_mongodb_client
+from services.classification import classify_conversation
+from services.classification.keywords import HANDOFF_KEYWORDS
 
 logger = get_logger(__name__)
 router = APIRouter()
+
+async def _classify_web(conversation_id: str, app_state) -> None:
+    try:
+        mongodb_client = getattr(app_state, "mongodb_client", None) or get_mongodb_client()
+        result = await classify_conversation(conversation_id, mongodb_client.db, settings)
+        if result is None:
+            return
+        conv_repo = ConversationRepository(mongodb_client)
+        await conv_repo.set_classification(
+            conversation_id,
+            category=result.category,
+            urgency=result.urgency,
+            ai_summary=result.summary,
+        )
+    except Exception as e:
+        logger.error(f"[Classification] Web conv={conversation_id}: {e}")
 
 # 🌐 NOTA: Todas las rutas de este módulo son PÚBLICAS
 # No requieren autenticación para permitir acceso libre al chat
@@ -34,6 +53,7 @@ router = APIRouter()
 @conditional_limit(settings.chat_rate_limit)
 async def chat_stream_log(
     request: Request,
+    background_tasks: BackgroundTasks,
     current_user: Optional[User] = Depends(get_optional_current_user),
 ):
     """Endpoint para chat con streaming y logging."""
@@ -78,7 +98,53 @@ async def chat_stream_log(
             )
         
         logger.info(f"[CHAT] Request: '{input_text[:50]}...' conv={conversation_id}")
-        
+
+        # HandOff guard
+        _sse_headers = {"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"}
+        mongodb_client = getattr(request.app.state, "mongodb_client", None) or get_mongodb_client()
+        conv_repo = ConversationRepository(mongodb_client)
+        conv_doc = await conv_repo.get_or_create("web", conversation_id, conversation_id)
+        conv_mode = conv_doc.get("mode", "bot")
+
+        if conv_mode in ("human", "pending"):
+            logger.info(f"[HandOff] Web conv={conversation_id} mode={conv_mode}, skipping LLM")
+            # Fix 5: save user message so agent can see it, then give user feedback
+            try:
+                await mongodb_client.add_message(
+                    conversation_id=conversation_id,
+                    role="user",
+                    content=input_text,
+                    source=source,
+                )
+            except Exception as _save_err:
+                logger.error(f"[HandOff] Failed to save user message: {_save_err}")
+            if conv_mode == "pending":
+                async def _paused():
+                    yield f"event: mode\ndata: {json.dumps({'mode': 'pending'})}\n\n"
+                    msg = json.dumps({"stream": "Tu consulta ha sido recibida. Un asesor te atenderá en breve."})
+                    yield f"data: {msg}\n\n"
+                    yield "event: end\ndata: {}\n\n"
+                return StreamingResponse(_paused(), media_type="text/event-stream", headers=_sse_headers)
+            else:
+                async def _in_human():
+                    yield f"event: mode\ndata: {json.dumps({'mode': 'human'})}\n\n"
+                    msg = json.dumps({"stream": "Estás en conversación con un asesor."})
+                    yield f"data: {msg}\n\n"
+                    yield "event: end\ndata: {}\n\n"
+                return StreamingResponse(_in_human(), media_type="text/event-stream", headers=_sse_headers)
+
+        text_lower = input_text.lower()
+        if any(kw in text_lower for kw in HANDOFF_KEYWORDS):
+            await conv_repo.set_mode(conversation_id, "pending")
+            logger.info(f"[HandOff] Keyword trigger web conv={conversation_id}")
+            background_tasks.add_task(_classify_web, conversation_id, request.app.state)
+            async def _handoff():
+                yield f"event: mode\ndata: {json.dumps({'mode': 'pending'})}\n\n"
+                msg = json.dumps({"stream": "Entendido, te conectaré con un asesor. Espera un momento."})
+                yield f"data: {msg}\n\n"
+                yield "event: end\ndata: {}\n\n"
+            return StreamingResponse(_handoff(), media_type="text/event-stream", headers=_sse_headers)
+
         async def generate():
             stream_gen = chat_manager.generate_streaming_response(input_text, conversation_id, source, debug_mode, enable_verification)
             try:

@@ -29,6 +29,7 @@ export interface UseChatStreamReturn {
   messages: Message[];
   isLoading: boolean;
   debugData?: DebugData | null;
+  convMode: string | null;
   sendMessage: (
     message: string,
     opts?: SendMessageOptions,
@@ -48,9 +49,9 @@ export function useChatStream(
 ): UseChatStreamReturn {
   const [messages, setMessages] = useState<Message[]>(initialMessages ?? []);
   const [isLoading, setIsLoading] = useState(false);
-  const [debugData, setDebugData] = useState<DebugData | null | undefined>(
-    undefined,
-  );
+  const [debugData, setDebugData] = useState<DebugData | null | undefined>(undefined);
+  const [convMode, setConvMode] = useState<string | null>(null);
+  const lastAgentTsRef = useRef<string | null>(null);
 
   // ---- Refs for streaming performance ----
   // pendingDelta accumulates SSE text between animation frames so we batch
@@ -90,6 +91,55 @@ export function useChatStream(
       }
     };
   }, []);
+
+  // ---- Reset agent polling state when conversation changes ----
+  useEffect(() => {
+    lastAgentTsRef.current = null;
+    setConvMode(null);
+  }, [conversationId]);
+
+  // ---- Poll for agent messages when in human mode ----
+  useEffect(() => {
+    if (convMode !== "human") return;
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`${API_URL}/chat/history/${conversationId}`);
+        if (!res.ok || !mountedRef.current) return;
+        const history = (await res.json()) as Array<{
+          role: string;
+          content: string;
+          timestamp?: string;
+        }>;
+        const agentMsgs = history.filter(
+          (m) =>
+            m.role === "agent" &&
+            (!lastAgentTsRef.current ||
+              (m.timestamp && m.timestamp > lastAgentTsRef.current)),
+        );
+        if (agentMsgs.length > 0 && mountedRef.current) {
+          const newest = agentMsgs[agentMsgs.length - 1].timestamp ?? null;
+          lastAgentTsRef.current = newest;
+          setMessages((prev) => [
+            ...prev,
+            ...agentMsgs.map((m) => ({
+              id: generateId(),
+              content: m.content,
+              role: "assistant" as const,
+              createdAt: m.timestamp ? new Date(m.timestamp) : new Date(),
+            })),
+          ]);
+        }
+      } catch {
+        // polling failure is non-fatal
+      }
+    };
+
+    // Initial fetch to catch messages already in history
+    void poll();
+    const interval = setInterval(poll, 3000);
+    return () => clearInterval(interval);
+  }, [convMode, conversationId]);
 
   // -----------------------------------------------------------------------
   // scheduleFlush – batches accumulated SSE deltas into a single setState
@@ -277,6 +327,13 @@ export function useChatStream(
               } catch (e) {
                 logger.warn("No se pudo parsear debug data", e);
               }
+            } else if (msg.event === "mode") {
+              try {
+                const modePayload = JSON.parse(msg.data ?? "{}") as { mode: string };
+                if (mountedRef.current) setConvMode(modePayload.mode);
+              } catch (e) {
+                logger.warn("No se pudo parsear mode event", e);
+              }
             } else if (msg.event === "error") {
               if (mountedRef.current) {
                 setIsLoading(false);
@@ -327,6 +384,7 @@ export function useChatStream(
     messages,
     isLoading,
     debugData,
+    convMode,
     sendMessage,
     clearMessages,
     cancelStream,

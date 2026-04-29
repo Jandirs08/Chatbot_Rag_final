@@ -66,7 +66,7 @@ export function ChatWindow(props: {
   const isPlayground = variant === "playground";
 
   const internalHook = useChatStream(conversationId, initialMessages);
-  const { messages, isLoading, sendMessage, clearMessages, cancelStream } =
+  const { messages, isLoading, sendMessage, clearMessages, cancelStream, convMode } =
     chatHook ?? internalHook;
 
   // --- Smart auto-scroll ---
@@ -285,6 +285,18 @@ export function ChatWindow(props: {
         })()}
       </div>
 
+      {convMode === "human" && (
+        <div className="flex items-center justify-center gap-2 border-t border-emerald-100 bg-emerald-50 px-4 py-2 text-[12px] font-medium text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-400">
+          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          Conectado con un asesor
+        </div>
+      )}
+      {convMode === "pending" && (
+        <div className="flex items-center justify-center gap-2 border-t border-amber-100 bg-amber-50 px-4 py-2 text-[12px] font-medium text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-400">
+          <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+          Esperando asesor disponible…
+        </div>
+      )}
       <div
         className={cn(
           isPlayground ? "bg-card px-3 py-3 border-t" : "bg-[#f7f8fa] px-4 pb-5 pt-2",

@@ -4,7 +4,6 @@ import React from "react";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
-import { EmptyState } from "@/app/components/ui/empty-state";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { CalendarDays, MessageSquare, RefreshCw, UserCircle2 } from "lucide-react";
@@ -178,11 +177,17 @@ export function ConversationList({
             </div>
           ))
         ) : filtered.length === 0 ? (
-          <EmptyState
-            icon={<MessageSquare className="h-5 w-5" />}
-            title="No hay conversaciones recientes"
-            description="Ajusta los filtros o vuelve a cargar la lista."
-          />
+          <div className="flex h-40 flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 bg-background px-6 text-center">
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-muted/50 text-muted-foreground">
+              <MessageSquare className="h-5 w-5" />
+            </div>
+            <p className="m-0 text-sm font-medium text-foreground">
+              No hay conversaciones recientes
+            </p>
+            <p className="m-1 text-xs text-muted-foreground">
+              Ajusta los filtros o vuelve a cargar la lista.
+            </p>
+          </div>
         ) : (
           <div className="space-y-4">
             {grouped.map((section) => (

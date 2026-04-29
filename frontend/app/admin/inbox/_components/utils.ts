@@ -11,7 +11,7 @@ export type ConversationResponse = {
 };
 
 export type HistoryItem = {
-  role: "user" | "assistant" | "system" | "function";
+  role: "user" | "assistant" | "system" | "function" | "agent";
   content: string;
   timestamp?: string;
   source?: string | null;

@@ -1,10 +1,10 @@
-from typing import Optional, Dict, Any, AsyncGenerator, List
+from typing import Optional, Dict, Any, AsyncGenerator
 import time
 import asyncio
 from operator import itemgetter
 
-from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from langchain_core.runnables import RunnableLambda, RunnableMap, Runnable
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from memory import (
     AbstractChatbotMemory,
@@ -119,8 +119,6 @@ class Bot:
 
         async def get_history_async(x):
             conversation_id = x.get("conversation_id")
-            req_ctx = get_request_context()
-            history_started_at = time.perf_counter()
             try:
                 hist = await self.memory.get_history(conversation_id)
             except Exception as exc:
@@ -131,17 +129,8 @@ class Bot:
                     exc_info=True,
                 )
                 hist = []
-            finally:
-                req_ctx.set_stage_timing_ms(
-                    "history_ms",
-                    (time.perf_counter() - history_started_at) * 1000,
-                )
 
-            formatted = (
-                self._format_history(hist)
-                if self.chain_manager.uses_chat_prompt
-                else self._format_history_str(hist)
-            )
+            formatted = self._format_history(hist)
 
             # Log conciso del historial cargado
             self.logger.debug(f"[HISTORY] Cargado | msgs={len(hist)} conv={x.get('conversation_id', 'unknown')}")
@@ -179,7 +168,6 @@ class Bot:
 
                 req_ctx.retrieved_docs = docs
                 ctx = self.rag_retriever.format_context_from_documents(docs)
-                ctx = self._truncate_context_to_budget(ctx)
                 req_ctx.context = ctx if (isinstance(ctx, str) and ctx.strip()) else fallback_ctx
                 req_ctx.rag_time = time.perf_counter() - t_start
                 return req_ctx.context
@@ -245,17 +233,7 @@ class Bot:
             "conversation_id": conversation_id,
         }
 
-        llm_timeout = float(getattr(self.settings, "llm_request_timeout_seconds", 60.0))
-        try:
-            result = await asyncio.wait_for(
-                self.chain_manager.runnable_chain.ainvoke(inp),
-                timeout=llm_timeout,
-            )
-        except asyncio.TimeoutError:
-            self.logger.error(
-                "LLM request timed out after %ss | conv=%s", llm_timeout, conversation_id
-            )
-            return {"output": "Lo siento, la solicitud tardó demasiado. Por favor, inténtalo de nuevo."}
+        result = await self.chain_manager.runnable_chain.ainvoke(inp)
 
         # Unifica output
         if hasattr(result, "content"):
@@ -273,7 +251,7 @@ class Bot:
 
         return {"output": final_text}
 
-    async def astream_chunked(self, x: Dict[str, Any], min_chunk_chars: int | None = None) -> AsyncGenerator[str, None]:
+    async def astream_chunked(self, x: Dict[str, Any], min_chunk_chars: int = 128) -> AsyncGenerator[str, None]:
         if getattr(self.settings, "mock_mode", False):
             await asyncio.sleep(1.5)
             yield " [MOCK] Respuesta simulada para prueba de carga. Sistema operativo bajo estrés. "
@@ -285,17 +263,7 @@ class Bot:
             "conversation_id": conversation_id,
         }
 
-        effective_min_chunk_chars = max(
-            1,
-            int(
-                min_chunk_chars
-                if min_chunk_chars is not None
-                else getattr(self.settings, "stream_min_chunk_chars", 32)
-            ),
-        )
-        chunk_timeout = float(getattr(self.settings, "llm_stream_chunk_timeout_seconds", 30.0))
         buffer = ""
-        first_chunk_sent = False
 
         def _extract_text(p: Any) -> str:
             c = getattr(p, "content", None)
@@ -326,40 +294,16 @@ class Bot:
                 return p
             return ""
 
-        async def _timed_stream():
-            """Wrap astream to enforce a per-chunk timeout."""
-            it = self.chain_manager.runnable_chain.astream(inp).__aiter__()
-            while True:
-                try:
-                    chunk = await asyncio.wait_for(it.__anext__(), timeout=chunk_timeout)
-                    yield chunk
-                except StopAsyncIteration:
-                    return
-                except asyncio.TimeoutError:
-                    self.logger.error(
-                        "LLM stream chunk timeout after %ss | conv=%s",
-                        chunk_timeout, conversation_id,
-                    )
-                    raise
-
-        try:
-            async for part in _timed_stream():
-                txt = _extract_text(part)
-                if not txt:
-                    continue
-                if not first_chunk_sent:
-                    first_chunk_sent = True
-                    yield txt
-                    continue
-                buffer += txt
-                if len(buffer) >= effective_min_chunk_chars:
-                    yield buffer
-                    buffer = ""
-            if buffer:
+        async for part in self.chain_manager.runnable_chain.astream(inp):
+            txt = _extract_text(part)
+            if not txt:
+                continue
+            buffer += txt
+            if len(buffer) >= min_chunk_chars:
                 yield buffer
-        except asyncio.TimeoutError:
-            if not first_chunk_sent:
-                yield "Lo siento, la respuesta tardó demasiado. Por favor, inténtalo de nuevo."
+                buffer = ""
+        if buffer:
+            yield buffer
 
     async def add_to_memory(self, human, ai, conversation_id):
         if isinstance(human, str):
@@ -382,63 +326,37 @@ class Bot:
                 exc_info=True,
             )
 
-    def _truncate_context_to_budget(self, context: str) -> str:
-        """Truncate context string to stay within LLM token budget."""
-        context_window = int(getattr(self.settings, "llm_context_window", 16000))
-        max_output = int(getattr(self.settings, "max_tokens", 2000))
-        prompt_overhead = 1200
-        history_budget = int(getattr(self.settings, "memory_window_size", 20)) * 120
-        input_budget = int(getattr(self.settings, "max_message_length", 2000)) // 3
-        context_budget = max(500, context_window - max_output - prompt_overhead - history_budget - input_budget)
-
-        char_budget = context_budget * 4
-        if len(context) <= char_budget:
-            return context
-
-        truncated = context[:char_budget]
-
-        # Cut at paragraph boundary (prefer) or sentence boundary (fallback)
-        para_boundary = truncated.rfind("\n\n")
-        if para_boundary > char_budget * 0.75:
-            truncated = truncated[:para_boundary]
-        else:
-            for sep in (".\n", ". ", "! ", "? "):
-                sent_boundary = truncated.rfind(sep)
-                if sent_boundary > char_budget * 0.65:
-                    truncated = truncated[:sent_boundary + 1]
-                    break
-
-        self.logger.warning(
-            "Context truncated: %d chars → %d chars (budget %d tokens)",
-            len(context), len(truncated), context_budget,
-        )
-        try:
-            get_request_context().context_truncated = True
-        except Exception:
-            pass
-        return truncated + "\n[Contexto truncado por límite de tokens]"
-
     def _format_history_str(self, hist_list) -> str:
-        """Plain-string history for debug/trace/token-counting consumers."""
-        out = []
-        for msg in hist_list:
-            role = msg.get("role", "unknown")
-            content = msg.get("content", "").strip()
-            if role in ("human", "user"):
-                out.append(f"User: {content}")
-            elif role in ("ai", "assistant"):
-                out.append(f"Assistant: {content}")
-        return "\n".join(out)
-
-    def _format_history(self, hist_list) -> List[BaseMessage]:
-        msgs: List[BaseMessage] = []
+        """String version used by debug/classification — NOT for LangChain prompt."""
+        lines = []
         for msg in hist_list:
             role = msg.get("role", "unknown")
             content = msg.get("content", "").strip()
             if not content:
                 continue
             if role in ("human", "user"):
-                msgs.append(HumanMessage(content=content))
+                lines.append(f"User: {content}")
             elif role in ("ai", "assistant"):
-                msgs.append(AIMessage(content=content))
-        return msgs
+                lines.append(f"Assistant: {content}")
+            elif role == "agent":
+                lines.append(f"Assistant: [Agente]: {content}")
+            elif role == "system":
+                lines.append(f"System: {content}")
+        return "\n".join(lines) if lines else ""
+
+    def _format_history(self, hist_list) -> list:
+        out = []
+        for msg in hist_list:
+            role = msg.get("role", "unknown")
+            content = msg.get("content", "").strip()
+            if not content:
+                continue
+            if role in ("human", "user"):
+                out.append(HumanMessage(content=content))
+            elif role in ("ai", "assistant"):
+                out.append(AIMessage(content=content))
+            elif role == "agent":
+                out.append(AIMessage(content=f"[Agente]: {content}"))
+            elif role == "system":
+                out.append(SystemMessage(content=content))
+        return out

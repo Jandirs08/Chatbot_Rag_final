@@ -141,10 +141,11 @@ export function ChatDetail({
             {messages.map((m, idx) => {
               const isUser = m.role === "user";
               const stableKey = getMessageKey(m, idx);
+              const bubbleRole = (m.role === "agent" ? "assistant" : m.role) as BubbleMessage["role"];
               const bubbleData: BubbleMessage = {
                 id: stableKey,
-                role: m.role,
-                content: m.content,
+                role: bubbleRole,
+                content: m.role === "agent" ? `[Agente] ${m.content}` : m.content,
                 createdAt: m.timestamp ? new Date(m.timestamp) : undefined,
               };
 
