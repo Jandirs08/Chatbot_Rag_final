@@ -71,7 +71,11 @@
       "Bash(./node_modules/.bin/tsc --noEmit)",
       "Bash(cp -r /c/Chatbot-final-jandir/Chatbot_Rag_final/.claude/worktrees/agent-aaa1d63abb7c74898/backend/services/classification /c/Chatbot-final-jandir/Chatbot_Rag_final/backend/services/)",
       "Bash(cp -r /c/Chatbot-final-jandir/Chatbot_Rag_final/.claude/worktrees/agent-a6d5688622c0412b4/frontend/app/admin/conversations/. /c/Chatbot-final-jandir/Chatbot_Rag_final/frontend/app/admin/conversations/)",
-      "Bash(cp -r /c/Chatbot-final-jandir/Chatbot_Rag_final/.claude/worktrees/agent-a6d5688622c0412b4/frontend/app/admin/inbox/_components/. /c/Chatbot-final-jandir/Chatbot_Rag_final/frontend/app/admin/inbox/_components/)"
+      "Bash(cp -r /c/Chatbot-final-jandir/Chatbot_Rag_final/.claude/worktrees/agent-a6d5688622c0412b4/frontend/app/admin/inbox/_components/. /c/Chatbot-final-jandir/Chatbot_Rag_final/frontend/app/admin/inbox/_components/)",
+      "Bash(find C:\\\\\\\\Chatbot-final-jandir\\\\\\\\Chatbot_Rag_final\\\\\\\\backend\\\\\\\\api -name \"*.py\" -type f)",
+      "Bash(grep -r \"ensure_indexes\\\\|conversation_repository\\\\|ConversationRepository\" C:\\\\\\\\Chatbot-final-jandir\\\\\\\\Chatbot_Rag_final\\\\\\\\backend --include=\"*.py\")",
+      "Bash(python3 -m py_compile backend/api/routes/whatsapp/webhook_routes.py)",
+      "Bash(xargs head *)"
     ]
   }
 }
