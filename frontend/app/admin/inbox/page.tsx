@@ -5,6 +5,7 @@ import useSWR from "swr";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useRequireAdmin } from "@/app/hooks/useAuthGuard";
 import { useAuth } from "@/app/hooks/useAuth";
+import { useToast } from "@/app/hooks/use-toast";
 import { API_URL } from "@/app/lib/config";
 import { authenticatedFetch } from "@/app/lib/services/authService";
 import * as inboxService from "@/app/lib/services/inboxService";
@@ -33,6 +34,7 @@ const fetcher = async (url: string) => {
 function HandoffInboxContent() {
   const { isAuthorized } = useRequireAdmin();
   const { user } = useAuth();
+  const { toast } = useToast();
   const agentId = user?.id ?? "";
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -87,7 +89,7 @@ function HandoffInboxContent() {
       await refreshList();
       handleSelect(conversationId);
     } catch {
-      // ignore
+      toast({ title: "Error", description: "No se pudo tomar la conversación.", variant: "destructive" });
     } finally {
       setMutatingId(null);
     }
@@ -104,7 +106,7 @@ function HandoffInboxContent() {
       await refreshList();
       clearSelection();
     } catch {
-      // ignore
+      toast({ title: "Error", description: "No se pudo liberar la conversación.", variant: "destructive" });
     } finally {
       setMutatingId(null);
     }

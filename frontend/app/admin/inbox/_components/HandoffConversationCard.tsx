@@ -21,6 +21,9 @@ export type HandoffConversation = {
   pending_since?: string | null;
   minutes_waiting?: number | null;
   updated_at?: string | null;
+  lead_name?: string | null;
+  lead_email?: string | null;
+  lead_captured_at?: string | null;
 };
 
 interface HandoffConversationCardProps {
@@ -68,7 +71,9 @@ export function HandoffConversationCard({
   onTakeover,
   onRelease,
 }: HandoffConversationCardProps) {
-  const badge = modeBadge[conversation.mode] ?? modeBadge.bot;
+  const badge = conversation.lead_email && conversation.mode === "bot"
+    ? { label: "Lead", className: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-400" }
+    : modeBadge[conversation.mode] ?? modeBadge.bot;
   const isAssignedToMe = conversation.assigned_agent_id === agentId;
   const isPending = conversation.mode === "pending";
   const isHuman = conversation.mode === "human";
@@ -121,6 +126,14 @@ export function HandoffConversationCard({
               <p className="text-[13px] italic text-muted-foreground/60">Sin clasificar</p>
             )}
 
+            {conversation.lead_email && (
+              <div className="mt-1 flex items-center gap-1 text-[12px] text-muted-foreground">
+                <span className="font-medium">{conversation.lead_name}</span>
+                <span className="text-muted-foreground/50">·</span>
+                <span className="text-blue-600 dark:text-blue-400">{conversation.lead_email}</span>
+              </div>
+            )}
+
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <span
                 className={cn(
@@ -157,7 +170,7 @@ export function HandoffConversationCard({
             </div>
 
             <div className="mt-2 flex items-center gap-2">
-              {isPending && (
+              {(isPending || (conversation.mode === "bot" && conversation.lead_email)) && (
                 <Button
                   variant="default"
                   size="sm"

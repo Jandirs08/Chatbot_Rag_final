@@ -30,12 +30,14 @@ export interface UseChatStreamReturn {
   isLoading: boolean;
   debugData?: DebugData | null;
   convMode: string | null;
+  showLeadForm: boolean;
   sendMessage: (
     message: string,
     opts?: SendMessageOptions,
   ) => Promise<void>;
   clearMessages: () => void;
   cancelStream: () => void;
+  submitLead: (name: string, email: string) => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -51,7 +53,9 @@ export function useChatStream(
   const [isLoading, setIsLoading] = useState(false);
   const [debugData, setDebugData] = useState<DebugData | null | undefined>(undefined);
   const [convMode, setConvMode] = useState<string | null>(null);
+  const [showLeadForm, setShowLeadForm] = useState(false);
   const lastAgentTsRef = useRef<string | null>(null);
+  const hasSentMessageRef = useRef(false);
 
   // ---- Refs for streaming performance ----
   // pendingDelta accumulates SSE text between animation frames so we batch
@@ -95,17 +99,25 @@ export function useChatStream(
   // ---- Reset agent polling state when conversation changes ----
   useEffect(() => {
     lastAgentTsRef.current = null;
+    hasSentMessageRef.current = false;
     setConvMode(null);
+    setShowLeadForm(false);
   }, [conversationId]);
 
-  // ---- Poll for agent messages when in human mode ----
+  // ---- Poll for agent messages once the user has sent a message ----
   useEffect(() => {
-    if (convMode !== "human") return;
+    if (!conversationId) return;
+
+    let cancelled = false;
 
     const poll = async () => {
+      if (!hasSentMessageRef.current) return; // skip until user has sent a message
       try {
         const res = await fetch(`${API_URL}/chat/history/${conversationId}`);
-        if (!res.ok || !mountedRef.current) return;
+        if (!res.ok || !mountedRef.current || cancelled) return;
+
+        const serverMode = res.headers.get("X-Conversation-Mode");
+
         const history = (await res.json()) as Array<{
           role: string;
           content: string;
@@ -130,16 +142,21 @@ export function useChatStream(
             })),
           ]);
         }
+
+        if (serverMode && mountedRef.current) {
+          setConvMode((prev) => (prev === serverMode ? prev : serverMode));
+        }
       } catch {
         // polling failure is non-fatal
       }
     };
 
-    // Initial fetch to catch messages already in history
-    void poll();
-    const interval = setInterval(poll, 3000);
-    return () => clearInterval(interval);
-  }, [convMode, conversationId]);
+    const interval = setInterval(poll, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [conversationId]);
 
   // -----------------------------------------------------------------------
   // scheduleFlush – batches accumulated SSE deltas into a single setState
@@ -219,6 +236,7 @@ export function useChatStream(
       };
 
       setMessages((prev) => [...prev, userMessage]);
+      hasSentMessageRef.current = true;
       setIsLoading(true);
       isLoadingRef.current = true;
       pendingDeltaRef.current = "";
@@ -334,6 +352,8 @@ export function useChatStream(
               } catch (e) {
                 logger.warn("No se pudo parsear mode event", e);
               }
+            } else if (msg.event === "lead_form") {
+              if (mountedRef.current) setShowLeadForm(true);
             } else if (msg.event === "error") {
               if (mountedRef.current) {
                 setIsLoading(false);
@@ -373,6 +393,22 @@ export function useChatStream(
   );
 
   // -----------------------------------------------------------------------
+  // submitLead – POSTs name/email to capture-lead endpoint.
+  // -----------------------------------------------------------------------
+  const submitLead = useCallback(async (name: string, email: string) => {
+    try {
+      await fetch(`${API_URL}/conversations/${conversationId}/capture-lead`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lead_name: name, lead_email: email }),
+      });
+      if (mountedRef.current) setShowLeadForm(false);
+    } catch {
+      // non-fatal
+    }
+  }, [conversationId]);
+
+  // -----------------------------------------------------------------------
   // clearMessages – cancels any active stream, then wipes history.
   // -----------------------------------------------------------------------
   const clearMessages = useCallback(() => {
@@ -385,8 +421,10 @@ export function useChatStream(
     isLoading,
     debugData,
     convMode,
+    showLeadForm,
     sendMessage,
     clearMessages,
     cancelStream,
+    submitLead,
   };
 }

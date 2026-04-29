@@ -50,6 +50,10 @@ export function ChatWindow(props: {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const [input, setInput] = React.useState("");
   const [confirmClearOpen, setConfirmClearOpen] = React.useState(false);
+  const [leadName, setLeadName] = React.useState("");
+  const [leadEmail, setLeadEmail] = React.useState("");
+  const [leadSubmitting, setLeadSubmitting] = React.useState(false);
+  const [leadSubmitted, setLeadSubmitted] = React.useState(false);
 
   const {
     placeholder,
@@ -66,7 +70,7 @@ export function ChatWindow(props: {
   const isPlayground = variant === "playground";
 
   const internalHook = useChatStream(conversationId, initialMessages);
-  const { messages, isLoading, sendMessage, clearMessages, cancelStream, convMode } =
+  const { messages, isLoading, sendMessage, clearMessages, cancelStream, convMode, showLeadForm, submitLead } =
     chatHook ?? internalHook;
 
   // --- Smart auto-scroll ---
@@ -115,6 +119,14 @@ export function ChatWindow(props: {
       } catch (_e) { }
     })();
   }, []);
+
+  const handleLeadSubmit = async () => {
+    if (!leadName.trim() || !leadEmail.trim()) return;
+    setLeadSubmitting(true);
+    await submitLead(leadName.trim(), leadEmail.trim());
+    setLeadSubmitted(true);
+    setLeadSubmitting(false);
+  };
 
   const handleSendMessage = async (message?: string) => {
     const messageValue = message ?? input;
@@ -291,10 +303,40 @@ export function ChatWindow(props: {
           Conectado con un asesor
         </div>
       )}
-      {convMode === "pending" && (
-        <div className="flex items-center justify-center gap-2 border-t border-amber-100 bg-amber-50 px-4 py-2 text-[12px] font-medium text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-400">
-          <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
-          Esperando asesor disponible…
+      {showLeadForm && !leadSubmitted && (
+        <div className="border-t border-blue-100 bg-blue-50 px-4 py-3 dark:border-blue-900/40 dark:bg-blue-950/30">
+          <p className="mb-2 text-[12px] font-medium text-blue-700 dark:text-blue-400">
+            Deja tus datos para que un asesor te contacte
+          </p>
+          <div className="flex flex-col gap-2">
+            <input
+              type="text"
+              value={leadName}
+              onChange={(e) => setLeadName(e.target.value)}
+              placeholder="Tu nombre"
+              className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-[13px] placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:bg-slate-900 dark:border-blue-800"
+            />
+            <input
+              type="email"
+              value={leadEmail}
+              onChange={(e) => setLeadEmail(e.target.value)}
+              placeholder="Tu correo electrónico"
+              className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-[13px] placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:bg-slate-900 dark:border-blue-800"
+            />
+            <button
+              onClick={handleLeadSubmit}
+              disabled={leadSubmitting || !leadName.trim() || !leadEmail.trim()}
+              className="rounded-lg bg-blue-600 px-3 py-1.5 text-[13px] font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {leadSubmitting ? "Enviando…" : "Enviar"}
+            </button>
+          </div>
+        </div>
+      )}
+      {showLeadForm && leadSubmitted && (
+        <div className="flex items-center justify-center gap-2 border-t border-blue-100 bg-blue-50 px-4 py-2 text-[12px] font-medium text-blue-700 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-400">
+          <span className="h-2 w-2 rounded-full bg-blue-500" />
+          Datos recibidos. Un asesor te contactará pronto.
         </div>
       )}
       <div

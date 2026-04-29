@@ -5,7 +5,6 @@ from database.whatsapp_session_repository import WhatsAppSessionRepository
 from database.conversation_repository import ConversationRepository
 from database.mongodb import get_mongodb_client
 from services.classification import classify_conversation
-from services.classification.keywords import HANDOFF_KEYWORDS
 from utils.whatsapp.formatter import format_text
 from utils.whatsapp.client import WhatsAppClient
 from config import settings
@@ -63,14 +62,6 @@ async def process_message_background(text: str, wa_id: str, app_state, conversat
         # HandOff guard: if conversation is in human/pending mode, skip LLM
         if conv and conv.get("mode") in ("human", "pending"):
             logger.info(f"[HandOff] conv={conversation_id} mode={conv.get('mode')}, skipping LLM")
-            return
-
-        text_lower = text.lower()
-        keyword_triggered = any(kw in text_lower for kw in HANDOFF_KEYWORDS)
-        if keyword_triggered:
-            await conv_repo.set_mode(conversation_id, "pending")
-            logger.info(f"[HandOff] Keyword trigger → conv={conversation_id} set to pending")
-            await _run_classification(conversation_id, app_state)
             return
 
         # 1. Generar respuesta con el LLM

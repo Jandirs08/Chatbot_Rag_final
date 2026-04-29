@@ -51,6 +51,9 @@ class ConversationRepository:
             "ai_summary": None,
             "assigned_agent_id": None,
             "pending_since": None,
+            "lead_name": None,
+            "lead_email": None,
+            "lead_captured_at": None,
             "created_at": now,
             "updated_at": now,
         }
@@ -130,3 +133,16 @@ class ConversationRepository:
     async def list_all_active(self) -> list:
         coll = self.mongodb_client.db[self.collection_name]
         return await coll.find({"mode": "human"}).to_list(length=500)
+
+    async def set_lead(self, conversation_id: str, lead_name: str, lead_email: str) -> None:
+        coll = self.mongodb_client.db[self.collection_name]
+        now = datetime.now(timezone.utc)
+        await coll.update_one(
+            {"conversation_id": conversation_id},
+            {"$set": {"lead_name": lead_name, "lead_email": lead_email, "lead_captured_at": now, "updated_at": now}},
+        )
+
+    async def list_leads(self) -> list:
+        coll = self.mongodb_client.db[self.collection_name]
+        docs = await coll.find({"lead_email": {"$ne": None}, "mode": "bot"}).sort("updated_at", -1).to_list(length=200)
+        return docs

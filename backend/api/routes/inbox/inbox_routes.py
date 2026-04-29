@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 from utils.logging_utils import get_logger
 
 from auth.dependencies import require_admin
@@ -35,6 +36,9 @@ def _to_card(doc: dict) -> ConversationCard:
         pending_since=pending_since,
         minutes_waiting=minutes_waiting,
         updated_at=doc.get("updated_at"),
+        lead_name=doc.get("lead_name"),
+        lead_email=doc.get("lead_email"),
+        lead_captured_at=doc.get("lead_captured_at"),
     )
 
 
@@ -49,9 +53,9 @@ async def get_inbox(
     _current_user=Depends(require_admin),
 ):
     repo = _get_conv_repo(request)
-    pending_docs = await repo.list_pending()
+    lead_docs = await repo.list_leads()
     active_docs = await repo.list_all_active()
-    items = [_to_card(d) for d in pending_docs] + [_to_card(d) for d in active_docs]
+    items = [_to_card(d) for d in lead_docs] + [_to_card(d) for d in active_docs]
     return InboxResponse(items=items, total=len(items))
 
 
@@ -96,9 +100,29 @@ async def pause_conversation(
     conv = await repo.get_by_conversation_id(conversation_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    await repo.set_mode(conversation_id, "pending")
-    logger.info(f"[Inbox] conv={conversation_id} paused (mode=pending)")
-    return {"status": "ok", "mode": "pending"}
+    await repo.set_mode(conversation_id, "paused")
+    logger.info(f"[Inbox] conv={conversation_id} paused (mode=paused)")
+    return {"status": "ok", "mode": "paused"}
+
+
+class LeadCaptureRequest(BaseModel):
+    lead_name: str
+    lead_email: str
+
+
+@router.post("/conversations/{conversation_id}/capture-lead")
+async def capture_lead(
+    conversation_id: str,
+    body: LeadCaptureRequest,
+    request: Request = None,
+):
+    repo = _get_conv_repo(request)
+    conv = await repo.get_by_conversation_id(conversation_id)
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    await repo.set_lead(conversation_id, body.lead_name.strip(), body.lead_email.strip())
+    logger.info(f"[LeadCapture] conv={conversation_id} lead={body.lead_email}")
+    return {"status": "ok"}
 
 
 @router.get("/conversations/{conversation_id}/messages")
@@ -146,15 +170,6 @@ async def send_agent_message(
         "source": conv.get("channel", "web"),
     }
     await mongodb_client.db.messages.insert_one(msg_doc)
-
-    if conv.get("channel") == "whatsapp":
-        try:
-            from utils.whatsapp.client import WhatsAppClient
-            from utils.whatsapp.formatter import format_text
-            client = WhatsAppClient()
-            await client.send_text(conv.get("external_id"), format_text(body.content))
-        except Exception as e:
-            logger.error(f"[Inbox] WhatsApp send failed for conv={conversation_id}: {e}")
 
     logger.info(f"[Inbox] Agent={agent_id} sent message to conv={conversation_id}")
     return {"status": "ok"}

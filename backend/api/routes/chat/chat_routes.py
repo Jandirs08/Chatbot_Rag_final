@@ -25,7 +25,7 @@ from rag.retrieval.retriever import RetrievalBackendUnavailableError
 from database.conversation_repository import ConversationRepository
 from database.mongodb import get_mongodb_client
 from services.classification import classify_conversation
-from services.classification.keywords import HANDOFF_KEYWORDS
+from services.classification.keywords import HANDOFF_PHRASES, HANDOFF_SOFT_KEYWORDS
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -106,9 +106,8 @@ async def chat_stream_log(
         conv_doc = await conv_repo.get_or_create("web", conversation_id, conversation_id)
         conv_mode = conv_doc.get("mode", "bot")
 
-        if conv_mode in ("human", "pending"):
+        if conv_mode == "human":
             logger.info(f"[HandOff] Web conv={conversation_id} mode={conv_mode}, skipping LLM")
-            # Fix 5: save user message so agent can see it, then give user feedback
             try:
                 await mongodb_client.add_message(
                     conversation_id=conversation_id,
@@ -118,32 +117,34 @@ async def chat_stream_log(
                 )
             except Exception as _save_err:
                 logger.error(f"[HandOff] Failed to save user message: {_save_err}")
-            if conv_mode == "pending":
-                async def _paused():
-                    yield f"event: mode\ndata: {json.dumps({'mode': 'pending'})}\n\n"
-                    msg = json.dumps({"stream": "Tu consulta ha sido recibida. Un asesor te atenderá en breve."})
-                    yield f"data: {msg}\n\n"
-                    yield "event: end\ndata: {}\n\n"
-                return StreamingResponse(_paused(), media_type="text/event-stream", headers=_sse_headers)
-            else:
-                async def _in_human():
-                    yield f"event: mode\ndata: {json.dumps({'mode': 'human'})}\n\n"
-                    msg = json.dumps({"stream": "Estás en conversación con un asesor."})
-                    yield f"data: {msg}\n\n"
-                    yield "event: end\ndata: {}\n\n"
-                return StreamingResponse(_in_human(), media_type="text/event-stream", headers=_sse_headers)
+            async def _in_human():
+                yield f"event: mode\ndata: {json.dumps({'mode': 'human'})}\n\n"
+                yield "event: end\ndata: {}\n\n"
+            return StreamingResponse(_in_human(), media_type="text/event-stream", headers=_sse_headers)
 
         text_lower = input_text.lower()
-        if any(kw in text_lower for kw in HANDOFF_KEYWORDS):
-            await conv_repo.set_mode(conversation_id, "pending")
-            logger.info(f"[HandOff] Keyword trigger web conv={conversation_id}")
+        phrase_match = any(p in text_lower for p in HANDOFF_PHRASES)
+        soft_match = any(s in text_lower for s in HANDOFF_SOFT_KEYWORDS)
+        trigger_lead = phrase_match
+        if not trigger_lead and soft_match:
+            try:
+                prior_user_msgs = await mongodb_client.db.messages.count_documents(
+                    {"conversation_id": conversation_id, "role": "user"}
+                )
+            except Exception:
+                prior_user_msgs = 0
+            if prior_user_msgs >= 2:
+                trigger_lead = True
+
+        if trigger_lead and not conv_doc.get("lead_email"):
+            logger.info(f"[LeadCapture] Keyword trigger web conv={conversation_id} phrase={phrase_match} soft={soft_match}")
             background_tasks.add_task(_classify_web, conversation_id, request.app.state)
-            async def _handoff():
-                yield f"event: mode\ndata: {json.dumps({'mode': 'pending'})}\n\n"
-                msg = json.dumps({"stream": "Entendido, te conectaré con un asesor. Espera un momento."})
+            async def _lead_form():
+                yield f"event: lead_form\ndata: {json.dumps({'conversation_id': conversation_id})}\n\n"
+                msg = json.dumps({"stream": "Claro, para que un asesor te contacte deja tu nombre y correo electrónico."})
                 yield f"data: {msg}\n\n"
                 yield "event: end\ndata: {}\n\n"
-            return StreamingResponse(_handoff(), media_type="text/event-stream", headers=_sse_headers)
+            return StreamingResponse(_lead_form(), media_type="text/event-stream", headers=_sse_headers)
 
         async def generate():
             stream_gen = chat_manager.generate_streaming_response(input_text, conversation_id, source, debug_mode, enable_verification)
@@ -245,7 +246,20 @@ async def get_history(conversation_id: str, request: Request):
                 "source": d.get("source")
             })
 
-        return JSONResponse(content=history)
+        mode_value = "bot"
+        try:
+            mongodb_client = getattr(request.app.state, "mongodb_client", None) or get_mongodb_client()
+            conv_repo = ConversationRepository(mongodb_client)
+            conv = await conv_repo.get_by_conversation_id(conversation_id)
+            if conv:
+                mode_value = conv.get("mode", "bot")
+        except Exception:
+            pass
+
+        return JSONResponse(
+            content=history,
+            headers={"X-Conversation-Mode": mode_value, "Access-Control-Expose-Headers": "X-Conversation-Mode"},
+        )
     except Exception as e:
         logger.error(f"Error al obtener historial de {conversation_id}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error al obtener historial")
