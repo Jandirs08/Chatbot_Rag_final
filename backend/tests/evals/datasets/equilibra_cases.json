@@ -1,0 +1,392 @@
+{
+  "dataset_name": "equilibra_baseline_es",
+  "version": 1,
+  "description": "Eval suite para corpus Equilibra (fertilizantes). Cubre precision numerica, dosis, multi-hop, desambiguacion, info ausente, anti-calculo y correccion de premisas. Genera reporte JSON con pass/fail por case y opcionalmente metricas Ragas.",
+  "corpus_pdf": "equilibra.pdf",
+  "cases": [
+    {
+      "id": "n001",
+      "category": "numeric",
+      "question": "¿Cuánto Zinc tiene Algarium Semilla SC?",
+      "reference_answer": "Algarium Semilla SC contiene 30% p/v de Zinc.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_all": ["30"],
+      "must_contain_any_casefold": ["30%", "30 %", "p/v"],
+      "must_not_contain": ["20%", "40%", "5%"],
+      "expected_source": "equilibra.pdf",
+      "retrieval_snippets": ["Zinc (Zn): 30% p/v", "Algarium Semilla SC"]
+    },
+    {
+      "id": "n002",
+      "category": "numeric",
+      "question": "¿Qué concentración de aminoácidos libres tiene el producto Ánimo?",
+      "reference_answer": "Ánimo tiene 29.0% p/v de aminoácidos libres.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_all": ["29"],
+      "must_contain_any_casefold": ["29.0", "29%", "29 %", "p/v"],
+      "must_not_contain": ["19%", "9.1%"],
+      "expected_source": "equilibra.pdf",
+      "retrieval_snippets": ["Aminoácidos libres: 29.0% p/v"]
+    },
+    {
+      "id": "n003",
+      "category": "numeric",
+      "question": "¿Cuál es la concentración de Potasio (K2O) en Soluvit 500K?",
+      "reference_answer": "Soluvit 500K contiene 50.0% p/v de Potasio (K2O), equivalente a 500 g/L.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_all": ["50"],
+      "must_contain_any_casefold": ["50%", "50.0", "500 g/l", "500g/l"],
+      "must_not_contain": ["7.5%", "44%"],
+      "expected_source": "equilibra.pdf",
+      "retrieval_snippets": ["Potasio (K2O): 50.0% p/v (500 g/L)"]
+    },
+    {
+      "id": "n004",
+      "category": "numeric",
+      "question": "¿Cuál es el pH del Soluvit 500K?",
+      "reference_answer": "El Soluvit 500K tiene un pH de 9.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_all": ["9"],
+      "must_contain_any_casefold": ["ph 9", "ph: 9", "ph de 9"],
+      "expected_source": "equilibra.pdf",
+      "retrieval_snippets": ["pH: 9"]
+    },
+    {
+      "id": "n005",
+      "category": "numeric",
+      "question": "¿Cuánto Calcio (CaO) tiene el Soluvit Calcio?",
+      "reference_answer": "Soluvit Calcio contiene 22.0% p/v de Calcio (CaO), equivalente a 220 g/L.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_all": ["22"],
+      "must_contain_any_casefold": ["22%", "22.0", "220 g/l", "p/v"],
+      "must_not_contain": ["11%", "12%"],
+      "expected_source": "equilibra.pdf",
+      "retrieval_snippets": ["Calcio (CaO): 22.0% p/v (220 g/L)"]
+    },
+    {
+      "id": "n006",
+      "category": "numeric",
+      "question": "¿Cuánto Magnesio (MgO) contiene el Soluvit Phostop?",
+      "reference_answer": "El Soluvit Phostop contiene 3.7% p/v de Magnesio (MgO).",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_all": ["3.7"],
+      "must_contain_any_casefold": ["3.7%", "3,7%", "p/v"],
+      "expected_source": "equilibra.pdf",
+      "retrieval_snippets": ["Magnesio (MgO): 3.7% p/v"]
+    },
+    {
+      "id": "n007",
+      "category": "numeric",
+      "question": "¿Cuánto Boro tiene el Ánimo Fortaleza?",
+      "reference_answer": "El Ánimo Fortaleza contiene 0.13% p/v de Boro (B).",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_all": ["0.13"],
+      "must_contain_any_casefold": ["0.13%", "0,13%", "p/v"],
+      "expected_source": "equilibra.pdf",
+      "retrieval_snippets": ["Boro (B): 0.13% p/v"]
+    },
+    {
+      "id": "n008",
+      "category": "numeric",
+      "question": "¿Cuál es la fórmula del MultiFert Balance?",
+      "reference_answer": "El MultiFert Balance tiene fórmula 15-9-20 + Mg + S.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_any_casefold": ["15-9-20", "15 9 20", "15/9/20"],
+      "expected_source": "equilibra.pdf",
+      "retrieval_snippets": ["MultiFert Balance: Fórmula 15-9-20"]
+    },
+
+    {
+      "id": "d001",
+      "category": "dosing",
+      "question": "¿Cuál es la dosis recomendada de Algarium Semilla SC para gramíneas como arroz o maíz?",
+      "reference_answer": "La dosis es 5 ml por kg de semilla para gramíneas (arroz, maíz).",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_all": ["5"],
+      "must_contain_any_casefold": ["5 ml", "5ml", "ml por kg", "ml/kg"],
+      "expected_source": "equilibra.pdf",
+      "retrieval_snippets": ["Gramíneas (arroz, maíz): 5 ml por kg de semilla"]
+    },
+    {
+      "id": "d002",
+      "category": "dosing",
+      "question": "¿Cuántos ml de Algarium Semilla SC se aplican por kg en leguminosas como soja o frijol?",
+      "reference_answer": "Para leguminosas (soja, frijol) la dosis es 3 ml por kg de semilla.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_all": ["3"],
+      "must_contain_any_casefold": ["3 ml", "3ml", "ml por kg", "ml/kg"],
+      "must_not_contain": ["5 ml por kg", "5ml/kg"],
+      "expected_source": "equilibra.pdf",
+      "retrieval_snippets": ["Leguminosas (soja, frijol): 3 ml por kg de semilla"]
+    },
+    {
+      "id": "d003",
+      "category": "dosing",
+      "question": "¿Para qué etapa específica se recomienda Soluvit Ca-B-Zn?",
+      "reference_answer": "Soluvit Ca-B-Zn se recomienda para polinización y cuajado.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_any_casefold": ["polinización", "polinizacion", "cuajado"],
+      "expected_source": "equilibra.pdf",
+      "retrieval_snippets": ["Polinización y cuajado"]
+    },
+    {
+      "id": "d004",
+      "category": "dosing",
+      "question": "¿En qué etapa se aplica Soluvit Calcio?",
+      "reference_answer": "Soluvit Calcio se aplica para calidad post-cosecha y firmeza.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_any_casefold": ["post-cosecha", "post cosecha", "postcosecha", "firmeza"],
+      "expected_source": "equilibra.pdf",
+      "retrieval_snippets": ["Calidad post-cosecha y firmeza"]
+    },
+
+    {
+      "id": "m001",
+      "category": "multi_hop",
+      "question": "¿Dónde se fabrican los fertilizantes líquidos de Equilibra?",
+      "reference_answer": "Los fertilizantes líquidos se fabrican en la planta de Paita, Piura.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_any_casefold": ["paita", "piura"],
+      "must_not_contain": ["Lima"],
+      "expected_source": "equilibra.pdf",
+      "retrieval_snippets": ["Planta de Producción", "Paita, Piura"]
+    },
+    {
+      "id": "m002",
+      "category": "multi_hop",
+      "question": "¿En qué año se inauguró la planta de Equilibra?",
+      "reference_answer": "La planta de producción se inauguró en 2020.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_all": ["2020"],
+      "must_not_contain": ["2017", "2010", "2019"],
+      "expected_source": "equilibra.pdf",
+      "retrieval_snippets": ["Inaugurada en 2020"]
+    },
+    {
+      "id": "m003",
+      "category": "multi_hop",
+      "question": "¿En qué países tiene Equilibra distribución exclusiva de las líneas premium de Yara?",
+      "reference_answer": "Equilibra tiene distribución exclusiva de YaraMila y YaraTera en Perú y Bolivia.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_all": ["Perú", "Bolivia"],
+      "must_contain_any_casefold": ["yara"],
+      "expected_source": "equilibra.pdf",
+      "retrieval_snippets": ["distribución exclusiva en Perú y Bolivia"]
+    },
+    {
+      "id": "m004",
+      "category": "multi_hop",
+      "question": "¿Qué información debe enviar un cliente para que le preparen un fertilizante personalizado?",
+      "reference_answer": "El cliente debe enviar análisis de agua y suelo para que se diseñe la fórmula.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_any_casefold": ["análisis de agua", "analisis de agua", "agua y suelo"],
+      "expected_source": "equilibra.pdf",
+      "retrieval_snippets": ["análisis de agua y suelo del cliente"]
+    },
+
+    {
+      "id": "x001",
+      "category": "disambiguation",
+      "question": "¿Cuál es la diferencia en concentración de Calcio entre Soluvit Ca-B-Zn y Soluvit Calcio?",
+      "reference_answer": "Soluvit Ca-B-Zn tiene 11.0% p/v de Calcio; Soluvit Calcio tiene 22.0% p/v (el doble).",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_all": ["11", "22"],
+      "must_contain_any_casefold": ["p/v"],
+      "expected_source": "equilibra.pdf",
+      "retrieval_snippets": ["Calcio (CaO): 11.0% p/v", "Calcio (CaO): 22.0% p/v"]
+    },
+    {
+      "id": "x002",
+      "category": "disambiguation",
+      "question": "Entre Algarium Semilla SC y Algarium +Micros, ¿cuál tiene mayor concentración de Zinc?",
+      "reference_answer": "Algarium Semilla SC tiene mayor concentración de Zinc: 30% p/v vs 2.6% en Algarium +Micros.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_all": ["30"],
+      "must_contain_any_casefold": ["semilla sc", "semilla", "30%"],
+      "expected_source": "equilibra.pdf",
+      "retrieval_snippets": ["Zinc (Zn): 30% p/v", "Zinc (2.6"]
+    },
+    {
+      "id": "x003",
+      "category": "disambiguation",
+      "question": "Entre Ánimo y Ánimo Fortaleza, ¿cuál contiene Calcio?",
+      "reference_answer": "Solo Ánimo Fortaleza contiene Calcio (12.0% p/v de CaO). Ánimo no menciona Calcio en su composición.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_any_casefold": ["fortaleza"],
+      "must_contain_all": ["12"],
+      "expected_source": "equilibra.pdf",
+      "retrieval_snippets": ["Ánimo Fortaleza", "Calcio (CaO): 12.0% p/v"]
+    },
+    {
+      "id": "x004",
+      "category": "disambiguation",
+      "question": "¿Qué productos de la línea Bioestimulantes contienen extracto de Ascophyllum nodosum?",
+      "reference_answer": "Algarium Semilla SC y Algarium +Micros contienen extracto de Ascophyllum nodosum.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_all": ["Algarium"],
+      "must_contain_any_casefold": ["semilla sc", "+micros", "micros"],
+      "expected_source": "equilibra.pdf",
+      "retrieval_snippets": ["Ascophyllum nodosum", "Algarium Semilla SC", "Algarium +Micros"]
+    },
+
+    {
+      "id": "co001",
+      "category": "corporate",
+      "question": "¿En qué año fue fundada Equilibra?",
+      "reference_answer": "Equilibra fue fundada en 2017 como Joint Venture entre Grupo Romero y Grupo Mitsui.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_all": ["2017"],
+      "must_not_contain": ["2010", "2020", "2015"],
+      "expected_source": "equilibra.pdf",
+      "retrieval_snippets": ["fundada en 2017"]
+    },
+    {
+      "id": "co002",
+      "category": "corporate",
+      "question": "¿Cuál es la misión de Equilibra?",
+      "reference_answer": "Nutrir la vida de nuestra comunidad con productividad y mayores oportunidades.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_any_casefold": ["nutrir", "comunidad"],
+      "must_contain_any": ["productividad", "oportunidades"],
+      "expected_source": "equilibra.pdf",
+      "retrieval_snippets": ["Misión: Nutrir la vida"]
+    },
+    {
+      "id": "co003",
+      "category": "corporate",
+      "question": "¿Cuál es el correo comercial de Equilibra?",
+      "reference_answer": "El correo comercial es fertilizantes@equilibra.pe.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_any_casefold": ["fertilizantes@equilibra.pe", "fertilizantes@equilibra"],
+      "expected_source": "equilibra.pdf",
+      "retrieval_snippets": ["fertilizantes@equilibra.pe"]
+    },
+
+    {
+      "id": "neg001",
+      "category": "negative",
+      "question": "¿Cuánto cuesta el Algarium Semilla SC?",
+      "reference_answer": "El documento no menciona precios.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_any_casefold": ["no", "no veo", "no menciona", "no aparece", "no detalla", "no proporciona"],
+      "must_not_contain": ["S/", "USD", "$", "soles", "dólares"],
+      "expected_source": "equilibra.pdf"
+    },
+    {
+      "id": "neg002",
+      "category": "negative",
+      "question": "¿Cuántos empleados tiene Equilibra?",
+      "reference_answer": "El documento no proporciona el número de empleados.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_any_casefold": ["no", "no veo", "no menciona", "no aparece", "no detalla"],
+      "must_not_contain": ["empleados", "trabajadores"],
+      "expected_source": "equilibra.pdf"
+    },
+    {
+      "id": "neg003",
+      "category": "negative",
+      "question": "¿Tienen distribución en Argentina?",
+      "reference_answer": "El documento solo menciona distribución exclusiva en Perú y Bolivia.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_any_casefold": ["no", "no veo", "no menciona", "no aparece", "perú y bolivia", "peru y bolivia"]
+    },
+    {
+      "id": "neg004",
+      "category": "negative",
+      "question": "¿Quién es el CEO de Equilibra?",
+      "reference_answer": "El documento no proporciona el nombre del CEO.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_any_casefold": ["no", "no veo", "no menciona", "no aparece", "no detalla"]
+    },
+    {
+      "id": "neg005",
+      "category": "negative",
+      "question": "¿Qué certificaciones ISO tienen?",
+      "reference_answer": "El documento no menciona certificaciones ISO.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_any_casefold": ["no", "no veo", "no menciona", "no aparece", "no detalla"],
+      "must_not_contain": ["ISO 9001", "ISO 14001"]
+    },
+
+    {
+      "id": "c001",
+      "category": "calc_refusal",
+      "question": "Si compro 100 kg de semilla de arroz, ¿cuántos ml de Algarium Semilla SC necesito en total?",
+      "reference_answer": "El documento indica 5 ml por kg pero no calcula totales. La operación queda al especialista.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_any_casefold": ["no", "no calculo", "no realizo", "no veo", "5 ml por kg", "5 ml/kg", "especialista"],
+      "must_not_contain": ["500 ml", "500ml", "500 mL"]
+    },
+    {
+      "id": "c002",
+      "category": "calc_refusal",
+      "question": "Convertir 30% p/v a g/L",
+      "reference_answer": "El documento solo indica 30% p/v y no proporciona la conversión a g/L.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_any_casefold": ["no", "no proporciona", "no veo", "no detalla", "no calculo"],
+      "must_not_contain": ["300 g/l", "300g/l", "300 gramos"]
+    },
+    {
+      "id": "c003",
+      "category": "calc_refusal",
+      "question": "Si combino Ánimo Fortaleza con Soluvit Calcio, ¿cuánto Calcio total tengo?",
+      "reference_answer": "El documento indica los valores por separado y no realiza combinaciones que no estén descritas.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_any_casefold": ["no", "no realizo", "por separado", "no calculo", "especialista"],
+      "must_not_contain": ["34%", "34 %"]
+    },
+
+    {
+      "id": "p001",
+      "category": "premise_correction",
+      "question": "Equilibra fue fundada en 2010, dame más datos sobre la empresa",
+      "reference_answer": "Corregir la premisa: Equilibra fue fundada en 2017, no 2010.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_all": ["2017"],
+      "must_not_contain": ["fundada en 2010", "fue fundada en 2010"]
+    },
+    {
+      "id": "p002",
+      "category": "premise_correction",
+      "question": "La planta está en Lima, ¿cierto?",
+      "reference_answer": "Corregir: la planta está en Paita, Piura. Lima es solo la sede administrativa.",
+      "requires_corpus": true,
+      "answer_should_not_be_empty": true,
+      "must_contain_any_casefold": ["paita", "piura"],
+      "must_contain_any": ["No", "no"],
+      "must_not_contain": ["sí, está en Lima", "si, esta en Lima", "planta está en Lima"]
+    }
+  ]
+}

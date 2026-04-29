@@ -84,6 +84,7 @@ class BotUIFields(BaseSettings):
     ai_prefix: str = Field(default="assistant", env="AI_PREFIX")
     human_prefix: str = Field(default="user", env="HUMAN_PREFIX")
     enable_agentic_handoff: bool = Field(default=False, env="ENABLE_AGENTIC_HANDOFF")
+    enable_agentic_rag: bool = Field(default=False, env="ENABLE_AGENTIC_RAG")
 
 
 class MongoFields(BaseSettings):
@@ -114,6 +115,7 @@ class RAGChunkingFields(BaseSettings):
     min_chunk_length: int = Field(default=100, validation_alias="MIN_CHUNK_LENGTH")
     max_file_size_mb: int = Field(default=10, validation_alias="MAX_FILE_SIZE_MB")
     rag_child_overlap_tokens: int = Field(default=40, env="RAG_CHILD_OVERLAP_TOKENS")
+    rag_parent_overlap_tokens: int = Field(default=120, env="RAG_PARENT_OVERLAP_TOKENS")
     llm_context_window: int = Field(default=16000, env="LLM_CONTEXT_WINDOW")
     enable_semantic_chunking: bool = Field(default=False, env="ENABLE_SEMANTIC_CHUNKING")
     semantic_chunk_threshold: float = Field(default=0.5, env="SEMANTIC_CHUNK_THRESHOLD")

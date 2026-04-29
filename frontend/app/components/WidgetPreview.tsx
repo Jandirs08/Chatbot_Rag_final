@@ -24,7 +24,7 @@ import { BrowserMockup } from "@/app/components/ui/BrowserMockup";
 import { CodeBlock } from "@/app/components/ui/CodeBlock";
 import { ColorPicker } from "@/app/components/ui/ColorPicker";
 import { Code2, Plug, Sparkles } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/app/hooks/use-toast";
 
 // Position options for select
 const POSITION_OPTIONS = [

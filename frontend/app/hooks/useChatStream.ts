@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { logger } from "@/app/lib/logger";
-import { API_URL } from "../lib/config";
+import { API_URL } from "@/app/lib/config";
 import type { Message } from "@/types/chat";
 import type { DebugData } from "@/app/components/debug/utils";
 

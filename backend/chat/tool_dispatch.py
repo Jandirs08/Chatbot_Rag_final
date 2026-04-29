@@ -36,6 +36,8 @@ class DispatchEvent:
     tool_args: dict = field(default_factory=dict)
     sse_event: Optional[str] = None
     sse_payload: Optional[dict] = None
+    tool_call_id: Optional[str] = None
+    tool_content: Optional[str] = None
 
 
 def _extract_text(chunk: Any) -> str:
@@ -172,11 +174,19 @@ async def consume_stream(
             yield DispatchEvent(kind="end")
             return
 
-        # Continuation tools require re-invoking the chain with a ToolMessage.
-        # Implement when the second tool (e.g. retrieval) lands.
-        raise NotImplementedError(
-            f"Continuation tool '{tool.name}' not yet supported by dispatcher"
+        # Continuation: surface content + call_id so the caller can append
+        # AIMessage(tool_calls=...) + ToolMessage and re-stream the bound model.
+        # The dispatcher itself stays single-pass; the ReAct loop lives one
+        # layer up (ChatManager.stream_with_tools).
+        yield DispatchEvent(
+            kind="tool_continuation",
+            tool_name=tool.name,
+            tool_args=call["args"],
+            tool_call_id=call.get("id"),
+            tool_content=result.content or "",
         )
+        yield DispatchEvent(kind="end")
+        return
 
     if text_buffer:
         yield DispatchEvent(kind="text", text=text_buffer)

@@ -122,13 +122,23 @@ async def chat_stream_log(
                 yield "event: end\ndata: {}\n\n"
             return StreamingResponse(_in_human(), media_type="text/event-stream", headers=_sse_headers)
 
-        agentic_handoff = (
-            bool(getattr(settings, "enable_agentic_handoff", False))
+        agentic_handoff_enabled = bool(getattr(settings, "enable_agentic_handoff", False))
+        agentic_rag_enabled = bool(getattr(settings, "enable_agentic_rag", False))
+        agentic_path_active = (
+            (agentic_handoff_enabled or agentic_rag_enabled)
             and tool_registry.has_tools()
         )
         lead_already_captured = bool(conv_doc.get("lead_email"))
+        # Skip agentic path only when it's handoff-only AND the lead is already
+        # captured (no need to re-fire the handoff form). With agentic_rag on,
+        # retrieval is per-turn so we always enter the agentic stream.
+        skip_for_handoff_lead = (
+            agentic_handoff_enabled
+            and not agentic_rag_enabled
+            and lead_already_captured
+        )
 
-        if agentic_handoff and not lead_already_captured:
+        if agentic_path_active and not skip_for_handoff_lead:
             async def generate_agentic():
                 try:
                     logger.debug(f"[CHAT] Agentic stream start | conv={conversation_id}")

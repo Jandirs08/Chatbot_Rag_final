@@ -8,7 +8,7 @@
 
 services:
   mongodb:
-    image: mongo:7.0
+    image: mongo:8.2
     container_name: chatbot-mongodb
     restart: unless-stopped
     # Intentionally not exposed to the host in production.
@@ -25,7 +25,7 @@ services:
       start_period: 20s
 
   qdrant:
-    image: qdrant/qdrant:v1.10.1
+    image: qdrant/qdrant:v1.12.5
     container_name: chatbot-qdrant
     restart: unless-stopped
     # Intentionally not exposed to the host in production.

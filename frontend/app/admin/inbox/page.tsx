@@ -7,7 +7,7 @@ import { useRequireAdmin } from "@/app/hooks/useAuthGuard";
 import { useAuth } from "@/app/hooks/useAuth";
 import { useToast } from "@/app/hooks/use-toast";
 import { API_URL } from "@/app/lib/config";
-import { authenticatedFetch } from "@/app/lib/services/authService";
+import { authenticatedJsonFetcher } from "@/app/lib/services/authService";
 import * as inboxService from "@/app/lib/services/inboxService";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
@@ -25,12 +25,6 @@ type HandoffListResponse = {
 
 
 const EMPTY_LIST: HandoffConversation[] = [];
-
-const fetcher = async (url: string) => {
-  const res = await authenticatedFetch(url, { method: "GET" });
-  if (!res.ok) throw new Error("Error fetching data");
-  return res.json();
-};
 
 function HandoffInboxContent() {
   const { isAuthorized } = useRequireAdmin();
@@ -54,7 +48,7 @@ function HandoffInboxContent() {
     mutate: refreshList,
   } = useSWR<HandoffListResponse>(
     isAuthorized ? `${API_URL}/conversations/inbox` : null,
-    fetcher,
+    authenticatedJsonFetcher,
     { refreshInterval: 5000, revalidateOnFocus: true },
   );
 

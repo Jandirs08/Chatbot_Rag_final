@@ -326,6 +326,17 @@ export const authenticatedFetch = async (
   return response;
 };
 
+export async function authenticatedJsonFetcher<T = unknown>(
+  url: string,
+  errorMessage = "Error fetching data",
+): Promise<T> {
+  const response = await authenticatedFetch(url, { method: "GET" });
+  if (!response.ok) {
+    throw new Error(errorMessage);
+  }
+  return response.json();
+}
+
 export const authenticatedUpload = async (
   url: string,
   options: RequestInit = {},

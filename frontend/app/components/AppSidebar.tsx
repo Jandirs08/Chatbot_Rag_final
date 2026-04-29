@@ -33,8 +33,8 @@ import {
 } from "./ui/sidebar";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useAuth } from "../hooks/useAuth";
-import { getBotConfig } from "../lib/services/botConfigService";
+import { useAuth } from "@/app/hooks/useAuth";
+import { getBotConfig } from "@/app/lib/services/botConfigService";
 import { logger } from "@/app/lib/logger";
 import { toast } from "sonner";
 

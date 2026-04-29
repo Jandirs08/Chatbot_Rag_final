@@ -844,6 +844,14 @@ class RAGRetriever:
         grouped = self._group_documents_by_type(documents)
         known_types = ["header", "paragraph", "numbered_list", "bullet_list", "text"]
 
+        # Counter for deterministic per-document ids in the rendered context.
+        # The numeric label `--- DOC N ---` gives the model a clear boundary
+        # between retrieved fragments so adjacent entities cannot bleed into
+        # each other when reasoning about attributes. Skipped when only one
+        # document is retrieved (the marker would be noise without siblings).
+        counter = {"value": 0}
+        emit_doc_marker = len(documents) > 1
+
         def _format_chunk(doc: Document) -> str:
             content = doc.page_content.strip()
             source = doc.metadata.get("source")
@@ -853,8 +861,14 @@ class RAGRetriever:
                 source_parts.append(str(source))
             if page_number is not None and str(page_number).strip():
                 source_parts.append(f"pagina {page_number}")
+            counter["value"] += 1
+            header_lines: list[str] = []
+            if emit_doc_marker:
+                header_lines.append(f"--- DOC {counter['value']} ---")
             if source_parts:
-                return f"[Fuente: {', '.join(source_parts)}]\n{content}"
+                header_lines.append(f"[Fuente: {', '.join(source_parts)}]")
+            if header_lines:
+                return "\n".join(header_lines + [content])
             return content
 
         parts = ["Informacion relevante encontrada:"]

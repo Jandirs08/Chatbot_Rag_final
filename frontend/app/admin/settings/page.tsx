@@ -36,6 +36,27 @@ import { SettingsAppearanceTab } from "@/app/components/admin/settings/SettingsA
 import { SettingsBrainTab } from "@/app/components/admin/settings/SettingsBrainTab";
 import { SettingsSystemTab } from "@/app/components/admin/settings/SettingsSystemTab";
 
+function sanitizeUiExtra(val?: string | null) {
+  const txt = String(val || "").trim();
+  try {
+    const obj = JSON.parse(txt);
+    if (
+      obj &&
+      typeof obj === "object" &&
+      ("brandColor" in obj ||
+        "placeholder" in obj ||
+        "welcomeMessage" in obj ||
+        "starters" in obj ||
+        "avatarUrl" in obj)
+    ) {
+      return "";
+    }
+  } catch {
+    // Plain text is valid for this field.
+  }
+  return txt;
+}
+
 export default function AdminSettingsPage() {
   const { user } = useAuth();
   const isAuthorized = hasPermission(user, "manage_bot_config");
@@ -130,24 +151,6 @@ export default function AdminSettingsPage() {
       setTemperature(
         typeof data.temperature === "number" ? data.temperature : 0.7,
       );
-      const sanitizeUiExtra = (val?: string | null) => {
-        const txt = String(val || "").trim();
-        try {
-          const obj = JSON.parse(txt);
-          if (
-            obj &&
-            typeof obj === "object" &&
-            ("brandColor" in obj ||
-              "placeholder" in obj ||
-              "welcomeMessage" in obj ||
-              "starters" in obj ||
-              "avatarUrl" in obj)
-          ) {
-            return "";
-          }
-        } catch (_) { }
-        return txt;
-      };
       setUiExtra(sanitizeUiExtra(data.ui_prompt_extra));
       setBaselineUiExtra(sanitizeUiExtra(data.ui_prompt_extra));
       setBaselineTemperature(
@@ -212,24 +215,6 @@ export default function AdminSettingsPage() {
         temperature,
         ui_prompt_extra: (uiExtra || "").trim() || undefined,
       });
-      const sanitizeUiExtra = (val?: string | null) => {
-        const txt = String(val || "").trim();
-        try {
-          const obj = JSON.parse(txt);
-          if (
-            obj &&
-            typeof obj === "object" &&
-            ("brandColor" in obj ||
-              "placeholder" in obj ||
-              "welcomeMessage" in obj ||
-              "starters" in obj ||
-              "avatarUrl" in obj)
-          ) {
-            return "";
-          }
-        } catch (_) { }
-        return txt;
-      };
       setUiExtra(sanitizeUiExtra(updated.ui_prompt_extra));
       setBaselineUiExtra(sanitizeUiExtra(updated.ui_prompt_extra));
       setBaselineTemperature(updated.temperature ?? temperature);
@@ -248,7 +233,7 @@ export default function AdminSettingsPage() {
     try {
       setSavingBrain(true);
       setErrorBrain(null);
-      const updated = await resetBotConfig();
+      await resetBotConfig();
       setUiExtra("");
       setBaselineUiExtra("");
       toast.success("Configuración restablecida y limpiada en backend.");

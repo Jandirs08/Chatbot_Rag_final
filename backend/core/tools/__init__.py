@@ -8,6 +8,9 @@ def bootstrap_tools(settings) -> None:
     if getattr(settings, "enable_agentic_handoff", False):
         from .handoff_tool import HANDOFF_TOOL
         registry.register(HANDOFF_TOOL)
+    if getattr(settings, "enable_agentic_rag", False):
+        from .retrieval_tool import SEARCH_TOOL
+        registry.register(SEARCH_TOOL)
 
 
 __all__ = [

@@ -2,10 +2,10 @@
 
 import React from "react";
 import { ChatWindow } from "@/app/components/chat/ChatWindow";
-import { API_URL } from "../lib/config";
+import { API_URL } from "@/app/lib/config";
 import type { Message as HookMessage } from "@/types/chat";
-import { logger } from "../lib/logger";
-import { useConversationId } from "../hooks/useConversationId";
+import { logger } from "@/app/lib/logger";
+import { useConversationId } from "@/app/hooks/useConversationId";
 
 export default function ChatPage() {
   const [conversationId, resetConversationId] = useConversationId("conversation_id");

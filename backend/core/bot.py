@@ -121,8 +121,13 @@ class Bot:
         """
         Construye el pipeline LCEL completo:
         {input, history, context} → prompt → modelo.
+
+        Además expone `_message_pipeline` (todo lo previo al modelo) para que
+        `aprepare_messages` pueda renderizar la lista de `BaseMessage` sin
+        invocar al LLM — base del bucle ReAct cuando hay tools de continuation.
         """
         prompt_model_chain: Runnable = self.chain_manager.runnable_chain
+        message_chain: Runnable = self.chain_manager.message_chain
 
         async def get_history_async(x):
             conversation_id = x.get("conversation_id")
@@ -149,6 +154,11 @@ class Bot:
             """Inyecta contexto RAG y evita contexto vacío con un mensaje explícito."""
             req_ctx = get_request_context()
             fallback_ctx = "No hay información adicional recuperada para esta consulta."
+            # Agentic RAG: el modelo decide cuándo invocar `search_documents`.
+            # Saltamos la inyección eager para que la herramienta dirija el retrieval.
+            if getattr(self.settings, "enable_agentic_rag", False):
+                req_ctx.gating_reason = "agentic_rag_enabled"
+                return fallback_ctx
             try:
                 t_start = time.perf_counter()
                 query = x.get("input", "")
@@ -203,6 +213,8 @@ class Bot:
             "context": RunnableLambda(get_context_async)
         })
 
+        # Pre-modelo: produce ChatPromptValue (mensajes renderizados).
+        self._message_pipeline = loader | message_chain
         pipeline = loader | prompt_model_chain
 
         # Reemplaza la chain interna con el pipeline final
@@ -268,6 +280,38 @@ class Bot:
             "conversation_id": conversation_id,
         }
         async for part in self.chain_manager.runnable_chain.astream(inp):
+            yield part
+
+    async def aprepare_messages(self, x: Dict[str, Any]) -> list:
+        """Render the prompt to a `list[BaseMessage]` without invoking the model.
+
+        Base for the ReAct loop: callers append `AIMessage(tool_calls=...)` +
+        `ToolMessage(...)` and re-stream via `astream_messages`.
+        """
+        conversation_id = x.get("conversation_id", "default_session")
+        inp = {
+            "input": x["input"],
+            "conversation_id": conversation_id,
+        }
+        prompt_value = await self._message_pipeline.ainvoke(inp)
+        return prompt_value.to_messages()
+
+    async def astream_messages(self, messages: list) -> AsyncGenerator[Any, None]:
+        """Stream raw model chunks for an explicit message list (bypasses prompt)."""
+        if getattr(self.settings, "mock_mode", False):
+            return
+        async for part in self.chain_manager.bound_model.astream(messages):
+            yield part
+
+    async def astream_messages_no_tools(self, messages: list) -> AsyncGenerator[Any, None]:
+        """Stream against the unbound model so it cannot emit tool calls.
+
+        Used by the ChatManager cap-reached path to force a final text answer
+        with the accumulated tool results in `messages`.
+        """
+        if getattr(self.settings, "mock_mode", False):
+            return
+        async for part in self.chain_manager.raw_model.astream(messages):
             yield part
 
     async def astream_chunked(self, x: Dict[str, Any], min_chunk_chars: int = 128) -> AsyncGenerator[str, None]:

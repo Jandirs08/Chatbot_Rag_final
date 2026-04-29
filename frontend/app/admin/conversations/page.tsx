@@ -5,7 +5,7 @@ import useSWR from "swr";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useRequireAdmin } from "@/app/hooks/useAuthGuard";
 import { API_URL } from "@/app/lib/config";
-import { authenticatedFetch } from "@/app/lib/services/authService";
+import { authenticatedJsonFetcher } from "@/app/lib/services/authService";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -20,12 +20,6 @@ import {
   type FilterConfig,
   type HistoryItem,
 } from "../inbox/_components/utils";
-
-const fetcher = async (url: string) => {
-  const res = await authenticatedFetch(url, { method: "GET" });
-  if (!res.ok) throw new Error("Error fetching data");
-  return res.json();
-};
 
 function ConversationsContent() {
   const { isAuthorized } = useRequireAdmin();
@@ -53,7 +47,7 @@ function ConversationsContent() {
     isAuthorized
       ? `${API_URL}/chat/conversations?limit=${LIMIT}&skip=${skip}`
       : null,
-    fetcher,
+    authenticatedJsonFetcher,
     { refreshInterval: 10000, revalidateOnFocus: true },
   );
 
@@ -67,7 +61,7 @@ function ConversationsContent() {
     isAuthorized && chatIdFromUrl
       ? `${API_URL}/chat/history/${chatIdFromUrl}`
       : null,
-    fetcher,
+    authenticatedJsonFetcher,
     { refreshInterval: 5000, revalidateOnFocus: false },
   );
 

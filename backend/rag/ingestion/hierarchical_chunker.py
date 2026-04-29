@@ -53,6 +53,7 @@ class HierarchicalChunker:
         parent_target_tokens: int = 1350,
         parent_max_tokens: int = 1500,
         parent_min_tokens: int = 900,
+        parent_overlap_tokens: int | None = None,
         child_target_tokens: int = 260,
         child_max_tokens: int = 320,
         child_min_tokens: int = 120,
@@ -70,6 +71,16 @@ class HierarchicalChunker:
             from config import settings as _s
             child_overlap_tokens = int(getattr(_s, "rag_child_overlap_tokens", 40))
         self.child_overlap_tokens = max(0, child_overlap_tokens)
+        # Parent-level overlap: when flushing a parent, copy the last N tokens of
+        # blocks from the closing parent to the start of the next one. Solves the
+        # "orphan attribute block" problem in enumerative corpora (products,
+        # plans, items) where a sub-header like "Composition:" forces a flush
+        # but the entity name lives in the previous parent. Default 0 preserves
+        # legacy behavior; recommend ~120 for enumerative documents.
+        if parent_overlap_tokens is None:
+            from config import settings as _s
+            parent_overlap_tokens = int(getattr(_s, "rag_parent_overlap_tokens", 120))
+        self.parent_overlap_tokens = max(0, parent_overlap_tokens)
         self.page_loader = page_loader
         try:
             self.encoding = tiktoken.get_encoding(encoding_name)
@@ -266,11 +277,52 @@ class HierarchicalChunker:
         except Exception:
             return False
 
+    def _carry_overlap_blocks(self, source_group: Sequence[StructuralBlock]) -> tuple[list[StructuralBlock], int]:
+        """Return the trailing blocks of `source_group` whose tokens fit in the overlap budget.
+
+        Used when flushing a parent: the next parent will start with these
+        blocks so that an attribute block (e.g. "Composition:") is not orphaned
+        from its entity name in the prior parent. Pure positional carry-over,
+        no domain knowledge — works for any enumerative document.
+        """
+        if self.parent_overlap_tokens <= 0 or not source_group:
+            return ([], 0)
+        carry: list[StructuralBlock] = []
+        tokens = 0
+        for block in reversed(source_group):
+            next_tokens = tokens + max(1, block.token_count)
+            if next_tokens > self.parent_overlap_tokens and carry:
+                break
+            carry.insert(0, block)
+            tokens = next_tokens
+            if tokens >= self.parent_overlap_tokens:
+                break
+        # Avoid useless overlap when the prior group is already a full-sized
+        # parent (carrying everything would duplicate it). For tiny groups
+        # (e.g. a sub-section header followed by a one-line description),
+        # carry over the entire group on purpose so the next parent is
+        # self-contained. Threshold: only skip carry when the prior group
+        # was at least `parent_min_tokens` (a sizable, standalone parent).
+        source_total = sum(max(1, b.token_count) for b in source_group)
+        if len(carry) >= len(source_group) and source_total >= self.parent_min_tokens:
+            return ([], 0)
+        return (carry, tokens)
+
     def _group_blocks_into_parents(self, blocks: Sequence[StructuralBlock]) -> list[list[StructuralBlock]]:
         groups: list[list[StructuralBlock]] = []
         current_group: list[StructuralBlock] = []
         current_tokens = 0
         semantic_model = self._get_or_load_semantic_model()
+
+        def _flush_with_overlap() -> None:
+            nonlocal current_group, current_tokens
+            if not current_group:
+                return
+            closed = current_group
+            groups.append(closed)
+            carry, carry_tokens = self._carry_overlap_blocks(closed)
+            current_group = list(carry)
+            current_tokens = carry_tokens
 
         for block in blocks:
             block_tokens = max(1, block.token_count)
@@ -281,9 +333,7 @@ class HierarchicalChunker:
             )
 
             if starts_new_section:
-                groups.append(current_group)
-                current_group = []
-                current_tokens = 0
+                _flush_with_overlap()
 
             should_flush = (
                 current_group
@@ -291,9 +341,7 @@ class HierarchicalChunker:
                 and current_tokens + block_tokens > self.parent_max_tokens
             )
             if should_flush:
-                groups.append(current_group)
-                current_group = []
-                current_tokens = 0
+                _flush_with_overlap()
 
             # Semantic topic-shift split (only when group has minimum content)
             if (
@@ -308,22 +356,71 @@ class HierarchicalChunker:
                     (b for b in reversed(current_group) if b.block_type not in {"header"}), None
                 )
                 if last_content is not None and self._is_semantic_topic_shift(semantic_model, last_content, block):
-                    groups.append(current_group)
-                    current_group = []
-                    current_tokens = 0
+                    _flush_with_overlap()
 
             current_group.append(block)
             current_tokens += block_tokens
 
             if current_tokens >= self.parent_target_tokens and block.block_type == "header":
-                groups.append(current_group)
-                current_group = []
-                current_tokens = 0
+                _flush_with_overlap()
 
         if current_group:
             groups.append(current_group)
 
         return groups
+
+    # Heuristic entity-name detection — generic, no domain bias.
+    # Matches a short bullet/numbered line followed by attribute markers
+    # (next non-empty line is a colon-terminated bullet OR an UPPERCASE
+    # header). Used to inject `### {name}` synthetic headings so the model
+    # can disambiguate sibling entities packed into the same parent (e.g.
+    # successive products, plans, items, lessons, services).
+    # Bullet markers cover ASCII dashes, asterisks, and common Unicode bullet
+    # glyphs emitted by PDF extractors: en-dash, em-dash, middle dot, square,
+    # triangle. Widening keeps the heuristic generic across language/typography.
+    _BULLET_CHARS = r"\-–—*•·▪‣◦"
+    # Name-start character class: capital letters across Latin scripts, plus
+    # encoding artefacts produced by some PDF extractors that mangle accents
+    # (e.g. backtick or apostrophe replacing `Á`). Stays generic — does not
+    # accept digits or whitespace as name-start.
+    _NAME_START = r"A-ZÀ-ÖØ-Þ`'\""
+    _ENTITY_NAME_LINE = re.compile(
+        r"^\s*(?:[" + _BULLET_CHARS + r"]\s+|\d+[\.\)]\s+)"
+        r"(?P<name>[" + _NAME_START + r"][^:\n]{1,80})\s*$"
+    )
+    _ATTRIBUTE_FOLLOWER = re.compile(
+        r"^\s*(?:"
+        r"[" + _BULLET_CHARS + r"]\s+[^\s:][^\n:]{0,40}:"  # bullet attribute "- Word:" / "– Foo bar:"
+        r"|[" + _NAME_START + r"][^\n:]{2,40}:?\s*$"        # uppercase / header-ish line
+        r"|#{1,6}\s+\S"                                     # markdown header
+        r")"
+    )
+
+    def _inject_entity_headings(self, content: str) -> str:
+        if not content or not content.strip():
+            return content
+        lines = content.split("\n")
+        out: list[str] = []
+        # Look ahead one significant non-empty line.
+        for index, line in enumerate(lines):
+            if self._ENTITY_NAME_LINE.match(line):
+                # Find next non-empty line.
+                follower = None
+                for j in range(index + 1, min(index + 5, len(lines))):
+                    cand = lines[j]
+                    if cand.strip():
+                        follower = cand
+                        break
+                if follower and self._ATTRIBUTE_FOLLOWER.match(follower):
+                    name_match = self._ENTITY_NAME_LINE.match(line)
+                    name = (name_match.group("name") if name_match else "").strip()
+                    if name:
+                        # Prepend a synthetic heading. Keeps original line intact
+                        # so existing semantics are preserved; just adds an
+                        # explicit anchor the model can latch onto.
+                        out.append(f"### {name}")
+            out.append(line)
+        return "\n".join(out)
 
     def _build_hierarchy(
         self,
@@ -358,7 +455,8 @@ class HierarchicalChunker:
         doc_id: str,
         parent_index: int,
     ) -> ParentDocument:
-        content = "\n\n".join(block.content for block in group).strip()
+        joined = "\n\n".join(block.content for block in group).strip()
+        content = self._inject_entity_headings(joined)
         start_page = min(block.page_number for block in group)
         end_page = max(block.page_number for block in group)
         section_title = next((block.section_title for block in group if block.section_title), None)

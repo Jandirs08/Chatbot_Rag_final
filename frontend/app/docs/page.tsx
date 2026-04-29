@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, lazy } from "react";
-import { Skeleton } from "../components/ui/skeleton";
+import { Skeleton } from "@/app/components/ui/skeleton";
 
 // Lazy loading del componente DocumentManagement
 const DocumentManagement = lazy(() => 

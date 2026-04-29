@@ -52,6 +52,10 @@ class ChainManager:
             model_type=model_type,
             parameters=model_kwargs
         )
+        # Preserve the raw (unbound) model so callers can force a tool-free
+        # final answer when the ReAct cap is reached. Without this we'd lose
+        # access to the underlying model after `bind_tools`.
+        self._raw_model = self._model
 
         # Bind tools si el modelo lo soporta y hay tools registradas.
         # ChatOpenAI/ChatVertexAI exponen `bind_tools`; LlamaCpp no.
@@ -100,8 +104,12 @@ class ChainManager:
             self._prompt = PromptTemplate.from_template(prompt_str)
         self._prompt = self._prompt.partial(**self.prompt_vars)
 
-        # LCEL chain
-        self.chain: Runnable = (self._prompt | self._model)
+        # LCEL chain — message_chain renders messages, full chain feeds the model.
+        # Splitting allows callers (Bot.aprepare_messages) to obtain rendered
+        # messages without invoking the model — required by the agentic ReAct
+        # loop, which appends ToolMessage and re-streams the bound model.
+        self.message_chain: Runnable = self._prompt
+        self.chain: Runnable = (self.message_chain | self._model)
 
     @property
     def uses_chat_prompt(self) -> bool:
@@ -165,3 +173,14 @@ class ChainManager:
     @property
     def runnable_chain(self):
         return self.chain
+
+    @property
+    def bound_model(self):
+        """Tool-bound chat model. Streams accept `list[BaseMessage]` directly."""
+        return self._model
+
+    @property
+    def raw_model(self):
+        """Unbound chat model. Used by the cap-reached fallback to force a
+        text-only final answer once the ReAct loop exhausts its tool budget."""
+        return self._raw_model

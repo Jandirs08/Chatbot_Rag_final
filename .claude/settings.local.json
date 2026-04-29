@@ -80,7 +80,13 @@
       "PowerShell(Get-ChildItem *)",
       "Bash(grep -rn \"from chat import\\\\|^import chat$\" /c/Chatbot-final-jandir/Chatbot_Rag_final/backend --include=\"*.py\")",
       "Bash(docker exec *)",
-      "Bash(grep -nB1 -A5 \"env_file\\\\|environment:\" /c/Chatbot-final-jandir/Chatbot_Rag_final/docker-compose.yml)"
+      "Bash(grep -nB1 -A5 \"env_file\\\\|environment:\" /c/Chatbot-final-jandir/Chatbot_Rag_final/docker-compose.yml)",
+      "Bash(command -v py python3 python)",
+      "PowerShell(Get-Command *)",
+      "Bash(docker --version)",
+      "Bash(docker volume *)",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/chat/ -H \"Content-Type: application/json\" -d '{\"input\":\"¿Cuánto Zinc tiene Algarium Semilla SC?\",\"conversation_id\":\"smoke-tool2-001\",\"source\":\"smoke\"}' --max-time 30)",
+      "Bash(python3 -c ' *)"
     ]
   }
 }

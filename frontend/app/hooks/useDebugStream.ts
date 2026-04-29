@@ -16,16 +16,17 @@ export function useDebugStream(
   const hook = useChatStream(conversationId, undefined, {
     endpoint: "/debug/chat",
   });
+  const { sendMessage: sendChatMessage } = hook;
 
   const enableVerification = options?.enableVerification ?? false;
 
   const sendMessage = useCallback(
     async (messageText: string) => {
-      await hook.sendMessage(messageText, {
+      await sendChatMessage(messageText, {
         body: { enable_verification: enableVerification },
       });
     },
-    [hook.sendMessage, enableVerification],
+    [sendChatMessage, enableVerification],
   );
 
   return { ...hook, sendMessage };

@@ -12,7 +12,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Bot, ChevronLeft, Copy, Loader2, Send } from "lucide-react";
 import { API_URL } from "@/app/lib/config";
-import { authenticatedFetch } from "@/app/lib/services/authService";
+import { authenticatedJsonFetcher } from "@/app/lib/services/authService";
 import * as inboxService from "@/app/lib/services/inboxService";
 import {
   type HistoryItem,
@@ -21,13 +21,6 @@ import {
   humanizeId,
 } from "./utils";
 import type { HandoffConversation } from "./HandoffConversationCard";
-
-// Re-use the same fetcher pattern as the parent page
-const fetcher = async (url: string) => {
-  const res = await authenticatedFetch(url, { method: "GET" });
-  if (!res.ok) throw new Error("Error fetching data");
-  return res.json();
-};
 
 interface HandoffConversationDetailProps {
   conversation: HandoffConversation | null;
@@ -94,7 +87,7 @@ export function HandoffConversationDetail({
     conversation
       ? `${API_URL}/chat/history/${conversation.conversation_id}`
       : null,
-    fetcher,
+    authenticatedJsonFetcher,
     { refreshInterval: 5000, revalidateOnFocus: false },
   );
 

@@ -3,14 +3,15 @@
 import React from "react";
 import useSWR from "swr";
 import { API_URL } from "@/app/lib/config";
-import { authenticatedFetch } from "@/app/lib/services/authService";
+import { authenticatedJsonFetcher } from "@/app/lib/services/authService";
 import type { HandoffStats } from "@/app/lib/services/inboxService";
 import { cn } from "@/lib/utils";
 
 const fetcher = async (url: string): Promise<HandoffStats> => {
-  const res = await authenticatedFetch(url, { method: "GET" });
-  if (!res.ok) throw new Error("Error fetching handoff stats");
-  return res.json();
+  return authenticatedJsonFetcher<HandoffStats>(
+    url,
+    "Error fetching handoff stats",
+  );
 };
 
 const REASONS: Array<{
