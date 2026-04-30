@@ -168,3 +168,13 @@ TimeoutError: LLM request exceeded 60.0s
 | Timeout LLM                        |         |               |                  | ✓      |
 | Error de validación / bug en código|         |               |                  | ✓      |
 | Uptime histórico + SLA             | ✓       |               |                  |        |
+
+
+  Tu acción: agregar SENTRY_DSN en Render                                                                                                                               
+                                                                                                                                                                        
+  1. Ve a https://sentry.io → crea cuenta gratis → New Project → Python                                                                                                 
+  2. Copia el DSN (formato: https://xxx@oyyy.ingest.sentry.io/zzz)
+  3. En Render → tu servicio → Environment → agrega:
+  SENTRY_DSN = https://tu-dsn-aqui
+  SENTRY_TRACES_SAMPLE_RATE = 0.1
+  4. Redeplo

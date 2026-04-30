@@ -95,7 +95,10 @@
       "PowerShell($pwd.Path; Test-Path .env; Test-Path backend\\\\.env; Test-Path \"C:\\\\Jandir2026\\\\DesarrolloJandir\\\\Chatbot_Rag_final\\\\backend\\\\.env\")",
       "Bash(curl -s -X POST http://localhost:8000/api/v1/chat/ -H 'Content-Type: application/json' -d '{\"input\":\"prueba mock\",\"conversation_id\":\"sanity-mock-1\"}' --max-time 15)",
       "PowerShell(Set-Content *)",
-      "Bash(docker stats chatbot-backend *)"
+      "Bash(docker stats chatbot-backend *)",
+      "Bash(python3 -c \"import sentry_sdk; print\\(sentry_sdk.__version__\\)\")",
+      "PowerShell(python -c \"import sentry_sdk; print\\(sentry_sdk.__version__\\)\")",
+      "Skill(impeccable)"
     ]
   }
 }

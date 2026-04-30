@@ -153,6 +153,7 @@ from .routes.bot.config_routes import (
 from .routes.assets.assets_routes import router as assets_router
 from .routes.users.users_routes import router as users_router
 from .routes.inbox.inbox_routes import router as inbox_router
+from .routes.dashboard.dashboard_routes import router as dashboard_router
 from .auth import router as auth_router
 from auth.middleware import AuthenticationMiddleware
 
@@ -675,13 +676,18 @@ def create_app() -> FastAPI:
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):
         main_logger.error(f"HTTPException: {exc.detail}")
-        
+        if exc.status_code >= 500:
+            try:
+                import sentry_sdk
+                sentry_sdk.capture_exception(exc)
+            except Exception:
+                pass
         # Sanitizar errores 5xx en producción para no exponer detalles técnicos
         detail = exc.detail
         if settings.environment == "production" and exc.status_code >= 500:
             # En producción, usar mensaje genérico para errores de servidor
             detail = "Error interno del servidor"
-        
+
         return JSONResponse(status_code=exc.status_code, content={"detail": detail})
 
     if settings.enable_rate_limiting:
@@ -704,6 +710,14 @@ def create_app() -> FastAPI:
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):
         main_logger.error(f"Error no controlado: {exc}", exc_info=True)
+        try:
+            import sentry_sdk
+            with sentry_sdk.new_scope() as scope:
+                scope.set_tag("request_id", request.headers.get("X-Request-ID", "unknown"))
+                scope.set_tag("path", request.url.path)
+                sentry_sdk.capture_exception(exc)
+        except Exception:
+            pass
         return JSONResponse(status_code=500, content={"detail": "Error interno del servidor"})
 
     # ---- Routers ----
@@ -719,7 +733,8 @@ def create_app() -> FastAPI:
     app.include_router(users_router, prefix="/api/v1", tags=["users"])
     app.include_router(assets_router, prefix="/api/v1/assets", tags=["assets"])
     app.include_router(inbox_router, prefix="/api/v1", tags=["inbox"])
-    
+    app.include_router(dashboard_router, prefix="/api/v1/dashboard", tags=["dashboard"])
+
     main_logger.info("Routers registrados.")
     main_logger.info("Aplicación FastAPI creada y configurada exitosamente.")
     

@@ -21,6 +21,27 @@ if env_path.exists():
 from utils.logging_utils import setup_logging
 setup_logging()
 
+# Inicializar Sentry antes de crear la app para capturar errores desde el inicio
+from config import settings as _settings
+if _settings.sentry_dsn:
+    import logging as _logging
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+    from sentry_sdk.integrations.starlette import StarletteIntegration
+    from sentry_sdk.integrations.logging import LoggingIntegration
+    sentry_sdk.init(
+        dsn=_settings.sentry_dsn,
+        traces_sample_rate=_settings.sentry_traces_sample_rate,
+        environment=_settings.environment,
+        release=_settings.app_version,
+        integrations=[
+            StarletteIntegration(transaction_style="endpoint"),
+            FastApiIntegration(transaction_style="endpoint"),
+            LoggingIntegration(level=_logging.ERROR, event_level=_logging.ERROR),
+        ],
+        send_default_pii=False,
+    )
+
 # Importar la fábrica de la aplicación y crear la instancia.
 from api.app import create_app
 

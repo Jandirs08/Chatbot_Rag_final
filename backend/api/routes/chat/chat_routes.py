@@ -45,6 +45,11 @@ async def _classify_web(conversation_id: str, app_state) -> None:
         )
     except Exception as e:
         logger.error(f"[Classification] Web conv={conversation_id}: {e}")
+        try:
+            import sentry_sdk
+            sentry_sdk.capture_exception(e)
+        except Exception:
+            pass
 
 # 🌐 NOTA: Todas las rutas de este módulo son PÚBLICAS
 # No requieren autenticación para permitir acceso libre al chat
@@ -182,6 +187,11 @@ async def chat_stream_log(
                     yield "event: end\ndata: {}\n\n"
                 except Exception as e_stream:
                     logger.error(f"Error en stream agentic: {e_stream}", exc_info=True)
+                    try:
+                        import sentry_sdk
+                        sentry_sdk.capture_exception(e_stream)
+                    except Exception:
+                        pass
                     err_payload = json.dumps({
                         "message": "Lo siento, ocurrió un error al procesar tu mensaje. Por favor, inténtalo nuevamente."
                     })
@@ -226,6 +236,11 @@ async def chat_stream_log(
                 yield "event: end\ndata: {}\n\n"
             except Exception as e_stream:
                 logger.error(f"Error en streaming: {str(e_stream)}", exc_info=True)
+                try:
+                    import sentry_sdk
+                    sentry_sdk.capture_exception(e_stream)
+                except Exception:
+                    pass
                 err_payload = json.dumps({
                     "message": "Lo siento, ocurrió un error al procesar tu mensaje. Por favor, inténtalo nuevamente."
                 })
