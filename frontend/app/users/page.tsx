@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { useAuth } from "@/app/hooks/useAuth";
 import { useUsers, useUsersMutations } from "@/app/hooks/useUsers";
-import { hasPermission } from "@/app/lib/auth/permissions";
+import { useRequirePermission } from "@/app/hooks/useAuthGuard";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import type {
@@ -18,8 +17,7 @@ import { UserFilters } from "./_components/UserFilters";
 import { UserTable } from "./_components/UserTable";
 
 export default function UsuariosPage() {
-  const { user } = useAuth();
-  const isAuthorized = hasPermission(user, "manage_users");
+  const { isAuthorized, isChecking } = useRequirePermission("manage_users");
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [editingUser, setEditingUser] = useState<UserListItem | null>(null);
@@ -70,7 +68,7 @@ export default function UsuariosPage() {
   const pageError =
     error || (listError instanceof Error ? listError.message : null);
 
-  if (!isAuthorized) return null;
+  if (isChecking || !isAuthorized) return null;
 
   const handleCreateUser = async (payload: CreateUserData) => {
     setError(null);

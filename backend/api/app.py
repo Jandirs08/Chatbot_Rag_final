@@ -50,7 +50,9 @@ def _setup_logging_and_warnings() -> None:
         logging.getLogger("motor").setLevel(logging.WARNING)
         logging.getLogger("uvicorn").setLevel(logging.INFO)
         logging.getLogger("uvicorn.error").setLevel(logging.INFO)
-        logging.getLogger("uvicorn.access").setLevel(logging.INFO)
+        # uvicorn.access duplica el log_requests middleware (que ya incluye request_id).
+        # Silenciar para evitar 2 líneas por request.
+        logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
         logging.getLogger("watchfiles").setLevel(logging.WARNING)
         logging.getLogger("langchain").setLevel(logging.WARNING)
         logging.getLogger("langchain_core").setLevel(logging.WARNING)
@@ -124,12 +126,17 @@ def get_cors_origins_list() -> list:
     if settings.environment == "development" and unique_origins == ["*"]:
         unique_origins = ["http://localhost:3000"]
 
-    # En producción, si se configuró CLIENT_ORIGIN_URL, forzar su uso explícito
-    if settings.environment == "production" and getattr(settings, "client_origin_url", None):
-        unique_origins = [_normalize_origin(settings.client_origin_url)]
+    # En producción, eliminar wildcards y asegurar que CLIENT_ORIGIN_URL esté incluido
+    # junto con los orígenes explícitos de widget/admin (no reemplazarlos)
+    if settings.environment == "production":
+        unique_origins = [o for o in unique_origins if o != "*"]
+        if getattr(settings, "client_origin_url", None):
+            client_norm = _normalize_origin(settings.client_origin_url)
+            if client_norm not in unique_origins:
+                unique_origins.insert(0, client_norm)
     
     # Consolidar logs de CORS para reducir redundancia en consola
-    main_logger.info(f"CORS Origins configurados: {unique_origins}")
+    main_logger.debug(f"CORS Origins configurados: {unique_origins}")
     main_logger.debug(f"CORS Widget Origins: {settings.cors_origins_widget}")
     main_logger.debug(f"CORS Admin Origins: {settings.cors_origins_admin}")
     main_logger.debug(f"CORS Max Age: {settings.cors_max_age}")
@@ -341,12 +348,14 @@ async def lifespan(app: FastAPI):
     try:
         s = settings
         app.state.settings = s
-        logger.info(f"SIMILARITY_THRESHOLD={s.similarity_threshold}")
+        # Marca de arranque para cómputo de uptime en /internal/status (health_routes.py).
+        app.state.startup_time = time.time()
+        logger.debug(f"SIMILARITY_THRESHOLD={s.similarity_threshold}")
         app.state.startup_bot_is_active = None
 
         # Visibilidad del backend de caché activo al inicio
         try:
-            logger.info(
+            logger.debug(
                 f"Cache activo: backend={type(cache.backend).__name__}, ttl={cache.ttl}, max_size={cache.max_size}"
             )
         except Exception as e:
@@ -368,6 +377,11 @@ async def lifespan(app: FastAPI):
                 f"({cache_health.get('backend_type')}). Configure REDIS_URL y restaure la conectividad antes de iniciar."
             )
 
+        if s.environment.lower() == "production" and not getattr(s, "mongo_uri", None):
+            raise RuntimeError(
+                "MONGO_URI es obligatorio en producción. Configure la variable de entorno MONGO_URI antes de iniciar."
+            )
+
         # Cargar configuración dinámica del bot desde Mongo (si disponible)
         try:
             from database.mongodb import get_mongodb_client
@@ -384,7 +398,7 @@ async def lifespan(app: FastAPI):
                 apply_runtime_config(s, runtime_config)
                 app.state.last_synced_bot_config = runtime_config
             app.state.startup_bot_is_active = startup_is_active
-            logger.info(f"Config dinámica aplicada: temperature={s.temperature}")
+            logger.debug(f"Config dinámica aplicada: temperature={s.temperature}")
         except Exception as e:
             logger.warning(f"No se pudo cargar configuración dinámica inicial: {e}")
 
@@ -417,9 +431,12 @@ async def lifespan(app: FastAPI):
         try:
             emb = await app.state.embedding_manager.embed_text("ping")
             emb_ok = bool(emb and isinstance(emb, list) and len(emb) > 0)
-            logger.info(f"✅ Ping Embeddings: {'OK' if emb_ok else 'Fallback vector'}")
+            if emb_ok:
+                logger.debug("Ping Embeddings: OK")
+            else:
+                logger.warning("Ping Embeddings retornó fallback vector — embeddings posiblemente degradados.")
         except Exception as e:
-            logger.warning(f"⚠️ Ping Embeddings falló: {e}")
+            logger.warning(f"Ping Embeddings falló: {e}")
 
         bot_memory_type = MemoryTypes.BASE_MEMORY
         if s.memory_type:
@@ -442,16 +459,16 @@ async def lifespan(app: FastAPI):
             app.state.bot_instance.is_active = app.state.startup_bot_is_active
         app.state.last_synced_bot_config = build_runtime_config_payload(app.state.settings)
         app.state.last_synced_bot_is_active = app.state.bot_instance.is_active
-        logger.info(f"Instancia de Bot creada con tipo de memoria: {bot_memory_type}")
+        logger.debug(f"Instancia de Bot creada con tipo de memoria: {bot_memory_type}")
 
         app.state.chat_manager = ChatManager(bot_instance=app.state.bot_instance)
 
-        logger.info("ChatManager inicializado.")
+        logger.debug("ChatManager inicializado.")
 
         # Inicializar MongoDB client persistente para middleware de autenticación
         try:
             from database.mongodb import get_mongodb_client
-            logger.info("Initializing persistent MongoDB client for application lifespan...")
+            logger.debug("Initializing persistent MongoDB client for application lifespan...")
             if not getattr(app.state, "mongodb_client", None):
                 app.state.mongodb_client = get_mongodb_client()
             await app.state.mongodb_client.ensure_indexes()
@@ -509,17 +526,53 @@ async def lifespan(app: FastAPI):
                 app.state.rag_ingestor = None
                 app.state.rag_retriever = None
                 logger.warning(f"No se pudo inicializar el pipeline RAG jerarquico al arranque: {e_idx}")
-            logger.info("🚀 Persistent MongoDB client initialized and indexes created successfully")
+            logger.debug("Persistent MongoDB client initialized and indexes created successfully")
         except Exception as e:
-            logger.error(f"⚠️ Error initializing persistent MongoDB client: {e}", exc_info=True)
+            logger.error(f"Error initializing persistent MongoDB client: {e}", exc_info=True)
             # No fallar la aplicación por esto, solo registrar el error
+        # TokenBlacklist (Redis-backed JWT JTI revocation).
+        # Sin esto, /logout y la rotación de refresh tokens degradan a no-op:
+        # los JTI revocados siguen siendo aceptados hasta su expiración natural.
+        try:
+            from auth.token_blacklist import build_token_blacklist
+
+            redis_url_raw = getattr(s, "redis_url", None)
+            if redis_url_raw is None:
+                redis_url_str = None
+            elif hasattr(redis_url_raw, "get_secret_value"):
+                redis_url_str = redis_url_raw.get_secret_value()
+            else:
+                redis_url_str = str(redis_url_raw)
+
+            if redis_url_str:
+                app.state.token_blacklist = build_token_blacklist(redis_url_str)
+            else:
+                app.state.token_blacklist = None
+
+            if app.state.token_blacklist is None:
+                if s.environment.lower() == "production":
+                    logger.warning(
+                        "TokenBlacklist no disponible en producción — la revocación de JWT está desactivada. "
+                        "Verifique REDIS_URL y la conectividad."
+                    )
+                else:
+                    logger.debug("TokenBlacklist no disponible — revocación de tokens en modo no-op (dev/sin Redis).")
+            else:
+                logger.debug("TokenBlacklist inicializado (Redis).")
+        except Exception as e:
+            logger.warning(f"TokenBlacklist init error: {e}")
+            app.state.token_blacklist = None
+
         try:
             from auth.dependencies import AuthDependencies
             from database.user_repository import get_user_repository
-            
+
             user_repo = get_user_repository()
-            app.state.auth_deps = AuthDependencies(user_repo)
-            logger.info("AuthDependencies inicializado correctamente en app.state.")
+            app.state.auth_deps = AuthDependencies(
+                user_repo,
+                token_blacklist=app.state.token_blacklist,
+            )
+            logger.debug("AuthDependencies inicializado correctamente en app.state.")
         except Exception as e:
             logger.error(f"Error inicializando AuthDependencies: {e}", exc_info=True)
             raise
@@ -579,7 +632,7 @@ def create_app() -> FastAPI:
     """Create the FastAPI application."""
     _setup_logging_and_warnings()
     main_logger = get_logger(__name__)
-    main_logger.info("Creando instancia de FastAPI...")
+    main_logger.debug("Creando instancia de FastAPI...")
 
     if settings.model_type == "OPENAI" and not settings.openai_api_key:
         main_logger.error("Error Crítico: OpenAI API key no está configurada.")
@@ -591,7 +644,7 @@ def create_app() -> FastAPI:
         version=settings.app_version or "1.0.0",
         lifespan=lifespan
     )
-    main_logger.info(enterprise_banner())
+    # enterprise_banner() eliminado — el summary final (build_startup_summary) ya consolida toda la info de arranque.
 
     app.state.limiter = limiter
 
@@ -603,43 +656,54 @@ def create_app() -> FastAPI:
             await _sync_worker_runtime_state(request.app, reload_chain=True)
         return await call_next(request)
 
+    # Paths cuyo polling/healthcheck ensucia logs sin aportar señal.
+    # Errores (>=400) siempre se loguean aunque el path esté aquí.
+    _LOG_SKIP_PATHS = frozenset({
+        "/api/v1/health",
+        "/api/v1/health/ready",
+        "/api/v1/health/cache",
+        "/api/v1/internal/status",
+        "/api/v1/bot/config/public",
+    })
+    _LOG_SKIP_PREFIXES = (
+        "/api/v1/chat/history/",
+    )
+
+    def _should_log_request(path: str, status_code: int) -> bool:
+        if status_code >= 400:
+            return True
+        if path in _LOG_SKIP_PATHS:
+            return False
+        for prefix in _LOG_SKIP_PREFIXES:
+            if path.startswith(prefix):
+                return False
+        return True
+
     @app.middleware("http")
     async def log_requests(request: Request, call_next):
-        from utils.request_context import set_request_id, clear_request_id, get_request_id
-        
-        # Generar o reutilizar request_id del header entrante
+        from utils.request_context import set_request_id, clear_request_id
+
         incoming_id = request.headers.get("X-Request-ID")
         request_id = set_request_id(incoming_id)
-        
-        start_time = time.time()
+
+        start_time = time.perf_counter()
         try:
             response = await call_next(request)
         finally:
-            # Limpiar contexto después del request
             clear_request_id()
-        
-        process_time = time.time() - start_time
-        
-        # Agregar request_id al header de respuesta para trazabilidad
-        response.headers["X-Request-ID"] = request_id
-        
-        body = None
-        try:
-            # Solo loguear el body en modo debug para evitar ruido y posibles datos sensibles
-            if settings.debug:
-                body_bytes = await request.body()
-                if body_bytes:
-                    body = body_bytes.decode(errors="ignore")
-        except Exception:
-            body = None
 
-        main_logger.info(
-            f"Request: {request.method} {request.url.path} - "
-            f"Status: {response.status_code} - "
-            f"Time: {process_time:.2f}s - "
-            f"Body: {body if body else 'No body'}"
-        )
-        
+        process_time_ms = (time.perf_counter() - start_time) * 1000.0
+        response.headers["X-Request-ID"] = request_id
+
+        if _should_log_request(request.url.path, response.status_code):
+            main_logger.info(
+                "%s %s -> %s in %.0fms",
+                request.method,
+                request.url.path,
+                response.status_code,
+                process_time_ms,
+            )
+
         return response
 
     # ---- CORS ----
@@ -664,7 +728,7 @@ def create_app() -> FastAPI:
     # ---- Middleware ----
     # Agregar middleware de autenticación (se inicializará con MongoDB client en lifespan)
     app.add_middleware(AuthenticationMiddleware)
-    main_logger.info("Middleware de autenticación configurado.")
+    main_logger.debug("Middleware de autenticación configurado.")
 
     # ---- Exception Handlers ----
     # Handlers globales de excepciones
@@ -735,19 +799,7 @@ def create_app() -> FastAPI:
     app.include_router(inbox_router, prefix="/api/v1", tags=["inbox"])
     app.include_router(dashboard_router, prefix="/api/v1/dashboard", tags=["dashboard"])
 
-    main_logger.info("Routers registrados.")
-    main_logger.info("Aplicación FastAPI creada y configurada exitosamente.")
+    main_logger.debug("Routers registrados.")
+    main_logger.debug("Aplicación FastAPI creada y configurada exitosamente.")
     
     return app
-
-# --- Creación de la instancia global de la aplicación --- 
-# Esto permite que Uvicorn la encuentre si se ejecuta este archivo directamente (aunque es mejor usar main.py)
-
-def enterprise_banner() -> str:
-    """Banner limpio estilo enterprise para el arranque (una sola vez)."""
-    sep = "-" * 68
-    return (
-        f"\n{sep}\n"
-        f"  FASTAPI BACKEND INITIALIZED | Version {settings.app_version} | Env: {settings.environment}\n"
-        f"{sep}"
-    )

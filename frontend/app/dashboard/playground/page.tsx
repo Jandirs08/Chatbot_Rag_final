@@ -8,8 +8,7 @@ import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import { useConversationId } from "@/app/hooks/useConversationId";
-import { useAuth } from "@/app/hooks/useAuth";
-import { hasPermission } from "@/app/lib/auth/permissions";
+import { useRequirePermission } from "@/app/hooks/useAuthGuard";
 import type { DebugData } from "@/app/components/debug/utils";
 import { FlaskConical, MessageSquareText, Radar, RotateCcw } from "lucide-react";
 
@@ -31,8 +30,7 @@ const DebugInspector = dynamic(
 const PLAYGROUND_STORAGE_KEY = "playground_conversation_id";
 
 export default function PlaygroundPage() {
-  const { user } = useAuth();
-  const isAuthorized = hasPermission(user, "view_debug");
+  const { isAuthorized, isChecking } = useRequirePermission("view_debug");
   const [conversationId, resetConversationId] = useConversationId(PLAYGROUND_STORAGE_KEY);
   const [debugData, setDebugData] = React.useState<DebugData | null>(null);
   const [enableVerification, setEnableVerification] = React.useState(false);
@@ -42,7 +40,7 @@ export default function PlaygroundPage() {
     setDebugData(null);
   }, [resetConversationId]);
 
-  if (!isAuthorized) return null;
+  if (isChecking || !isAuthorized) return null;
 
   return (
     <div className="flex h-[calc(100vh-4rem)] min-h-[680px] flex-col gap-3">

@@ -1,5 +1,8 @@
+import datetime
+import decimal
 import json
 import logging
+import uuid
 from typing import Any, Optional
 
 try:
@@ -12,6 +15,17 @@ except Exception:
 from config import settings
 
 logger = logging.getLogger(__name__)
+
+
+class _CacheEncoder(json.JSONEncoder):
+    def default(self, obj: Any) -> Any:
+        if isinstance(obj, (datetime.datetime, datetime.date)):
+            return obj.isoformat()
+        if isinstance(obj, decimal.Decimal):
+            return float(obj)
+        if isinstance(obj, uuid.UUID):
+            return str(obj)
+        return super().default(obj)
 
 
 class RedisCache:
@@ -74,7 +88,7 @@ class RedisCache:
             return
         # Serialización con prefijo
         try:
-            payload = b"JSON:" + json.dumps(value).encode("utf-8")
+            payload = b"JSON:" + json.dumps(value, cls=_CacheEncoder).encode("utf-8")
         except (TypeError, ValueError) as exc:
             logger.warning(
                 "RedisCache: valor no serializable a JSON para key '%s'; se omite cache (%s)",

@@ -98,7 +98,11 @@
       "Bash(docker stats chatbot-backend *)",
       "Bash(python3 -c \"import sentry_sdk; print\\(sentry_sdk.__version__\\)\")",
       "PowerShell(python -c \"import sentry_sdk; print\\(sentry_sdk.__version__\\)\")",
-      "Skill(impeccable)"
+      "Skill(impeccable)",
+      "Bash(kill %1)",
+      "Bash(grep -n \"async def\\\\|finally:\\\\|return$\\\\|raise$\" backend/chat/manager.py)",
+      "PowerShell(python -c \"import ast; ast.parse\\(open\\('backend/chat/manager.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "PowerShell(py *)"
     ]
   }
 }

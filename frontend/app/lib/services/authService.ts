@@ -1,5 +1,6 @@
 import { API_URL } from "@/app/lib/config";
 import {
+  ApiError,
   fetchWithRetrySafe,
   parseApiError,
   publicFetch,
@@ -176,17 +177,11 @@ export const authService = {
 
   async logout(): Promise<void> {
     try {
+      // /api/auth/logout (Next.js route) lee refresh_token y access_token de cookies HttpOnly
+      // y los reenvía al backend para revocación vía TokenBlacklist. Esa única llamada cubre
+      // ambos tokens — la llamada directa duplicada al backend (anterior) era redundante y no
+      // enviaba refresh_token, dejando esa revocación a medias.
       await publicFetch("/api/auth/logout", { method: "POST" });
-
-      const token = TokenManager.getAccessToken();
-      if (token) {
-        await publicFetch(`${API_URL}/auth/logout`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-      }
     } catch {
       // Ignore network failures on logout.
     } finally {
@@ -205,7 +200,7 @@ export const authService = {
     });
 
     if (!response.ok) {
-      throw new Error("No se pudo obtener el usuario");
+      throw await parseApiError(response, "No se pudo obtener el usuario");
     }
 
     return response.json();
@@ -383,3 +378,4 @@ export const authenticatedUpload = async (
 };
 
 export { TokenManager };
+export { ApiError };

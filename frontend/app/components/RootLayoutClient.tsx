@@ -1,9 +1,12 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { useEffect } from "react";
+import { Loader2 } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
 import { AppSidebar } from "./AppSidebar";
 import { SidebarProvider, SidebarTrigger } from "./ui/sidebar";
 import { isProtectedPath } from "@/app/lib/auth/routeAccess";
+import { useAuth } from "@/app/hooks/useAuth";
 import { useTheme } from "@/app/hooks/useTheme";
 import { useInactivityTimeout } from "@/app/hooks/useInactivityTimeout";
 
@@ -17,11 +20,34 @@ export function RootLayoutClient({ children }: { children: React.ReactNode }) {
 
 function RootLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { isAuthenticated, isInitialized, isLoading } = useAuth();
   const forcedLight = pathname.startsWith("/chat");
   useTheme(forcedLight);
   useInactivityTimeout();
 
   const shouldShowSidebar = isProtectedPath(pathname);
+  const isResolvingProtectedSession =
+    shouldShowSidebar && (!isInitialized || isLoading);
+  const shouldRedirectToLogin =
+    shouldShowSidebar && isInitialized && !isAuthenticated;
+
+  useEffect(() => {
+    if (!shouldRedirectToLogin) {
+      return;
+    }
+
+    const loginUrl = new URL("/auth/login", window.location.origin);
+    if (pathname && pathname !== "/auth/login") {
+      loginUrl.searchParams.set("from", pathname);
+    }
+
+    router.replace(`${loginUrl.pathname}${loginUrl.search}`);
+  }, [pathname, router, shouldRedirectToLogin]);
+
+  if (isResolvingProtectedSession || shouldRedirectToLogin) {
+    return <ProtectedShellLoading />;
+  }
 
   return (
     <div
@@ -43,6 +69,20 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
             children
           )}
         </main>
+      </div>
+    </div>
+  );
+}
+
+function ProtectedShellLoading() {
+  return (
+    <div
+      className="flex h-screen w-full items-center justify-center"
+      style={{ background: "hsl(var(--surface))" }}
+    >
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Validando sesion...
       </div>
     </div>
   );

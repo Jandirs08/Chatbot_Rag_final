@@ -70,7 +70,7 @@ class VectorStore:
                 exc,
             )
 
-        logger.info(
+        logger.debug(
             "VectorStore inicializado | strategy=%s | cache_enabled=%s | similarity_threshold=%s",
             distance_strategy,
             cache_enabled,
@@ -125,7 +125,7 @@ class VectorStore:
                 # Crear índices solo si es nueva
                 self._ensure_payload_indexes()
             else:
-                logger.info("Colección '%s' ya existe.", self.collection_name)
+                logger.debug("Colección '%s' ya existe.", self.collection_name)
                 # Asegurar índices de todas formas por si hubo cambios de esquema
                 self._ensure_payload_indexes()
             self.is_available = True
@@ -409,7 +409,7 @@ class VectorStore:
                              evita una llamada extra a la API de OpenAI.
                              Si es None, se computa internamente (legacy).
         """
-        logger.info("retrieve() called")
+        logger.debug("retrieve() called")
         self._require_connection()
         try:
             # Usar el embedding pre-computado si viene del RAGRetriever;
@@ -428,7 +428,7 @@ class VectorStore:
 
             final_docs = []
             kept = 0
-            logger.info(
+            logger.debug(
                 "retrieve() | raw_qdrant_scores=%s | threshold=%s",
                 [float(score) for _, score in docs],
                 score_threshold,
@@ -511,19 +511,19 @@ class VectorStore:
                 )
             except CircuitOpenError as e:
                 raise VectorStoreUnavailableError("Qdrant circuit breaker is OPEN") from e
-            raw_points = results.points if hasattr(results, "points") else results if isinstance(results, (list, tuple)) else []
-            logger.info(
-                "_similarity_search() | raw_qdrant_result_count=%s | raw_qdrant_scores=%s",
-                len(raw_points),
-                [float(getattr(point, "score", 0.0) or 0.0) for point in raw_points],
-            )
-
             if hasattr(results, "points"):
                 points = results.points
             elif isinstance(results, (list, tuple)):
                 points = results
             else:
                 points = []
+
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(
+                    "_similarity_search() | raw_qdrant_result_count=%s | raw_qdrant_scores=%s",
+                    len(points),
+                    [float(getattr(point, "score", 0.0) or 0.0) for point in points],
+                )
 
             output: List[Tuple[Document, float]] = []
             for r in points:
@@ -546,7 +546,6 @@ class VectorStore:
 
         except Exception as e:
             self.is_available = False
-            logger.info("_similarity_search() exception: %s", e)
             logger.error("Error en _similarity_search: %s", e, exc_info=True)
             raise VectorStoreUnavailableError("Qdrant query failed") from e
 

@@ -92,6 +92,31 @@ def _messages_total_chars(messages) -> int:
     return total
 
 
+def _messages_total_tokens(messages) -> int:
+    """Estimación tiktoken cl100k_base sobre `messages` list. Reusa el helper
+    de `chat/debug.py` para consistencia. Bajo costo (~50µs por mensaje cacheado).
+    """
+    from chat.debug import get_token_count
+    total = 0
+    for m in messages:
+        c = getattr(m, "content", None)
+        if isinstance(c, str):
+            total += get_token_count(c)
+        elif isinstance(c, list):
+            for part in c:
+                total += get_token_count(part if isinstance(part, str) else str(part))
+        elif c is not None:
+            total += get_token_count(str(c))
+        # tool_calls metadata (función-call args) suma tokens de input también
+        tool_calls = getattr(m, "tool_calls", None) or []
+        for tc in tool_calls:
+            try:
+                total += get_token_count(str(tc))
+            except Exception:
+                pass
+    return total
+
+
 async def _collect_prior_user_msgs(memory, conversation_id: str, limit: int = 2) -> list[str]:
     """Best-effort fetch of the last N user messages for query expansion."""
     if memory is None:
@@ -157,15 +182,22 @@ class ChatManager:
         """Genera respuesta vía Bot. LCEL inyecta RAG automáticamente."""
         conversation_lock: Optional[object] = None
         lock_acquired = False
+        # State para telemetría (path no-streaming, usado por WhatsApp y debug REST).
+        req_ctx = None
+        total_started_at = time.perf_counter()
+        response_content: Optional[str] = None
+        from_cache = False
         try:
             conversation_lock, lock_acquired = await self._locks.acquire(conversation_id)
             if not lock_acquired:
                 raise HTTPException(status_code=429, detail="Conversation busy, try again")
             req_ctx = new_request_context()
+            # ENABLE_RAG_LCEL es config estática del bot — su estado es startup-time, no por turn.
+            # Mantener como DEBUG evita 1 línea de ruido por cada generate_response.
             if getattr(settings, "enable_rag_lcel", False):
-                logger.info("ENABLE_RAG_LCEL activo: contexto RAG será inyectado automáticamente.")
+                logger.debug("ENABLE_RAG_LCEL activo: contexto RAG será inyectado automáticamente.")
             else:
-                logger.warning("ENABLE_RAG_LCEL desactivado: la recuperación contextual no se aplicará.")
+                logger.debug("ENABLE_RAG_LCEL desactivado: la recuperación contextual no se aplicará.")
 
             cache_key = self._build_response_cache_key(conversation_id, input_text)
             cached_response = None
@@ -178,6 +210,7 @@ class ChatManager:
             if cached_response is not None:
                 logger.debug("Cache HIT respuesta LLM para conversación")
                 response_content = cached_response
+                from_cache = True
                 t_llm_start = None
                 t_llm_end = None
                 if debug_mode:
@@ -265,6 +298,39 @@ class ChatManager:
             logger.error(f"Error generando respuesta en ChatManager: {e}", exc_info=True)
             return "Hubo un problema procesando tu mensaje. Por favor, inténtalo nuevamente."
         finally:
+            # Telemetría agregada (incluye WhatsApp y debug REST que usan este path).
+            # Granularidad limitada vs stream_with_tools: solo total_ms + rag_ms,
+            # sin first_token_ms ni stages dense/lexical/rerank (no instrumentadas aquí).
+            if req_ctx is not None:
+                try:
+                    from chat.debug import get_token_count
+                    from utils.metrics_collector import ChatSample, get_metrics_collector
+
+                    total_ms = (time.perf_counter() - total_started_at) * 1000
+                    rag_ms = (req_ctx.rag_time * 1000) if req_ctx.rag_time else None
+                    tokens_out_est = get_token_count(response_content) if response_content else 0
+                    sample = ChatSample(
+                        ts=time.time(),
+                        success=bool(response_content),
+                        cached=from_cache,
+                        used_rag=bool(req_ctx.rag_time and req_ctx.rag_time > 0),
+                        total_ms=total_ms,
+                        first_token_ms=None,
+                        rag_ms=rag_ms,
+                        llm_ms=max(0.0, total_ms - (rag_ms or 0.0)),
+                        embedding_ms=req_ctx.stage_timings_ms.get("embedding_ms") if req_ctx.stage_timings_ms else None,
+                        dense_ms=req_ctx.stage_timings_ms.get("dense_ms") if req_ctx.stage_timings_ms else None,
+                        lexical_ms=req_ctx.stage_timings_ms.get("lexical_ms") if req_ctx.stage_timings_ms else None,
+                        hydrate_ms=req_ctx.stage_timings_ms.get("hydrate_ms") if req_ctx.stage_timings_ms else None,
+                        rerank_ms=req_ctx.stage_timings_ms.get("rerank_ms") if req_ctx.stage_timings_ms else None,
+                        tool_calls=0,  # path legacy no usa tool calling
+                        tokens_in=0,  # tokens_in no instrumentados en path legacy; futuro
+                        tokens_out=tokens_out_est,
+                        gating_reason=req_ctx.gating_reason,
+                    )
+                    get_metrics_collector().record_chat(sample)
+                except Exception as exc:
+                    logger.debug("metrics record failed (generate_response): %s", exc, exc_info=True)
             await self._locks.release(
                 conversation_id,
                 conversation_lock,
@@ -293,11 +359,19 @@ class ChatManager:
         lock_acquired = False
         text_accum = ""
         tool_fired = False
+        stream_started_at = time.perf_counter()
+        first_token_recorded = False
+        req_ctx = None
+        tool_calls_count = 0
+        # Estimación tokens vía tiktoken (cl100k_base). ~95% precisión vs facturación
+        # OpenAI real para chat completions; suficiente para cost monitoring sin cablear
+        # streaming usage callback. Se incrementa por iter ReAct (input crece con tools).
+        tokens_in_accum = 0
         try:
             conversation_lock, lock_acquired = await self._locks.acquire(conversation_id)
             if not lock_acquired:
                 raise HTTPException(status_code=429, detail="Conversation busy, try again")
-            new_request_context()
+            req_ctx = new_request_context()
 
             prior_user_msgs = await _collect_prior_user_msgs(
                 getattr(self.bot, "memory", None), conversation_id
@@ -334,6 +408,13 @@ class ChatManager:
 
             if not forced_final:
                 for iteration in range(MAX_TOOL_ITERS):
+                    # Cada iter envía `messages` completo a OpenAI = nuevo input billing.
+                    # Sumamos antes de stream para reflejar costo cumulativo. La tokenización
+                    # va en try/except defensivo — un fallo en tiktoken no debe abortar el chat.
+                    try:
+                        tokens_in_accum += _messages_total_tokens(messages)
+                    except Exception as exc:
+                        logger.debug("token estimation failed (loop iter): %s", exc)
                     raw_stream = self.bot.astream_messages(messages)
                     continuation: Optional[DispatchEvent] = None
                     stream_ended = False
@@ -344,6 +425,12 @@ class ChatManager:
                             _REACT_STREAM_IDLE_TIMEOUT,
                         ):
                             if event.kind == "text" and event.text:
+                                if not first_token_recorded:
+                                    first_token_recorded = True
+                                    req_ctx.set_stage_timing_ms(
+                                        "first_token_ms",
+                                        (time.perf_counter() - stream_started_at) * 1000,
+                                    )
                                 text_accum += event.text
                                 yield event
                             elif event.kind == "tool_terminal":
@@ -387,6 +474,7 @@ class ChatManager:
                             tool_call_id=tool_call["id"],
                         )
                     )
+                    tool_calls_count += 1
                     logger.info(
                         "[ReAct] iter=%s tool=%s conv=%s docs_chars=%s",
                         iteration + 1,
@@ -416,10 +504,21 @@ class ChatManager:
                     conversation_id,
                     forced_final_reason,
                 )
+                # Forced-final también es 1 llamada OpenAI con messages acumulados.
+                try:
+                    tokens_in_accum += _messages_total_tokens(messages)
+                except Exception as exc:
+                    logger.debug("token estimation failed (forced_final): %s", exc)
                 final_stream = self.bot.astream_messages_no_tools(messages)
                 fallback_iter_text = ""
                 async for event in consume_stream(final_stream, ctx, min_chunk_chars=min_chars):
                     if event.kind == "text" and event.text:
+                        if not first_token_recorded:
+                            first_token_recorded = True
+                            req_ctx.set_stage_timing_ms(
+                                "first_token_ms",
+                                (time.perf_counter() - stream_started_at) * 1000,
+                            )
                         fallback_iter_text += event.text
                         text_accum += event.text
                         yield event
@@ -470,6 +569,57 @@ class ChatManager:
             logger.error("stream_with_tools failed conv=%s: %s", conversation_id, exc, exc_info=True)
             raise
         finally:
+            if req_ctx is not None:
+                try:
+                    stream_total_ms = (time.perf_counter() - stream_started_at) * 1000
+                    req_ctx.set_stage_timing_ms("stream_total_ms", stream_total_ms)
+                    # llm_ms aproximado: total - rag (si rag_time disponible)
+                    rag_ms = (req_ctx.rag_time * 1000) if req_ctx.rag_time else 0.0
+                    req_ctx.set_stage_timing_ms("llm_ms", max(0.0, stream_total_ms - rag_ms))
+                    # Tokens visibles en [CHAT][PERF] log + DebugInfo
+                    try:
+                        from chat.debug import get_token_count as _gtc
+                        req_ctx.tokens_in = int(tokens_in_accum or 0)
+                        req_ctx.tokens_out = int(_gtc(text_accum) if text_accum else 0)
+                    except Exception:
+                        pass
+                    log_stream_timing_summary(conversation_id, is_cached=False)
+
+                    # Telemetría agregada para /api/v1/dashboard/observability.
+                    # Errores en el collector no deben impactar el chat — log a DEBUG
+                    # para que regresiones del módulo sean diagnosticables.
+                    try:
+                        from utils.metrics_collector import ChatSample, get_metrics_collector
+
+                        # Reusa tokens_out ya calculado arriba (req_ctx.tokens_out).
+                        # Subestima ligeramente (no incluye tool_call args que el modelo
+                        # generó en iters intermedios), pero esos son <5% del output total.
+                        tokens_out_estimate = int(req_ctx.tokens_out or 0)
+                        stages = req_ctx.stage_timings_ms or {}
+                        sample = ChatSample(
+                            ts=time.time(),
+                            success=bool(text_accum or tool_fired),
+                            cached=False,
+                            used_rag=bool(req_ctx.rag_time and req_ctx.rag_time > 0),
+                            total_ms=stream_total_ms,
+                            first_token_ms=stages.get("first_token_ms"),
+                            rag_ms=rag_ms if rag_ms > 0 else None,
+                            llm_ms=stages.get("llm_ms"),
+                            embedding_ms=stages.get("embedding_ms"),
+                            dense_ms=stages.get("dense_ms"),
+                            lexical_ms=stages.get("lexical_ms"),
+                            hydrate_ms=stages.get("hydrate_ms"),
+                            rerank_ms=stages.get("rerank_ms"),
+                            tool_calls=tool_calls_count,
+                            tokens_in=tokens_in_accum,
+                            tokens_out=tokens_out_estimate,
+                            gating_reason=req_ctx.gating_reason,
+                        )
+                        get_metrics_collector().record_chat(sample)
+                    except Exception as exc:
+                        logger.debug("metrics record failed: %s", exc, exc_info=True)
+                except Exception as exc:
+                    logger.debug("stream_with_tools finally block failed: %s", exc, exc_info=True)
             await self._locks.release(
                 conversation_id,
                 conversation_lock,

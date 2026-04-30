@@ -1,11 +1,11 @@
 """Acceso a estado del bot (is_active + runtime_config) en Redis y Mongo.
 
-Centraliza el contrato de almacenamiento para que tanto las rutas admin
-(`bot_routes.py`) como la sincronización entre workers (`runtime_sync.py`)
-compartan el mismo formato y constantes.
+Centraliza el contrato de almacenamiento para que las rutas admin
+(`bot_routes.py`) y la sincronización inline en `app.py` compartan el mismo
+formato y constantes.
 
 Las lecturas Redis aquí NO aplican TTL local — quien quiera amortizar el
-hop a Redis lo envuelve en su capa (ver `runtime_sync._read_bot_is_active_from_cache`).
+hop a Redis lo envuelve en su capa.
 """
 from datetime import datetime, timezone
 from typing import Optional

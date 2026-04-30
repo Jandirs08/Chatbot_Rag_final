@@ -564,8 +564,8 @@ function SystemHealthCard({ isAuthorized }: { isAuthorized: boolean }) {
       icon: <Database className="h-3.5 w-3.5" />,
       label: "Cache",
       value: data ? (
-        <span className={data.cache_backend === "redis" ? "text-foreground" : "text-amber-600 dark:text-amber-400"}>
-          {data.cache_backend === "redis" ? "Redis" : "Memoria"}
+        <span className={data.cache_backend?.toLowerCase().includes("redis") ? "text-foreground" : "text-amber-600 dark:text-amber-400"}>
+          {data.cache_backend?.toLowerCase().includes("redis") ? "Redis" : "Memoria"}
         </span>
       ) : "—",
     },

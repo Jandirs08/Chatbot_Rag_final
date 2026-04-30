@@ -1,7 +1,6 @@
 ﻿"use client";
 import { useEffect, useState } from "react";
-import { useAuth } from "@/app/hooks/useAuth";
-import { hasPermission } from "@/app/lib/auth/permissions";
+import { useRequirePermission } from "@/app/hooks/useAuthGuard";
 import { useBotConfig } from "@/app/hooks/useBotConfig";
 import {
   Card,
@@ -19,8 +18,8 @@ import { CheckCircle, AlertTriangle, Circle } from "lucide-react";
 import { useUnsavedChanges } from "@/app/hooks/useUnsavedChanges";
 
 export default function ConfiguracionWhatsAppPage() {
-  const { user } = useAuth();
-  const isAuthorized = hasPermission(user, "manage_bot_config");
+  const { isAuthorized, isChecking } =
+    useRequirePermission("manage_bot_config");
   const {
     data: botConfig,
     error: botConfigError,
@@ -73,7 +72,7 @@ export default function ConfiguracionWhatsAppPage() {
     toast.error(botConfigError.message || "Error al obtener configuración");
   }, [botConfigError]);
 
-  if (!isAuthorized) return null;
+  if (isChecking || !isAuthorized) return null;
 
   const onSave = async () => {
     try {

@@ -38,13 +38,13 @@ def get_mongodb_client() -> "MongodbClient":
         if _mongodb_client_instance is not None:
             return _mongodb_client_instance
         
-        logger.info("Creating new MongoDB client instance (singleton)...")
+        logger.debug("Creating new MongoDB client instance (singleton)...")
         try:
             _mongodb_client_instance = MongodbClient(
                 mongo_uri=app_settings.mongo_uri.get_secret_value(),
                 database_name=app_settings.mongo_database_name
             )
-            logger.info("✅ MongoDB client singleton created successfully.")
+            logger.debug("MongoDB client singleton created successfully.")
             return _mongodb_client_instance
         except Exception as e:
             logger.error(f"Failed to create MongodbClient instance: {e}", exc_info=True)
@@ -67,7 +67,7 @@ class MongodbClient:
             )
             self.db = self.client[database_name]
             self.messages = self.db.messages
-            logger.info(f"MongoDB connection to db '{database_name}' established successfully.")
+            logger.debug(f"MongoDB connection to db '{database_name}' established successfully.")
         except Exception as e:
             logger.error(f"Error connecting to MongoDB: {str(e)}", exc_info=True)
             raise
@@ -85,7 +85,7 @@ class MongodbClient:
         for attempt in range(1, 3):
             try:
                 await self.messages.insert_one(doc)
-                logger.info(f"Mensaje agregado a la conversación {conversation_id}")
+                logger.debug(f"Mensaje agregado a la conversación {conversation_id}")
                 return
             except Exception as e:
                 if attempt == 2:
@@ -116,7 +116,7 @@ class MongodbClient:
                 ("role", 1)
             ], name="role_idx")
             
-            logger.info("✅ Índices MongoDB aplicados correctamente")
+            logger.debug("Índices MongoDB aplicados correctamente")
             
         except Exception as e:
             logger.error(f"❌ Error aplicando índices MongoDB: {str(e)}")
@@ -131,7 +131,7 @@ class MongodbClient:
             await users_collection.create_index("email", unique=True)
             # Índice para consultas por estado
             await users_collection.create_index("is_active")
-            logger.info("✅ Índices de usuarios aplicados correctamente")
+            logger.debug("Índices de usuarios aplicados correctamente")
         except Exception as e:
             logger.error(f"❌ Error aplicando índices de usuarios: {str(e)}")
             # No relanzamos para no bloquear el arranque; se puede reintentar luego

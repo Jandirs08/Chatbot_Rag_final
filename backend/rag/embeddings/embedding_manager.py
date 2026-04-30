@@ -58,7 +58,7 @@ class EmbeddingManager:
             )
             openai_model = "text-embedding-3-small"
 
-        self.logger.info(
+        self.logger.debug(
             f"Usando OpenAIEmbeddings: {openai_model} (batch_size interno={getattr(settings, 'embedding_batch_size', 32)})"
         )
         self._openai = OpenAIEmbeddings(model=openai_model)

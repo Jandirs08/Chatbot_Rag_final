@@ -59,10 +59,10 @@ class CacheManager:
 
                     # Verificar conexión
                     client.ping()
-                    _logger.info("CacheManager: Redis PING OK")
+                    _logger.debug("CacheManager: Redis PING OK")
 
                     from .redis_backend import RedisCache
-                    _logger.info("CacheManager: Redis conectado correctamente (usando RedisCache).")
+                    _logger.debug("CacheManager: Redis conectado correctamente (usando RedisCache).")
 
                     self.is_degraded = False
                     self.backend_type = "RedisCache"

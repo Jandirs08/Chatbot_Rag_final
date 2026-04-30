@@ -140,6 +140,16 @@ const nextConfig = {
       },
 
       {
+        source: "/widget-loader.js",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=3600, must-revalidate",
+          },
+        ],
+      },
+
+      {
         source: "/static/(.*)",
         headers: [
           {

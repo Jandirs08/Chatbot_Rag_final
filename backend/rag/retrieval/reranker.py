@@ -240,7 +240,10 @@ class CohereParentReranker(BaseParentReranker):
 
 
 def build_parent_reranker() -> BaseParentReranker:
-    if not getattr(settings, "enable_llm_reranker", True):
+    # Default coherente con config_fragments.py:134 (enable_llm_reranker=False).
+    # Si settings está parcialmente mockeado y carece del attr, caemos al heuristic
+    # en lugar de invocar OpenAI silenciosamente.
+    if not getattr(settings, "enable_llm_reranker", False):
         return HeuristicParentReranker()
 
     reranker_type = getattr(settings, "rag_reranker_type", "openai")

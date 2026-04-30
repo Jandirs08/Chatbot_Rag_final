@@ -11,6 +11,7 @@ from auth.dependencies import require_admin
 from cache.manager import cache
 from database.mongodb import get_mongodb_client
 from utils.logging_utils import get_logger
+from utils.metrics_collector import get_metrics_collector
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -198,3 +199,19 @@ async def get_peak_hours(request: Request, _=Depends(require_admin)):
     except Exception:
         logger.exception("Error in dashboard peak-hours")
         raise HTTPException(status_code=500, detail="Error al obtener distribucion horaria")
+
+
+@router.get("/observability")
+async def get_observability(_=Depends(require_admin)):
+    """Métricas operativas in-memory: latencias por etapa, throughput, gating.
+
+    Las muestras viven en sliding window 1h dentro del proceso (1 worker recomendado).
+    Para historiales largos, persistir snapshots periódicamente a Mongo (futuro).
+    El campo `worker_pid` permite detectar si la respuesta provino de un worker
+    distinto cuando WORKERS>1.
+    """
+    try:
+        return get_metrics_collector().snapshot()
+    except Exception:
+        logger.exception("Error in dashboard observability")
+        raise HTTPException(status_code=500, detail="Error al obtener métricas operativas")

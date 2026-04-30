@@ -1,7 +1,6 @@
 "use client";
 import React, { useMemo, useState } from "react";
-import { useAuth } from "@/app/hooks/useAuth";
-import { hasPermission } from "@/app/lib/auth/permissions";
+import { useRequirePermission } from "@/app/hooks/useAuthGuard";
 import { useBotConfig } from "@/app/hooks/useBotConfig";
 import {
   Tabs,
@@ -58,8 +57,8 @@ function sanitizeUiExtra(val?: string | null) {
 }
 
 export default function AdminSettingsPage() {
-  const { user } = useAuth();
-  const isAuthorized = hasPermission(user, "manage_bot_config");
+  const { isAuthorized, isChecking } =
+    useRequirePermission("manage_bot_config");
   const [activeTab, setActiveTab] = useState<"appearance" | "brain" | "system">(
     "appearance",
   );
@@ -263,7 +262,7 @@ export default function AdminSettingsPage() {
     }
   };
 
-  if (!isAuthorized) return null;
+  if (isChecking || !isAuthorized) return null;
   if (isLoading || !data) {
     return (
       <div className="h-full flex items-center justify-center">

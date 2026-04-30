@@ -86,6 +86,7 @@
     var iframe = document.createElement("iframe");
     iframe.title = "AI Chatbot Widget";
     iframe.setAttribute("frameborder", "0");
+    iframe.setAttribute("sandbox", "allow-scripts allow-forms allow-same-origin allow-popups");
     iframe.style.position = "fixed";
     iframe.style.border = "none";
     iframe.style.borderRadius = isMobile ? "0" : "16px";
@@ -281,5 +282,8 @@
     document.body.appendChild(button);
     document.body.appendChild(iframe);
     
-  } catch (_) {}
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error("[chatbot-widget] Error al inicializar widget:", err);
+  }
 })();

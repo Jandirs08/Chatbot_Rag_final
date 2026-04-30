@@ -18,7 +18,7 @@ from pydantic_settings import BaseSettings
 class ServerFields(BaseSettings):
     host: str = Field(default="0.0.0.0", env="HOST")
     port: int = Field(default=8000, env="PORT")
-    workers: int = Field(default=4, env="WORKERS")
+    workers: int = Field(default=1, env="WORKERS")
 
 
 class AuthFields(BaseSettings):
@@ -65,7 +65,7 @@ class RateLimitFields(BaseSettings):
 class ModelFields(BaseSettings):
     model_type: str = Field(default="OPENAI", env="MODEL_TYPE")
     openai_api_key: SecretStr = Field(..., env="OPENAI_API_KEY")
-    base_model_name: str = Field(default="gpt-3.5-turbo", env="BASE_MODEL_NAME")
+    base_model_name: str = Field(default="gpt-4o-mini", env="BASE_MODEL_NAME")
     max_tokens: int = Field(default=2000, env="MAX_TOKENS")
     temperature: float = Field(default=0.7, env="TEMPERATURE")
     stream_min_chunk_chars: int = Field(default=32, env="STREAM_MIN_CHUNK_CHARS")
@@ -131,7 +131,7 @@ class RAGRetrievalFields(BaseSettings):
     similarity_threshold: float = Field(default=0.3, env="SIMILARITY_THRESHOLD")
     rag_gating_similarity_threshold: float = Field(default=0.20, env="RAG_GATING_SIMILARITY_THRESHOLD")
     enable_hybrid_search: bool = Field(default=True, env="ENABLE_HYBRID_SEARCH")
-    enable_llm_reranker: bool = Field(default=True, env="ENABLE_LLM_RERANKER")
+    enable_llm_reranker: bool = Field(default=False, env="ENABLE_LLM_RERANKER")
     hybrid_rrf_k: int = Field(default=60, env="HYBRID_RRF_K")
     hybrid_child_candidate_limit: int = Field(default=12, env="HYBRID_CHILD_CANDIDATE_LIMIT")
     hybrid_parent_candidate_limit: int = Field(default=6, env="HYBRID_PARENT_CANDIDATE_LIMIT")

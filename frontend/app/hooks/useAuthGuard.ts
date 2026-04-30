@@ -1,19 +1,57 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from './useAuth';
+import {
+  hasPermission,
+  type Permission,
+} from '@/app/lib/auth/permissions';
 
-export function useRequireAdmin() {
-  const { isAuthenticated, isAdmin, isLoading, isInitialized } = useAuth();
+function buildLoginPath(pathname: string | null): string {
+  const params = new URLSearchParams();
+  if (pathname && pathname !== '/auth/login') {
+    params.set('from', pathname);
+  }
+
+  const query = params.toString();
+  return query ? `/auth/login?${query}` : '/auth/login';
+}
+
+export function useRequirePermission(permission?: Permission) {
+  const { user, isAuthenticated, isAdmin, isLoading, isInitialized } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+
+  const hasRequiredPermission = permission
+    ? hasPermission(user, permission)
+    : isAdmin;
+  const isChecking = !isInitialized || isLoading;
+  const isAuthorized =
+    isInitialized && isAuthenticated && hasRequiredPermission;
 
   useEffect(() => {
-    if (!isInitialized || isLoading) return;
-    if (!isAuthenticated || !isAdmin) {
-      router.replace('/auth/login');
-    }
-  }, [isAuthenticated, isAdmin, isLoading, isInitialized, router]);
+    if (isChecking) return;
 
-  return { isAuthorized: isAuthenticated && isAdmin };
+    if (!isAuthenticated) {
+      router.replace(buildLoginPath(pathname));
+      return;
+    }
+
+    if (!hasRequiredPermission) {
+      router.replace('/');
+    }
+  }, [
+    hasRequiredPermission,
+    isAuthenticated,
+    isChecking,
+    pathname,
+    router,
+  ]);
+
+  return { isAuthorized, isChecking };
+}
+
+export function useRequireAdmin() {
+  return useRequirePermission();
 }

@@ -14,6 +14,7 @@ import type { AuthSessionSnapshot } from "@/app/lib/auth/session";
 import {
   AUTH_SESSION_EXPIRED_EVENT,
   AUTH_STATE_INVALIDATED_EVENT,
+  ApiError,
   authService,
   TokenManager,
 } from "@/app/lib/services/authService";
@@ -49,6 +50,7 @@ type AuthAction =
   | { type: "AUTH_FAILURE"; payload: string }
   | { type: "AUTH_LOGOUT" }
   | { type: "CLEAR_ERROR" }
+  | { type: "AUTH_RETRYABLE_FAILURE"; payload: string }
   | { type: "SET_LOADING"; payload: boolean };
 
 function createAuthState(
@@ -114,6 +116,17 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
         isLoading: false,
         isInitialized: true,
         error: null,
+      };
+
+    case "AUTH_RETRYABLE_FAILURE":
+      return {
+        ...state,
+        user: null,
+        token: null,
+        isAuthenticated: false,
+        isLoading: false,
+        isInitialized: false,
+        error: action.payload,
       };
 
     case "CLEAR_ERROR":
@@ -191,8 +204,17 @@ export function AuthProvider({
         },
       });
     } catch (error) {
-      logger.error("Auth check failed:", error);
-      dispatch({ type: "AUTH_LOGOUT" });
+      if (error instanceof ApiError && [401, 403].includes(error.status)) {
+        logger.warn("Auth check rejected:", error);
+        dispatch({ type: "AUTH_LOGOUT" });
+        return;
+      }
+
+      logger.warn("Auth check unavailable, keeping session unresolved:", error);
+      dispatch({
+        type: "AUTH_RETRYABLE_FAILURE",
+        payload: "No se pudo validar la sesion. Reintentando...",
+      });
     } finally {
       dispatch({ type: "SET_LOADING", payload: false });
     }
@@ -213,6 +235,29 @@ export function AuthProvider({
 
     void checkAuthStatus();
   }, [checkAuthStatus, initialSession, pathname]);
+
+  useEffect(() => {
+    if (initialSession || state.isInitialized || state.isLoading || !state.error) {
+      return;
+    }
+
+    if (isPublicPath(pathname)) {
+      return;
+    }
+
+    const retryId = window.setTimeout(() => {
+      void checkAuthStatus();
+    }, 2000);
+
+    return () => window.clearTimeout(retryId);
+  }, [
+    checkAuthStatus,
+    initialSession,
+    pathname,
+    state.isInitialized,
+    state.isLoading,
+    state.error,
+  ]);
 
   const refreshAuth = useCallback(async () => {
     try {

@@ -6,10 +6,14 @@ model as a `ToolMessage` and re-streams.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
+import time
 from typing import Optional
 
+from cache.manager import cache as _cache
+from core.request_context import get_request_context
 from .base import ToolContext, ToolDefinition, ToolResult
 
 logger = logging.getLogger(__name__)
@@ -132,6 +136,15 @@ def _build_cache_key(query: str, k: int) -> str:
     return f"{SEARCH_TOOL_NAME}:" + json.dumps(payload, sort_keys=True, ensure_ascii=False)
 
 
+_CROSS_TURN_PREFIX = "retrieval_tool:v1:"
+
+
+def _build_cross_turn_key(query: str, k: int) -> str:
+    canonical = query.lower().strip()
+    digest = hashlib.sha256(f"{canonical}:{k}".encode()).hexdigest()
+    return f"{_CROSS_TURN_PREFIX}{digest}"
+
+
 async def _handler(args: dict, ctx: ToolContext) -> ToolResult:
     query = (args.get("query") or ctx.user_input or "").strip()
     try:
@@ -157,6 +170,22 @@ async def _handler(args: dict, ctx: ToolContext) -> ToolResult:
 
     extra = ctx.extra or {}
     prior_user_msgs = extra.get("prior_user_msgs") or []
+    turn_cache: Optional[dict] = extra.get("turn_tool_cache")
+
+    # Cross-turn cache: keyed on original query (pre-expansion) so the same
+    # user question hits regardless of conversation history changing the expansion.
+    cross_key = _build_cross_turn_key(query, k)
+    cross_cached = await _cache.aget(cross_key)
+    if cross_cached is not None:
+        logger.info(
+            "[RetrievalTool] cross-turn cache HIT conv=%s q='%s'",
+            ctx.conversation_id,
+            query[:80],
+        )
+        if isinstance(turn_cache, dict):
+            turn_cache[_build_cache_key(query, k)] = cross_cached
+        return ToolResult(content=cross_cached)
+
     expanded_query = _maybe_expand_query(query, prior_user_msgs)
     if expanded_query != query:
         logger.debug(
@@ -166,7 +195,6 @@ async def _handler(args: dict, ctx: ToolContext) -> ToolResult:
             expanded_query[:120],
         )
 
-    turn_cache: Optional[dict] = extra.get("turn_tool_cache")
     cache_key: Optional[str] = None
     if isinstance(turn_cache, dict):
         cache_key = _build_cache_key(expanded_query, k)
@@ -179,6 +207,10 @@ async def _handler(args: dict, ctx: ToolContext) -> ToolResult:
             )
             return ToolResult(content=cached)
 
+    # Wall-clock del retrieval step. Acumulativo: ReAct puede invocar la tool N veces
+    # en un mismo turn — sumamos para que req_ctx.rag_time refleje el tiempo total
+    # gastado en RAG, igual que el path eager non-agentic en bot.get_context_async.
+    rag_start = time.perf_counter()
     try:
         docs = await retriever.retrieve_documents(query=expanded_query, k=k)
     except Exception as exc:
@@ -192,6 +224,13 @@ async def _handler(args: dict, ctx: ToolContext) -> ToolResult:
         return ToolResult(
             content="Error al consultar la base documental.",
         )
+    finally:
+        try:
+            req_ctx = get_request_context()
+            elapsed = time.perf_counter() - rag_start
+            req_ctx.rag_time = (req_ctx.rag_time or 0.0) + elapsed
+        except Exception:
+            pass
 
     formatted = retriever.format_context_from_documents(docs) if docs else (
         "No se encontró información relevante para esa consulta en el corpus."
@@ -208,6 +247,12 @@ async def _handler(args: dict, ctx: ToolContext) -> ToolResult:
 
     if isinstance(turn_cache, dict) and cache_key is not None:
         turn_cache[cache_key] = formatted
+
+    # Store in cross-turn Redis cache under original query key
+    try:
+        await _cache.aset(cross_key, formatted, ttl=_cache.ttl)
+    except Exception:
+        pass
 
     return ToolResult(content=formatted)
 

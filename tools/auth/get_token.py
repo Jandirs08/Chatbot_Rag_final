@@ -1,33 +1,36 @@
 """
 Script para obtener el token de autorización (JWT) del backend.
 
-Uso básico (Windows/PowerShell):
-  python tools/auth/get_token.py --base-url http://localhost:8000
+Uso básico (Windows/PowerShell o bash):
+  python tools/auth/get_token.py
+  -> el script pide email y password por consola
+  -> imprime el access_token al stdout
 
-Por defecto usa el endpoint `/api/v1/auth/login` y las credenciales
-proporcionadas por ti, pero puedes sobreescribirlas por argumentos o
-variables de entorno.
+Para uso con pipe / asignación (no muestra refresh_token, no guarda archivo):
+  python tools/auth/get_token.py --token-only
+  TOKEN=$(python tools/auth/get_token.py --token-only)
+  curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/...
 
-Variables de entorno opcionales:
-  - API_BASE_URL   (ej: http://localhost:8000)
-  - API_EMAIL      (email de usuario)
-  - API_PASSWORD   (password de usuario)
-
-Argumentos opcionales:
+Argumentos:
   --base-url       Base URL del backend (default: http://localhost:8000)
-  --email          Email del usuario
-  --password       Password del usuario
-  --out            Ruta para guardar el JSON del token (default: tools/auth/token.json)
+  --email          Email del usuario (si no se pasa, prompt interactivo)
+  --token-only     Imprime SOLO el access_token (sin labels ni archivo).
+                   Útil para pipear con `$()` en bash/PowerShell.
+  --out            Ruta para guardar el JSON del token (solo modo verboso).
+                   Default: tools/auth/token.json. Sin --out, no se guarda.
 
-El script imprime en consola el access_token y refresh_token, y guarda
-la respuesta completa en el archivo indicado.
+Notas seguridad:
+  - El password se pide con getpass (no se loguea ni queda en historial).
+  - El script NO contiene credenciales hardcodeadas.
+  - El archivo token.json (cuando se genera) NO debe subirse a Git.
 """
 
 from __future__ import annotations
 
 import argparse
+import getpass
 import json
-import os
+import sys
 from pathlib import Path
 from typing import Any, Dict
 
@@ -86,48 +89,100 @@ def save_json(data: Dict[str, Any], out_path: str) -> None:
     out_file.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _try_copy_to_clipboard(text: str) -> bool:
+    """Best-effort copy al clipboard (Windows). Falla silencioso si no aplica."""
+    try:
+        import subprocess
+        if sys.platform == "win32":
+            subprocess.run("clip", input=text, text=True, check=False)
+            return True
+    except Exception:
+        pass
+    return False
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Obtener token JWT del backend")
     parser.add_argument(
         "--base-url",
-        default=os.getenv("API_BASE_URL", "http://localhost:8000"),
-        help="Base URL del backend (ej: http://localhost:8000)",
+        default="http://localhost:8000",
+        help="Base URL del backend (default: http://localhost:8000)",
     )
     parser.add_argument(
         "--email",
-        default=os.getenv("API_EMAIL", "jandir.088@hotmail.com"),
-        help="Email del usuario",
+        default=None,
+        help="Email (si no se pasa, prompt interactivo)",
     )
     parser.add_argument(
-        "--password",
-        default=os.getenv("API_PASSWORD", "PPjhst1234$"),
-        help="Password del usuario",
+        "--verbose",
+        action="store_true",
+        help="Modo detallado: muestra refresh_token, expires_in, opción --out",
     )
     parser.add_argument(
         "--out",
-        default=str(Path("tools/auth/token.json")),
-        help="Ruta para guardar el JSON del token",
+        default=None,
+        help="(--verbose) ruta para guardar JSON completo",
+    )
+    parser.add_argument(
+        "--no-wait",
+        action="store_true",
+        help="No espera ENTER al final (útil para uso en scripts/pipes)",
     )
 
     args = parser.parse_args()
 
-    print(f"-> Intentando login en {args.base_url}{LOGIN_PATH} como {args.email}...")
-    tokens = login(args.base_url, args.email, args.password)
+    # Email + password siempre prompt si no se pasaron por arg.
+    email = args.email or input("Email: ").strip()
+    if not email:
+        print("ERROR: email vacío.", file=sys.stderr)
+        if not args.no_wait:
+            input("\nPresiona ENTER para salir...")
+        sys.exit(1)
+    password = getpass.getpass("Password: ")
+    if not password:
+        print("ERROR: password vacío.", file=sys.stderr)
+        if not args.no_wait:
+            input("\nPresiona ENTER para salir...")
+        sys.exit(1)
 
-    # Mostrar por consola lo más importante
-    access = tokens.get("access_token")
-    refresh = tokens.get("refresh_token")
-    expires_in = tokens.get("expires_in")
+    print(f"\n-> Login en {args.base_url}{LOGIN_PATH}...")
 
-    print("\nLogin correcto. Tokens recibidos:")
-    print(f"  access_token: {access}")
-    print(f"  refresh_token: {refresh}")
-    if expires_in is not None:
-        print(f"  expires_in: {expires_in} segundos")
+    try:
+        tokens = login(args.base_url, email, password)
+    except RuntimeError as exc:
+        print(f"\nERROR: {exc}", file=sys.stderr)
+        if not args.no_wait:
+            input("\nPresiona ENTER para salir...")
+        sys.exit(2)
 
-    # Guardar JSON completo por si se necesita reutilizar
-    save_json(tokens, args.out)
-    print(f"\nRespuesta completa guardada en: {args.out}")
+    access = tokens.get("access_token") or ""
+
+    if args.verbose:
+        refresh = tokens.get("refresh_token")
+        expires_in = tokens.get("expires_in")
+        print("\nLogin correcto. Tokens recibidos:")
+        print(f"  access_token : {access}")
+        print(f"  refresh_token: {refresh}")
+        if expires_in is not None:
+            print(f"  expires_in   : {expires_in} s")
+        if args.out:
+            save_json(tokens, args.out)
+            print(f"\nJSON completo guardado en: {args.out}")
+    else:
+        # Modo default: solo el access_token, claramente delimitado para copiar.
+        copied = _try_copy_to_clipboard(access)
+        sep = "─" * 60
+        print(f"\n{sep}")
+        print("ACCESS TOKEN (copia esto):")
+        print(sep)
+        print(access)
+        print(sep)
+        if copied:
+            print("(ya copiado al portapapeles automáticamente)")
+        print()
+
+    if not args.no_wait:
+        input("Presiona ENTER para cerrar...")
 
 
 if __name__ == "__main__":

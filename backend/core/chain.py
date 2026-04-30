@@ -64,7 +64,7 @@ class ChainManager:
                 self._model = self._model.bind_tools(
                     [t.schema for t in self.tools]
                 )
-                self.logger.info(
+                self.logger.debug(
                     "Bound %d tool(s) to model: %s",
                     len(self.tools),
                     [t.name for t in self.tools],

@@ -140,7 +140,7 @@ class RAGRetriever:
         self.performance_metrics = PerformanceMetrics()
         self._last_gating_reason: Optional[str] = None
 
-        logger.info(
+        logger.debug(
             "RAGRetriever initialized with normalize -> cheap gate -> cache -> single embedding -> retrieval"
         )
 

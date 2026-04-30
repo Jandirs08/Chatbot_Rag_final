@@ -26,6 +26,10 @@ class RequestContext:
     debug_info: Optional[Any] = None  # DebugInfo de api.schemas
     stage_timings_ms: dict[str, float] = field(default_factory=dict)
     context_truncated: bool = False
+    # Tokens estimados (tiktoken o200k_base) para visibilidad en log [CHAT][PERF].
+    # Acumulativo a lo largo del turno (incluye iters ReAct).
+    tokens_in: int = 0
+    tokens_out: int = 0
 
     def set_stage_timing_ms(self, name: str, value: float | None) -> None:
         if not name or value is None:

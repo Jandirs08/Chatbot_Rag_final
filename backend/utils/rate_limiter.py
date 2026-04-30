@@ -39,7 +39,7 @@ if _storage_uri == "memory://":
         "set REDIS_URL for coherent limits across workers."
     )
 else:
-    _logger.info("Rate limiter using shared storage: redis")
+    _logger.debug("Rate limiter using shared storage: redis")
 
 limiter = Limiter(
     key_func=get_remote_address,

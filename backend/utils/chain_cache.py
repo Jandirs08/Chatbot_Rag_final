@@ -72,10 +72,10 @@ class ChatbotCache:
     def _init_cache(self):
         """Inicializa el caché a nivel de gestor (usa CacheManager global)."""
         if not self.settings.enable_cache:
-            self.logger.info("Caché deshabilitado en la configuración.")
+            self.logger.debug("Caché deshabilitado en la configuración.")
             return
         # No configuramos caches de LangChain; usamos CacheManager unificado
-        self.logger.info(f"CacheManager activo; tipo preferido: {self.cache_type.value}")
+        self.logger.debug(f"CacheManager activo; tipo preferido: {self.cache_type.value}")
 
     @staticmethod
     def create(cache_type: Optional[CacheTypes] = None, settings: Optional[Settings] = None, **kwargs) -> 'ChatbotCache':

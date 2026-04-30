@@ -376,8 +376,10 @@ async def logout(
                 exp = payload.get("exp", 0)
                 if jti:
                     token_blacklist.blacklist(jti, int(exp))
-            except Exception:
-                pass
+            except Exception as exc:
+                # Logout no debe fallar por error de revocación; logueamos a DEBUG
+                # para diagnóstico sin afectar UX.
+                logger.debug("Access token revocation skipped on logout: %s", exc)
 
         # Revoke the refresh token
         if logout_data and logout_data.refresh_token:
@@ -387,8 +389,8 @@ async def logout(
                 exp = payload.get("exp", 0)
                 if jti:
                     token_blacklist.blacklist(jti, int(exp))
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Refresh token revocation skipped on logout: %s", exc)
 
     if response is not None:
         response.delete_cookie(key="access_token", path="/")

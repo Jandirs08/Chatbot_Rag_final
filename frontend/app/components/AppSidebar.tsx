@@ -16,6 +16,7 @@ import {
   Sun,
   Moon,
   FlaskConical,
+  Activity,
   type LucideIcon,
 } from "lucide-react";
 import React from "react";
@@ -242,6 +243,7 @@ export function AppSidebar() {
                 [
                   ...(isAdmin ? [{ title: "Usuarios", url: "/users", icon: Users }] : []),
                   ...(isAdmin ? [{ title: "Configuración", url: "/admin/settings", icon: Settings }] : []),
+                  ...(isAdmin ? [{ title: "Observabilidad", url: "/admin/observability", icon: Activity }] : []),
                   ...(isAdmin ? [{ title: "Debug Chat", url: "/dashboard/playground", icon: FlaskConical }] : []),
                 ] as MenuItem[]
               ).map((item) => (

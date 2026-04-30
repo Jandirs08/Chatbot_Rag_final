@@ -3,7 +3,10 @@
 # ENTRYPOINT - Detecta modo desarrollo o producción
 # =============================================================================
 # ENVIRONMENT=development → uvicorn con --reload (1 worker, hot-reload)
-# ENVIRONMENT=production  → gunicorn con 4 workers (sin reload, optimizado)
+# ENVIRONMENT=production  → gunicorn con N workers (sin reload, optimizado).
+#                            Default WORKERS=1 para coherencia de métricas
+#                            in-memory (MetricsCollector). Subir a 2-4 si
+#                            tu carga lo justifica (>30 chats/min sostenido).
 # =============================================================================
 
 set -e
@@ -11,7 +14,7 @@ set -e
 # Valores por defecto
 HOST="${HOST:-0.0.0.0}"
 PORT="${PORT:-8000}"
-WORKERS="${WORKERS:-4}"
+WORKERS="${WORKERS:-1}"
 
 echo "========================================"
 echo "  CHATBOT RAG BACKEND"
