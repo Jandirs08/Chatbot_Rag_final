@@ -6,12 +6,14 @@ import {
   Tooltip as RechartsTooltip, ResponsiveContainer, Cell,
   PieChart, Pie,
 } from "recharts";
+import { PipelineBadge, type PipelineBadgeName } from "@/app/components/icons/PipelineBadge";
 import {
   Activity, AlertCircle, ChevronDown, Clock, Cpu, Database,
   DollarSign, Gauge, HelpCircle, MessageSquare, Percent,
   RefreshCw, Server, Timer, Zap,
 } from "lucide-react";
 import { useRequireAdmin } from "@/app/hooks/useAuthGuard";
+import { ServiceGlyph } from "@/app/components/icons/ServiceGlyph";
 import { API_URL } from "@/app/lib/config";
 import { authenticatedJsonFetcher } from "@/app/lib/services/authService";
 import { Badge } from "@/app/components/ui/badge";
@@ -184,6 +186,12 @@ function HealthDot({ health, size = "md" }: { health: Health; size?: "sm" | "md"
 function ServiceNode({ icon, name, health, sub, extra }: {
   icon: React.ReactNode; name: string; health: Health; sub: string; extra?: string;
 }) {
+  const glyphName =
+    name === "MongoDB" ? "mongodb" :
+    name === "Redis" ? "redis" :
+    name === "Qdrant" ? "qdrant" :
+    name === "RAG" ? "rag" :
+    null;
   const glows: Record<Health, string> = {
     ok:   "border-emerald-500/20 bg-emerald-500/5",
     warn: "border-amber-500/20 bg-amber-500/5",
@@ -192,15 +200,21 @@ function ServiceNode({ icon, name, health, sub, extra }: {
   };
   return (
     <div className={cn(
-      "relative flex flex-col gap-2 rounded-xl border px-4 py-3 min-w-[148px] transition-all duration-300",
+      "relative flex min-w-[190px] flex-col gap-3 rounded-xl border px-4 py-4 transition-all duration-300",
       glows[health],
       health === "crit" && "shadow-[0_0_16px_rgb(239_68_68_/_0.15)]",
       health === "ok"   && "shadow-[0_0_12px_rgb(16_185_129_/_0.08)]",
     )}>
-      <div className="flex items-center gap-2">
-        <HealthDot health={health} />
-        <span className="font-heading text-xs font-semibold tracking-wide text-foreground/80">{name}</span>
-        <span className="text-muted-foreground/40 ml-auto">{icon}</span>
+      <div className="flex items-center gap-3">
+        <span className="shrink-0">
+          {glyphName ? <ServiceGlyph name={glyphName} /> : icon}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-2">
+            <HealthDot health={health} />
+            <span className="font-heading text-sm font-semibold tracking-wide text-foreground/90">{name}</span>
+          </span>
+        </span>
       </div>
       <p className={cn("font-data text-xs tabular-nums", {
         "text-emerald-600 dark:text-emerald-400": health === "ok",
@@ -315,6 +329,13 @@ function PipelineNode({ label, short, p50, p95, health, count, help }: {
   label: string; short: string; p50: number | null; p95: number | null;
   health: Health; count: number; help: string;
 }) {
+  const badgeName: PipelineBadgeName =
+    short === "Embed" ? "embed" :
+    short === "Dense" ? "dense" :
+    short === "Lexical" ? "lexical" :
+    short === "Hydrate" ? "hydrate" :
+    short === "Rerank" ? "rerank" :
+    "llm";
   const borderColor: Record<Health, string> = {
     ok:   "border-emerald-500/40 shadow-[0_0_10px_rgb(16_185_129_/_0.12)]",
     warn: "border-amber-500/40",
@@ -327,14 +348,21 @@ function PipelineNode({ label, short, p50, p95, health, count, help }: {
     crit: "text-red-600 dark:text-red-400",
     info: "text-muted-foreground",
   };
+  const badgeColor: Record<Health, string> = {
+    ok: "text-emerald-500",
+    warn: "text-amber-500",
+    crit: "text-red-500",
+    info: "text-muted-foreground",
+  };
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <div className={cn(
-          "flex flex-col items-center gap-1.5 rounded-xl border px-3 py-2.5 cursor-default bg-background/60",
+          "flex min-w-[108px] flex-col items-center gap-1.5 rounded-xl border px-3 py-2.5 cursor-default bg-background/60",
           "transition-all duration-200 hover:-translate-y-0.5 hover:bg-background",
           borderColor[health],
         )}>
+          <PipelineBadge name={badgeName} className={badgeColor[health]} />
           <span className="font-heading text-[10px] font-semibold uppercase tracking-wider text-foreground/60">{short}</span>
           <span className={cn("font-data text-sm font-semibold tabular-nums leading-none", valueColor[health])}>
             {p50 != null ? fmtMs(p50) : "—"}

@@ -16,6 +16,7 @@ import { useRequireAdmin } from "@/app/hooks/useAuthGuard";
 import { API_URL } from "@/app/lib/config";
 import { authenticatedJsonFetcher } from "@/app/lib/services/authService";
 import { Button } from "@/app/components/ui/button";
+import { ServiceGlyph } from "@/app/components/icons/ServiceGlyph";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import { InboxStatsCard } from "@/app/_components/dashboard/InboxStatsCard";
 import { cn } from "@/lib/utils";
@@ -637,13 +638,14 @@ function SystemHealthStrip({ isAuthorized }: { isAuthorized: boolean }) {
         ? "Abierto"
         : "Recuperando";
 
-  const items: { label: string; value: string; ok?: boolean }[] = [
+  const items: { label: string; value: string; ok?: boolean; icon?: React.ReactNode }[] = [
     {
       label: "Uptime",
       value: isLoading ? "…" : data ? fmtUptime(data.uptime_seconds) : "—",
     },
     {
       label: "RAG",
+      icon: <ServiceGlyph name="rag" className="h-3.5 w-3.5" />,
       value: isLoading
         ? "…"
         : data?.rag_available == null
@@ -655,6 +657,9 @@ function SystemHealthStrip({ isAuthorized }: { isAuthorized: boolean }) {
     },
     {
       label: "Cache",
+      icon: data?.cache_backend?.toLowerCase().includes("redis")
+        ? <ServiceGlyph name="redis" className="h-3.5 w-3.5" />
+        : undefined,
       value: isLoading
         ? "…"
         : data?.cache_backend
@@ -668,6 +673,7 @@ function SystemHealthStrip({ isAuthorized }: { isAuthorized: boolean }) {
     },
     {
       label: "Qdrant CB",
+      icon: <ServiceGlyph name="qdrant" className="h-3.5 w-3.5" />,
       value: isLoading
         ? "…"
         : cbLabel + (cb?.failure_count ? ` (${cb.failure_count})` : ""),
@@ -687,6 +693,9 @@ function SystemHealthStrip({ isAuthorized }: { isAuthorized: boolean }) {
               <div className="hidden h-3.5 w-px bg-border/50 sm:block" />
             )}
             <div className="flex items-center gap-2">
+              {item.icon && (
+                <span className="text-muted-foreground/55">{item.icon}</span>
+              )}
               <span className="text-xs text-muted-foreground">{item.label}</span>
               <span
                 className={cn(

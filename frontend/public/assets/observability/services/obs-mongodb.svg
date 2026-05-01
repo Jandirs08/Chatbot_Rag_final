@@ -1,0 +1,21 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="mongoLeaf" x1="9" y1="4" x2="23" y2="22" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#22C55E"/>
+      <stop offset="1" stop-color="#0F7A3B"/>
+    </linearGradient>
+    <linearGradient id="mongoBase" x1="7" y1="15" x2="25" y2="28" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#DEF7E8"/>
+      <stop offset="1" stop-color="#69D38E"/>
+    </linearGradient>
+    <filter id="mongoGlow" x="2" y="0" width="28" height="32" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#16A34A" flood-opacity=".35"/>
+    </filter>
+  </defs>
+  <rect x="3.5" y="3.5" width="25" height="25" rx="8" fill="#061B12"/>
+  <path d="M8 19.25C8 16.9 11.58 15 16 15C20.42 15 24 16.9 24 19.25V23.75C24 26.1 20.42 28 16 28C11.58 28 8 26.1 8 23.75V19.25Z" fill="url(#mongoBase)" filter="url(#mongoGlow)"/>
+  <path d="M24 19.25C24 21.6 20.42 23.5 16 23.5C11.58 23.5 8 21.6 8 19.25" stroke="#0B5F31" stroke-width="1.5" opacity=".65"/>
+  <path d="M16 4C12.75 7.3 10.85 10.95 10.85 14.7C10.85 18.82 13.42 22.48 16 25.25C18.58 22.48 21.15 18.82 21.15 14.7C21.15 10.95 19.25 7.3 16 4Z" fill="url(#mongoLeaf)" filter="url(#mongoGlow)"/>
+  <path d="M16 7.25V25.25" stroke="#E9FFF0" stroke-width="1.35" stroke-linecap="round" opacity=".9"/>
+  <path d="M13.35 13.2C14.25 11.2 15.16 9.64 16 8.45C16.84 9.64 17.75 11.2 18.65 13.2" stroke="#BFF7D3" stroke-width="1.25" stroke-linecap="round" opacity=".75"/>
+</svg>

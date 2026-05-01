@@ -1,0 +1,25 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="ragPanel" x1="7" y1="5" x2="25" y2="27" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C4B5FD"/>
+      <stop offset="1" stop-color="#4F35CC"/>
+    </linearGradient>
+    <linearGradient id="ragSignal" x1="10" y1="8" x2="25" y2="24" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FDE68A"/>
+      <stop offset=".48" stop-color="#2DD4BF"/>
+      <stop offset="1" stop-color="#A78BFA"/>
+    </linearGradient>
+    <filter id="ragGlow" x="2" y="1" width="28" height="30" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="2" stdDeviation="2.2" flood-color="#8B5CF6" flood-opacity=".42"/>
+    </filter>
+  </defs>
+  <rect x="3.5" y="3.5" width="25" height="25" rx="8" fill="#130F2A"/>
+  <path d="M8 7.25H15.15L19.1 11.25V24.75H8V7.25Z" fill="url(#ragPanel)" filter="url(#ragGlow)"/>
+  <path d="M15.15 7.25V11.25H19.1" stroke="#F5F3FF" stroke-width="1.15" stroke-linejoin="round" opacity=".78"/>
+  <path d="M10.45 14H16.4" stroke="#F5F3FF" stroke-width="1.25" stroke-linecap="round" opacity=".76"/>
+  <path d="M10.45 17.25H14.5" stroke="#F5F3FF" stroke-width="1.25" stroke-linecap="round" opacity=".56"/>
+  <path d="M18.25 14.2C20.2 14.2 21.85 15.22 22.78 16.82C21.85 18.42 20.2 19.45 18.25 19.45C16.3 19.45 14.65 18.42 13.72 16.82C14.65 15.22 16.3 14.2 18.25 14.2Z" fill="#0F172A" opacity=".78"/>
+  <circle cx="18.25" cy="16.82" r="1.55" fill="#F8FAFC"/>
+  <path d="M21.2 11.35L21.85 13.15L23.65 13.8L21.85 14.45L21.2 16.25L20.55 14.45L18.75 13.8L20.55 13.15L21.2 11.35Z" fill="url(#ragSignal)"/>
+  <path d="M23.35 18.45L23.85 19.85L25.25 20.35L23.85 20.85L23.35 22.25L22.85 20.85L21.45 20.35L22.85 19.85L23.35 18.45Z" fill="#2DD4BF"/>
+</svg>
