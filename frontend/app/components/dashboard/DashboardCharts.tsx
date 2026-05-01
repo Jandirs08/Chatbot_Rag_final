@@ -63,8 +63,8 @@ function CustomTooltip({
   if (!active || !payload || !payload.length) return null;
   const value = payload[0]?.value ?? 0;
   return (
-    <div className="rounded-xl border border-slate-100 bg-white dark:bg-slate-900 dark:border-slate-800 shadow-lg px-4 py-3">
-      <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+    <div className="rounded-xl border border-border/60 bg-card shadow-md px-4 py-3">
+      <div className="text-xs font-medium text-muted-foreground">
         {label}
       </div>
       <div className="mt-1 flex items-center gap-2">
@@ -72,10 +72,10 @@ function CustomTooltip({
           className="w-2.5 h-2.5 rounded-full"
           style={{ backgroundColor: color }}
         />
-        <span className="text-lg font-semibold text-slate-900 dark:text-white">
+        <span className="text-lg font-semibold text-foreground">
           {value.toLocaleString()}
         </span>
-        <span className="text-sm text-slate-500 dark:text-slate-400">
+        <span className="text-sm text-muted-foreground">
           {metricLabel}
         </span>
       </div>
@@ -103,12 +103,12 @@ export default function DashboardCharts() {
 
   const chartColors = {
     consultas: {
-      stroke: "#3b82f6",
-      fill: "#3b82f6",
+      stroke: "hsl(var(--primary))",
+      fill: "hsl(var(--primary))",
     },
     usuarios: {
-      stroke: "#8b5cf6",
-      fill: "#8b5cf6",
+      stroke: "hsl(var(--primary-muted))",
+      fill: "hsl(var(--primary-muted))",
     },
   };
 
@@ -117,26 +117,23 @@ export default function DashboardCharts() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-            Evolución de Métricas
-          </h3>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Visualiza el rendimiento de tu asistente
+        <div className="space-y-0.5">
+          <p className="font-heading text-[10px] uppercase tracking-[0.15em] text-muted-foreground/60">
+            Evolución de métricas
           </p>
         </div>
         <div className="flex items-center gap-3">
           <Tabs value={activeTab} onValueChange={(v: string) => setActiveTab(v as "consultas" | "usuarios")}>
-            <TabsList className="h-9 bg-slate-100 dark:bg-slate-800 p-1">
+            <TabsList className="h-9 bg-muted p-1">
               <TabsTrigger
                 value="consultas"
-                className="text-xs px-4 h-7 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:shadow-sm"
+                className="text-xs px-4 h-7 data-[state=active]:bg-card data-[state=active]:shadow-sm"
               >
                 Consultas
               </TabsTrigger>
               <TabsTrigger
                 value="usuarios"
-                className="text-xs px-4 h-7 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:shadow-sm"
+                className="text-xs px-4 h-7 data-[state=active]:bg-card data-[state=active]:shadow-sm"
               >
                 Usuarios
               </TabsTrigger>
@@ -144,7 +141,7 @@ export default function DashboardCharts() {
           </Tabs>
           <Select value={range} onValueChange={(v: string) => setRange(v as "7d" | "30d" | "3m")}>
             <SelectTrigger
-              className="w-40 h-9 text-sm bg-white dark:bg-slate-900"
+              className="w-40 h-9 text-sm bg-card"
               aria-label="Rango de tiempo"
             >
               <SelectValue placeholder="Últimos 7 días" />
@@ -178,7 +175,7 @@ export default function DashboardCharts() {
 
               <XAxis
                 dataKey="name"
-                tick={{ fill: "#94a3b8", fontSize: 12 }}
+                tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
                 axisLine={false}
                 tickLine={false}
                 minTickGap={20}
@@ -187,7 +184,7 @@ export default function DashboardCharts() {
               />
 
               <YAxis
-                tick={{ fill: "#94a3b8", fontSize: 12 }}
+                tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
                 axisLine={false}
                 tickLine={false}
                 width={40}

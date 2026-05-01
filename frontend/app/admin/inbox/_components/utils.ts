@@ -40,6 +40,75 @@ export const humanizeId = (id?: string | null) => {
   return `Visitante #${tag || "0000"}`;
 };
 
+// ─── Lead helpers (shared by InboxConversationCard + LeadSheet) ───────────────
+
+export function getInitials(name?: string | null, id?: string): string {
+  if (name) {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+  const clean = (id ?? "").replace(/[^a-fA-F0-9]/g, "");
+  return clean.slice(-2).toUpperCase() || "??";
+}
+
+export function getScoreColor(score: number): { color: string; bg: string } {
+  if (score >= 71) return { color: "#047857", bg: "#d1fae5" };
+  if (score >= 41) return { color: "#b45309", bg: "#fef3c7" };
+  return { color: "#b91c1c", bg: "#fee2e2" };
+}
+
+/**
+ * Extends `getScoreColor` with a human-readable label. Used by LeadSheet's
+ * Score bar; the card uses the lighter `getScoreColor` directly.
+ */
+export type ScoreStyle = { color: string; bg: string; label: string };
+
+export function getScoreStyle(score: number): ScoreStyle {
+  const base = getScoreColor(score);
+  if (score >= 71) return { ...base, label: "Listo para comprar" };
+  if (score >= 41) return { ...base, label: "Interés moderado" };
+  return { ...base, label: "Sin interés claro" };
+}
+
+const CHANNEL_LABEL: Record<string, string> = {
+  web: "Web",
+  whatsapp: "WhatsApp",
+  api: "API",
+};
+
+/**
+ * Display label for a conversation when no real lead name exists.
+ * Prefers a real name. Otherwise falls back to channel + last 4 of external_id
+ * (e.g. "WhatsApp · 4821") instead of a synthetic "Visitante #XXXX".
+ */
+export function displayLabel(opts: {
+  name?: string | null;
+  channel?: string | null;
+  externalId?: string | null;
+  conversationId?: string | null;
+}): string {
+  const { name, channel, externalId, conversationId } = opts;
+  if (name && name.trim().length > 0) return name.trim();
+
+  const ch = channel?.toLowerCase() ?? "";
+  const channelText =
+    CHANNEL_LABEL[ch] ?? (ch ? ch[0].toUpperCase() + ch.slice(1) : null);
+
+  const cleanExternalDigits = (externalId ?? "").replace(/\D/g, "");
+  if (channelText && cleanExternalDigits.length >= 4) {
+    return `${channelText} · ${cleanExternalDigits.slice(-4)}`;
+  }
+  if (channelText) {
+    const idTail = (externalId ?? conversationId ?? "")
+      .replace(/[^a-zA-Z0-9]/g, "")
+      .slice(-4)
+      .toUpperCase();
+    if (idTail) return `${channelText} · ${idTail}`;
+  }
+  return humanizeId(conversationId ?? externalId);
+}
+
 const isSameDay = (left: Date, right: Date) =>
   left.getFullYear() === right.getFullYear() &&
   left.getMonth() === right.getMonth() &&

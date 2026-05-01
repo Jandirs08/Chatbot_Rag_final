@@ -77,7 +77,12 @@ const config: Config = {
           ring: "hsl(var(--sidebar-ring))",
         },
       },
-      borderRadius: { // <--- Añade esta sección para el radio del borde
+      fontFamily: {
+        sans: ["var(--font-sans)", "Inter", "system-ui", "sans-serif"],
+        heading: ["var(--font-heading)", "'Space Grotesk'", "system-ui", "sans-serif"],
+        mono: ["var(--font-mono-ui)", "'DM Mono'", "'Fira Code'", "monospace"],
+      },
+      borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",

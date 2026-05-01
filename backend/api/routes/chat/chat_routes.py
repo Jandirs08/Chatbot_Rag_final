@@ -42,6 +42,11 @@ async def _classify_web(conversation_id: str, app_state) -> None:
             category=result.category,
             urgency=result.urgency,
             ai_summary=result.summary,
+            lead_score=result.lead_score,
+            product_interests=result.product_interests,
+            recommended_action=result.recommended_action,
+            confidence=result.confidence,
+            msg_count_at_classify=result.msg_count_at_classify,
         )
     except Exception as e:
         logger.error(f"[Classification] Web conv={conversation_id}: {e}")
@@ -180,6 +185,7 @@ async def chat_stream_log(
                             if user_msg:
                                 yield f"data: {json.dumps({'stream': user_msg})}\n\n"
                         elif event.kind == "end":
+                            background_tasks.add_task(_classify_web, conversation_id, request.app.state)
                             yield "event: end\ndata: {}\n\n"
                 except RetrievalBackendUnavailableError as e_stream:
                     err_payload = json.dumps({"message": str(e_stream)})
@@ -214,6 +220,7 @@ async def chat_stream_log(
                         payload = json.dumps({"stream": str(chunk)})
                     yield f"data: {payload}\n\n"
                 logger.debug(f"[CHAT] Streaming finalizado | conv={conversation_id}")
+                background_tasks.add_task(_classify_web, conversation_id, request.app.state)
                 if debug_mode:
                     try:
                         dbg = get_request_context().debug_info

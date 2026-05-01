@@ -3,10 +3,12 @@ from fastapi import APIRouter, Request, HTTPException, BackgroundTasks, Depends
 from fastapi.responses import JSONResponse
 from database.whatsapp_session_repository import WhatsAppSessionRepository
 from database.conversation_repository import ConversationRepository
+from database.failed_message_repository import FailedMessageRepository
 from database.mongodb import get_mongodb_client
 from services.classification import classify_conversation
 from utils.whatsapp.formatter import format_text
 from utils.whatsapp.client import WhatsAppClient
+from utils.whatsapp.idempotency import claim_message
 from utils.whatsapp.rate_limit import check_and_increment, should_notify_once
 from config import settings
 import httpx
@@ -45,12 +47,23 @@ async def _run_classification(conversation_id: str, app_state) -> None:
             category=result.category,
             urgency=result.urgency,
             ai_summary=result.summary,
+            lead_score=result.lead_score,
+            product_interests=result.product_interests,
+            recommended_action=result.recommended_action,
+            confidence=result.confidence,
+            msg_count_at_classify=result.msg_count_at_classify,
         )
     except Exception as e:
         logger.error(f"[Classification] Background task error for conv={conversation_id}: {e}")
 
 
-async def process_message_background(text: str, wa_id: str, app_state, conversation_id: str):
+async def process_message_background(
+    text: str,
+    wa_id: str,
+    app_state,
+    conversation_id: str,
+    message_sid: str = "",
+):
     """
     Procesa el mensaje en segundo plano (LLM + Envío a WhatsApp).
     Esto evita que el webhook de Twilio haga timeout.
@@ -84,8 +97,22 @@ async def process_message_background(text: str, wa_id: str, app_state, conversat
         else:
             logger.warning(f"[Background] Falló el envío a {wa_id}")
 
+        await _run_classification(conversation_id, app_state)
+
     except Exception as e:
         log_error(f"CRITICAL: Error en proceso de fondo (LLM/Send): {e}", wa_id)
+        try:
+            mongodb_client = getattr(app_state, "mongodb_client", None) or get_mongodb_client()
+            dlq = FailedMessageRepository(mongodb_client)
+            await dlq.record(
+                wa_id=wa_id,
+                text=text,
+                conversation_id=conversation_id,
+                message_sid=message_sid,
+                error=str(e),
+            )
+        except Exception:
+            pass
 
 # --- ENDPOINTS ---
 
@@ -137,7 +164,28 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
 
     # 3. Extraer y Validar Datos
     wa_id = str(form.get("From", "")).strip().strip("`\"'")
+    message_sid = str(form.get("MessageSid", "")).strip()
     text = str(form.get("Body", "")).strip()
+
+    # Multimedia: anota tipo de archivo recibido para que el bot pueda responder
+    num_media = int(form.get("NumMedia", 0) or 0)
+    if num_media > 0:
+        media_labels = []
+        for i in range(min(num_media, 5)):
+            ct = str(form.get(f"MediaContentType{i}", "")).lower()
+            if "image" in ct:
+                media_labels.append("imagen")
+            elif "audio" in ct:
+                media_labels.append("audio")
+            elif "video" in ct:
+                media_labels.append("video")
+            elif "pdf" in ct:
+                media_labels.append("documento PDF")
+            else:
+                media_labels.append("archivo")
+        media_note = ", ".join(f"[{l}]" for l in media_labels)
+        text = f"{media_note} {text}".strip() if text else media_note
+
     if len(text) > 1500:
         text = text[:1500] + " ... [truncado]"
 
@@ -149,6 +197,12 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
     if not text:
         # A veces llegan actualizaciones de estado (sent/delivered), las ignoramos con 200 OK
         return JSONResponse(status_code=200, content={"status": "ignored_empty"})
+
+    # 3b. Idempotency: antes de rate limit — descarta reintentos de Twilio
+    # independientemente de cómo se rechazó el intento anterior
+    if not claim_message(message_sid):
+        logger.info(f"[Webhook] Reintento Twilio descartado: MessageSid={message_sid}")
+        return JSONResponse(status_code=200, content={"status": "duplicate"})
 
     # 4. Rate limit por wa_id (protege contra bursts y abuso)
     rl_limit = int(getattr(settings, "whatsapp_rate_limit_per_window", 10))
@@ -184,7 +238,8 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
         text=text,
         wa_id=wa_id,
         app_state=request.app.state,
-        conversation_id=conversation_id
+        conversation_id=conversation_id,
+        message_sid=message_sid,
     )
 
     # 7. Respuesta Inmediata a Twilio

@@ -60,6 +60,8 @@ class ConversationRepository:
                     "lead_name": None,
                     "lead_email": None,
                     "lead_captured_at": None,
+                    "stage": "active",
+                    "completed_at": None,
                     "created_at": now,
                     "updated_at": now,
                 }
@@ -100,6 +102,42 @@ class ConversationRepository:
         category: str,
         urgency: str,
         ai_summary: str,
+        lead_score: Optional[int] = None,
+        product_interests: Optional[list] = None,
+        recommended_action: Optional[str] = None,
+        confidence: Optional[float] = None,
+        msg_count_at_classify: Optional[int] = None,
+    ) -> None:
+        coll = self.mongodb_client.db[self.collection_name]
+        now = datetime.now(timezone.utc)
+        fields: dict = {
+            "category": category,
+            "urgency": urgency,
+            "ai_summary": ai_summary,
+            "updated_at": now,
+        }
+        if lead_score is not None:
+            fields["lead_score"] = lead_score
+        if product_interests is not None:
+            fields["product_interests"] = product_interests
+        if recommended_action is not None:
+            fields["recommended_action"] = recommended_action
+        if confidence is not None:
+            fields["confidence"] = confidence
+        if msg_count_at_classify is not None:
+            fields["last_classified_msg_count"] = msg_count_at_classify
+            fields["ai_summary_at_msg_count"] = msg_count_at_classify
+            fields["ai_summary_at"] = now
+        await coll.update_one(
+            {"conversation_id": conversation_id},
+            {"$set": fields},
+        )
+
+    async def set_summary_only(
+        self,
+        conversation_id: str,
+        ai_summary: str,
+        msg_count_at_summary: int,
     ) -> None:
         coll = self.mongodb_client.db[self.collection_name]
         now = datetime.now(timezone.utc)
@@ -107,9 +145,9 @@ class ConversationRepository:
             {"conversation_id": conversation_id},
             {
                 "$set": {
-                    "category": category,
-                    "urgency": urgency,
                     "ai_summary": ai_summary,
+                    "ai_summary_at_msg_count": msg_count_at_summary,
+                    "ai_summary_at": now,
                     "updated_at": now,
                 }
             },
@@ -149,6 +187,42 @@ class ConversationRepository:
         coll = self.mongodb_client.db[self.collection_name]
         docs = await coll.find({"lead_email": {"$ne": None}, "mode": "bot"}).sort("updated_at", -1).to_list(length=200)
         return docs
+
+    async def list_inbox_conversations(self, days: int = 30, limit: int = 500) -> list:
+        coll = self.mongodb_client.db[self.collection_name]
+        since = datetime.now(timezone.utc) - timedelta(days=max(1, int(days)))
+        docs = await coll.find(
+            {
+                "mode": {"$in": ["bot", "human", "pending", "paused"]},
+                "updated_at": {"$gte": since},
+            }
+        ).sort("updated_at", -1).to_list(length=limit)
+        return docs
+
+    async def set_stage(self, conversation_id: str, stage: str) -> None:
+        if stage not in ("active", "completed"):
+            return
+        coll = self.mongodb_client.db[self.collection_name]
+        now = datetime.now(timezone.utc)
+        fields: dict = {"stage": stage, "updated_at": now}
+        if stage == "completed":
+            fields["completed_at"] = now
+        else:
+            fields["completed_at"] = None
+        await coll.update_one(
+            {"conversation_id": conversation_id},
+            {"$set": fields},
+        )
+
+    async def auto_complete_idle(self, days: int = 7) -> int:
+        coll = self.mongodb_client.db[self.collection_name]
+        now = datetime.now(timezone.utc)
+        cutoff = now - timedelta(days=max(1, int(days)))
+        result = await coll.update_many(
+            {"stage": "active", "updated_at": {"$lt": cutoff}},
+            {"$set": {"stage": "completed", "completed_at": now}},
+        )
+        return int(result.modified_count or 0)
 
     async def set_handoff_reason(self, conversation_id: str, reason: str) -> None:
         if reason not in HANDOFF_REASONS:

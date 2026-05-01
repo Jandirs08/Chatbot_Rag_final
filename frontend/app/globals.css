@@ -1,146 +1,152 @@
+/* ─── Design tokens: Aleph — Deep Violet-Indigo system ───────────────────── */
 :root {
-  --background: 0 0% 100%;
-  --foreground: 222 47% 11%;
-
-  /* Surface tokens for depth - clean SaaS feel */
-  --surface: 210 40% 98%;  /* slate-50 (#F8FAFC) */
-  --surface-elevated: 0 0% 100%;
+  /* Page backgrounds */
+  --background: 240 100% 99%;       /* #fafaff — barely violet white */
+  --surface: 240 100% 99%;          /* body background */
+  --surface-elevated: 0 0% 100%;    /* cards, panels */
+  --foreground: 243 38% 11%;        /* #131228 — near-black with violet tint */
 
   /* Layout tokens */
   --container-max-width: 1440px;
   --spacing-page-x: 2rem;
   --spacing-page-y: 2rem;
 
-  /* Shadow scale - softer, more elegant */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.03);
-  --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.06), 0 4px 6px -4px rgb(0 0 0 / 0.06);
-  --shadow-hover: 0 8px 25px -5px rgb(0 0 0 / 0.08), 0 4px 10px -6px rgb(0 0 0 / 0.06);
+  /* Shadows — violet-tinted, not black */
+  --shadow-sm: 0 1px 2px 0 rgb(79 53 204 / 0.04);
+  --shadow-card: 0 1px 3px 0 rgb(79 53 204 / 0.05), 0 1px 2px -1px rgb(79 53 204 / 0.04);
+  --shadow-md: 0 4px 6px -1px rgb(79 53 204 / 0.06), 0 2px 4px -2px rgb(79 53 204 / 0.04);
+  --shadow-lg: 0 10px 15px -3px rgb(79 53 204 / 0.08), 0 4px 6px -4px rgb(79 53 204 / 0.05);
+  --shadow-hover: 0 4px 20px rgb(79 53 204 / 0.12);
 
-  /* Radius for cards */
   --radius-card: 0.75rem;
 
   --card: 0 0% 100%;
-  --card-foreground: 222 47% 11%;
+  --card-foreground: 243 38% 11%;
 
   --popover: 0 0% 100%;
-  --popover-foreground: 222 47% 11%;
+  --popover-foreground: 243 38% 11%;
 
-  /* Semantic Colors */
-  --primary: 217 91% 60%;
+  /* Primary — deep violet-indigo (#4f35cc) */
+  --primary: 250 60% 50%;
   --primary-foreground: 0 0% 100%;
+  --primary-faint: 250 100% 97%;    /* #f0edff — hover/surface tint */
+  --primary-muted: 248 50% 67%;     /* #8b7fd4 — secondary labels */
 
-  --secondary: 220 14% 96%;
-  --secondary-foreground: 222 47% 11%;
+  /* Secondary / accent — violet-tinted surface */
+  --secondary: 250 100% 97%;
+  --secondary-foreground: 250 60% 50%;
 
-  --accent: 220 14% 96%;
-  --accent-foreground: 222 47% 11%;
+  --accent: 250 100% 97%;
+  --accent-foreground: 250 60% 50%;
 
-  --success: 160 84% 39%;
+  /* Semantic */
+  --success: 154 76% 38%;
   --success-foreground: 0 0% 100%;
 
-  --warning: 38 92% 50%;
+  --warning: 39 91% 44%;
   --warning-foreground: 0 0% 100%;
 
-  --error: 0 84% 60%;
+  --error: 0 72% 51%;
   --error-foreground: 0 0% 100%;
 
   --info: 199 89% 48%;
   --info-foreground: 0 0% 100%;
 
-  --muted: 220 14% 96%;
-  --muted-foreground: 220 9% 46%;
+  --muted: 250 100% 97%;
+  --muted-foreground: 249 14% 47%;  /* #6b6688 */
 
-  --destructive: 0 84% 60%;
+  --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
 
-  --border: 220 13% 91%;
-  --input: 220 14% 96%;
-  --ring: 217 91% 60%;
+  --border: 244 36% 91%;            /* #e0dff0 */
+  --input: 250 100% 97%;
+  --ring: 250 60% 50%;
   --radius: 0.75rem;
 
-  /* Sidebar tokens */
+  /* Sidebar — light mode */
   --sidebar-background: 0 0% 100%;
-  --sidebar-foreground: 220 9% 46%;
-  --sidebar-primary: 217 91% 60%;
+  --sidebar-foreground: 249 14% 47%;
+  --sidebar-primary: 250 60% 50%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 220 14% 96%;
-  --sidebar-accent-foreground: 222 47% 11%;
-  --sidebar-border: 220 13% 91%;
-  --sidebar-ring: 217 91% 60%;
-  --sidebar-item-hover: 220 14% 96%;
-  --sidebar-item-active: 217 91% 60%;
+  --sidebar-accent: 250 100% 97%;
+  --sidebar-accent-foreground: 243 38% 11%;
+  --sidebar-border: 244 36% 91%;
+  --sidebar-ring: 250 60% 50%;
+  --sidebar-item-hover: 250 100% 97%;
+  --sidebar-item-active: 250 60% 50%;
 
-  /* Brand color fallback */
-  --brand-color: #3b82f6;
+  /* Brand color — admin-configurable, violet as fallback */
+  --brand-color: #4f35cc;
+
+  /* Font families — loaded via next/font */
+  --font-heading: 'Space Grotesk', system-ui, sans-serif;
+  --font-mono-ui: 'DM Mono', 'Fira Code', 'Courier New', monospace;
 }
 
 .dark {
-  --background: 222.2 47.4% 11.2%;
-  /* slate-900 */
-  --foreground: 0 0% 100%;
-  /* white */
+  /* Page backgrounds — dark void */
+  --background: 245 30% 8%;         /* #100f1c */
+  --surface: 245 30% 8%;
+  --surface-elevated: 243 32% 14%;  /* #1a1930 */
+  --foreground: 244 100% 97%;       /* #f2f1ff */
 
-  /* Surface tokens for depth (dark) */
-  --surface: 222.2 47.4% 9%;
-  --surface-elevated: 217.2 32.6% 17.5%;
+  /* Shadows (dark) */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.45), 0 4px 6px -4px rgb(0 0 0 / 0.35);
+  --shadow-hover: 0 4px 20px rgb(79 53 204 / 0.25);
 
-  /* Shadow scale (dark) */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.2);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.35), 0 4px 6px -4px rgb(0 0 0 / 0.35);
-  --card: 217.2 32.6% 17.5%;
-  /* slate-800 */
-  --card-foreground: 0 0% 100%;
-  /* white */
-  --popover: 217.2 32.6% 17.5%;
-  /* slate-800 */
-  --popover-foreground: 0 0% 100%;
-  /* white */
+  --card: 243 32% 14%;              /* #1a1930 */
+  --card-foreground: 244 100% 97%;
 
-  --primary: 221 83% 53%;
-  /* #2563eb */
-  --primary-foreground: 0 0% 100%;
+  --popover: 243 25% 18%;           /* #232238 */
+  --popover-foreground: 244 100% 97%;
 
-  --secondary: 217.2 32.6% 17.5%;
-  /* Slate 800 */
-  --secondary-foreground: 0 0% 98%;
+  /* Primary — lighter for dark bg contrast */
+  --primary: 252 65% 75%;           /* #a594e8 — readable on dark */
+  --primary-foreground: 245 30% 8%;
+  --primary-faint: 243 25% 18%;
+  --primary-muted: 246 16% 65%;     /* #9a97b4 */
 
-  --accent: 217.2 32.6% 17.5%;
-  --accent-foreground: 0 0% 98%;
+  --secondary: 243 32% 14%;
+  --secondary-foreground: 244 100% 97%;
 
-  --success: 142 71% 45%;
+  --accent: 243 25% 18%;
+  --accent-foreground: 244 100% 97%;
+
+  --success: 154 65% 42%;
   --success-foreground: 0 0% 100%;
 
-  --warning: 38 92% 50%;
+  --warning: 39 91% 44%;
   --warning-foreground: 0 0% 100%;
 
-  --error: 0 84% 60%;
+  --error: 0 72% 51%;
   --error-foreground: 0 0% 100%;
 
   --info: 199 89% 48%;
   --info-foreground: 0 0% 100%;
 
-  --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 60%;
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 215 20.2% 35%;
-  /* approximate slate-700 */
-  --input: 217.2 32.6% 17.5%;
-  --ring: 221 83% 53%;
-  --sidebar-background: 217.2 32.6% 17.5%;
-  /* slate-800 */
-  --sidebar-foreground: 0 0% 100%;
-  /* white */
-  --sidebar-primary: 221 83% 53%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 217.2 32.6% 17.5%;
-  --sidebar-accent-foreground: 210 40% 98%;
-  --sidebar-border: 215 20.2% 35%;
-  /* slate-700 */
-  --sidebar-ring: 221 83% 53%;
+  --muted: 243 25% 18%;
+  --muted-foreground: 246 16% 65%;
+
+  --destructive: 0 55% 40%;
+  --destructive-foreground: 244 100% 97%;
+
+  --border: 244 25% 23%;            /* #2e2c4a */
+  --input: 243 32% 14%;
+  --ring: 248 50% 67%;
+
+  /* Sidebar — dark mode */
+  --sidebar-background: 245 30% 8%;
+  --sidebar-foreground: 246 16% 65%;
+  --sidebar-primary: 252 65% 75%;
+  --sidebar-primary-foreground: 245 30% 8%;
+  --sidebar-accent: 243 32% 14%;
+  --sidebar-accent-foreground: 244 100% 97%;
+  --sidebar-border: 244 25% 23%;
+  --sidebar-ring: 248 50% 67%;
+  --sidebar-item-hover: 243 32% 14%;
+  --sidebar-item-active: 252 65% 75%;
 }
 
 @tailwind base;
@@ -155,12 +161,16 @@
   body {
     @apply text-foreground;
     background: hsl(var(--surface));
+    font-family: var(--font-sans, Inter, system-ui, sans-serif);
   }
 
-  /* Los inputs/textarea deben respetar los tokens/tema y estilos del componente */
+  /* Headings use Space Grotesk */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading, 'Space Grotesk', system-ui, sans-serif);
+  }
 
   a {
-    color: var(--brand-color);
+    color: hsl(var(--primary));
   }
 
   a:hover {
@@ -170,8 +180,8 @@
   h1 {
     font-size: clamp(1.75rem, 2vw + 0.5rem, 2.25rem);
     font-weight: 700;
-    letter-spacing: -0.025em;
-    line-height: 1.2;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
     color: hsl(var(--foreground));
   }
 
@@ -179,7 +189,7 @@
     font-size: clamp(1.25rem, 1vw + 0.5rem, 1.5rem);
     font-weight: 600;
     letter-spacing: -0.02em;
-    line-height: 1.3;
+    line-height: 1.25;
     color: hsl(var(--foreground));
   }
 
@@ -187,7 +197,7 @@
     font-size: clamp(1rem, 0.5vw + 0.5rem, 1.125rem);
     font-weight: 600;
     letter-spacing: -0.01em;
-    line-height: 1.4;
+    line-height: 1.35;
     color: hsl(var(--foreground));
   }
 
@@ -204,11 +214,11 @@
     color: hsl(var(--foreground) / 0.9);
   }
 
-  /* Labels and helper text */
   .text-label {
+    font-family: var(--font-heading, 'Space Grotesk', system-ui, sans-serif);
     font-size: 0.75rem;
     font-weight: 500;
-    letter-spacing: 0.025em;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
     color: hsl(var(--muted-foreground));
   }
@@ -218,7 +228,15 @@
     color: hsl(var(--muted-foreground));
   }
 
+  /* Monospace for technical data */
+  .font-data {
+    font-family: var(--font-mono-ui, 'DM Mono', 'Fira Code', monospace);
+    font-size: 0.875rem;
+    letter-spacing: -0.01em;
+  }
+
   code {
+    font-family: var(--font-mono-ui, 'DM Mono', monospace);
     color: hsl(var(--primary));
     font-size: 0.875em;
   }
@@ -228,51 +246,49 @@
   }
 }
 
-/* Animaciones optimizadas con will-change y transform3d para mejor rendimiento */
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 20px, 0);
-  }
+/* ─── Animations ─────────────────────────────────────────────────────────── */
 
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-  }
+@keyframes slideIn {
+  from { opacity: 0; transform: translate3d(0, 20px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 @keyframes slideInChat {
-  from {
-    transform: translate3d(0, 20px, 0);
-    opacity: 0;
-  }
-
-  to {
-    transform: translate3d(0, 0, 0);
-    opacity: 1;
-  }
+  from { transform: translate3d(0, 20px, 0); opacity: 0; }
+  to   { transform: translate3d(0, 0, 0); opacity: 1; }
 }
 
 @keyframes bubbleIn {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 10px, 0) scale(0.97);
-  }
+  from { opacity: 0; transform: translate3d(0, 10px, 0) scale(0.97); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
 
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-  }
+@keyframes typing {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-6px); }
+}
+
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4); }
+  70%  { box-shadow: 0 0 0 12px hsl(var(--primary) / 0); }
+  100% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0); }
+}
+
+/* Status dot pulse — for live service nodes */
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(1.4); }
+}
+
+/* Pipeline flow animation */
+@keyframes pipeline-flow {
+  from { stroke-dashoffset: 100; }
+  to   { stroke-dashoffset: 0; }
 }
 
 .animate-bubble-in {
@@ -280,23 +296,99 @@
   will-change: transform, opacity;
 }
 
-/* Clases de animación optimizadas */
-.animate-fadeIn {
-  animation: fadeIn 0.3s ease-out;
-  will-change: opacity;
-}
+.animate-fadeIn  { animation: fadeIn 0.3s ease-out; will-change: opacity; }
+.animate-fade-in { animation: fadeIn 0.5s ease-out; will-change: opacity; }
+.animate-slide-in { animation: slideIn 0.4s ease-out; will-change: transform, opacity; }
 
-.animate-fade-in {
-  animation: fadeIn 0.5s ease-out;
-  will-change: opacity;
-}
-
-.animate-slide-in {
-  animation: slideIn 0.4s ease-out;
+/* Same keyframe, different speed: 2s = healthy, 1s = critical */
+.animate-status-pulse {
+  animation: status-pulse 2s ease-in-out infinite;
   will-change: transform, opacity;
 }
 
-/* Indicador de escritura optimizado */
+.animate-status-pulse-fast {
+  animation: status-pulse 1s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes countReveal {
+  from { opacity: 0; transform: translate3d(0, 10px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+.animate-count-reveal {
+  animation: countReveal 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform, opacity;
+}
+
+@keyframes num-flash {
+  0%   { opacity: 1; transform: scale(1); }
+  45%  { opacity: 0.7; transform: scale(1.07); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.animate-num-flash {
+  animation: num-flash 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform, opacity;
+}
+
+@keyframes halo-ring {
+  0%   { box-shadow: 0 0 0 0 var(--halo-color, rgb(16 185 129 / 0.45)); }
+  70%  { box-shadow: 0 0 0 7px var(--halo-color, rgb(16 185 129 / 0)); }
+  100% { box-shadow: 0 0 0 0 var(--halo-color, rgb(16 185 129 / 0)); }
+}
+.animate-halo-green {
+  --halo-color: rgb(16 185 129 / 0.4);
+  animation: halo-ring 1.8s ease-out infinite;
+  will-change: box-shadow;
+}
+.animate-halo-red {
+  --halo-color: rgb(239 68 68 / 0.4);
+  animation: halo-ring 1s ease-out infinite;
+  will-change: box-shadow;
+}
+
+@keyframes shimmer-violet {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted)) 0%,
+    hsl(var(--primary-faint)) 50%,
+    hsl(var(--muted)) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer-violet 1.6s ease-in-out infinite;
+  will-change: background-position;
+}
+
+@keyframes line-grow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+.animate-line-grow {
+  animation: line-grow 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform;
+  transform-origin: left center;
+}
+
+@keyframes aleph-breathe {
+  0%, 100% { opacity: 0.028; transform: scale(1) rotate(-8deg); }
+  50%       { opacity: 0.048; transform: scale(1.018) rotate(-8deg); }
+}
+
+.aleph-watermark {
+  animation: aleph-breathe 7s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aleph-watermark { animation: none; opacity: 0.03; }
+}
+
+/* ─── Typing indicator ───────────────────────────────────────────────────── */
+
 .typing-indicator {
   display: flex;
   align-items: center;
@@ -306,40 +398,19 @@
 .typing-indicator span {
   width: 6px;
   height: 6px;
-  background-color: var(--brand-color);
+  background-color: hsl(var(--primary));
   border-radius: 50%;
   animation: typing 1.2s infinite ease-in-out;
   will-change: transform;
 }
 
-.typing-indicator span:nth-child(1) {
-  animation-delay: 0.1s;
-}
+.typing-indicator span:nth-child(1) { animation-delay: 0.1s; }
+.typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+.typing-indicator span:nth-child(3) { animation-delay: 0.3s; }
 
-.typing-indicator span:nth-child(2) {
-  animation-delay: 0.2s;
-}
+/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
 
-.typing-indicator span:nth-child(3) {
-  animation-delay: 0.3s;
-}
-
-@keyframes typing {
-
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-
-  50% {
-    transform: translateY(-6px);
-  }
-}
-
-/* Estilos optimizados para la barra de desplazamiento */
-::-webkit-scrollbar {
-  width: 8px;
-}
+::-webkit-scrollbar { width: 8px; }
 
 ::-webkit-scrollbar-track {
   background: hsl(var(--muted));
@@ -356,9 +427,9 @@
   background: hsl(var(--muted-foreground) / 0.5);
 }
 
-@layer utilities {
+/* ─── Utilities ──────────────────────────────────────────────────────────── */
 
-  /* Gradientes optimizados usando variables CSS */
+@layer utilities {
   .gradient-primary {
     background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--info)) 100%);
   }
@@ -368,10 +439,9 @@
   }
 
   .gradient-soft {
-    background: linear-gradient(135deg, hsl(var(--info) / 0.1) 0%, hsl(var(--primary) / 0.1) 100%);
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.08) 0%, hsl(var(--primary) / 0.04) 100%);
   }
 
-  /* Utilidades de rendimiento */
   .gpu-accelerated {
     transform: translate3d(0, 0, 0);
     will-change: transform;
@@ -384,30 +454,28 @@
   .attention-pulse {
     animation: pulse-ring 2s infinite;
   }
+
+  /* Monospace data utility */
+  .tabular-data {
+    font-family: var(--font-mono-ui, 'DM Mono', monospace);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
 }
+
+/* ─── Focus ──────────────────────────────────────────────────────────────── */
 
 *:focus-visible {
   outline: 2px solid hsl(var(--ring));
   outline-offset: 2px;
 }
 
+/* ─── Reduced motion ─────────────────────────────────────────────────────── */
+
 @media (prefers-reduced-motion: reduce) {
   * {
-    animation: none !important;
-    transition: none !important;
-  }
-}
-
-@keyframes pulse-ring {
-  0% {
-    box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4);
-  }
-
-  70% {
-    box-shadow: 0 0 0 12px hsl(var(--primary) / 0);
-  }
-
-  100% {
-    box-shadow: 0 0 0 0 hsl(var(--primary) / 0);
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

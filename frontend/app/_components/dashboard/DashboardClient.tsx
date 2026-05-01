@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { Suspense, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
@@ -9,13 +9,6 @@ import {
   useBotState,
   useDashboardStats,
 } from "@/app/hooks/useDashboardData";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/app/components/ui/card";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import DashboardHeader from "./DashboardHeader";
 import DashboardStats from "./DashboardStats";
@@ -26,12 +19,14 @@ const DashboardChartsLazy = dynamic(
   { ssr: false, suspense: true },
 );
 
-function ChartsSkeleton() {
+function Divider() {
   return (
-    <div className="h-[380px] w-full">
-      <Skeleton className="w-full h-full rounded-xl" />
-    </div>
+    <div className="h-px bg-gradient-to-r from-transparent via-border/50 to-transparent" />
   );
+}
+
+function ChartsSkeleton() {
+  return <Skeleton className="h-[380px] w-full" />;
 }
 
 export default function DashboardClient() {
@@ -70,9 +65,7 @@ export default function DashboardClient() {
       return `Hace ${day} d`;
     };
     setRelativeLastActivity(fmt(lastActivityIso));
-    const id = setInterval(() => {
-      setRelativeLastActivity(fmt(lastActivityIso));
-    }, 60000);
+    const id = setInterval(() => setRelativeLastActivity(fmt(lastActivityIso)), 60000);
     return () => clearInterval(id);
   }, [lastActivityIso]);
 
@@ -91,37 +84,52 @@ export default function DashboardClient() {
   };
 
   return (
-    <div className="space-y-8 animate-fade-in w-full">
-      <DashboardHeader
-        isBotActive={isBotActive}
-        isLoading={isLoading}
-        relativeLastActivity={relativeLastActivity}
-        onToggle={handleBotToggle}
-      />
+    <div className="relative w-full">
+      {/* ℵ brand watermark — CSS only, no layout cost */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+        <span
+          className="aleph-watermark absolute -top-10 -right-6 font-heading font-bold text-primary leading-none select-none"
+          style={{ fontSize: "clamp(10rem, 20vw, 18rem)" }}
+        >
+          ℵ
+        </span>
+      </div>
 
-      <DashboardStats stats={stats} isLoading={isLoading} />
+      <div className="relative space-y-8">
+        <div className="animate-count-reveal" style={{ animationDelay: "0ms" }}>
+          <DashboardHeader
+            isBotActive={isBotActive}
+            isLoading={isLoading}
+            relativeLastActivity={relativeLastActivity}
+            onToggle={handleBotToggle}
+          />
+        </div>
 
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <Card className="lg:col-span-2 p-6">
+        <Divider />
+
+        <div className="animate-count-reveal" style={{ animationDelay: "80ms" }}>
+          <DashboardStats stats={stats} isLoading={isLoading} />
+        </div>
+
+        <Divider />
+
+        <div className="animate-count-reveal" style={{ animationDelay: "160ms" }}>
           <Suspense fallback={<ChartsSkeleton />}>
             <DashboardChartsLazy />
           </Suspense>
-        </Card>
+        </div>
 
-        <Card className="lg:col-span-1">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white">
-              Accesos Directos
-            </CardTitle>
-            <CardDescription className="text-sm text-slate-500 dark:text-slate-400">
-              Acciones rápidas del sistema
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-2">
+        <Divider />
+
+        <div className="animate-count-reveal" style={{ animationDelay: "240ms" }}>
+          <section>
+            <p className="font-heading text-[10px] uppercase tracking-[0.08em] text-muted-foreground/50 mb-4">
+              Accesos directos
+            </p>
             <DashboardQuickActions />
-          </CardContent>
-        </Card>
-      </section>
+          </section>
+        </div>
+      </div>
     </div>
   );
 }

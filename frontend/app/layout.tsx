@@ -1,17 +1,34 @@
 import "./globals.css";
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Space_Grotesk, DM_Mono } from "next/font/google";
 import { RootLayoutClient } from "./components/RootLayoutClient";
 import { SWRProvider } from "./components/SWRProvider";
 import { AuthProvider } from "./contexts/AuthContext";
 import { resolveServerSession } from "./lib/auth/serverSession";
 import { Toaster } from "sonner";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+});
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-heading",
+  display: "swap",
+});
+
+const dmMono = DM_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-mono-ui",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
-  title: "Panel de Control del Chatbot",
-  description: "Panel de administración para el chatbot personalizado",
+  title: "Aleph — Panel de Control",
+  description: "Plataforma RAG para asistentes inteligentes",
 };
 
 export default async function RootLayout({
@@ -23,7 +40,7 @@ export default async function RootLayout({
 
   return (
     <html lang="es" className="h-full">
-      <body className={`${inter.className} h-full`}>
+      <body className={`${inter.variable} ${spaceGrotesk.variable} ${dmMono.variable} font-sans h-full`}>
         <SWRProvider>
           <AuthProvider initialSession={initialSession}>
             <RootLayoutClient>{children}</RootLayoutClient>

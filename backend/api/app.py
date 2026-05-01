@@ -490,6 +490,12 @@ async def lifespan(app: FastAPI):
             except Exception as e_idx:
                 logger.warning(f"No se pudieron aplicar índices de conversations al arranque: {e_idx}")
             try:
+                from database.failed_message_repository import FailedMessageRepository
+                dlq_repo = FailedMessageRepository(app.state.mongodb_client)
+                await dlq_repo.ensure_indexes()
+            except Exception as e_idx:
+                logger.warning(f"No se pudieron aplicar índices de failed_whatsapp_messages al arranque: {e_idx}")
+            try:
                 app.state.rag_parent_repository = RAGParentDocumentRepository(
                     mongodb_client=app.state.mongodb_client,
                     collection_name=s.rag_parent_collection_name,
@@ -590,10 +596,28 @@ async def lifespan(app: FastAPI):
         logger.error(f"Error fatal durante la inicialización en lifespan: {e}", exc_info=True)
         raise
 
+    auto_complete_task = None
+    try:
+        from services.inbox.auto_complete import auto_complete_loop
+        auto_complete_task = asyncio.create_task(
+            auto_complete_loop(app.state.mongodb_client)
+        )
+        app.state.auto_complete_task = auto_complete_task
+        logger.info("[AutoComplete] background loop started")
+    except Exception as e:
+        logger.warning(f"[AutoComplete] could not start loop: {e}")
+
     yield
-    
+
     logger.info("Cerrando aplicación y liberando recursos...")
     try:
+        if auto_complete_task is not None:
+            auto_complete_task.cancel()
+            try:
+                await auto_complete_task
+            except (asyncio.CancelledError, Exception):
+                pass
+
         # Cerrar ChatManager
         if hasattr(app.state, 'chat_manager'):
             if hasattr(app.state.chat_manager, 'close'):

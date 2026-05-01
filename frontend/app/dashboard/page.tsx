@@ -1,26 +1,23 @@
 "use client";
-
 import React, { useState, useCallback } from "react";
 import useSWR from "swr";
 import {
-  LineChart,
-  Line,
+  ResponsiveContainer,
+  AreaChart,
+  Area,
   BarChart,
   Bar,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
-  ResponsiveContainer,
-  Legend,
 } from "recharts";
-import { MessageSquare, Users, Mail, TrendingUp, RefreshCw, CheckCircle2, AlertCircle, FileText, Activity, Database, Zap, Clock } from "lucide-react";
+import { Mail, RefreshCw, CheckCircle2, AlertCircle } from "lucide-react";
 import { useRequireAdmin } from "@/app/hooks/useAuthGuard";
 import { API_URL } from "@/app/lib/config";
 import { authenticatedJsonFetcher } from "@/app/lib/services/authService";
-import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { Skeleton } from "@/app/components/ui/skeleton";
+import { InboxStatsCard } from "@/app/_components/dashboard/InboxStatsCard";
 import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -115,87 +112,44 @@ const fmtDateShort = (dateStr: string) => {
   return d.toLocaleDateString("es-PE", { day: "2-digit", month: "short" });
 };
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── Shared primitives ────────────────────────────────────────────────────────
 
-function SectionSkeleton({ rows = 1, height = "h-32" }: { rows?: number; height?: string }) {
+function Divider() {
   return (
-    <div className="space-y-3">
-      {Array.from({ length: rows }).map((_, i) => (
-        <Skeleton key={i} className={cn("w-full rounded-2xl", height)} />
-      ))}
-    </div>
+    <div className="h-px bg-gradient-to-r from-transparent via-border/50 to-transparent" />
+  );
+}
+
+function SectionLabel({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <p
+      className={cn(
+        "font-heading text-[10px] uppercase tracking-[0.15em] text-muted-foreground/60",
+        className,
+      )}
+    >
+      {children}
+    </p>
   );
 }
 
 function SectionError({ message }: { message: string }) {
   return (
-    <div className="flex items-center gap-2 rounded-2xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+    <div className="flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
       <AlertCircle className="h-4 w-4 flex-none" />
       {message}
     </div>
   );
 }
 
-interface KpiCardProps {
-  label: string;
-  value: string | number;
-  sub?: string;
-  icon: React.ReactNode;
-  loading?: boolean;
-}
+// ─── Chart tooltip ────────────────────────────────────────────────────────────
 
-function KpiCard({ label, value, sub, icon, loading }: KpiCardProps) {
-  if (loading) {
-    return (
-      <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-        <Skeleton className="mb-3 h-4 w-24 rounded" />
-        <Skeleton className="mb-2 h-8 w-16 rounded" />
-        <Skeleton className="h-3 w-32 rounded" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-shadow hover:shadow-[0_2px_8px_rgba(15,23,42,0.08)]">
-      <div className="mb-3 flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-          {label}
-        </span>
-        <span className="text-muted-foreground/60">{icon}</span>
-      </div>
-      <p className="text-3xl font-semibold tabular-nums text-foreground">
-        {value}
-      </p>
-      {sub && (
-        <p className="mt-1.5 text-xs text-muted-foreground">{sub}</p>
-      )}
-    </div>
-  );
-}
-
-interface ChartCardProps {
-  title: string;
-  badge?: React.ReactNode;
-  children: React.ReactNode;
-  action?: React.ReactNode;
-}
-
-function ChartCard({ title, badge, children, action }: ChartCardProps) {
-  return (
-    <div className="rounded-2xl border border-border/60 bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-      <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-foreground">{title}</span>
-          {badge}
-        </div>
-        {action}
-      </div>
-      <div className="p-5">{children}</div>
-    </div>
-  );
-}
-
-// Custom tooltip for recharts
 interface TooltipPayloadItem {
   color: string;
   name: string;
@@ -229,7 +183,106 @@ function ChartTooltip({
   );
 }
 
-// ─── Section: Activity chart ──────────────────────────────────────────────────
+// ─── Metric row ───────────────────────────────────────────────────────────────
+
+function useCountUp(target: number, duration = 650) {
+  const [val, setVal] = React.useState(0);
+  const prefersReduced = React.useRef(
+    typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
+  React.useEffect(() => {
+    if (prefersReduced.current) { setVal(target); return; }
+    if (target === 0) { setVal(0); return; }
+    let raf: number;
+    const start = performance.now();
+    const tick = (ts: number) => {
+      const p = Math.min((ts - start) / duration, 1);
+      setVal(Math.round((1 - Math.pow(1 - p, 4)) * target));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, duration]);
+  return val;
+}
+
+function MetricItem({
+  label,
+  value,
+  sub,
+  isLoading,
+  delay,
+}: {
+  label: string;
+  value: number;
+  sub: string;
+  isLoading: boolean;
+  delay: number;
+}) {
+  const animated = useCountUp(isLoading ? 0 : value);
+  return (
+    <div className="animate-count-reveal" style={{ animationDelay: `${delay}ms` }}>
+      {isLoading ? (
+        <div className="h-8 w-16 animate-pulse rounded bg-muted mb-1" />
+      ) : (
+        <p className="text-2xl font-semibold font-heading tabular-nums text-foreground leading-none">
+          {fmtNum(animated)}
+        </p>
+      )}
+      <SectionLabel className="mt-1.5">{label}</SectionLabel>
+      {!isLoading && sub && (
+        <p className="text-[11px] text-muted-foreground/50 mt-0.5">{sub}</p>
+      )}
+    </div>
+  );
+}
+
+function MetricRow({
+  overview,
+  loading,
+}: {
+  overview: OverviewData | undefined;
+  loading: boolean;
+}) {
+  const metrics = [
+    {
+      label: "Mensajes hoy",
+      value: overview?.today_messages ?? 0,
+      sub: `${fmtNum(overview?.total_messages)} en total`,
+    },
+    {
+      label: "Conversaciones",
+      value: overview?.today_conversations ?? 0,
+      sub: `${fmtNum(overview?.total_conversations)} históricas`,
+    },
+    {
+      label: "Leads esta semana",
+      value: overview?.leads_this_week ?? 0,
+      sub: `${fmtNum(overview?.leads_total)} en total`,
+    },
+    {
+      label: "PDFs en base",
+      value: overview?.pdfs_ready ?? 0,
+      sub: "documentos listos",
+    },
+  ];
+
+  return (
+    <section className="flex flex-wrap items-end gap-x-8 gap-y-6 sm:gap-x-12">
+      {metrics.map((m, i) => (
+        <React.Fragment key={m.label}>
+          <MetricItem {...m} isLoading={loading} delay={i * 70} />
+          {i < metrics.length - 1 && (
+            <div className="hidden sm:block self-stretch w-px bg-border/60 my-1" aria-hidden="true" />
+          )}
+        </React.Fragment>
+      ))}
+    </section>
+  );
+}
+
+// ─── Activity chart ───────────────────────────────────────────────────────────
 
 const DAY_OPTIONS = [7, 30, 90] as const;
 type DayOption = (typeof DAY_OPTIONS)[number];
@@ -250,15 +303,10 @@ function ActivityChart({ isAuthorized }: { isAuthorized: boolean }) {
   }));
 
   return (
-    <ChartCard
-      title="Actividad"
-      badge={
-        <span className="text-xs text-muted-foreground">
-          últimos {days} días
-        </span>
-      }
-      action={
-        <div className="flex items-center gap-1 rounded-lg border border-border/60 p-0.5">
+    <section>
+      <div className="flex items-center justify-between mb-6">
+        <SectionLabel>Actividad — últimos {days} días</SectionLabel>
+        <div className="flex items-center gap-0.5 rounded-lg border border-border/50 p-0.5">
           {DAY_OPTIONS.map((d) => (
             <button
               key={d}
@@ -274,24 +322,29 @@ function ActivityChart({ isAuthorized }: { isAuthorized: boolean }) {
             </button>
           ))}
         </div>
-      }
-    >
+      </div>
+
       {isLoading ? (
-        <SectionSkeleton height="h-48" />
+        <Skeleton className="h-52 w-full" />
       ) : error ? (
         <SectionError message="No se pudo cargar la actividad." />
       ) : chartData.length === 0 ? (
-        <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+        <div className="flex h-52 items-center justify-center text-sm text-muted-foreground">
           Sin datos para el período seleccionado
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={200}>
-          <LineChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-            <CartesianGrid
-              strokeDasharray="3 3"
-              stroke="hsl(var(--border))"
-              strokeOpacity={0.6}
-            />
+        <ResponsiveContainer width="100%" height={208}>
+          <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+            <defs>
+              <linearGradient id="grad-mensajes" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.22} />
+                <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="grad-usuarios" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="hsl(var(--muted-foreground))" stopOpacity={0.1} />
+                <stop offset="100%" stopColor="hsl(var(--muted-foreground))" stopOpacity={0} />
+              </linearGradient>
+            </defs>
             <XAxis
               dataKey="date"
               tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
@@ -305,36 +358,39 @@ function ActivityChart({ isAuthorized }: { isAuthorized: boolean }) {
               allowDecimals={false}
             />
             <Tooltip content={<ChartTooltip />} />
-            <Legend
-              wrapperStyle={{ fontSize: 11, color: "hsl(var(--muted-foreground))" }}
-              iconSize={8}
-              iconType="circle"
-            />
-            <Line
+            <Area
               type="monotone"
               dataKey="Mensajes"
               stroke="hsl(var(--primary))"
+              fill="url(#grad-mensajes)"
               strokeWidth={2}
               dot={false}
               activeDot={{ r: 4, strokeWidth: 0 }}
+              isAnimationActive={true}
+              animationDuration={900}
+              animationEasing="ease-out"
             />
-            <Line
+            <Area
               type="monotone"
               dataKey="Usuarios"
               stroke="hsl(var(--muted-foreground))"
-              strokeWidth={2}
+              fill="url(#grad-usuarios)"
+              strokeWidth={1.5}
+              strokeDasharray="4 3"
               dot={false}
-              strokeDasharray="4 2"
               activeDot={{ r: 4, strokeWidth: 0 }}
+              isAnimationActive={true}
+              animationDuration={900}
+              animationEasing="ease-out"
             />
-          </LineChart>
+          </AreaChart>
         </ResponsiveContainer>
       )}
-    </ChartCard>
+    </section>
   );
 }
 
-// ─── Section: Peak hours chart ────────────────────────────────────────────────
+// ─── Peak hours ───────────────────────────────────────────────────────────────
 
 function PeakHoursChart({ isAuthorized }: { isAuthorized: boolean }) {
   const { data, isLoading, error } = useSWR<PeakHoursData>(
@@ -349,31 +405,24 @@ function PeakHoursChart({ isAuthorized }: { isAuthorized: boolean }) {
   }));
 
   return (
-    <ChartCard
-      title="Horas pico"
-      badge={
-        data?.timezone ? (
-          <span className="text-xs text-muted-foreground">{data.timezone}</span>
-        ) : null
-      }
-    >
+    <div>
+      <div className="flex items-center justify-between mb-5">
+        <SectionLabel>Horas pico</SectionLabel>
+        {data?.timezone && (
+          <span className="text-[10px] text-muted-foreground/50">{data.timezone}</span>
+        )}
+      </div>
       {isLoading ? (
-        <SectionSkeleton height="h-48" />
+        <Skeleton className="h-36 w-full" />
       ) : error ? (
         <SectionError message="No se pudo cargar las horas pico." />
       ) : chartData.length === 0 ? (
-        <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+        <div className="flex h-36 items-center justify-center text-sm text-muted-foreground">
           Sin datos disponibles
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={200}>
-          <BarChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-            <CartesianGrid
-              strokeDasharray="3 3"
-              stroke="hsl(var(--border))"
-              strokeOpacity={0.6}
-              vertical={false}
-            />
+        <ResponsiveContainer width="100%" height={144}>
+          <BarChart data={chartData} margin={{ top: 4, right: 0, left: -20, bottom: 0 }}>
             <XAxis
               dataKey="hour"
               tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
@@ -381,27 +430,106 @@ function PeakHoursChart({ isAuthorized }: { isAuthorized: boolean }) {
               tickLine={false}
               interval={2}
             />
-            <YAxis
-              tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-              axisLine={false}
-              tickLine={false}
-              allowDecimals={false}
-            />
             <Tooltip content={<ChartTooltip />} />
             <Bar
               dataKey="Mensajes"
               fill="hsl(var(--primary))"
-              radius={[4, 4, 0, 0]}
-              maxBarSize={20}
+              fillOpacity={0.65}
+              radius={[3, 3, 0, 0]}
+              maxBarSize={14}
+              isAnimationActive={true}
+              animationDuration={700}
+              animationEasing="ease-out"
             />
           </BarChart>
         </ResponsiveContainer>
       )}
-    </ChartCard>
+    </div>
   );
 }
 
-// ─── Section: Leads table ─────────────────────────────────────────────────────
+// ─── Handoff breakdown ────────────────────────────────────────────────────────
+
+function HandoffSection({ isAuthorized }: { isAuthorized: boolean }) {
+  const { data, isLoading, error } = useSWR<HandoffStatsData>(
+    isAuthorized ? `${API_URL}/inbox/handoff-stats?days=30` : null,
+    authenticatedJsonFetcher,
+    { refreshInterval: 300000 },
+  );
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => {
+    const t = setTimeout(() => setMounted(true), 80);
+    return () => clearTimeout(t);
+  }, []);
+
+  const total = data?.total ?? 0;
+  const bars = [
+    {
+      label: "Solicitud de usuario",
+      value: data?.user_request ?? 0,
+      color: "hsl(var(--primary))",
+    },
+    {
+      label: "Bot sin confianza",
+      value: data?.low_confidence ?? 0,
+      color: "hsl(var(--warning))",
+    },
+    {
+      label: "Fuera de alcance",
+      value: data?.out_of_scope ?? 0,
+      color: "hsl(var(--muted-foreground))",
+    },
+  ];
+
+  return (
+    <div>
+      <SectionLabel className="mb-3">Escalaciones — 30 días</SectionLabel>
+      <div className="mb-5">
+        <InboxStatsCard enabled={isAuthorized} days={30} />
+      </div>
+      {isLoading ? (
+        <div className="space-y-3">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-9 w-full" />
+          ))}
+        </div>
+      ) : error ? (
+        <SectionError message="No se pudo cargar las escalaciones." />
+      ) : total === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+          <CheckCircle2 className="h-7 w-7 text-success/60" />
+          <p className="text-sm text-muted-foreground">Sin escalaciones en 30 días</p>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {bars.map((bar) => {
+            const pct = total > 0 ? Math.round((bar.value / total) * 100) : 0;
+            return (
+              <div key={bar.label}>
+                <div className="flex items-center justify-between mb-1.5 text-xs">
+                  <span className="text-muted-foreground">{bar.label}</span>
+                  <span className="font-semibold tabular-nums text-foreground font-data">
+                    {bar.value}
+                    <span className="font-normal text-muted-foreground ml-1">({pct}%)</span>
+                  </span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{ width: mounted ? `${pct}%` : "0%", background: bar.color }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+          <p className="text-[11px] text-muted-foreground/50">{total} escalaciones en total</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Leads table ──────────────────────────────────────────────────────────────
 
 function LeadsTable({ isAuthorized }: { isAuthorized: boolean }) {
   const { data, isLoading, error } = useSWR<LeadsData>(
@@ -413,61 +541,48 @@ function LeadsTable({ isAuthorized }: { isAuthorized: boolean }) {
   const items = data?.items ?? [];
 
   return (
-    <div className="rounded-2xl border border-border/60 bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-      <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-foreground">Leads recientes</span>
-          {data?.this_week != null && (
-            <Badge
-              variant="secondary"
-              className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
-            >
-              {data.this_week} esta semana
-            </Badge>
-          )}
-        </div>
-        {data?.total != null && (
-          <span className="text-xs text-muted-foreground">
-            {data.total} en total
+    <section>
+      <div className="flex items-center justify-between mb-4">
+        <SectionLabel>Leads recientes</SectionLabel>
+        {data != null && (
+          <span className="text-[10px] text-muted-foreground/60">
+            {data.this_week} esta semana · {data.total} total
           </span>
         )}
       </div>
 
-      <div className="overflow-x-auto">
-        {isLoading ? (
-          <div className="p-5">
-            <SectionSkeleton rows={4} height="h-10" />
-          </div>
-        ) : error ? (
-          <div className="p-5">
-            <SectionError message="No se pudo cargar los leads." />
-          </div>
-        ) : items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-1.5 px-6 py-12 text-center">
-            <Mail className="h-8 w-8 text-muted-foreground/40" />
-            <p className="text-sm font-medium text-muted-foreground">
-              Sin leads capturados aún
-            </p>
-            <p className="text-xs text-muted-foreground/70">
-              Los leads aparecerán aquí cuando los usuarios dejen su email en el chat.
-            </p>
-          </div>
-        ) : (
+      {isLoading ? (
+        <div className="space-y-2">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
+        </div>
+      ) : error ? (
+        <SectionError message="No se pudo cargar los leads." />
+      ) : items.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+          <Mail className="h-8 w-8 text-muted-foreground/30" />
+          <p className="text-sm text-muted-foreground">Sin leads capturados aún</p>
+          <p className="text-xs text-muted-foreground/60">
+            Los leads aparecerán aquí cuando los usuarios dejen su email en el chat.
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border/60">
-                <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-                  Nombre
-                </th>
-                <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-                  Email
-                </th>
-                <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-                  Fecha
-                </th>
-                <th className="hidden px-5 py-3 text-left text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground md:table-cell">
-                  Conversación
-                </th>
+              <tr className="border-b border-border/40">
+                {["Nombre", "Email", "Fecha", "ID"].map((col, i) => (
+                  <th
+                    key={col}
+                    className={cn(
+                      "pb-2.5 text-left font-heading text-[10px] uppercase tracking-[0.1em] text-muted-foreground/60",
+                      i === 3 && "hidden md:table-cell",
+                    )}
+                  >
+                    {col}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -475,20 +590,20 @@ function LeadsTable({ isAuthorized }: { isAuthorized: boolean }) {
                 <tr
                   key={lead.conversation_id}
                   className={cn(
-                    "transition-colors hover:bg-muted/40",
-                    idx < items.length - 1 && "border-b border-border/40",
+                    "transition-colors hover:bg-muted/30",
+                    idx < items.length - 1 && "border-b border-border/20",
                   )}
                 >
-                  <td className="px-5 py-3 font-medium text-foreground">
-                    {lead.lead_name ?? <span className="text-muted-foreground">—</span>}
+                  <td className="py-3 font-medium text-foreground">
+                    {lead.lead_name ?? (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </td>
-                  <td className="px-5 py-3 text-muted-foreground">
-                    {lead.lead_email}
-                  </td>
-                  <td className="whitespace-nowrap px-5 py-3 text-muted-foreground">
+                  <td className="py-3 text-muted-foreground">{lead.lead_email}</td>
+                  <td className="whitespace-nowrap py-3 text-muted-foreground">
                     {fmt(lead.captured_at)}
                   </td>
-                  <td className="hidden px-5 py-3 md:table-cell">
+                  <td className="hidden py-3 md:table-cell">
                     <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
                       {lead.conversation_id.slice(0, 8)}&hellip;
                     </span>
@@ -497,199 +612,133 @@ function LeadsTable({ isAuthorized }: { isAuthorized: boolean }) {
               ))}
             </tbody>
           </table>
-        )}
-      </div>
-    </div>
+        </div>
+      )}
+    </section>
   );
 }
 
-// ─── Section: System status ───────────────────────────────────────────────────
+// ─── System health strip ──────────────────────────────────────────────────────
 
-function SystemStatus({ overview }: { overview: OverviewData | undefined; loading: boolean }) {
-  const pdfs = overview?.pdfs_ready;
-  const ok = pdfs != null && pdfs > 0;
-
-  return (
-    <div
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium",
-        ok
-          ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-400"
-          : "border-border/60 bg-muted/40 text-muted-foreground",
-      )}
-    >
-      {ok ? (
-        <CheckCircle2 className="h-3.5 w-3.5" />
-      ) : (
-        <AlertCircle className="h-3.5 w-3.5" />
-      )}
-      {pdfs == null
-        ? "Estado desconocido"
-        : ok
-          ? `${pdfs} PDF${pdfs !== 1 ? "s" : ""} listos`
-          : "Sin PDFs cargados"}
-    </div>
-  );
-}
-
-// ─── Section: System health ───────────────────────────────────────────────────
-
-function SystemHealthCard({ isAuthorized }: { isAuthorized: boolean }) {
-  const { data, isLoading, error } = useSWR<SystemStatusData>(
+function SystemHealthStrip({ isAuthorized }: { isAuthorized: boolean }) {
+  const { data, isLoading } = useSWR<SystemStatusData>(
     isAuthorized ? `${API_URL}/internal/status` : null,
     authenticatedJsonFetcher,
     { refreshInterval: 30000 },
   );
 
   const cb = data?.qdrant_circuit_breaker;
-  const cbColor = !cb ? "text-muted-foreground" : cb.is_open ? "text-red-500" : "text-emerald-500";
-  const cbLabel = !cb ? "—" : cb.state === "CLOSED" ? "Estable" : cb.state === "OPEN" ? "Abierto" : "Recuperando";
+  const cbOk = cb ? !cb.is_open : undefined;
+  const cbLabel = !cb
+    ? "—"
+    : cb.state === "CLOSED"
+      ? "Estable"
+      : cb.state === "OPEN"
+        ? "Abierto"
+        : "Recuperando";
 
-  const rows: { icon: React.ReactNode; label: string; value: React.ReactNode }[] = [
+  const items: { label: string; value: string; ok?: boolean }[] = [
     {
-      icon: <Clock className="h-3.5 w-3.5" />,
       label: "Uptime",
-      value: data ? fmtUptime(data.uptime_seconds) : "—",
+      value: isLoading ? "…" : data ? fmtUptime(data.uptime_seconds) : "—",
     },
     {
-      icon: <Activity className="h-3.5 w-3.5" />,
       label: "RAG",
-      value: data ? (
-        <span className={data.rag_available ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}>
-          {data.rag_available ? "Activo" : "Inactivo"}
-        </span>
-      ) : "—",
+      value: isLoading
+        ? "…"
+        : data?.rag_available == null
+          ? "—"
+          : data.rag_available
+            ? "Activo"
+            : "Inactivo",
+      ok: data?.rag_available,
     },
     {
-      icon: <Database className="h-3.5 w-3.5" />,
       label: "Cache",
-      value: data ? (
-        <span className={data.cache_backend?.toLowerCase().includes("redis") ? "text-foreground" : "text-amber-600 dark:text-amber-400"}>
-          {data.cache_backend?.toLowerCase().includes("redis") ? "Redis" : "Memoria"}
-        </span>
-      ) : "—",
+      value: isLoading
+        ? "…"
+        : data?.cache_backend
+          ? data.cache_backend.toLowerCase().includes("redis")
+            ? "Redis"
+            : "Memoria"
+          : "—",
+      ok: data?.cache_backend
+        ? data.cache_backend.toLowerCase().includes("redis")
+        : undefined,
     },
     {
-      icon: <Zap className="h-3.5 w-3.5" />,
       label: "Qdrant CB",
-      value: data ? <span className={cbColor}>{cbLabel}{cb && cb.failure_count > 0 ? ` (${cb.failure_count} err)` : ""}</span> : "—",
+      value: isLoading
+        ? "…"
+        : cbLabel + (cb?.failure_count ? ` (${cb.failure_count})` : ""),
+      ok: cbOk,
     },
   ];
 
   return (
-    <div className="rounded-2xl border border-border/60 bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-      <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
-        <span className="text-sm font-semibold text-foreground">Estado del sistema</span>
+    <section>
+      <SectionLabel className="mb-4">
+        Estado del sistema{data?.version ? ` · v${data.version}` : ""}
+      </SectionLabel>
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+        {items.map((item, idx) => (
+          <React.Fragment key={item.label}>
+            {idx > 0 && (
+              <div className="hidden h-3.5 w-px bg-border/50 sm:block" />
+            )}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">{item.label}</span>
+              <span
+                className={cn(
+                  "text-xs font-medium tabular-nums",
+                  item.ok === true && "text-success",
+                  item.ok === false && "text-error",
+                  item.ok === undefined && "text-foreground",
+                )}
+              >
+                {item.value}
+              </span>
+            </div>
+          </React.Fragment>
+        ))}
+
         {data && (
-          <Badge
-            variant="secondary"
+          <div
             className={cn(
-              "rounded-full px-2 py-0.5 text-[10px] font-semibold",
-              data.status === "ok" && "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400",
-              data.status === "degraded" && "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400",
-              data.status === "critical" && "bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400",
+              "ml-auto inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium",
+              data.status === "ok"
+                ? "border-success/20 bg-success/5 text-success"
+                : data.status === "degraded"
+                  ? "border-warning/20 bg-warning/5 text-warning"
+                  : "border-error/20 bg-error/5 text-error",
             )}
           >
-            {data.status === "ok" ? "Operacional" : data.status === "degraded" ? "Degradado" : "Crítico"}
-          </Badge>
-        )}
-      </div>
-      <div className="p-5">
-        {isLoading ? (
-          <SectionSkeleton rows={4} height="h-8" />
-        ) : error ? (
-          <SectionError message="No se pudo cargar el estado del sistema." />
-        ) : (
-          <div className="space-y-3">
-            {rows.map((row) => (
-              <div key={row.label} className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  {row.icon}
-                  <span>{row.label}</span>
-                </div>
-                <span className="font-medium tabular-nums text-foreground">{row.value}</span>
-              </div>
-            ))}
-            {data?.version && (
-              <p className="pt-1 text-[10px] text-muted-foreground/50">v{data.version}</p>
-            )}
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                data.status === "ok"
+                  ? "bg-success"
+                  : data.status === "degraded"
+                    ? "bg-warning"
+                    : "bg-error",
+              )}
+            />
+            {data.status === "ok"
+              ? "Operacional"
+              : data.status === "degraded"
+                ? "Degradado"
+                : "Crítico"}
           </div>
         )}
       </div>
-    </div>
+    </section>
   );
 }
 
-// ─── Section: Handoff breakdown ───────────────────────────────────────────────
-
-function HandoffBreakdown({ isAuthorized }: { isAuthorized: boolean }) {
-  const { data, isLoading, error } = useSWR<HandoffStatsData>(
-    isAuthorized ? `${API_URL}/inbox/handoff-stats?days=30` : null,
-    authenticatedJsonFetcher,
-    { refreshInterval: 300000 },
-  );
-
-  const total = data?.total ?? 0;
-  const bars = [
-    { label: "Solicitud de usuario", value: data?.user_request ?? 0, color: "bg-primary" },
-    { label: "Bot sin confianza", value: data?.low_confidence ?? 0, color: "bg-amber-500" },
-    { label: "Fuera de alcance", value: data?.out_of_scope ?? 0, color: "bg-slate-400" },
-  ];
-
-  return (
-    <div className="rounded-2xl border border-border/60 bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-      <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-foreground">Escalaciones al humano</span>
-          <span className="text-xs text-muted-foreground">30 días</span>
-        </div>
-        {data && total > 0 && (
-          <span className="text-xs text-muted-foreground">{total} total</span>
-        )}
-      </div>
-      <div className="p-5">
-        {isLoading ? (
-          <SectionSkeleton rows={3} height="h-10" />
-        ) : error ? (
-          <SectionError message="No se pudo cargar las escalaciones." />
-        ) : total === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-1.5 py-8 text-center">
-            <CheckCircle2 className="h-7 w-7 text-emerald-500/60" />
-            <p className="text-sm font-medium text-muted-foreground">Sin escalaciones en 30 días</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {bars.map((bar) => {
-              const pct = total > 0 ? Math.round((bar.value / total) * 100) : 0;
-              return (
-                <div key={bar.label} className="space-y-1.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">{bar.label}</span>
-                    <span className="font-semibold tabular-nums text-foreground">
-                      {bar.value} <span className="font-normal text-muted-foreground">({pct}%)</span>
-                    </span>
-                  </div>
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                    <div
-                      className={cn("h-full rounded-full transition-all duration-500", bar.color)}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Main page ────────────────────────────────────────────────────────────────
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const { isAuthorized } = useRequireAdmin();
-
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
   const {
@@ -708,63 +757,48 @@ export default function DashboardPage() {
     setLastRefresh(new Date());
   }, [refreshOverview]);
 
-  if (!isAuthorized) {
-    return null;
-  }
-
-  const kpiCards: KpiCardProps[] = [
-    {
-      label: "Mensajes hoy",
-      value: fmtNum(overview?.today_messages),
-      sub: `${fmtNum(overview?.total_messages)} mensajes en total`,
-      icon: <MessageSquare className="h-4 w-4" />,
-      loading: overviewLoading,
-    },
-    {
-      label: "Conversaciones hoy",
-      value: fmtNum(overview?.today_conversations),
-      sub: `${fmtNum(overview?.total_conversations)} conversaciones en total`,
-      icon: <Users className="h-4 w-4" />,
-      loading: overviewLoading,
-    },
-    {
-      label: "Leads total",
-      value: fmtNum(overview?.leads_total),
-      sub: `${fmtNum(overview?.leads_this_week)} esta semana`,
-      icon: <Mail className="h-4 w-4" />,
-      loading: overviewLoading,
-    },
-    {
-      label: "Leads esta semana",
-      value: fmtNum(overview?.leads_this_week),
-      sub: overview?.leads_total
-        ? `${Math.round(((overview.leads_this_week ?? 0) / overview.leads_total) * 100)}% del total`
-        : undefined,
-      icon: <TrendingUp className="h-4 w-4" />,
-      loading: overviewLoading,
-    },
-  ];
+  if (!isAuthorized) return null;
 
   return (
-    <div className="space-y-6 px-1 py-1 pb-10">
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold text-foreground">Dashboard</h1>
-          <SystemStatus overview={overview} loading={overviewLoading} />
-          {overview?.pdfs_ready != null && (
-            <div className="hidden items-center gap-1.5 sm:flex">
-              <FileText className="h-3.5 w-3.5 text-muted-foreground/60" />
-              <span className="text-xs text-muted-foreground">
-                {overview.pdfs_ready} PDF{overview.pdfs_ready !== 1 ? "s" : ""}
-              </span>
-            </div>
-          )}
+    <div className="space-y-10 pb-16">
+      {/* Page header */}
+      <div
+        className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between animate-count-reveal"
+        style={{ animationDelay: "0ms" }}
+      >
+        <div>
+          <h1 className="text-foreground">Analítica</h1>
+          <p className="text-sm text-muted-foreground mt-0.5 capitalize">
+            {new Date().toLocaleDateString("es-PE", {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+            })}
+          </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {overview?.pdfs_ready != null && (
+            <div
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium",
+                overview.pdfs_ready > 0
+                  ? "border-success/20 bg-success/5 text-success"
+                  : "border-border/60 bg-muted/40 text-muted-foreground",
+              )}
+            >
+              {overview.pdfs_ready > 0 ? (
+                <CheckCircle2 className="h-3.5 w-3.5" />
+              ) : (
+                <AlertCircle className="h-3.5 w-3.5" />
+              )}
+              {overview.pdfs_ready > 0
+                ? `${overview.pdfs_ready} PDF${overview.pdfs_ready !== 1 ? "s" : ""} listos`
+                : "Sin PDFs cargados"}
+            </div>
+          )}
+
           <span className="text-xs text-muted-foreground">
-            Actualizado{" "}
             {lastRefresh.toLocaleTimeString("es-PE", {
               hour: "2-digit",
               minute: "2-digit",
@@ -777,39 +811,44 @@ export default function DashboardPage() {
             className="h-8 rounded-xl border-border/60 px-3 text-xs"
           >
             <RefreshCw
-              className={cn("mr-1.5 h-3.5 w-3.5", overviewLoading && "animate-spin")}
+              className={cn(
+                "mr-1.5 h-3.5 w-3.5",
+                overviewLoading && "animate-spin",
+              )}
             />
             Actualizar
           </Button>
         </div>
       </div>
 
-      {/* Overview error */}
       {overviewError && (
         <SectionError message="No se pudo cargar el resumen. Verifica tu conexión." />
       )}
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {kpiCards.map((card) => (
-          <KpiCard key={card.label} {...card} />
-        ))}
-      </div>
+      <MetricRow overview={overview} loading={overviewLoading} />
 
-      {/* Charts row */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <ActivityChart isAuthorized={isAuthorized} />
+      <Divider />
+
+      {/* Activity chart — full width, no wrapper */}
+      <ActivityChart isAuthorized={isAuthorized} />
+
+      <Divider />
+
+      {/* Peak hours + Handoffs — 2-col, no wrappers */}
+      <div className="grid grid-cols-1 gap-12 lg:grid-cols-2">
         <PeakHoursChart isAuthorized={isAuthorized} />
+        <HandoffSection isAuthorized={isAuthorized} />
       </div>
 
-      {/* Health + Handoffs row */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <SystemHealthCard isAuthorized={isAuthorized} />
-        <HandoffBreakdown isAuthorized={isAuthorized} />
-      </div>
+      <Divider />
 
-      {/* Leads table */}
+      {/* Leads table — no card wrapper */}
       <LeadsTable isAuthorized={isAuthorized} />
+
+      <Divider />
+
+      {/* System health inline strip */}
+      <SystemHealthStrip isAuthorized={isAuthorized} />
     </div>
   );
 }

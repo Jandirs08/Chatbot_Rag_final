@@ -1,7 +1,7 @@
 "use client";
 
-import { Card, CardContent } from "@/app/components/ui/card";
-import { FileText, MessageCircle, Users, TrendingUp, TrendingDown } from "lucide-react";
+import React from "react";
+import { cn } from "@/lib/utils";
 
 interface DashboardStatsProps {
   stats: {
@@ -12,123 +12,107 @@ interface DashboardStatsProps {
   isLoading: boolean;
 }
 
-export default function DashboardStats({ stats, isLoading }: DashboardStatsProps) {
-  const items = [
-    {
-      title: "Base de Conocimiento",
-      value: stats.total_pdfs,
-      icon: FileText,
-      href: "/docs",
-      color: "blue",
-      trend: { value: 2, isUp: true, label: "esta semana" },
-    },
-    {
-      title: "Mensajes Totales",
-      value: stats.total_queries,
-      icon: MessageCircle,
-      href: "/chat",
-      color: "emerald",
-      trend: { value: 12, isUp: true, label: "vs ayer" },
-    },
-    {
-      title: "Usuarios Únicos",
-      value: stats.total_users,
-      icon: Users,
-      color: "violet",
-      trend: { value: 5, isUp: true, label: "este mes" },
-    },
-  ];
+function useCountUp(target: number, duration = 700) {
+  const [val, setVal] = React.useState(0);
+  const prefersReduced = React.useRef(
+    typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
 
-  const colorClasses = {
-    blue: {
-      iconBg: "bg-blue-50 dark:bg-blue-950/50",
-      iconColor: "text-blue-600 dark:text-blue-400",
-      accentBar: "bg-blue-500",
-    },
-    emerald: {
-      iconBg: "bg-emerald-50 dark:bg-emerald-950/50",
-      iconColor: "text-emerald-600 dark:text-emerald-400",
-      accentBar: "bg-emerald-500",
-    },
-    violet: {
-      iconBg: "bg-violet-50 dark:bg-violet-950/50",
-      iconColor: "text-violet-600 dark:text-violet-400",
-      accentBar: "bg-violet-500",
-    },
-  };
+  React.useEffect(() => {
+    if (prefersReduced.current) { setVal(target); return; }
+    if (target === 0) { setVal(0); return; }
+    let raf: number;
+    const start = performance.now();
+    const tick = (ts: number) => {
+      const p = Math.min((ts - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - p, 4);
+      setVal(Math.round(eased * target));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, duration]);
 
-  const formatNumber = (num: number): string => {
-    if (num >= 1000) {
-      return (num / 1000).toFixed(1).replace(/\.0$/, "") + "k";
+  return val;
+}
+
+const fmt = (n: number) =>
+  n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(n);
+
+function StatItem({
+  value,
+  label,
+  isLoading,
+  delay,
+}: {
+  value: number;
+  label: string;
+  isLoading: boolean;
+  delay: number;
+}) {
+  const animated = useCountUp(isLoading ? 0 : value);
+  const target = isLoading ? 0 : value;
+  const prevTarget = React.useRef<number>(target);
+  const [flashing, setFlashing] = React.useState(false);
+
+  React.useEffect(() => {
+    if (prevTarget.current !== 0 && target !== prevTarget.current) {
+      setFlashing(true);
+      const t = setTimeout(() => setFlashing(false), 300);
+      prevTarget.current = target;
+      return () => clearTimeout(t);
     }
-    return num.toString();
-  };
+    prevTarget.current = target;
+  }, [target]);
 
   return (
-    <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-      {items.map((stat, index) => {
-        const colors = colorClasses[stat.color as keyof typeof colorClasses];
+    <div
+      className="animate-count-reveal"
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      {isLoading ? (
+        <div className="h-9 w-20 animate-pulse rounded bg-muted mb-1.5" />
+      ) : (
+        <p className={cn(
+          "text-3xl font-semibold font-heading tabular-nums text-foreground leading-none",
+          flashing && "animate-num-flash"
+        )}>
+          {fmt(animated)}
+        </p>
+      )}
+      <p className="mt-1.5 text-[11px] font-heading font-medium uppercase tracking-[0.08em] text-muted-foreground/50">
+        {label}
+      </p>
+    </div>
+  );
+}
 
-        const cardContent = (
-          <Card className="group relative overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
-            <CardContent className="p-6">
-              <div className="flex items-start justify-between gap-4">
-                {/* Left: Label + Value + Trend */}
-                <div className="space-y-2 min-w-0 flex-1">
-                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    {stat.title}
-                  </p>
-                  <div className="flex items-baseline gap-3">
-                    <p className="text-4xl font-bold text-slate-900 dark:text-white tracking-tight tabular-nums">
-                      {isLoading ? (
-                        <span className="inline-block h-10 w-20 bg-slate-100 dark:bg-slate-800 animate-pulse rounded-lg" />
-                      ) : (
-                        formatNumber(stat.value)
-                      )}
-                    </p>
-                    {/* Trend indicator */}
-                    {!isLoading && stat.trend && (
-                      <div className={`flex items-center gap-1 text-xs font-medium ${stat.trend.isUp
-                          ? "text-emerald-600 dark:text-emerald-400"
-                          : "text-red-600 dark:text-red-400"
-                        }`}>
-                        {stat.trend.isUp ? (
-                          <TrendingUp className="w-3.5 h-3.5" />
-                        ) : (
-                          <TrendingDown className="w-3.5 h-3.5" />
-                        )}
-                        <span>+{stat.trend.value}%</span>
-                      </div>
-                    )}
-                  </div>
-                  {/* Trend label */}
-                  {!isLoading && stat.trend && (
-                    <p className="text-[11px] text-slate-400 dark:text-slate-500">
-                      {stat.trend.label}
-                    </p>
-                  )}
-                </div>
+export default function DashboardStats({ stats, isLoading }: DashboardStatsProps) {
+  const items = [
+    { label: "Mensajes", value: stats.total_queries, delay: 0 },
+    { label: "Usuarios", value: stats.total_users, delay: 80 },
+    { label: "Documentos", value: stats.total_pdfs, delay: 160 },
+  ];
 
-                {/* Right: Icon with colored background */}
-                <div className={`w-12 h-12 rounded-2xl ${colors.iconBg} flex items-center justify-center flex-shrink-0 transition-transform duration-300 group-hover:scale-110`}>
-                  <stat.icon className={`w-6 h-6 ${colors.iconColor}`} />
-                </div>
-              </div>
-            </CardContent>
-
-            {/* Bottom accent bar */}
-            <div className={`absolute bottom-0 left-0 right-0 h-1 ${colors.accentBar} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
-          </Card>
-        );
-
-        return stat.href ? (
-          <a key={index} href={stat.href} className="block">
-            {cardContent}
-          </a>
-        ) : (
-          <div key={index}>{cardContent}</div>
-        );
-      })}
+  return (
+    <section className="flex flex-wrap items-end gap-x-8 gap-y-6 sm:gap-x-12">
+      {items.map((item, i) => (
+        <React.Fragment key={item.label}>
+          <StatItem
+            value={item.value}
+            label={item.label}
+            isLoading={isLoading}
+            delay={item.delay}
+          />
+          {i < items.length - 1 && (
+            <div
+              className="hidden sm:block self-stretch w-px bg-border/60 my-1"
+              aria-hidden="true"
+            />
+          )}
+        </React.Fragment>
+      ))}
     </section>
   );
 }

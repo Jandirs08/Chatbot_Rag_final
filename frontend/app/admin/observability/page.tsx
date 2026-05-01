@@ -3,30 +3,13 @@
 import React, { useCallback, useMemo, useState } from "react";
 import useSWR from "swr";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-  Legend,
-  Cell,
+  Tooltip as RechartsTooltip, ResponsiveContainer, Cell,
+  PieChart, Pie,
 } from "recharts";
 import {
-  Activity,
-  AlertCircle,
-  ChevronDown,
-  Clock,
-  Cpu,
-  DollarSign,
-  Gauge,
-  HelpCircle,
-  MessageSquare,
-  Percent,
-  RefreshCw,
-  Timer,
-  Zap,
+  Activity, AlertCircle, ChevronDown, Clock, Cpu, Database,
+  DollarSign, Gauge, HelpCircle, MessageSquare, Percent,
+  RefreshCw, Server, Timer, Zap,
 } from "lucide-react";
 import { useRequireAdmin } from "@/app/hooks/useAuthGuard";
 import { API_URL } from "@/app/lib/config";
@@ -34,17 +17,12 @@ import { authenticatedJsonFetcher } from "@/app/lib/services/authService";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
+  Collapsible, CollapsibleContent, CollapsibleTrigger,
 } from "@/app/components/ui/collapsible";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import { Switch } from "@/app/components/ui/switch";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/app/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
@@ -70,710 +48,593 @@ interface ObservabilityData {
   uptime_seconds: number;
   samples: { in_window: number; max: number; ttl_seconds: number };
   totals: {
-    chats: number;
-    success: number;
-    error: number;
-    rag_chats: number;
-    rag_usage_rate: number;
-    rate_limit_hits: number;
+    chats: number; success: number; error: number;
+    rag_chats: number; rag_usage_rate: number; rate_limit_hits: number;
   };
   tokens: {
-    tokens_in: number;
-    tokens_out: number;
-    pending_token_callback: boolean;
-    estimated_cost_usd?: number;
+    tokens_in: number; tokens_out: number;
+    pending_token_callback: boolean; estimated_cost_usd?: number;
   };
   latency_ms: Record<string, LatencyBucket>;
   throughput: Record<"1m" | "5m" | "15m" | "60m", ThroughputBucket>;
   gating_reasons: Record<string, number>;
 }
 
+interface DependencyStatus {
+  status: "connected" | "degraded" | "disconnected";
+  latency_ms?: number; message?: string;
+  backend?: string; collection?: string; points_count?: number;
+}
+
+interface HealthReadyData {
+  status: "healthy" | "degraded" | "unhealthy";
+  mongodb: DependencyStatus; redis: DependencyStatus; qdrant: DependencyStatus;
+}
+
+interface SystemStatusData {
+  status: "ok" | "degraded" | "critical";
+  version: string; uptime_seconds: number;
+  rag_available: boolean; cache_backend: string; cache_degraded: boolean;
+  qdrant_circuit_breaker: { state: string; failures: number; is_open: boolean };
+}
+
 type Health = "ok" | "warn" | "crit" | "info";
 
-// Etapas en orden lógico del pipeline de respuesta. Las que están vacías se filtran.
-const LATENCY_STAGES: { key: string; label: string; help: string }[] = [
-  {
-    key: "total_ms",
-    label: "Total del chat",
-    help: "Tiempo completo desde que el usuario envía hasta que termina la respuesta.",
-  },
-  {
-    key: "first_token_ms",
-    label: "Primer token",
-    help: "Tiempo hasta que el usuario ve el primer carácter. Define la sensación de rapidez.",
-  },
-  {
-    key: "llm_ms",
-    label: "Modelo (LLM)",
-    help: "Tiempo total que el modelo de OpenAI estuvo generando la respuesta.",
-  },
-  {
-    key: "rag_ms",
-    label: "Búsqueda total",
-    help: "Tiempo en consultar el catálogo de documentos (suma de todas las sub-etapas).",
-  },
-  {
-    key: "embedding_ms",
-    label: "Vectorización",
-    help: "Convertir la consulta del usuario a un vector numérico para buscarla.",
-  },
-  {
-    key: "dense_ms",
-    label: "Búsqueda densa",
-    help: "Buscar documentos similares semánticamente en Qdrant.",
-  },
-  {
-    key: "lexical_ms",
-    label: "Búsqueda léxica",
-    help: "Buscar coincidencias por palabras clave en MongoDB.",
-  },
-  {
-    key: "hydrate_ms",
-    label: "Hidratación",
-    help: "Recuperar el contenido completo de los documentos seleccionados.",
-  },
-  {
-    key: "rerank_ms",
-    label: "Re-ranking",
-    help: "Ordenar los documentos por relevancia. En modo heurístico cae a 0 ms.",
-  },
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const PIPELINE_STAGES = [
+  { key: "embedding_ms", label: "Vectorización",    short: "Embed",   help: "Convierte la consulta a vector numérico." },
+  { key: "dense_ms",     label: "Búsqueda densa",   short: "Dense",   help: "Busca documentos similares en Qdrant." },
+  { key: "lexical_ms",   label: "Búsqueda léxica",  short: "Lexical", help: "Busca por palabras clave en MongoDB." },
+  { key: "hydrate_ms",   label: "Hidratación",      short: "Hydrate", help: "Recupera el contenido de documentos seleccionados." },
+  { key: "rerank_ms",    label: "Re-ranking",       short: "Rerank",  help: "Ordena documentos por relevancia." },
+  { key: "llm_ms",       label: "Modelo (LLM)",     short: "LLM",     help: "Generación del modelo de OpenAI." },
 ];
 
 const THROUGHPUT_WINDOWS: ("1m" | "5m" | "15m" | "60m")[] = ["1m", "5m", "15m", "60m"];
 
-const GATING_PALETTE = [
-  "hsl(var(--primary))",
-  "#10b981",
-  "#f59e0b",
-  "#8b5cf6",
-  "#06b6d4",
-  "#ef4444",
-  "#64748b",
-];
+const GATING_PALETTE = ["#a594e8","#10b981","#f59e0b","#06b6d4","#8b5cf6","#ef4444","#64748b"];
 
-// Etiquetas legibles para los reasons que emite el backend de gating.
 const GATING_LABELS: Record<string, string> = {
-  agentic_rag_enabled: "Agentic RAG (modelo decide)",
-  small_talk: "Saludo / charla casual",
-  empty_query: "Consulta vacía",
-  punctuation_only: "Solo puntuación",
-  too_short: "Consulta muy corta",
-  cheap_gate_pass: "Pasó filtro inicial",
-  embedding_failed: "Falló la vectorización",
-  retrieval_backend_unavailable: "Backend de búsqueda caído",
-  no_candidates: "Sin candidatos",
-  no_parent_candidates: "Sin documentos padre",
-  reranker_empty: "Reranker vacío",
-  low_relevance_score: "Relevancia muy baja",
-  lexical_only: "Solo búsqueda léxica",
+  agentic_rag_enabled: "Agentic RAG", small_talk: "Saludo / charla",
+  empty_query: "Consulta vacía", punctuation_only: "Solo puntuación",
+  too_short: "Muy corta", cheap_gate_pass: "Pasó filtro inicial",
+  embedding_failed: "Falló vectorización", retrieval_backend_unavailable: "Backend caído",
+  no_candidates: "Sin candidatos", no_parent_candidates: "Sin docs padre",
+  reranker_empty: "Reranker vacío", low_relevance_score: "Relevancia baja",
+  lexical_only: "Solo léxico",
 };
-
-// ─── Threshold engine ─────────────────────────────────────────────────────────
-// Un único punto de verdad para semáforos. Cambiar aquí afecta KPI cards y badges.
 
 const THRESHOLDS = {
-  successRate: { ok: 0.99, warn: 0.95 }, // ≥0.99 ok, ≥0.95 warn, sino crit
-  p95Total: { ok: 5000, warn: 10000 }, // ≤5s ok, ≤10s warn, sino crit
-  p95FirstToken: { ok: 3000, warn: 6000 }, // ≤3s ok, ≤6s warn, sino crit
-  errorRateTable: { warn: 0, crit: 0.05 }, // >0 warn, ≥5% crit
+  successRate:   { ok: 0.99, warn: 0.95 },
+  p95Total:      { ok: 5000, warn: 10000 },
+  p95FirstToken: { ok: 3000, warn: 6000 },
+  errorRateTable:{ warn: 0, crit: 0.05 },
+  pipeline: {
+    embedding_ms: { ok: 500,  warn: 1500 },
+    dense_ms:     { ok: 500,  warn: 1500 },
+    lexical_ms:   { ok: 500,  warn: 1500 },
+    hydrate_ms:   { ok: 500,  warn: 1500 },
+    rerank_ms:    { ok: 200,  warn: 500  },
+    llm_ms:       { ok: 4500, warn: 8000 },
+  } as Record<string, { ok: number; warn: number }>,
 };
 
-const evalSuccess = (rate: number | null): Health => {
-  if (rate == null) return "info";
-  if (rate >= THRESHOLDS.successRate.ok) return "ok";
-  if (rate >= THRESHOLDS.successRate.warn) return "warn";
-  return "crit";
-};
+// ─── Health helpers ───────────────────────────────────────────────────────────
 
-const evalLatencyHigherIsWorse = (
-  ms: number | null,
-  t: { ok: number; warn: number },
-): Health => {
-  if (ms == null) return "info";
-  if (ms <= t.ok) return "ok";
-  if (ms <= t.warn) return "warn";
-  return "crit";
-};
+const evalSuccess = (r: number | null): Health =>
+  r == null ? "info" : r >= THRESHOLDS.successRate.ok ? "ok" : r >= THRESHOLDS.successRate.warn ? "warn" : "crit";
 
-const aggregateHealth = (...statuses: Health[]): Health => {
-  if (statuses.includes("crit")) return "crit";
-  if (statuses.includes("warn")) return "warn";
-  if (statuses.every((s) => s === "info")) return "info";
-  return "ok";
-};
+const evalLatency = (ms: number | null, t: { ok: number; warn: number }): Health =>
+  ms == null ? "info" : ms <= t.ok ? "ok" : ms <= t.warn ? "warn" : "crit";
 
-const HEALTH_STYLES: Record<Health, { dot: string; pill: string; label: string }> = {
-  ok: {
-    dot: "bg-emerald-500",
-    pill: "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:ring-emerald-900",
-    label: "Saludable",
-  },
-  warn: {
-    dot: "bg-amber-500",
-    pill: "bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:ring-amber-900",
-    label: "Atención",
-  },
-  crit: {
-    dot: "bg-red-500",
-    pill: "bg-red-50 text-red-700 ring-red-200 dark:bg-red-950/40 dark:text-red-400 dark:ring-red-900",
-    label: "Crítico",
-  },
-  info: {
-    dot: "bg-slate-400 dark:bg-slate-500",
-    pill: "bg-slate-50 text-slate-600 ring-slate-200 dark:bg-slate-900/60 dark:text-slate-400 dark:ring-slate-700",
-    label: "Sin datos",
-  },
-};
+const aggregateHealth = (...s: Health[]): Health =>
+  s.includes("crit") ? "crit" : s.includes("warn") ? "warn" : s.every(x => x === "info") ? "info" : "ok";
 
-// ─── Format helpers ───────────────────────────────────────────────────────────
+const depHealth = (s: DependencyStatus | undefined): Health =>
+  !s ? "info" : s.status === "connected" ? "ok" : s.status === "degraded" ? "warn" : "crit";
 
-const fmtNum = (n: number | null | undefined): string =>
-  n == null ? "—" : Math.round(n).toLocaleString("es-PE");
+// ─── Formatters ───────────────────────────────────────────────────────────────
 
-const fmtMs = (n: number | null | undefined): string => {
+const fmtNum = (n: number | null | undefined) => n == null ? "—" : Math.round(n).toLocaleString("es-PE");
+const fmtMs = (n: number | null | undefined) => {
   if (n == null) return "—";
-  if (n < 1000) return `${Math.round(n)} ms`;
-  return `${(n / 1000).toFixed(n < 10000 ? 2 : 1)} s`;
+  return n < 1000 ? `${Math.round(n)} ms` : `${(n / 1000).toFixed(n < 10000 ? 2 : 1)} s`;
 };
-
-const fmtPct = (n: number | null | undefined, digits = 1): string =>
-  n == null ? "—" : `${(n * 100).toFixed(digits)}%`;
-
-const fmtUsd = (n: number | null | undefined): string =>
-  n == null ? "—" : `$${n.toFixed(4)}`;
-
-const fmtUptime = (seconds: number) => {
-  const s = Math.max(0, Math.floor(seconds));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  if (h > 0) return `${h}h ${m}m`;
-  if (m > 0) return `${m}m ${sec}s`;
-  return `${sec}s`;
+const fmtPct   = (n: number | null | undefined, d = 1) => n == null ? "—" : `${(n * 100).toFixed(d)}%`;
+const fmtUsd   = (n: number | null | undefined) => n == null ? "—" : `$${n.toFixed(4)}`;
+const fmtUptime = (s: number) => {
+  const sec = Math.max(0, Math.floor(s));
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+  return h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${sec % 60}s` : `${sec}s`;
 };
+const fmtTtl   = (s: number) => s % 3600 === 0 ? `${s / 3600}h` : s % 60 === 0 ? `${s / 60}min` : `${s}s`;
+const fmtClock = (d: Date) => d.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
-const fmtTtl = (seconds: number) => {
-  if (seconds % 3600 === 0) return `${seconds / 3600}h`;
-  if (seconds % 60 === 0) return `${seconds / 60}min`;
-  return `${seconds}s`;
-};
+// ─── InfoTip ──────────────────────────────────────────────────────────────────
 
-const fmtClock = (d: Date) =>
-  d.toLocaleTimeString("es-PE", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-
-// ─── InfoTip: ? icon con tooltip explicativo ──────────────────────────────────
-
-function InfoTip({ children, side = "top" }: { children: React.ReactNode; side?: "top" | "bottom" | "left" | "right" }) {
+function InfoTip({ children, side = "top" }: { children: React.ReactNode; side?: "top"|"bottom"|"left"|"right" }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <button
-          type="button"
-          className="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground/60 transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-          aria-label="Más información"
-        >
+        <button type="button" className="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground/40 transition-colors hover:text-muted-foreground focus-visible:outline-none" aria-label="Más información">
           <HelpCircle className="h-3.5 w-3.5" strokeWidth={2} />
         </button>
       </TooltipTrigger>
-      <TooltipContent
-        side={side}
-        className="max-w-xs text-xs leading-relaxed text-popover-foreground"
-      >
-        {children}
+      <TooltipContent side={side} className="max-w-xs text-xs leading-relaxed">{children}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+// ─── Health dot ───────────────────────────────────────────────────────────────
+
+function HealthDot({ health, size = "md" }: { health: Health; size?: "sm" | "md" }) {
+  const sz = size === "sm" ? "w-1.5 h-1.5" : "w-2 h-2";
+  const colors: Record<Health, string> = {
+    ok:   "bg-emerald-500 shadow-[0_0_6px_2px_rgb(16_185_129_/_0.5)] animate-status-pulse",
+    warn: "bg-amber-500 shadow-[0_0_5px_1px_rgb(245_158_11_/_0.4)]",
+    crit: "bg-red-500 shadow-[0_0_6px_2px_rgb(239_68_68_/_0.5)] animate-status-pulse-fast",
+    info: "bg-muted-foreground/30",
+  };
+  return <span className={cn("rounded-full flex-none inline-block", sz, colors[health])} />;
+}
+
+// ─── Service nodes ────────────────────────────────────────────────────────────
+
+function ServiceNode({ icon, name, health, sub, extra }: {
+  icon: React.ReactNode; name: string; health: Health; sub: string; extra?: string;
+}) {
+  const glows: Record<Health, string> = {
+    ok:   "border-emerald-500/20 bg-emerald-500/5",
+    warn: "border-amber-500/20 bg-amber-500/5",
+    crit: "border-red-500/30 bg-red-500/10",
+    info: "border-border/40 bg-muted/20",
+  };
+  return (
+    <div className={cn(
+      "relative flex flex-col gap-2 rounded-xl border px-4 py-3 min-w-[148px] transition-all duration-300",
+      glows[health],
+      health === "crit" && "shadow-[0_0_16px_rgb(239_68_68_/_0.15)]",
+      health === "ok"   && "shadow-[0_0_12px_rgb(16_185_129_/_0.08)]",
+    )}>
+      <div className="flex items-center gap-2">
+        <HealthDot health={health} />
+        <span className="font-heading text-xs font-semibold tracking-wide text-foreground/80">{name}</span>
+        <span className="text-muted-foreground/40 ml-auto">{icon}</span>
+      </div>
+      <p className={cn("font-data text-xs tabular-nums", {
+        "text-emerald-600 dark:text-emerald-400": health === "ok",
+        "text-amber-600 dark:text-amber-400":     health === "warn",
+        "text-red-600 dark:text-red-400":         health === "crit",
+        "text-muted-foreground":                  health === "info",
+      })}>{sub}</p>
+      {extra && <p className="text-[11px] text-muted-foreground/50">{extra}</p>}
+    </div>
+  );
+}
+
+// ─── Systems status ───────────────────────────────────────────────────────────
+
+function SystemsStatusBar({ isAuthorized }: { isAuthorized: boolean }) {
+  const { data: healthData } = useSWR<HealthReadyData>(
+    isAuthorized ? `${API_URL}/health/ready` : null, authenticatedJsonFetcher,
+    { refreshInterval: 15000 },
+  );
+  const { data: statusData } = useSWR<SystemStatusData>(
+    isAuthorized ? `${API_URL}/internal/status` : null, authenticatedJsonFetcher,
+    { refreshInterval: 15000 },
+  );
+
+  const mongoHealth  = depHealth(healthData?.mongodb);
+  const redisHealth  = depHealth(healthData?.redis);
+  const qdrantHealth = depHealth(healthData?.qdrant);
+  const ragHealth: Health = statusData?.rag_available ? "ok" : statusData ? "warn" : "info";
+
+  const mongoSub  = healthData?.mongodb ? (healthData.mongodb.latency_ms != null ? `${healthData.mongodb.latency_ms} ms` : healthData.mongodb.message?.slice(0, 28) ?? "—") : "—";
+  const redisSub  = healthData?.redis ? (healthData.redis.backend ?? healthData.redis.status) : "—";
+  const qdrantSub = healthData?.qdrant ? (healthData.qdrant.latency_ms != null ? `${healthData.qdrant.latency_ms} ms` : healthData.qdrant.message?.slice(0, 28) ?? "—") : "—";
+  const ragSub    = statusData ? (statusData.rag_available ? "disponible" : "no disponible") : "—";
+  const cbState   = statusData?.qdrant_circuit_breaker;
+
+  return (
+    <div>
+      <p className="font-heading text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/50 mb-3">
+        Servicios
+      </p>
+      <div className="flex flex-wrap gap-3">
+        <ServiceNode icon={<Database className="h-3.5 w-3.5" />} name="MongoDB" health={mongoHealth} sub={mongoSub} />
+        <ServiceNode icon={<Server className="h-3.5 w-3.5" />}   name="Redis" health={redisHealth} sub={redisSub} extra={redisHealth === "warn" ? "Fallback en memoria" : undefined} />
+        <ServiceNode icon={<Database className="h-3.5 w-3.5" />} name="Qdrant" health={qdrantHealth} sub={qdrantSub}
+          extra={cbState ? `CB: ${cbState.state} · ${cbState.failures} fallas` : healthData?.qdrant?.points_count != null ? `${healthData.qdrant.points_count.toLocaleString("es-PE")} vectores` : undefined} />
+        <ServiceNode icon={<Zap className="h-3.5 w-3.5" />} name="RAG" health={ragHealth} sub={ragSub} extra={statusData ? `v${statusData.version}` : undefined} />
+      </div>
+    </div>
+  );
+}
+
+// ─── KPI strip — tipográfico, sin cards ──────────────────────────────────────
+
+interface KpiItem {
+  label: string; help: React.ReactNode; value: string; sub?: string; health?: Health; large?: boolean;
+}
+
+function KpiStrip({ items, loading }: { items: KpiItem[]; loading: boolean }) {
+  const [hero, ...rest] = items;
+
+  return (
+    <div className="space-y-6">
+      {/* Hero metric */}
+      <div className="flex items-end gap-6 flex-wrap">
+        <div className="space-y-1">
+          <div className="flex items-center gap-1.5">
+            <p className="font-heading text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/60">{hero.label}</p>
+            <InfoTip side="right">{hero.help}</InfoTip>
+          </div>
+          {loading ? (
+            <div className="h-14 w-32 rounded-lg bg-muted/40 animate-pulse" />
+          ) : (
+            <div className="flex items-baseline gap-3">
+              <p className="font-heading text-5xl font-bold tracking-tight text-foreground tabular-nums leading-none">{hero.value}</p>
+              {hero.health && hero.health !== "info" && <HealthDot health={hero.health} size="md" />}
+            </div>
+          )}
+          {hero.sub && !loading && <p className="font-data text-xs text-muted-foreground tabular-nums">{hero.sub}</p>}
+        </div>
+
+        {/* Divider */}
+        <div className="hidden sm:block w-px h-12 bg-border/40 self-center" />
+
+        {/* Secondary metrics */}
+        <div className="flex flex-wrap gap-x-8 gap-y-4">
+          {rest.map((item) => (
+            <div key={item.label} className="space-y-0.5">
+              <div className="flex items-center gap-1">
+                <p className="font-heading text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/50">{item.label}</p>
+                <InfoTip>{item.help}</InfoTip>
+              </div>
+              {loading ? (
+                <div className="h-7 w-16 rounded bg-muted/40 animate-pulse" />
+              ) : (
+                <div className="flex items-baseline gap-1.5">
+                  <p className="font-heading text-2xl font-semibold tracking-tight text-foreground tabular-nums leading-none">{item.value}</p>
+                  {item.health && item.health !== "info" && <HealthDot health={item.health} size="sm" />}
+                </div>
+              )}
+              {item.sub && !loading && <p className="font-data text-[11px] text-muted-foreground/60 tabular-nums">{item.sub}</p>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Pipeline waterfall ───────────────────────────────────────────────────────
+
+function PipelineNode({ label, short, p50, p95, health, count, help }: {
+  label: string; short: string; p50: number | null; p95: number | null;
+  health: Health; count: number; help: string;
+}) {
+  const borderColor: Record<Health, string> = {
+    ok:   "border-emerald-500/40 shadow-[0_0_10px_rgb(16_185_129_/_0.12)]",
+    warn: "border-amber-500/40",
+    crit: "border-red-500/50 shadow-[0_0_10px_rgb(239_68_68_/_0.2)]",
+    info: "border-border/30",
+  };
+  const valueColor: Record<Health, string> = {
+    ok:   "text-emerald-600 dark:text-emerald-400",
+    warn: "text-amber-600 dark:text-amber-400",
+    crit: "text-red-600 dark:text-red-400",
+    info: "text-muted-foreground",
+  };
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className={cn(
+          "flex flex-col items-center gap-1.5 rounded-xl border px-3 py-2.5 cursor-default bg-background/60",
+          "transition-all duration-200 hover:-translate-y-0.5 hover:bg-background",
+          borderColor[health],
+        )}>
+          <span className="font-heading text-[10px] font-semibold uppercase tracking-wider text-foreground/60">{short}</span>
+          <span className={cn("font-data text-sm font-semibold tabular-nums leading-none", valueColor[health])}>
+            {p50 != null ? fmtMs(p50) : "—"}
+          </span>
+          <span className="text-[10px] text-muted-foreground/50 tabular-nums">p95: {p95 != null ? fmtMs(p95) : "—"}</span>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-[200px] text-xs">
+        <p className="font-semibold mb-1">{label}</p>
+        <p className="text-muted-foreground mb-1">{help}</p>
+        <p>p50 {fmtMs(p50)} · p95 {fmtMs(p95)} · {count} muestras</p>
       </TooltipContent>
     </Tooltip>
   );
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function SectionSkeleton({ rows = 1, height = "h-32" }: { rows?: number; height?: string }) {
+function PipelineConnector({ health, delay = 0 }: { health: Health; delay?: number }) {
+  const lineColor: Record<Health, string> = {
+    ok: "bg-emerald-500/30", warn: "bg-amber-500/30", crit: "bg-red-500/30", info: "bg-border/30",
+  };
   return (
-    <div className="space-y-3">
-      {Array.from({ length: rows }).map((_, i) => (
-        <Skeleton key={i} className={cn("w-full rounded-2xl", height)} />
-      ))}
+    <div className="flex items-center px-0.5">
+      <div
+        className={cn("h-px w-6 animate-line-grow", lineColor[health])}
+        style={{ animationDelay: `${delay}ms` }}
+      />
+      <svg width="6" height="8" className={cn("flex-none", {
+        "text-emerald-500/40": health === "ok", "text-amber-500/40": health === "warn",
+        "text-red-500/40": health === "crit", "text-border/30": health === "info",
+      })}>
+        <polyline points="0,0 6,4 0,8" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      </svg>
     </div>
   );
 }
 
-function SectionError({ message, onRetry }: { message: string; onRetry?: () => void }) {
+function PipelineSection({ data }: { data: ObservabilityData }) {
+  const [animKey, setAnimKey] = React.useState(0);
+  const prevTs = React.useRef(data.ts);
+
+  React.useEffect(() => {
+    if (data.ts !== prevTs.current) {
+      prevTs.current = data.ts;
+      setAnimKey(k => k + 1);
+    }
+  }, [data.ts]);
+
+  const stages = PIPELINE_STAGES.map(stage => {
+    const bucket = data.latency_ms[stage.key];
+    if (!bucket || bucket.count === 0) return null;
+    const thresholds = THRESHOLDS.pipeline[stage.key] ?? { ok: 1000, warn: 3000 };
+    return { ...stage, p50: bucket.p50, p95: bucket.p95, count: bucket.count, health: evalLatency(bucket.p95, thresholds) };
+  }).filter(Boolean) as Array<{ key: string; label: string; short: string; help: string; p50: number|null; p95: number|null; count: number; health: Health }>;
+
+  const totalBucket = data.latency_ms["total_ms"];
+  const ftBucket    = data.latency_ms["first_token_ms"];
+
   return (
-    <div className="flex flex-col items-start gap-2 rounded-2xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex items-center gap-2">
-        <AlertCircle className="h-4 w-4 flex-none" />
-        <span>{message}</span>
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 flex-wrap">
+        <p className="font-heading text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/50">
+          Pipeline de respuesta
+        </p>
+        <InfoTip>
+          Cada etapa en orden de ejecución. Color indica salud según p95. Hover para detalle.
+        </InfoTip>
+        {totalBucket && totalBucket.count > 0 && (
+          <span className="font-data text-xs text-muted-foreground/70 tabular-nums ml-auto">
+            total p50 <span className="text-foreground">{fmtMs(totalBucket.p50)}</span>
+            {" · "}p95 <span className={cn({
+              "text-emerald-600 dark:text-emerald-400": evalLatency(totalBucket.p95, THRESHOLDS.p95Total) === "ok",
+              "text-amber-600 dark:text-amber-400":     evalLatency(totalBucket.p95, THRESHOLDS.p95Total) === "warn",
+              "text-red-600 dark:text-red-400":         evalLatency(totalBucket.p95, THRESHOLDS.p95Total) === "crit",
+            })}>{fmtMs(totalBucket.p95)}</span>
+            {ftBucket && ftBucket.count > 0 && (
+              <> · 1er token <span className={cn({
+                "text-emerald-600 dark:text-emerald-400": evalLatency(ftBucket.p95, THRESHOLDS.p95FirstToken) === "ok",
+                "text-amber-600 dark:text-amber-400":     evalLatency(ftBucket.p95, THRESHOLDS.p95FirstToken) === "warn",
+                "text-red-600 dark:text-red-400":         evalLatency(ftBucket.p95, THRESHOLDS.p95FirstToken) === "crit",
+              })}>{fmtMs(ftBucket.p95)}</span></>
+            )}
+          </span>
+        )}
       </div>
-      {onRetry && (
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={onRetry}
-          className="h-7 rounded-lg border-destructive/30 px-3 text-xs text-destructive hover:bg-destructive/10"
-        >
-          <RefreshCw className="mr-1.5 h-3 w-3" />
-          Reintentar
-        </Button>
+
+      {stages.length === 0 ? (
+        <p className="text-sm text-muted-foreground py-6">Sin muestras en la ventana actual.</p>
+      ) : (
+        <div className="overflow-x-auto pb-1">
+          <div key={animKey} className="flex items-center gap-0 min-w-max py-2">
+            {stages.map((stage, i) => (
+              <React.Fragment key={stage.key}>
+                <div className="animate-count-reveal" style={{ animationDelay: `${i * 70}ms` }}>
+                  <PipelineNode {...stage} />
+                </div>
+                {i < stages.length - 1 && (
+                  <PipelineConnector health={stage.health} delay={(i + 1) * 70} />
+                )}
+              </React.Fragment>
+            ))}
+            <div className="flex items-center pl-1">
+              <div className="h-px w-5 bg-border/30" />
+              <span className="font-heading text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/40 ml-2">Respuesta</span>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
-interface KpiCardProps {
-  label: string;
-  help: React.ReactNode;
-  value: string;
-  sub?: string;
-  icon: React.ReactNode;
-  health?: Health;
-  loading?: boolean;
-}
+// ─── Throughput — tabla sin border-box ────────────────────────────────────────
 
-function KpiCard({ label, help, value, sub, icon, health = "info", loading }: KpiCardProps) {
-  if (loading) {
-    return (
-      <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-        <Skeleton className="mb-3 h-4 w-28 rounded" />
-        <Skeleton className="mb-2 h-8 w-20 rounded" />
-        <Skeleton className="h-3 w-32 rounded" />
-      </div>
-    );
-  }
-  const showDot = health !== "info";
+function ThroughputSection({ data }: { data: ObservabilityData }) {
   return (
-    <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-shadow hover:shadow-[0_2px_8px_rgba(15,23,42,0.08)]">
-      <div className="mb-3 flex items-start justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-1.5">
-          {showDot && (
-            <span
-              className={cn("h-2 w-2 flex-none rounded-full", HEALTH_STYLES[health].dot)}
-              aria-hidden="true"
-            />
-          )}
-          <span className="truncate text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-            {label}
-          </span>
-          <InfoTip>{help}</InfoTip>
-        </div>
-        <span className="text-muted-foreground/60">{icon}</span>
+    <div className="space-y-4">
+      <div className="flex items-center gap-1.5">
+        <p className="font-heading text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/50">Throughput</p>
+        <InfoTip>Chats por minuto en distintas ventanas de tiempo.</InfoTip>
       </div>
-      <p className="text-3xl font-semibold tabular-nums leading-none text-foreground">{value}</p>
-      {sub && <p className="mt-2 text-xs text-muted-foreground">{sub}</p>}
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-border/40">
+            {["Ventana","Chats","/ min","Errores"].map(h => (
+              <th key={h} className={cn("pb-2 font-heading text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/50", h === "Ventana" ? "text-left" : "text-right")}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {THROUGHPUT_WINDOWS.map((win, idx) => {
+            const row = data.throughput[win];
+            if (!row) return null;
+            const errPct = row.error_rate * 100;
+            const errColor = errPct >= THRESHOLDS.errorRateTable.crit * 100 ? "text-red-500" : errPct > 0 ? "text-amber-500" : "text-emerald-500 dark:text-emerald-400";
+            const dotColor = errPct >= THRESHOLDS.errorRateTable.crit * 100 ? "bg-red-500" : errPct > 0 ? "bg-amber-500" : "bg-emerald-500";
+            return (
+              <tr key={win} className={cn("hover:bg-muted/20 transition-colors", idx < THROUGHPUT_WINDOWS.length - 1 && "border-b border-border/20")}>
+                <td className="py-2.5 font-heading text-xs font-medium text-foreground/70">Últ. {win}</td>
+                <td className="py-2.5 text-right font-data tabular-nums text-foreground">{row.chats.toLocaleString("es-PE")}</td>
+                <td className="py-2.5 text-right font-data tabular-nums text-muted-foreground">{row.chats_per_min.toFixed(2)}</td>
+                <td className={cn("py-2.5 text-right font-data font-medium tabular-nums", errColor)}>
+                  <span className="inline-flex items-center justify-end gap-1.5">
+                    <span className={cn("h-1.5 w-1.5 rounded-full", dotColor)} />
+                    {errPct.toFixed(2)}%
+                  </span>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
 
-function ChartCard({
-  title,
-  help,
-  badge,
-  children,
-  action,
-}: {
-  title: string;
-  help?: React.ReactNode;
-  badge?: React.ReactNode;
-  children: React.ReactNode;
-  action?: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-2xl border border-border/60 bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-      <div className="flex items-center justify-between gap-2 border-b border-border/60 px-5 py-4">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="text-sm font-semibold text-foreground">{title}</span>
-          {help && <InfoTip>{help}</InfoTip>}
-          {badge}
-        </div>
-        {action}
-      </div>
-      <div className="p-5">{children}</div>
-    </div>
-  );
-}
+// ─── Gating donut ─────────────────────────────────────────────────────────────
 
-interface TooltipPayloadItem {
-  color: string;
-  name: string;
-  value: number;
-  payload?: Record<string, unknown>;
-}
+interface TPItem { color: string; name: string; value: number }
 
-function ChartTooltip({
-  active,
-  payload,
-  label,
-  unit,
-}: {
-  active?: boolean;
-  payload?: TooltipPayloadItem[];
-  label?: string;
-  unit?: string;
-}) {
+function DonutTooltip({ active, payload }: { active?: boolean; payload?: TPItem[] }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-xl border border-border/60 bg-popover px-3 py-2.5 text-xs shadow-md">
-      <p className="mb-1.5 font-semibold text-popover-foreground">{label}</p>
-      {payload.map((p) => (
+    <div className="rounded-xl border border-border/60 bg-popover px-3 py-2 text-xs shadow-md">
+      {payload.map(p => (
         <div key={p.name} className="flex items-center gap-2 text-muted-foreground">
-          <span
-            className="inline-block h-2 w-2 flex-none rounded-full"
-            style={{ background: p.color }}
-          />
-          <span>{p.name}:</span>
-          <span className="font-medium tabular-nums text-popover-foreground">
-            {p.value?.toLocaleString("es-PE")}
-            {unit ? ` ${unit}` : ""}
-          </span>
+          <span className="inline-block h-2 w-2 flex-none rounded-full" style={{ background: p.color }} />
+          <span>{GATING_LABELS[p.name] ?? p.name}:</span>
+          <span className="font-data font-medium text-foreground tabular-nums">{p.value}</span>
         </div>
       ))}
     </div>
   );
 }
 
-// ─── Latency chart ────────────────────────────────────────────────────────────
-
-function LatencyChart({ data }: { data: ObservabilityData }) {
-  const chartData = LATENCY_STAGES.flatMap((stage) => {
-    const bucket = data.latency_ms[stage.key];
-    if (!bucket || bucket.count === 0) return [];
-    return [
-      {
-        stage: stage.label,
-        p50: bucket.p50 ?? 0,
-        p95: bucket.p95 ?? 0,
-        p99: bucket.p99 ?? 0,
-        count: bucket.count,
-      },
-    ];
-  });
-
-  return (
-    <ChartCard
-      title="Latencia por etapa"
-      help={
-        <div className="space-y-1.5">
-          <p>
-            Cada barra es una etapa del pipeline de respuesta. Los percentiles muestran
-            cómo se distribuyen los tiempos:
-          </p>
-          <ul className="space-y-0.5 pl-4">
-            <li>
-              <span className="font-semibold">p50</span>: la mitad de los chats respondió
-              más rápido que esto.
-            </li>
-            <li>
-              <span className="font-semibold">p95</span>: el 95% respondió más rápido. El
-              5% lento está por encima.
-            </li>
-            <li>
-              <span className="font-semibold">p99</span>: casi el peor caso (1% es más
-              lento).
-            </li>
-          </ul>
-        </div>
-      }
-      badge={<span className="text-xs text-muted-foreground">milisegundos</span>}
-    >
-      {chartData.length === 0 ? (
-        <div className="flex h-56 items-center justify-center text-sm text-muted-foreground">
-          Aún no hay muestras en la ventana actual.
-        </div>
-      ) : (
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={chartData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
-            <CartesianGrid
-              strokeDasharray="3 3"
-              stroke="hsl(var(--border))"
-              strokeOpacity={0.6}
-              vertical={false}
-            />
-            <XAxis
-              dataKey="stage"
-              tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-              axisLine={false}
-              tickLine={false}
-              interval={0}
-              angle={chartData.length > 4 ? -22 : 0}
-              textAnchor={chartData.length > 4 ? "end" : "middle"}
-              height={chartData.length > 4 ? 60 : 30}
-            />
-            <YAxis
-              tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-              axisLine={false}
-              tickLine={false}
-              allowDecimals={false}
-              tickFormatter={(v) => (v >= 1000 ? `${v / 1000}k` : `${v}`)}
-            />
-            <RechartsTooltip
-              content={<ChartTooltip unit="ms" />}
-              cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }}
-            />
-            <Legend
-              wrapperStyle={{ fontSize: 11, color: "hsl(var(--muted-foreground))", paddingTop: 8 }}
-              iconSize={8}
-              iconType="circle"
-            />
-            <Bar dataKey="p50" name="p50" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} maxBarSize={28} />
-            <Bar dataKey="p95" name="p95" fill="#f59e0b" radius={[4, 4, 0, 0]} maxBarSize={28} />
-            <Bar dataKey="p99" name="p99" fill="#ef4444" radius={[4, 4, 0, 0]} maxBarSize={28} />
-          </BarChart>
-        </ResponsiveContainer>
-      )}
-    </ChartCard>
-  );
-}
-
-// ─── Throughput table ─────────────────────────────────────────────────────────
-
-function ThroughputTable({ data }: { data: ObservabilityData }) {
-  return (
-    <ChartCard
-      title="Volumen de tráfico"
-      help={
-        <p>
-          Cantidad de chats por minuto en distintas ventanas de tiempo. La columna de
-          errores se colorea de verde a rojo según el porcentaje.
-        </p>
-      }
-      badge={<span className="text-xs text-muted-foreground">por ventana móvil</span>}
-    >
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border/60">
-              <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-                Ventana
-              </th>
-              <th className="px-2 py-2 text-right text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-                Chats
-              </th>
-              <th className="px-2 py-2 text-right text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-                Por minuto
-              </th>
-              <th className="px-2 py-2 text-right text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-                <span className="inline-flex items-center gap-1">
-                  Errores
-                  <InfoTip>
-                    Porcentaje de chats que terminaron con error en esa ventana. Verde =
-                    sin errores, ámbar = algunos, rojo = ≥5%.
-                  </InfoTip>
-                </span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {THROUGHPUT_WINDOWS.map((win, idx) => {
-              const row = data.throughput[win];
-              if (!row) return null;
-              const errPct = row.error_rate * 100;
-              const errColor =
-                errPct >= THRESHOLDS.errorRateTable.crit * 100
-                  ? "text-red-600 dark:text-red-400"
-                  : errPct > THRESHOLDS.errorRateTable.warn * 100
-                    ? "text-amber-600 dark:text-amber-400"
-                    : "text-emerald-600 dark:text-emerald-400";
-              const dotColor =
-                errPct >= THRESHOLDS.errorRateTable.crit * 100
-                  ? "bg-red-500"
-                  : errPct > THRESHOLDS.errorRateTable.warn * 100
-                    ? "bg-amber-500"
-                    : "bg-emerald-500";
-              return (
-                <tr
-                  key={win}
-                  className={cn(
-                    "transition-colors hover:bg-muted/40",
-                    idx < THROUGHPUT_WINDOWS.length - 1 && "border-b border-border/40",
-                  )}
-                >
-                  <td className="px-2 py-2.5 font-medium text-foreground">
-                    Últimos {win}
-                  </td>
-                  <td className="px-2 py-2.5 text-right tabular-nums text-foreground">
-                    {row.chats.toLocaleString("es-PE")}
-                  </td>
-                  <td className="px-2 py-2.5 text-right tabular-nums text-muted-foreground">
-                    {row.chats_per_min.toFixed(2)}
-                  </td>
-                  <td className={cn("px-2 py-2.5 text-right font-medium tabular-nums", errColor)}>
-                    <span className="inline-flex items-center justify-end gap-1.5">
-                      <span className={cn("h-1.5 w-1.5 rounded-full", dotColor)} aria-hidden />
-                      {errPct.toFixed(2)}%
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </ChartCard>
-  );
-}
-
-// ─── Gating reasons chart ─────────────────────────────────────────────────────
-
-function GatingReasonsChart({ data }: { data: ObservabilityData }) {
+function GatingSection({ data }: { data: ObservabilityData }) {
   const entries = Object.entries(data.gating_reasons || {});
   const total = entries.reduce((acc, [, v]) => acc + v, 0);
-
   const chartData = entries
-    .map(([reason, count], idx) => ({
-      reason,
-      label: GATING_LABELS[reason] ?? reason,
-      count,
-      pct: total > 0 ? (count / total) * 100 : 0,
-      fill: GATING_PALETTE[idx % GATING_PALETTE.length],
-    }))
+    .map(([reason, count], idx) => ({ name: reason, count, pct: total > 0 ? ((count/total)*100).toFixed(1) : "0", fill: GATING_PALETTE[idx % GATING_PALETTE.length] }))
     .sort((a, b) => b.count - a.count);
 
   return (
-    <ChartCard
-      title="Decisiones del sistema"
-      help={
-        <p>
-          Cómo el bot clasificó cada consulta antes de responder. Útil para detectar si
-          muchos chats están siendo descartados por filtros (relevancia baja, queries
-          vacías, etc.) o si todo pasa por el flujo agéntico normal.
-        </p>
-      }
-      badge={
-        total > 0 ? (
-          <span className="text-xs text-muted-foreground">{total} eventos</span>
-        ) : null
-      }
-    >
+    <div className="space-y-4">
+      <div className="flex items-center gap-1.5">
+        <p className="font-heading text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/50">Decisiones del sistema</p>
+        <InfoTip>Cómo el bot clasificó cada consulta antes de responder.</InfoTip>
+        {total > 0 && <span className="font-data text-[11px] text-muted-foreground/40 ml-1 tabular-nums">{total} eventos</span>}
+      </div>
+
       {chartData.length === 0 ? (
-        <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
-          Sin eventos de gating en la ventana actual.
-        </div>
+        <p className="text-sm text-muted-foreground py-4">Sin eventos de gating en la ventana actual.</p>
       ) : (
-        <ResponsiveContainer width="100%" height={Math.max(180, chartData.length * 40 + 48)}>
-          <BarChart
-            data={chartData}
-            layout="vertical"
-            margin={{ top: 4, right: 16, left: 8, bottom: 0 }}
-          >
-            <CartesianGrid
-              strokeDasharray="3 3"
-              stroke="hsl(var(--border))"
-              strokeOpacity={0.6}
-              horizontal={false}
-            />
-            <XAxis
-              type="number"
-              tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-              axisLine={false}
-              tickLine={false}
-              allowDecimals={false}
-            />
-            <YAxis
-              dataKey="label"
-              type="category"
-              tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-              axisLine={false}
-              tickLine={false}
-              width={170}
-            />
-            <RechartsTooltip
-              content={<ChartTooltip />}
-              cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }}
-            />
-            <Bar dataKey="count" name="Chats" radius={[0, 4, 4, 0]} maxBarSize={22}>
-              {chartData.map((entry) => (
-                <Cell key={entry.reason} fill={entry.fill} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+        <div className="flex items-center gap-5">
+          <div className="relative flex-none">
+            <ResponsiveContainer width={140} height={140}>
+              <PieChart>
+                <Pie data={chartData} dataKey="count" nameKey="name" innerRadius="58%" outerRadius="82%"
+                  paddingAngle={2} startAngle={90} endAngle={-270} strokeWidth={0}>
+                  {chartData.map(e => <Cell key={e.name} fill={e.fill} opacity={0.9} />)}
+                </Pie>
+                <RechartsTooltip content={<DonutTooltip />} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+              <span className="font-data text-lg font-semibold text-foreground tabular-nums">{total}</span>
+              <span className="font-heading text-[9px] uppercase tracking-wider text-muted-foreground/50">total</span>
+            </div>
+          </div>
+          <div className="flex flex-col gap-1 min-w-0 flex-1">
+            {chartData.map(e => (
+              <div key={e.name} className="flex items-center gap-2 min-w-0">
+                <span className="h-1.5 w-1.5 rounded-full flex-none" style={{ background: e.fill }} />
+                <span className="text-xs text-muted-foreground truncate flex-1">{GATING_LABELS[e.name] ?? e.name}</span>
+                <span className="font-data text-xs text-foreground/80 tabular-nums ml-auto">{e.count}</span>
+                <span className="font-data text-[11px] text-muted-foreground/50 tabular-nums w-9 text-right">{e.pct}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
-    </ChartCard>
+    </div>
   );
 }
 
 // ─── Glossary ─────────────────────────────────────────────────────────────────
 
-const GLOSSARY: { term: string; def: string }[] = [
-  {
-    term: "Tasa de éxito",
-    def: "Porcentaje de chats que terminaron sin errores. ≥99% saludable, 95–99% atención, <95% crítico.",
-  },
-  {
-    term: "Latencia (p50, p95, p99)",
-    def: "p50 es el tiempo del chat típico. p95 es el límite del 5% más lento. p99 casi el peor caso. Útiles para entender la experiencia real del usuario.",
-  },
-  {
-    term: "Primer token",
-    def: "Tiempo desde que el usuario envía mensaje hasta ver el primer carácter. Mide la sensación de rapidez aunque la respuesta total tome más.",
-  },
-  {
-    term: "RAG (búsqueda en documentos)",
-    def: "Sistema que consulta el catálogo de productos antes de responder. Garantiza datos del corpus en vez de respuestas inventadas.",
-  },
-  {
-    term: "Volumen de tráfico (throughput)",
-    def: "Cantidad de chats por minuto. Indica si la app está activa o ociosa.",
-  },
-  {
-    term: "Worker PID",
-    def: "ID del proceso del backend dentro del contenedor Docker. Cambia cada vez que se reinicia el servidor.",
-  },
-  {
-    term: "Muestras en ventana",
-    def: "Cuántos chats están guardados en memoria para calcular percentiles. Se descartan automáticamente después de 1 hora.",
-  },
-  {
-    term: "Costo aproximado",
-    def: "Estimación del gasto en OpenAI desde el último reinicio. Calculado con tarifas de gpt-4o-mini.",
-  },
-  {
-    term: "Decisiones del sistema (gating)",
-    def: "Cómo el bot clasifica cada consulta antes de buscar: saludo, consulta válida, fuera de tema, etc.",
-  },
+const GLOSSARY = [
+  { term: "Tasa de éxito",           def: "Chats sin error. ≥99% saludable, 95–99% atención, <95% crítico." },
+  { term: "Latencia p50/p95/p99",    def: "p50=típico, p95=límite 5% más lento, p99=casi peor caso." },
+  { term: "Primer token",            def: "Tiempo hasta el primer carácter visible. Mide sensación de rapidez." },
+  { term: "RAG",                     def: "Consulta el catálogo de documentos antes de responder." },
+  { term: "Throughput",              def: "Cantidad de chats por minuto." },
+  { term: "Worker PID",              def: "ID del proceso del backend. Cambia al reiniciar." },
+  { term: "Muestras en ventana",     def: "Chats en memoria para calcular percentiles. TTL 1 hora." },
+  { term: "Costo aproximado",        def: "Estimación del gasto en OpenAI desde el último reinicio." },
+  { term: "Gating",                  def: "Clasificación de la consulta antes de buscar documentos." },
+  { term: "Circuit Breaker",         def: "Corta la conexión a Qdrant si hay errores consecutivos." },
 ];
 
 function Glossary() {
   const [open, setOpen] = useState(false);
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <div className="rounded-2xl border border-border/60 bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-        <CollapsibleTrigger asChild>
-          <button
-            type="button"
-            className="flex w-full items-center justify-between gap-2 px-5 py-3.5 text-left transition-colors hover:bg-muted/40"
-          >
-            <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
-              <HelpCircle className="h-4 w-4 text-muted-foreground" />
-              Glosario de términos
-            </span>
-            <ChevronDown
-              className={cn(
-                "h-4 w-4 text-muted-foreground transition-transform duration-200",
-                open && "rotate-180",
-              )}
-            />
-          </button>
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <div className="border-t border-border/60 px-5 py-4">
-            <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
-              {GLOSSARY.map(({ term, def }) => (
-                <div key={term} className="space-y-0.5">
-                  <dt className="text-xs font-semibold uppercase tracking-[0.08em] text-foreground">
-                    {term}
-                  </dt>
-                  <dd className="text-xs leading-relaxed text-muted-foreground">{def}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        </CollapsibleContent>
-      </div>
+      <CollapsibleTrigger asChild>
+        <button type="button" className="flex items-center gap-2 text-muted-foreground/50 hover:text-muted-foreground transition-colors py-2 group">
+          <HelpCircle className="h-3.5 w-3.5" />
+          <span className="font-heading text-[10px] font-semibold uppercase tracking-[0.12em]">Glosario</span>
+          <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", open && "rotate-180")} />
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <dl className="grid gap-x-10 gap-y-3 sm:grid-cols-2 pt-3 border-t border-border/30">
+          {GLOSSARY.map(({ term, def }) => (
+            <div key={term}>
+              <dt className="font-heading text-[10px] font-semibold uppercase tracking-[0.08em] text-foreground/70">{term}</dt>
+              <dd className="text-xs text-muted-foreground leading-relaxed mt-0.5">{def}</dd>
+            </div>
+          ))}
+        </dl>
+      </CollapsibleContent>
     </Collapsible>
+  );
+}
+
+// ─── Section divider ──────────────────────────────────────────────────────────
+
+function Divider() {
+  return <div className="h-px bg-gradient-to-r from-transparent via-border/50 to-transparent" />;
+}
+
+// ─── Error state ──────────────────────────────────────────────────────────────
+
+function SectionError({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+      <AlertCircle className="h-4 w-4 flex-none" />
+      <span className="flex-1">{message}</span>
+      {onRetry && (
+        <Button size="sm" variant="outline" onClick={onRetry}
+          className="h-7 border-destructive/30 px-3 text-xs text-destructive hover:bg-destructive/10">
+          <RefreshCw className="mr-1.5 h-3 w-3" />Reintentar
+        </Button>
+      )}
+    </div>
+  );
+}
+
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+
+function LoadingSkeleton() {
+  return (
+    <div className="space-y-8 animate-fade-in">
+      <div className="flex gap-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-16 w-36 rounded-xl" />
+        ))}
+      </div>
+      <Skeleton className="h-20 w-full rounded-xl" />
+      <Skeleton className="h-32 w-full rounded-xl" />
+    </div>
   );
 }
 
@@ -783,284 +644,156 @@ const REFRESH_MS = 30000;
 
 export default function ObservabilityPage() {
   const { isAuthorized, isChecking } = useRequireAdmin();
-  const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
-  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [lastRefresh, setLastRefresh] = useState(new Date());
 
   const { data, isLoading, error, mutate, isValidating } = useSWR<ObservabilityData>(
     isAuthorized ? `${API_URL}/dashboard/observability` : null,
     authenticatedJsonFetcher,
-    {
-      refreshInterval: autoRefresh ? REFRESH_MS : 0,
-      onSuccess: () => setLastRefresh(new Date()),
-    },
+    { refreshInterval: autoRefresh ? REFRESH_MS : 0, onSuccess: () => setLastRefresh(new Date()) },
   );
 
-  const handleRefresh = useCallback(() => {
-    mutate();
-  }, [mutate]);
+  const handleRefresh = useCallback(() => mutate(), [mutate]);
 
-  const { kpiCards, overallHealth } = useMemo(() => {
-    const t60 = data?.throughput?.["60m"];
-    const totalChats60 = t60?.chats ?? 0;
-    const errRate60 = t60?.error_rate ?? 0;
-    const successRate60 = totalChats60 === 0 ? null : 1 - errRate60;
-    const totalP95 = data?.latency_ms?.total_ms?.p95 ?? null;
-    const ftP95 = data?.latency_ms?.first_token_ms?.p95 ?? null;
-    const ragRate = data?.totals?.rag_usage_rate ?? null;
-    const cost =
-      data?.tokens?.pending_token_callback || data?.tokens?.estimated_cost_usd == null
-        ? null
-        : data.tokens.estimated_cost_usd;
+  const { kpiItems, overallHealth } = useMemo(() => {
+    const t60        = data?.throughput?.["60m"];
+    const chats60    = t60?.chats ?? 0;
+    const errRate60  = t60?.error_rate ?? 0;
+    const success60  = chats60 === 0 ? null : 1 - errRate60;
+    const totalP95   = data?.latency_ms?.total_ms?.p95 ?? null;
+    const ftP95      = data?.latency_ms?.first_token_ms?.p95 ?? null;
+    const ragRate    = data?.totals?.rag_usage_rate ?? null;
+    const cost       = data?.tokens?.pending_token_callback || data?.tokens?.estimated_cost_usd == null ? null : data.tokens.estimated_cost_usd;
 
-    const successHealth = totalChats60 === 0 ? "info" : evalSuccess(successRate60);
-    const totalHealth = evalLatencyHigherIsWorse(totalP95, THRESHOLDS.p95Total);
-    const ftHealth = evalLatencyHigherIsWorse(ftP95, THRESHOLDS.p95FirstToken);
+    const successHealth = chats60 === 0 ? "info" : evalSuccess(success60);
+    const totalHealth   = evalLatency(totalP95, THRESHOLDS.p95Total);
+    const ftHealth      = evalLatency(ftP95, THRESHOLDS.p95FirstToken);
 
-    const cards: KpiCardProps[] = [
-      {
-        label: "Chats últ. 60m",
-        help: "Total de conversaciones recibidas en la última hora. Incluye exitosas y fallidas.",
-        value: data ? totalChats60.toLocaleString("es-PE") : "—",
-        sub: t60 ? `${t60.chats_per_min.toFixed(2)} por minuto` : undefined,
-        icon: <MessageSquare className="h-4 w-4" />,
-        health: "info",
-        loading: isLoading,
-      },
-      {
-        label: "Tasa de éxito 60m",
-        help: (
-          <>
-            Porcentaje de chats completados sin errores en la última hora. Saludable
-            ≥99%, atención 95–99%, crítico &lt;95%.
-          </>
-        ),
-        value: data ? fmtPct(successRate60, 2) : "—",
-        sub: data ? `${fmtPct(errRate60, 2)} con error` : undefined,
-        icon: <Percent className="h-4 w-4" />,
-        health: successHealth,
-        loading: isLoading,
-      },
-      {
-        label: "Latencia p95 total",
-        help: (
-          <>
-            El 95% de los chats responde en menos de este tiempo. Saludable &lt;5 s,
-            atención 5–10 s, crítico &gt;10 s. Sirve para identificar el peor caso típico.
-          </>
-        ),
-        value: fmtMs(totalP95),
-        sub: data?.latency_ms?.total_ms?.count
-          ? `${data.latency_ms.total_ms.count} muestras`
-          : undefined,
-        icon: <Gauge className="h-4 w-4" />,
-        health: totalHealth,
-        loading: isLoading,
-      },
-      {
-        label: "Primer token p95",
-        help: (
-          <>
-            Tiempo hasta que el usuario ve el primer carácter de la respuesta. Mide la
-            sensación de rapidez. Saludable &lt;3 s, atención 3–6 s, crítico &gt;6 s.
-          </>
-        ),
-        value: fmtMs(ftP95),
-        sub: data?.latency_ms?.first_token_ms?.count
-          ? `${data.latency_ms.first_token_ms.count} muestras`
-          : undefined,
-        icon: <Timer className="h-4 w-4" />,
-        health: ftHealth,
-        loading: isLoading,
-      },
-      {
-        label: "Uso de búsqueda",
-        help: "Porcentaje de chats que consultaron el catálogo de productos (RAG). Lo demás respondió desde el modelo o fueron saludos.",
-        value: fmtPct(ragRate, 1),
-        sub: data?.totals
-          ? `${fmtNum(data.totals.rag_chats)} de ${fmtNum(data.totals.chats)} chats`
-          : undefined,
-        icon: <Activity className="h-4 w-4" />,
-        health: "info",
-        loading: isLoading,
-      },
-      {
-        label: "Costo aproximado",
-        help: (
-          <>
-            Estimación del gasto en OpenAI desde el último reinicio. Calculado con tarifa
-            de gpt-4o-mini ($0.15/1M tokens entrada, $0.60/1M salida). Aproximación local
-            con tiktoken, ~95% de precisión vs facturación real.
-          </>
-        ),
-        value: cost == null ? "—" : fmtUsd(cost),
-        sub: data?.tokens?.pending_token_callback
-          ? "Esperando primer chat…"
-          : data?.tokens
-            ? `${fmtNum(data.tokens.tokens_in)} entrada · ${fmtNum(data.tokens.tokens_out)} salida`
-            : undefined,
-        icon: <DollarSign className="h-4 w-4" />,
-        health: "info",
-        loading: isLoading,
-      },
+    const items: KpiItem[] = [
+      { label: "Tasa de éxito 60m", help: <>Chats sin error. ≥99% ok, 95–99% atención, &lt;95% crítico.</>, value: data ? fmtPct(success60, 2) : "—", sub: data ? `${fmtPct(errRate60, 2)} con error` : undefined, health: successHealth, large: true },
+      { label: "Chats últ. 60m",    help: "Total de conversaciones en la última hora.", value: data ? chats60.toLocaleString("es-PE") : "—", sub: t60 ? `${t60.chats_per_min.toFixed(2)} / min` : undefined },
+      { label: "Latencia p95 total",help: <>95% responde en menos de este tiempo. OK &lt;5s, atención 5–10s.</>, value: fmtMs(totalP95), sub: data?.latency_ms?.total_ms?.count ? `${data.latency_ms.total_ms.count} muestras` : undefined, health: totalHealth },
+      { label: "Primer token p95",  help: <>Hasta el primer carácter. OK &lt;3s, atención 3–6s.</>, value: fmtMs(ftP95), health: ftHealth },
+      { label: "Uso de búsqueda",   help: "Porcentaje de chats que consultaron el catálogo RAG.", value: fmtPct(ragRate, 1), sub: data?.totals ? `${fmtNum(data.totals.rag_chats)} de ${fmtNum(data.totals.chats)}` : undefined },
+      { label: "Costo aprox.",      help: "Estimación del gasto en OpenAI desde el último reinicio.", value: cost == null ? "—" : fmtUsd(cost), sub: data?.tokens?.pending_token_callback ? "Esperando primer chat…" : data?.tokens ? `${fmtNum(data.tokens.tokens_in)} in · ${fmtNum(data.tokens.tokens_out)} out` : undefined },
     ];
 
-    return {
-      kpiCards: cards,
-      overallHealth: aggregateHealth(successHealth, totalHealth, ftHealth),
-    };
+    return { kpiItems: items, overallHealth: aggregateHealth(successHealth, totalHealth, ftHealth) };
   }, [data, isLoading]);
 
   if (isChecking || !isAuthorized) return null;
 
-  const healthStyle = HEALTH_STYLES[overallHealth];
+  const hs = {
+    ok:   { dot: "bg-emerald-500 shadow-[0_0_6px_rgb(16_185_129_/_0.6)] animate-status-pulse", label: "Saludable" },
+    warn: { dot: "bg-amber-500", label: "Atención" },
+    crit: { dot: "bg-red-500 shadow-[0_0_6px_rgb(239_68_68_/_0.6)] animate-status-pulse-fast", label: "Crítico" },
+    info: { dot: "bg-muted-foreground/30", label: "Sin datos" },
+  }[overallHealth];
 
-  const headerBits: { icon: React.ReactNode; label: string; value: string; help: string }[] = [
-    {
-      icon: <Cpu className="h-3.5 w-3.5" />,
-      label: "Worker PID",
-      value: data ? String(data.worker_pid) : "—",
-      help: "ID del proceso del backend dentro del contenedor Docker. Cambia al reiniciar el servidor.",
-    },
-    {
-      icon: <Activity className="h-3.5 w-3.5" />,
-      label: "Muestras",
-      value: data ? `${data.samples.in_window} / ${data.samples.max}` : "—",
-      help: "Chats guardados en memoria para calcular percentiles. Capacidad máxima de la ventana.",
-    },
-    {
-      icon: <Clock className="h-3.5 w-3.5" />,
-      label: "Ventana",
-      value: data ? fmtTtl(data.samples.ttl_seconds) : "—",
-      help: "Tiempo durante el cual cada chat permanece en la ventana antes de descartarse del cálculo.",
-    },
-    {
-      icon: <Zap className="h-3.5 w-3.5" />,
-      label: "Uptime",
-      value: data ? fmtUptime(data.uptime_seconds) : "—",
-      help: "Tiempo desde el último arranque del backend.",
-    },
+  const headerBits = [
+    { icon: <Cpu className="h-3 w-3" />, label: "PID", value: data ? String(data.worker_pid) : "—", help: "ID del proceso del backend." },
+    { icon: <Activity className="h-3 w-3" />, label: "Muestras", value: data ? `${data.samples.in_window}/${data.samples.max}` : "—", help: "Chats en memoria para percentiles." },
+    { icon: <Clock className="h-3 w-3" />, label: "Ventana", value: data ? fmtTtl(data.samples.ttl_seconds) : "—", help: "TTL de cada chat en la ventana." },
+    { icon: <Zap className="h-3 w-3" />, label: "Uptime", value: data ? fmtUptime(data.uptime_seconds) : "—", help: "Tiempo desde el último arranque." },
   ];
 
   return (
     <TooltipProvider delayDuration={250}>
-      <div className="space-y-6 px-1 py-1 pb-10">
-        {/* Header */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-1.5">
+      <div className="space-y-8 px-1 py-1 pb-12 animate-fade-in">
+
+        {/* ── Header ─────────────────────────────────────────────────────────── */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
             <div className="flex items-center gap-3">
               <h1 className="text-xl font-semibold text-foreground">Observabilidad</h1>
               {data && (
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset",
-                    healthStyle.pill,
-                  )}
-                >
-                  <span
-                    className={cn("h-1.5 w-1.5 rounded-full", healthStyle.dot)}
-                    aria-hidden
-                  />
-                  {healthStyle.label}
+                <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                  <span className={cn("h-2 w-2 rounded-full flex-none", hs.dot)} aria-hidden />
+                  {hs.label}
                 </span>
               )}
             </div>
-            <p className="max-w-xl text-sm text-muted-foreground">
-              Estado en vivo del backend: cuántos chats responde, qué tan rápido y dónde
-              se demora. Datos en memoria, ventana móvil de la última hora.
+            <p className="text-sm text-muted-foreground max-w-lg">
+              Estado en vivo — servicios, pipeline RAG, latencias y decisiones del sistema.
             </p>
           </div>
+
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-2 rounded-xl border border-border/60 bg-card px-3 py-1.5">
-              <Switch
-                id="auto-refresh"
-                checked={autoRefresh}
-                onCheckedChange={setAutoRefresh}
-                className="h-5 w-9 [&>span]:h-4 [&>span]:w-4 [&>span[data-state=checked]]:translate-x-4"
-              />
-              <label
-                htmlFor="auto-refresh"
-                className="cursor-pointer text-xs font-medium text-muted-foreground"
-              >
-                Actualizar cada 30 s
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Switch id="auto-refresh" checked={autoRefresh} onCheckedChange={setAutoRefresh}
+                className="h-4 w-8 [&>span]:h-3 [&>span]:w-3 [&>span[data-state=checked]]:translate-x-4" />
+              <label htmlFor="auto-refresh" className="font-heading font-medium uppercase tracking-wider text-[10px] cursor-pointer">
+                30s
               </label>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={isValidating}
-              className="h-8 rounded-xl border-border/60 px-3 text-xs"
-            >
-              <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", isValidating && "animate-spin")} />
-              Actualizar ahora
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isValidating}
+              className="h-7 px-3 text-xs text-muted-foreground hover:text-foreground">
+              <RefreshCw className={cn("mr-1.5 h-3 w-3", isValidating && "animate-spin")} />
+              Actualizar
             </Button>
           </div>
         </div>
 
-        {/* Header info bar */}
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl border border-border/60 bg-muted/30 px-4 py-2.5 text-xs text-muted-foreground">
-          {headerBits.map((bit, i) => (
-            <span key={i} className="inline-flex items-center gap-1.5">
-              <span className="text-muted-foreground/60">{bit.icon}</span>
-              <span className="font-medium text-foreground/80">{bit.label}:</span>
-              <span className="tabular-nums">{bit.value}</span>
-              <InfoTip>{bit.help}</InfoTip>
-            </span>
-          ))}
-          <span className="ml-auto inline-flex items-center gap-1.5">
-            <RefreshCw className={cn("h-3.5 w-3.5 text-muted-foreground/60", isValidating && "animate-spin")} />
-            <span className="font-medium text-foreground/80">Actualizado:</span>
-            <span className="tabular-nums">{fmtClock(lastRefresh)}</span>
-          </span>
-          {data?.tokens?.pending_token_callback && (
-            <Badge
-              variant="secondary"
-              className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-950/30 dark:text-amber-400"
-            >
-              Esperando primer chat
-            </Badge>
-          )}
-        </div>
-
-        {/* Error state */}
+        {/* ── Error ──────────────────────────────────────────────────────────── */}
         {error && !data && (
-          <SectionError
-            message="No se pudo cargar las métricas. Verifica tu conexión y vuelve a intentar."
-            onRetry={handleRefresh}
-          />
+          <SectionError message="No se pudo cargar las métricas. Verifica tu conexión." onRetry={handleRefresh} />
         )}
 
-        {/* KPI cards */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          {kpiCards.map((card) => (
-            <KpiCard key={card.label} {...card} />
-          ))}
-        </div>
-
-        {/* Latency chart */}
+        {/* ── Cuerpo ─────────────────────────────────────────────────────────── */}
         {isLoading && !data ? (
-          <SectionSkeleton height="h-72" />
+          <LoadingSkeleton />
         ) : data ? (
-          <LatencyChart data={data} />
+          <div className="space-y-8">
+
+            {/* 1. Servicios */}
+            <SystemsStatusBar isAuthorized={isAuthorized} />
+
+            <Divider />
+
+            {/* 2. KPIs — tipográficos, sin cards */}
+            <KpiStrip items={kpiItems} loading={isLoading} />
+
+            <Divider />
+
+            {/* 3. Pipeline waterfall */}
+            <PipelineSection data={data} />
+
+            <Divider />
+
+            {/* 4. Throughput + Gating — side by side, sin cards */}
+            <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">
+              <ThroughputSection data={data} />
+              <GatingSection data={data} />
+            </div>
+
+            <Divider />
+
+            {/* 5. Meta info + glosario */}
+            <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-muted-foreground/50">
+              {headerBits.map((bit, i) => (
+                <span key={i} className="inline-flex items-center gap-1.5">
+                  <span>{bit.icon}</span>
+                  <span className="font-heading font-medium uppercase tracking-wide text-[10px]">{bit.label}:</span>
+                  <span className="font-data tabular-nums text-foreground/60">{bit.value}</span>
+                  <InfoTip>{bit.help}</InfoTip>
+                </span>
+              ))}
+              <span className="ml-auto inline-flex items-center gap-1.5">
+                <RefreshCw className={cn("h-3 w-3", isValidating && "animate-spin")} />
+                <span className="font-data tabular-nums text-foreground/50">{fmtClock(lastRefresh)}</span>
+              </span>
+              {data.tokens?.pending_token_callback && (
+                <Badge variant="secondary" className="rounded-full bg-amber-500/10 text-amber-500 text-[10px]">
+                  Esperando primer chat
+                </Badge>
+              )}
+            </div>
+
+            <Glossary />
+
+          </div>
         ) : null}
 
-        {/* Throughput + gating row */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {isLoading && !data ? (
-            <>
-              <SectionSkeleton height="h-56" />
-              <SectionSkeleton height="h-56" />
-            </>
-          ) : data ? (
-            <>
-              <ThroughputTable data={data} />
-              <GatingReasonsChart data={data} />
-            </>
-          ) : null}
-        </div>
-
-        {/* Glossary */}
-        {data && <Glossary />}
       </div>
     </TooltipProvider>
   );

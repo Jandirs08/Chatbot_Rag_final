@@ -9,6 +9,8 @@ from utils.logging_utils import get_logger
 from auth.dependencies import require_admin
 from database.conversation_repository import ConversationRepository
 from database.mongodb import get_mongodb_client
+from services.classification import classify_conversation, regenerate_summary
+from config import settings
 
 from .schemas import AgentMessageRequest, ConversationCard, HandoffStatsResponse, InboxResponse
 
@@ -16,7 +18,7 @@ logger = get_logger(__name__)
 router = APIRouter(tags=["inbox"])
 
 
-def _to_card(doc: dict) -> ConversationCard:
+def _to_card(doc: dict, message_count: Optional[int] = None) -> ConversationCard:
     pending_since: Optional[datetime] = doc.get("pending_since")
     minutes_waiting: Optional[int] = None
     if pending_since is not None:
@@ -30,9 +32,14 @@ def _to_card(doc: dict) -> ConversationCard:
         channel=doc.get("channel", ""),
         external_id=doc.get("external_id", ""),
         mode=doc.get("mode", "bot"),
+        stage=doc.get("stage", "active"),
+        completed_at=doc.get("completed_at"),
         category=doc.get("category"),
         urgency=doc.get("urgency"),
         ai_summary=doc.get("ai_summary"),
+        ai_summary_at=doc.get("ai_summary_at"),
+        ai_summary_at_msg_count=doc.get("ai_summary_at_msg_count"),
+        message_count=message_count,
         assigned_agent_id=doc.get("assigned_agent_id"),
         pending_since=pending_since,
         minutes_waiting=minutes_waiting,
@@ -40,7 +47,30 @@ def _to_card(doc: dict) -> ConversationCard:
         lead_name=doc.get("lead_name"),
         lead_email=doc.get("lead_email"),
         lead_captured_at=doc.get("lead_captured_at"),
+        lead_score=doc.get("lead_score"),
+        product_interests=doc.get("product_interests"),
+        recommended_action=doc.get("recommended_action"),
+        confidence=doc.get("confidence"),
     )
+
+
+async def _count_messages_by_conversation(
+    db, conversation_ids: list[str]
+) -> dict[str, int]:
+    """Single aggregation to get message counts for many conversations at once.
+
+    Avoids N+1 count_documents calls when building the inbox list.
+    """
+    if not conversation_ids:
+        return {}
+    pipeline = [
+        {"$match": {"conversation_id": {"$in": conversation_ids}}},
+        {"$group": {"_id": "$conversation_id", "count": {"$sum": 1}}},
+    ]
+    counts: dict[str, int] = {}
+    async for row in db.messages.aggregate(pipeline):
+        counts[row["_id"]] = int(row.get("count", 0))
+    return counts
 
 
 def _get_conv_repo(request: Request) -> ConversationRepository:
@@ -51,12 +81,21 @@ def _get_conv_repo(request: Request) -> ConversationRepository:
 @router.get("/conversations/inbox", response_model=InboxResponse)
 async def get_inbox(
     request: Request = None,
+    category: Optional[str] = Query(None),
+    min_score: Optional[int] = Query(None, ge=0, le=100),
     _current_user=Depends(require_admin),
 ):
     repo = _get_conv_repo(request)
-    lead_docs = await repo.list_leads()
-    active_docs = await repo.list_all_active()
-    items = [_to_card(d) for d in lead_docs] + [_to_card(d) for d in active_docs]
+    docs = await repo.list_inbox_conversations()
+    if category is not None:
+        docs = [d for d in docs if d.get("category") == category]
+    if min_score is not None:
+        docs = [d for d in docs if (d.get("lead_score") or 0) >= min_score]
+
+    mongodb_client = getattr(request.app.state, "mongodb_client", None) or get_mongodb_client()
+    conv_ids = [d.get("conversation_id") for d in docs if d.get("conversation_id")]
+    counts = await _count_messages_by_conversation(mongodb_client.db, conv_ids)
+    items = [_to_card(d, message_count=counts.get(d.get("conversation_id"))) for d in docs]
     return InboxResponse(items=items, total=len(items))
 
 
@@ -76,6 +115,71 @@ async def get_handoff_stats(
         total=total,
         period_days=days,
     )
+
+
+@router.post("/conversations/{conversation_id}/refresh-summary", response_model=ConversationCard)
+async def refresh_summary_on_demand(
+    conversation_id: str,
+    request: Request = None,
+    _current_user=Depends(require_admin),
+):
+    mongodb_client = getattr(request.app.state, "mongodb_client", None) or get_mongodb_client()
+    result = await regenerate_summary(conversation_id, mongodb_client.db, settings)
+    if result is None:
+        raise HTTPException(status_code=400, detail="No hay mensajes para resumir")
+    repo = _get_conv_repo(request)
+    await repo.set_summary_only(
+        conversation_id,
+        ai_summary=result.summary,
+        msg_count_at_summary=result.msg_count_at_summary,
+    )
+    doc = await repo.get_by_conversation_id(conversation_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    msg_count = await mongodb_client.db.messages.count_documents(
+        {"conversation_id": conversation_id}
+    )
+    return _to_card(doc, message_count=msg_count)
+
+
+@router.post("/conversations/{conversation_id}/complete", response_model=ConversationCard)
+async def complete_conversation(
+    conversation_id: str,
+    request: Request = None,
+    _current_user=Depends(require_admin),
+):
+    repo = _get_conv_repo(request)
+    conv = await repo.get_by_conversation_id(conversation_id)
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    await repo.set_stage(conversation_id, "completed")
+    doc = await repo.get_by_conversation_id(conversation_id)
+    mongodb_client = getattr(request.app.state, "mongodb_client", None) or get_mongodb_client()
+    msg_count = await mongodb_client.db.messages.count_documents(
+        {"conversation_id": conversation_id}
+    )
+    logger.info(f"[Inbox] conv={conversation_id} marked completed")
+    return _to_card(doc, message_count=msg_count)
+
+
+@router.post("/conversations/{conversation_id}/reopen", response_model=ConversationCard)
+async def reopen_conversation(
+    conversation_id: str,
+    request: Request = None,
+    _current_user=Depends(require_admin),
+):
+    repo = _get_conv_repo(request)
+    conv = await repo.get_by_conversation_id(conversation_id)
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    await repo.set_stage(conversation_id, "active")
+    doc = await repo.get_by_conversation_id(conversation_id)
+    mongodb_client = getattr(request.app.state, "mongodb_client", None) or get_mongodb_client()
+    msg_count = await mongodb_client.db.messages.count_documents(
+        {"conversation_id": conversation_id}
+    )
+    logger.info(f"[Inbox] conv={conversation_id} reopened")
+    return _to_card(doc, message_count=msg_count)
 
 
 @router.post("/conversations/{conversation_id}/takeover")

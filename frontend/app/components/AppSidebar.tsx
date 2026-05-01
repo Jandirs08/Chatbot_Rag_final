@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Bot,
   FileText,
   Settings,
   BarChart3,
@@ -99,15 +98,15 @@ export function AppSidebar() {
     <Sidebar className="flex-shrink-0 h-screen transition-all duration-200">
       <SidebarHeader className="px-3 py-4">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-md flex items-center justify-center bg-orange-50 text-orange-600 dark:bg-slate-800 dark:text-orange-400">
-            <Bot className="w-4.5 h-4.5" />
+          <div className="w-8 h-8 rounded-md flex items-center justify-center bg-primary/10 text-primary shrink-0">
+            <span className="font-heading text-base font-bold leading-none select-none" aria-hidden="true">ℵ</span>
           </div>
           <div className={state === "collapsed" ? "hidden" : ""}>
-            <h2 className="text-sm font-semibold text-foreground dark:text-white leading-tight">
-              {botName ?? "Asistente"}
+            <h2 className="text-sm font-heading font-semibold text-foreground leading-tight tracking-tight">
+              {botName ?? "Aleph"}
             </h2>
-            <p className="text-[11px] text-muted-foreground/70 dark:text-slate-500">
-              Panel de control
+            <p className="text-[10px] font-heading font-medium uppercase tracking-[0.07em] text-muted-foreground/50">
+              Asistente IA
             </p>
           </div>
         </div>
@@ -128,7 +127,10 @@ export function AppSidebar() {
                 ...(isAdmin ? [{ title: "Inbox", url: "/admin/inbox", icon: MessageSquare }] : []),
                 ...(isAdmin ? [{ title: "Conversaciones", url: "/admin/conversations", icon: History }] : []),
               ] as MenuItem[]).map((item) => (
-                <SidebarMenuItem key={item.title}>
+                <SidebarMenuItem key={item.title} className="relative">
+                  {isUrlActive(item.url) && (
+                    <span className="absolute left-0 inset-y-1 w-0.5 rounded-r-full bg-primary animate-count-reveal z-10" />
+                  )}
                   <SidebarMenuButton
                     asChild
                     isActive={isUrlActive(item.url)}
@@ -167,7 +169,10 @@ export function AppSidebar() {
                 { title: "Web", url: "/widget", icon: Code },
                 { title: "WhatsApp", url: "/whatsapp-settings", icon: MessageSquareText },
               ] as MenuItem[]).map((item) => (
-                <SidebarMenuItem key={item.title}>
+                <SidebarMenuItem key={item.title} className="relative">
+                  {isUrlActive(item.url) && (
+                    <span className="absolute left-0 inset-y-1 w-0.5 rounded-r-full bg-primary animate-count-reveal z-10" />
+                  )}
                   <SidebarMenuButton
                     asChild
                     isActive={isUrlActive(item.url)}
@@ -204,7 +209,10 @@ export function AppSidebar() {
             <SidebarMenu>
               {([{ title: "Documentos", url: "/docs", icon: FileText }] as MenuItem[]).map(
                 (item) => (
-                  <SidebarMenuItem key={item.title}>
+                  <SidebarMenuItem key={item.title} className="relative">
+                    {isUrlActive(item.url) && (
+                      <span className="absolute left-0 inset-y-1 w-0.5 rounded-r-full bg-primary animate-count-reveal z-10" />
+                    )}
                     <SidebarMenuButton
                       asChild
                       isActive={isUrlActive(item.url)}
@@ -247,7 +255,10 @@ export function AppSidebar() {
                   ...(isAdmin ? [{ title: "Debug Chat", url: "/dashboard/playground", icon: FlaskConical }] : []),
                 ] as MenuItem[]
               ).map((item) => (
-                <SidebarMenuItem key={item.title}>
+                <SidebarMenuItem key={item.title} className="relative">
+                  {isUrlActive(item.url) && (
+                    <span className="absolute left-0 inset-y-1 w-0.5 rounded-r-full bg-primary animate-count-reveal z-10" />
+                  )}
                   <SidebarMenuButton
                     asChild
                     isActive={isUrlActive(item.url)}
@@ -275,7 +286,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="px-3 py-3 border-t border-slate-200 dark:border-slate-800">
+      <SidebarFooter className="px-3 py-3 border-t border-border">
         {user && (
           <div className="space-y-2">
             {state !== "collapsed" && (

@@ -9,9 +9,14 @@ class ConversationCard(BaseModel):
     channel: str
     external_id: str
     mode: str
+    stage: str = "active"
+    completed_at: Optional[datetime] = None
     category: Optional[str]
     urgency: Optional[str]
     ai_summary: Optional[str]
+    ai_summary_at: Optional[datetime] = None
+    ai_summary_at_msg_count: Optional[int] = None
+    message_count: Optional[int] = None
     assigned_agent_id: Optional[str]
     pending_since: Optional[datetime]
     minutes_waiting: Optional[int]
@@ -19,6 +24,10 @@ class ConversationCard(BaseModel):
     lead_name: Optional[str] = None
     lead_email: Optional[str] = None
     lead_captured_at: Optional[datetime] = None
+    lead_score: Optional[int] = None
+    product_interests: Optional[list[str]] = None
+    recommended_action: Optional[str] = None
+    confidence: Optional[float] = None
 
 
 class AgentMessageRequest(BaseModel):

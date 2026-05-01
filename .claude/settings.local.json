@@ -102,7 +102,12 @@
       "Bash(kill %1)",
       "Bash(grep -n \"async def\\\\|finally:\\\\|return$\\\\|raise$\" backend/chat/manager.py)",
       "PowerShell(python -c \"import ast; ast.parse\\(open\\('backend/chat/manager.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
-      "PowerShell(py *)"
+      "PowerShell(py *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Chatbot-final-jandir\\\\Chatbot_Rag_final\\\\frontend\" -Recurse -File)",
+      "Bash(Select-Object FullName)",
+      "Bash(ConvertTo-Json)",
+      "Bash(npx shadcn@latest add sheet --yes)",
+      "Bash(npx shadcn@latest add sheet)"
     ]
   }
 }
