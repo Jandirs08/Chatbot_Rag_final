@@ -33,8 +33,10 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
 
   const isBusy = isLoading || isSubmitting || isRedirecting;
+  const visibleError = error || localError;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -42,6 +44,10 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
       ...prev,
       [name]: value,
     }));
+
+    if (localError) {
+      setLocalError(null);
+    }
 
     if (error) {
       clearError();
@@ -56,10 +62,12 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
     }
 
     if (!formData.email.trim()) {
+      setLocalError("Ingresa tu correo para continuar.");
       return;
     }
 
     if (!formData.password) {
+      setLocalError("Ingresa tu contraseña para continuar.");
       return;
     }
 
@@ -96,20 +104,20 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
           <div role="alert" aria-live="polite" aria-atomic="true">
-            {error && (
+            {visibleError && (
               <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>{visibleError}</AlertDescription>
               </Alert>
             )}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="email">Correo Electrónico</Label>
+            <Label htmlFor="email">Correo electrónico</Label>
             <Input
               id="email"
               name="email"
               type="email"
-              placeholder="Ingresa tu email"
+              placeholder="tu@empresa.com"
               value={formData.email}
               onChange={handleInputChange}
               disabled={isBusy}
@@ -176,7 +184,7 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
                 {isRedirecting ? "Redirigiendo..." : "Iniciando sesión..."}
               </>
             ) : (
-              "Iniciar Sesión"
+              "Iniciar sesión"
             )}
           </Button>
         </CardFooter>

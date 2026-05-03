@@ -26,6 +26,11 @@ from core.tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
+_TOOL_FALLBACK_TEXT = (
+    "No pude usar una herramienta interna para completar esta consulta. "
+    "Por favor, intenta reformular tu mensaje."
+)
+
 
 @dataclass
 class DispatchEvent:
@@ -94,12 +99,26 @@ class _ToolCallAccumulator:
             slot = self._buf[idx]
             if not slot["name"]:
                 continue
+            args_error = False
             try:
                 args_obj = json.loads(slot["args"]) if slot["args"] else {}
             except json.JSONDecodeError:
+                args_error = True
                 args_obj = {}
-            out.append({"name": slot["name"], "args": args_obj, "id": slot["id"]})
+            out.append({
+                "name": slot["name"],
+                "args": args_obj,
+                "id": slot["id"],
+                "args_error": args_error,
+            })
         return out
+
+
+def _tool_error_events(message: str = _TOOL_FALLBACK_TEXT) -> list[DispatchEvent]:
+    return [
+        DispatchEvent(kind="text", text=message),
+        DispatchEvent(kind="end"),
+    ]
 
 
 async def consume_stream(
@@ -145,22 +164,34 @@ async def consume_stream(
             logger.warning("Tool call detected but accumulator empty; falling back to text.")
             if text_buffer:
                 yield DispatchEvent(kind="text", text=text_buffer)
+            else:
+                for event in _tool_error_events():
+                    yield event
+                return
             yield DispatchEvent(kind="end")
             return
 
         # First tool call wins. Multi-tool support is future work.
         call = calls[0]
+        if call.get("args_error"):
+            logger.warning("Model emitted malformed tool args for tool: %s", call["name"])
+            for event in _tool_error_events():
+                yield event
+            return
+
         tool: Optional[ToolDefinition] = reg.get(call["name"])
         if tool is None:
             logger.warning("Model called unknown tool: %s", call["name"])
-            yield DispatchEvent(kind="end")
+            for event in _tool_error_events():
+                yield event
             return
 
         try:
             result: ToolResult = await tool.handler(call["args"], context)
         except Exception as exc:
             logger.error("Tool handler %s failed: %s", tool.name, exc, exc_info=True)
-            yield DispatchEvent(kind="end")
+            for event in _tool_error_events():
+                yield event
             return
 
         if tool.mode == "terminal":

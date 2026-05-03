@@ -150,7 +150,7 @@ async def list_pdfs(
                 filename=p["filename"],
                 path=str(p["path"]),
                 size=p["size"],
-                last_modified=datetime.datetime.fromtimestamp(p["last_modified"]),
+                last_modified=datetime.datetime.fromtimestamp(p["last_modified"], tz=datetime.timezone.utc),
                 ingestion_status=(ingestion_statuses.get(p["filename"]) or {}).get("status", "ready"),
                 ingestion_error=(ingestion_statuses.get(p["filename"]) or {}).get("error"),
                 ingestion_updated_at=(ingestion_statuses.get(p["filename"]) or {}).get("updated_at"),

@@ -103,6 +103,7 @@ class ConversationRepository:
         urgency: str,
         ai_summary: str,
         lead_score: Optional[int] = None,
+        purchase_intent: Optional[int] = None,
         product_interests: Optional[list] = None,
         recommended_action: Optional[str] = None,
         confidence: Optional[float] = None,
@@ -118,6 +119,8 @@ class ConversationRepository:
         }
         if lead_score is not None:
             fields["lead_score"] = lead_score
+        if purchase_intent is not None:
+            fields["purchase_intent"] = purchase_intent
         if product_interests is not None:
             fields["product_interests"] = product_interests
         if recommended_action is not None:
@@ -174,6 +177,28 @@ class ConversationRepository:
     async def list_all_active(self) -> list:
         coll = self.mongodb_client.db[self.collection_name]
         return await coll.find({"mode": "human"}).to_list(length=500)
+
+    async def atomic_takeover(self, conversation_id: str, agent_id: str) -> Optional[dict]:
+        """Atomically claim a conversation from bot/pending. Returns updated doc or None if already in human mode."""
+        coll = self.mongodb_client.db[self.collection_name]
+        now = datetime.now(timezone.utc)
+        return await coll.find_one_and_update(
+            {"conversation_id": conversation_id, "mode": {"$ne": "human"}},
+            {"$set": {"mode": "human", "assigned_agent_id": agent_id, "pending_since": None, "updated_at": now}},
+            return_document=ReturnDocument.AFTER,
+        )
+
+    async def mark_viewed(self, conversation_id: str, agent_id: str) -> None:
+        coll = self.mongodb_client.db[self.collection_name]
+        now = datetime.now(timezone.utc)
+        await coll.update_one(
+            {"conversation_id": conversation_id},
+            {"$set": {"viewed_at": now, "viewed_by": agent_id, "updated_at": now}},
+        )
+
+    async def find_by_lead_email(self, email: str) -> Optional[dict]:
+        coll = self.mongodb_client.db[self.collection_name]
+        return await coll.find_one({"lead_email": email})
 
     async def set_lead(self, conversation_id: str, lead_name: str, lead_email: str) -> None:
         coll = self.mongodb_client.db[self.collection_name]

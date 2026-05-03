@@ -145,7 +145,7 @@ export const authService = {
       });
 
       if (!response.ok) {
-        throw await parseApiError(response, "Error al iniciar sesion");
+        throw await parseApiError(response, "Error al iniciar sesión");
       }
 
       const authData: AuthResponse = await response.json();
@@ -160,7 +160,7 @@ export const authService = {
       });
 
       if (!cookieResponse.ok) {
-        throw new Error("No se pudo persistir la sesion");
+        throw new Error("No se pudo persistir la sesión");
       }
 
       TokenManager.setTokens(

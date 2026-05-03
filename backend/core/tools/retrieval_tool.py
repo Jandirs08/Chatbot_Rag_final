@@ -10,10 +10,11 @@ import hashlib
 import json
 import logging
 import time
-from typing import Optional
+from typing import Any, Optional
 
 from cache.manager import cache as _cache
 from core.request_context import get_request_context
+from rag.corpus_state import get_corpus_cache_version
 from .base import ToolContext, ToolDefinition, ToolResult
 
 logger = logging.getLogger(__name__)
@@ -136,12 +137,68 @@ def _build_cache_key(query: str, k: int) -> str:
     return f"{SEARCH_TOOL_NAME}:" + json.dumps(payload, sort_keys=True, ensure_ascii=False)
 
 
-_CROSS_TURN_PREFIX = "retrieval_tool:v1:"
+_CROSS_TURN_PREFIX = "retrieval_tool:v2:"
 
 
-def _build_cross_turn_key(query: str, k: int) -> str:
-    canonical = query.lower().strip()
-    digest = hashlib.sha256(f"{canonical}:{k}".encode()).hexdigest()
+def _safe_attr(obj: Any, name: str) -> Any:
+    try:
+        return getattr(obj, name, None)
+    except Exception:
+        return None
+
+
+def _resolve_collection_name(obj: Any) -> Any:
+    if obj is None:
+        return None
+    for attr in ("collection_name", "_collection_name", "documents_collection_name"):
+        value = _safe_attr(obj, attr)
+        if value:
+            return value
+    client = _safe_attr(obj, "client")
+    if client is not None:
+        for attr in ("collection_name", "_collection_name"):
+            value = _safe_attr(client, attr)
+            if value:
+                return value
+    return None
+
+
+def _build_retriever_scope(retriever: Any, ctx: ToolContext) -> str:
+    """Stable-ish scope so cached tool context cannot leak across corpora.
+
+    Production retrievers expose collection/repository names. Unit-test stubs do
+    not, so the object id fallback intentionally prevents cross-test pollution
+    without affecting live retrievers that have a real storage scope.
+    """
+    extra = ctx.extra or {}
+    explicit = extra.get("retrieval_cache_scope") or extra.get("tenant_id") or extra.get("bot_id")
+    if explicit:
+        return str(explicit)
+
+    vector_store = _safe_attr(retriever, "child_vector_store") or _safe_attr(retriever, "vector_store")
+    parent_repo = _safe_attr(retriever, "parent_repository")
+    lexical_repo = _safe_attr(retriever, "lexical_repository")
+    parts = {
+        "retriever": type(retriever).__name__,
+        "vector_collection": _resolve_collection_name(vector_store),
+        "parent_collection": _resolve_collection_name(parent_repo),
+        "lexical_collection": _resolve_collection_name(lexical_repo),
+    }
+    if any(value for key, value in parts.items() if key != "retriever"):
+        raw = json.dumps(parts, sort_keys=True, ensure_ascii=True, separators=(",", ":"))
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    return f"{type(retriever).__name__}:{id(retriever)}"
+
+
+def _build_cross_turn_key(query: str, k: int, retriever: Any, ctx: ToolContext) -> str:
+    payload = {
+        "corpus_version": get_corpus_cache_version(),
+        "scope": _build_retriever_scope(retriever, ctx),
+        "q": query.lower().strip(),
+        "k": int(k),
+    }
+    raw_payload = json.dumps(payload, sort_keys=True, ensure_ascii=True, separators=(",", ":"))
+    digest = hashlib.sha256(raw_payload.encode("utf-8")).hexdigest()
     return f"{_CROSS_TURN_PREFIX}{digest}"
 
 
@@ -174,7 +231,7 @@ async def _handler(args: dict, ctx: ToolContext) -> ToolResult:
 
     # Cross-turn cache: keyed on original query (pre-expansion) so the same
     # user question hits regardless of conversation history changing the expansion.
-    cross_key = _build_cross_turn_key(query, k)
+    cross_key = _build_cross_turn_key(query, k, retriever, ctx)
     cross_cached = await _cache.aget(cross_key)
     if cross_cached is not None:
         logger.info(

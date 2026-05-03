@@ -25,9 +25,13 @@ class ConversationCard(BaseModel):
     lead_email: Optional[str] = None
     lead_captured_at: Optional[datetime] = None
     lead_score: Optional[int] = None
+    purchase_intent: Optional[int] = None
     product_interests: Optional[list[str]] = None
     recommended_action: Optional[str] = None
     confidence: Optional[float] = None
+    viewed_at: Optional[datetime] = None
+    last_user_message: Optional[str] = None
+    last_user_message_at: Optional[datetime] = None
 
 
 class AgentMessageRequest(BaseModel):

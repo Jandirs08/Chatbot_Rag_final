@@ -148,6 +148,51 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function getLoginErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 401) {
+      const inactive = error.message.toLowerCase().includes("inactive");
+      return inactive
+        ? "Tu usuario está inactivo. Pide a un administrador que reactive la cuenta."
+        : "Correo o contraseña incorrectos. Revisa los datos e inténtalo otra vez.";
+    }
+
+    if (error.status === 403) {
+      return "No tienes permisos para entrar al panel. Usa una cuenta autorizada.";
+    }
+
+    if (error.status === 429) {
+      return "Demasiados intentos seguidos. Espera un momento antes de volver a intentar.";
+    }
+
+    if (error.status >= 500) {
+      return "El servidor no pudo procesar el inicio de sesión. Revisa que el backend esté activo.";
+    }
+
+    return error.message || "No se pudo iniciar sesión. Revisa los datos e inténtalo otra vez.";
+  }
+
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return "Estamos tardando más de lo normal. Inténtalo nuevamente en unos segundos.";
+  }
+
+  if (error instanceof TypeError) {
+    return "No pudimos conectarnos en este momento. Inténtalo nuevamente en unos segundos.";
+  }
+
+  if (error instanceof Error) {
+    if (
+      error.message === "No se pudo persistir la sesión" ||
+      error.message === "No se pudo persistir la sesion"
+    ) {
+      return "El login fue válido, pero no se pudo guardar la sesión en el navegador. Recarga la página e inténtalo otra vez.";
+    }
+    return error.message || "No se pudo iniciar sesión.";
+  }
+
+  return "No se pudo iniciar sesión. Inténtalo otra vez.";
+}
+
 interface AuthProviderProps {
   children: ReactNode;
   initialSession?: AuthSessionSnapshot | null;
@@ -328,9 +373,7 @@ export function AuthProvider({
         },
       });
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Login failed";
-      dispatch({ type: "AUTH_FAILURE", payload: errorMessage });
+      dispatch({ type: "AUTH_FAILURE", payload: getLoginErrorMessage(error) });
       throw error;
     }
   };

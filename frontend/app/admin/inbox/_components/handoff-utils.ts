@@ -1,21 +1,24 @@
-export type ConversationCategory = "oportunidad" | "interes" | "requiere_atencion" | null;
+export type ConversationCategory = "informacion" | "comercial" | "soporte" | "sin_valor" | null;
 export type ConversationUrgency = "alta" | "media" | "baja" | null;
 
 // ── Category helpers ──────────────────────────────────────────────────────────
 
 export const CATEGORY_LABEL: Record<NonNullable<ConversationCategory>, string> = {
-  oportunidad: "Oportunidad",
-  interes: "Interés",
-  requiere_atencion: "Atención",
+  informacion: "Información",
+  comercial: "Comercial",
+  soporte: "Soporte",
+  sin_valor: "Sin valor",
 };
 
 export const CATEGORY_CLASS: Record<NonNullable<ConversationCategory>, string> = {
-  oportunidad:
-    "border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/50 dark:text-red-300",
-  interes:
+  informacion:
+    "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/50 dark:bg-sky-950/50 dark:text-sky-300",
+  comercial:
+    "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/50 dark:text-emerald-300",
+  soporte:
     "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/50 dark:text-amber-300",
-  requiere_atencion:
-    "border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900/50 dark:bg-orange-950/50 dark:text-orange-300",
+  sin_valor:
+    "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-900/50 dark:bg-slate-950/50 dark:text-slate-300",
 };
 
 // ── Urgency helpers ───────────────────────────────────────────────────────────

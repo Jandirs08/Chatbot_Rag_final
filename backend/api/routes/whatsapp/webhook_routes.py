@@ -11,6 +11,7 @@ from utils.whatsapp.client import WhatsAppClient
 from utils.whatsapp.idempotency import claim_message
 from utils.whatsapp.rate_limit import check_and_increment, should_notify_once
 from config import settings
+from core.tools import registry as tool_registry
 import httpx
 import re
 from auth import require_admin
@@ -48,6 +49,7 @@ async def _run_classification(conversation_id: str, app_state) -> None:
             urgency=result.urgency,
             ai_summary=result.summary,
             lead_score=result.lead_score,
+            purchase_intent=result.purchase_intent,
             product_interests=result.product_interests,
             recommended_action=result.recommended_action,
             confidence=result.confidence,
@@ -55,6 +57,13 @@ async def _run_classification(conversation_id: str, app_state) -> None:
         )
     except Exception as e:
         logger.error(f"[Classification] Background task error for conv={conversation_id}: {e}")
+
+
+def _agentic_path_enabled() -> bool:
+    return (
+        bool(getattr(settings, "enable_agentic_handoff", False) or getattr(settings, "enable_agentic_rag", False))
+        and tool_registry.has_tools()
+    )
 
 
 async def process_message_background(
@@ -76,15 +85,35 @@ async def process_message_background(
         # HandOff guard: if conversation is in human/pending mode, skip LLM
         if conv and conv.get("mode") in ("human", "pending"):
             logger.info(f"[HandOff] conv={conversation_id} mode={conv.get('mode')}, skipping LLM")
+            client = WhatsAppClient()
+            await client.send_text(
+                wa_id,
+                "Tu consulta está siendo atendida por un asesor. En breve te contactarán.",
+            )
             return
 
-        # 1. Generar respuesta con el LLM
+        # 1. Generar respuesta con el LLM. Web y WhatsApp comparten el mismo
+        # flujo agentic cuando las tools estan habilitadas.
         chat_manager = app_state.chat_manager
-        response_text = await chat_manager.generate_response(
-            input_text=text,
-            conversation_id=conversation_id,
-            source="whatsapp",
-        )
+        if _agentic_path_enabled():
+            agentic_result = await chat_manager.generate_agentic_response(
+                input_text=text,
+                conversation_id=conversation_id,
+                source="whatsapp",
+                app_state=app_state,
+            )
+            response_text = agentic_result.text
+            if agentic_result.terminal_event == "lead_form":
+                await conv_repo.set_mode(conversation_id, "pending")
+        else:
+            response_text = await chat_manager.generate_response(
+                input_text=text,
+                conversation_id=conversation_id,
+                source="whatsapp",
+            )
+
+        if not response_text:
+            response_text = "No pude completar tu consulta en este momento. Por favor, intenta nuevamente."
 
         # 2. Formatear y enviar
         formatted_text = format_text(response_text)

@@ -8,11 +8,6 @@ from collections import defaultdict
 from dataclasses import replace
 from typing import Any, Dict, Optional
 
-_INJECTION_PATTERN = re.compile(
-    r"</?(context|instructions|forbidden|system|system_personality|history)[^>]*>",
-    re.IGNORECASE,
-)
-
 from langchain_core.documents import Document
 
 from config import settings
@@ -21,7 +16,7 @@ from database import LexicalSearchHit
 from rag.ingestion.models import ParentDocument
 
 from .reranker import BaseParentReranker, ParentCandidate
-from .retriever import NO_CONTEXT_MESSAGE, RAGRetriever, RetrievalBackendUnavailableError
+from .retriever import NO_CONTEXT_MESSAGE, RAGRetriever, RetrievalBackendUnavailableError, sanitize_doc_content, sanitize_metadata_field
 
 logger = logging.getLogger(__name__)
 
@@ -635,8 +630,7 @@ class HierarchicalRetriever(RAGRetriever):
 
     @staticmethod
     def _sanitize_content(text: str) -> str:
-        """Strip XML tags that could escape the <context> boundary and inject instructions."""
-        return _INJECTION_PATTERN.sub("[REDACTED]", text or "")
+        return sanitize_doc_content(text)
 
     def format_context_from_documents(self, documents: list[Document]) -> str:
         if not documents:
@@ -645,9 +639,11 @@ class HierarchicalRetriever(RAGRetriever):
         parts = ["Informacion relevante encontrada (contexto jerarquico):"]
         for doc in documents:
             metadata = doc.metadata or {}
+            source = sanitize_metadata_field(metadata.get("source") or "")
+            section = sanitize_metadata_field(metadata.get("section_title") or "sin seccion")
             parts.append(
-                f"[Documento: {metadata.get('source')}, paginas {metadata.get('page_start')}-{metadata.get('page_end')}, "
-                f"seccion: {metadata.get('section_title') or 'sin seccion'}, "
+                f"[Documento: {source}, paginas {metadata.get('page_start')}-{metadata.get('page_end')}, "
+                f"seccion: {section}, "
                 f"modo_contexto: {metadata.get('context_mode') or 'parent_full'}]"
             )
             parts.append(self._sanitize_content(doc.page_content).strip())
@@ -656,10 +652,11 @@ class HierarchicalRetriever(RAGRetriever):
             if child_hits:
                 parts.append("Fragmentos activadores:")
                 for index, child in enumerate(child_hits[:3], start=1):
+                    preview = sanitize_metadata_field(child.get("preview") or "")
                     parts.append(
                         f"{index}. paginas {child.get('page_start')}-{child.get('page_end')} | "
                         f"hybrid_score={float(child.get('score', 0.0) or 0.0):.4f} | "
-                        f"{str(child.get('preview') or '').strip()}"
+                        f"{preview}"
                     )
             parts.append("")
 

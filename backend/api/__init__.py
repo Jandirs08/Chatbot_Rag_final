@@ -1,6 +1,8 @@
-"""API module for the chatbot application."""
+"""API package.
 
-# Exportar únicamente la fábrica de la aplicación; los routers se registran en app.py
-from .app import create_app
+Keep this module side-effect free. Importing `api.schemas` must not initialize
+the FastAPI app, otherwise lower-level modules can hit circular imports.
+Import `create_app` from `api.app` directly.
+"""
 
-__all__ = ["create_app"]
+__all__: list[str] = []

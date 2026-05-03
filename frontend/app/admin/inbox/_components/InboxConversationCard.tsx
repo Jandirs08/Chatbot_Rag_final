@@ -36,11 +36,15 @@ export type InboxConversation = {
   lead_email?: string | null;
   lead_captured_at?: string | null;
   lead_score?: number | null;
+  purchase_intent?: number | null;
   product_interests?: string[] | null;
   recommended_action?: string | null;
   confidence?: number | null;
   stage?: InboxStage | null;
   completed_at?: string | null;
+  viewed_at?: string | null;
+  last_user_message?: string | null;
+  last_user_message_at?: string | null;
 };
 
 interface InboxConversationCardProps {
@@ -51,6 +55,7 @@ interface InboxConversationCardProps {
   onSelect: (id: string) => void;
   onTakeover: (id: string) => void;
   onRelease: (id: string) => void;
+  onMarkViewed?: (id: string) => void;
 }
 
 const MODE_DOT: Record<InboxMode, string> = {
@@ -81,6 +86,7 @@ export function InboxConversationCard({
   onSelect,
   onTakeover,
   onRelease,
+  onMarkViewed,
 }: InboxConversationCardProps) {
   const {
     conversation_id,
@@ -96,7 +102,23 @@ export function InboxConversationCard({
     pending_since,
     minutes_waiting,
     assigned_agent_id,
+    viewed_at,
+    last_user_message,
+    last_user_message_at,
+    ai_summary,
   } = conversation;
+
+  // Card is considered "seen" when viewed_at >= last_user_message_at
+  // (no new user message arrived after the agent marked it viewed).
+  const isSeen = (() => {
+    if (!viewed_at) return false;
+    if (!last_user_message_at) return true;
+    try {
+      return new Date(viewed_at).getTime() >= new Date(last_user_message_at).getTime();
+    } catch {
+      return false;
+    }
+  })();
 
   const initials = getInitials(lead_name, conversation_id);
   const avatarBg = colorFromId(conversation_id);
@@ -156,6 +178,7 @@ export function InboxConversationCard({
           "transition-[transform,box-shadow,border-color,background-color,opacity] duration-150 ease-out",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1 focus-visible:ring-offset-background",
           isMutating && "pointer-events-none opacity-60",
+          isSeen && !isActive && "opacity-65 hover:opacity-100",
           isActive
             ? "border-primary/40 bg-primary/[0.05] shadow-[0_0_0_2px_hsl(var(--primary)/0.18)]"
             : isCompleted
@@ -289,6 +312,28 @@ export function InboxConversationCard({
               </span>
             )}
           </div>
+        )}
+
+        {/* Last user message — scannable context */}
+        {last_user_message && (
+          <div className="mt-2 flex min-w-0 items-start gap-1.5">
+            {!isSeen && (
+              <span
+                className="mt-1 h-1.5 w-1.5 flex-none rounded-full bg-sky-500"
+                title="No visto"
+              />
+            )}
+            <p className="line-clamp-2 min-w-0 flex-1 break-words text-[11px] leading-snug text-foreground/80">
+              {last_user_message}
+            </p>
+          </div>
+        )}
+
+        {/* AI summary — first line only as preview */}
+        {ai_summary && (
+          <p className="mt-1.5 line-clamp-1 break-words text-[10px] italic text-muted-foreground">
+            {ai_summary}
+          </p>
         )}
 
         {/* Action button */}

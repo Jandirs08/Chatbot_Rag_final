@@ -102,35 +102,35 @@ const COLUMNS: KanbanColumnDef[] = [
     emptyLabel: "Sin conversaciones",
   },
   {
-    key: "interes",
-    label: "Interés",
+    key: "informacion",
+    label: "Información",
     headerBg: "bg-sky-500 dark:bg-sky-700",
     headerText: "text-white",
     colBg: "bg-sky-50/70 dark:bg-sky-950/20",
     dotClass: "bg-sky-500",
-    emptyLabel: "Sin leads de interés",
+    emptyLabel: "Sin consultas informativas",
   },
   {
-    key: "oportunidad",
-    label: "Oportunidad",
+    key: "comercial",
+    label: "Comercial",
     headerBg: "bg-emerald-600 dark:bg-emerald-700",
     headerText: "text-white",
     colBg: "bg-emerald-50/70 dark:bg-emerald-950/20",
     dotClass: "bg-emerald-500",
-    emptyLabel: "Sin oportunidades",
+    emptyLabel: "Sin oportunidades comerciales",
   },
   {
-    key: "requiere_atencion",
-    label: "Requiere Atención",
+    key: "soporte",
+    label: "Soporte",
     headerBg: "bg-amber-500 dark:bg-amber-700",
     headerText: "text-white",
     colBg: "bg-amber-50/70 dark:bg-amber-950/20",
     dotClass: "bg-amber-500",
-    emptyLabel: "Sin conversaciones urgentes",
+    emptyLabel: "Sin casos de soporte",
   },
   {
-    key: "sin_interes",
-    label: "Sin Interés",
+    key: "sin_valor",
+    label: "Sin valor",
     headerBg: "bg-slate-400 dark:bg-slate-700",
     headerText: "text-white",
     colBg: "bg-slate-50/50 dark:bg-slate-900/15",
@@ -508,6 +508,7 @@ interface KanbanColumnProps {
   onSelect: (id: string) => void;
   onTakeover: (id: string) => void;
   onRelease: (id: string) => void;
+  onMarkViewed: (id: string) => void;
   // Drag-drop coordination from parent
   isDragActive: boolean;
   draggedFromCompleted: boolean;
@@ -523,6 +524,7 @@ function KanbanColumn({
   onSelect,
   onTakeover,
   onRelease,
+  onMarkViewed,
   isDragActive,
   draggedFromCompleted,
 }: KanbanColumnProps) {
@@ -593,6 +595,7 @@ function KanbanColumn({
               onSelect={onSelect}
               onTakeover={onTakeover}
               onRelease={onRelease}
+              onMarkViewed={onMarkViewed}
             />
           ))
         )}
@@ -746,6 +749,17 @@ function InboxContent() {
     ? channelParam
     : "todos";
   const activeDatos: DatosKey = isDatosKey(datosParam) ? datosParam : "todos";
+  const [onlyUnseen, setOnlyUnseen] = useState(false);
+
+  const isCardSeen = useCallback((c: InboxConversation): boolean => {
+    if (!c.viewed_at) return false;
+    if (!c.last_user_message_at) return true;
+    try {
+      return new Date(c.viewed_at).getTime() >= new Date(c.last_user_message_at).getTime();
+    } catch {
+      return false;
+    }
+  }, []);
 
   const updateParams = useCallback(
     (next: { tab?: TabKey; canal?: ChannelKey; datos?: DatosKey }) => {
@@ -808,6 +822,8 @@ function InboxContent() {
       // Datos filter (lead captured vs anonymous)
       if (activeDatos === "leads" && !c.lead_email) return false;
       if (activeDatos === "sin_datos" && c.lead_email) return false;
+      // Unseen-only filter
+      if (onlyUnseen && isCardSeen(c)) return false;
       // Tab filter
       if (activeTab === "pendientes") return c.mode === "pending";
       if (activeTab === "mias")
@@ -815,7 +831,7 @@ function InboxContent() {
       if (activeTab === "bot") return c.mode === "bot";
       return true;
     });
-  }, [conversations, activeTab, activeChannel, activeDatos, agentId]);
+  }, [conversations, activeTab, activeChannel, activeDatos, agentId, onlyUnseen, isCardSeen]);
 
   // Tab counts use channel + datos filters so the chips don't lie about distribution
   const tabCounts: Record<TabKey, number> = useMemo(() => {
@@ -838,6 +854,11 @@ function InboxContent() {
   }, [conversations, activeChannel, activeDatos, agentId]);
 
   const totalFiltered = filteredConversations.length;
+
+  // Count of unseen conversations across the inbox (ignores onlyUnseen toggle so the badge stays meaningful).
+  const unseenCount = useMemo(() => {
+    return conversations.filter((c) => !isCardSeen(c)).length;
+  }, [conversations, isCardSeen]);
 
   const selectedConversation = useMemo(
     () =>
@@ -881,10 +902,28 @@ function InboxContent() {
     setSheetOpen(true);
   }, []);
 
-  const handleSheetClose = useCallback((open: boolean) => {
-    setSheetOpen(open);
-    if (!open) setSelectedId(null);
-  }, []);
+  const handleSheetClose = useCallback(
+    (open: boolean) => {
+      setSheetOpen(open);
+      if (!open) {
+        // Auto-mark viewed when the sheet closes (the agent had a chance to read it).
+        const closedId = selectedId;
+        if (closedId && agentId) {
+          inboxService
+            .markViewed(closedId)
+            .catch((err) => {
+              console.warn("[markViewed] failed:", err);
+            })
+            .finally(() => {
+              // Always refresh — corrects UI even when the POST failed.
+              refreshList();
+            });
+        }
+        setSelectedId(null);
+      }
+    },
+    [selectedId, agentId, refreshList],
+  );
 
   const handleTakeover = async (conversationId: string) => {
     if (!agentId) return;
@@ -892,12 +931,16 @@ function InboxContent() {
     try {
       await inboxService.takeover(conversationId);
       await refreshList();
-    } catch {
+    } catch (err) {
+      const isConflict = err instanceof Error && err.message === "ALREADY_TAKEN";
       toast({
-        title: "Error",
-        description: "No se pudo tomar la conversación.",
+        title: isConflict ? "Conversación no disponible" : "Error",
+        description: isConflict
+          ? "Otro agente ya tomó esta conversación."
+          : "No se pudo tomar la conversación.",
         variant: "destructive",
       });
+      if (isConflict) await refreshList();
     } finally {
       setMutatingId(null);
     }
@@ -919,6 +962,20 @@ function InboxContent() {
       });
     } finally {
       setMutatingId(null);
+    }
+  };
+
+  const handleMarkViewed = async (conversationId: string) => {
+    if (!agentId) return;
+    try {
+      await inboxService.markViewed(conversationId);
+      await refreshList();
+    } catch {
+      toast({
+        title: "Error",
+        description: "No se pudo marcar como visto.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -1097,6 +1154,35 @@ function InboxContent() {
               className="hidden h-4 w-px bg-border/60 sm:inline-block"
             />
             <DataChips active={activeDatos} onChange={setActiveDatos} />
+            <span
+              aria-hidden="true"
+              className="hidden h-4 w-px bg-border/60 sm:inline-block"
+            />
+            <button
+              type="button"
+              onClick={() => setOnlyUnseen((v) => !v)}
+              aria-pressed={onlyUnseen}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 font-heading text-[11px] font-medium transition-colors",
+                onlyUnseen
+                  ? "border-sky-500/60 bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300"
+                  : "border-border/60 bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground",
+              )}
+              title="Mostrar solo conversaciones con mensajes nuevos sin ver"
+            >
+              <span
+                className={cn(
+                  "h-1.5 w-1.5 rounded-full",
+                  onlyUnseen ? "bg-sky-500" : "bg-muted-foreground/40",
+                )}
+              />
+              Solo no vistos
+              {unseenCount > 0 && (
+                <span className="rounded-sm bg-sky-500/20 px-1 font-mono text-[10px] font-bold tabular-nums text-sky-700 dark:text-sky-300">
+                  {unseenCount}
+                </span>
+              )}
+            </button>
             <div className="flex-1" />
             <TabsStrip
               active={activeTab}
@@ -1154,6 +1240,7 @@ function InboxContent() {
                           onSelect={handleSelect}
                           onTakeover={handleTakeover}
                           onRelease={handleRelease}
+                          onMarkViewed={handleMarkViewed}
                           isDragActive={draggedConv != null}
                           draggedFromCompleted={draggedFromCompleted}
                         />
@@ -1195,6 +1282,7 @@ function InboxContent() {
                               onSelect={handleSelect}
                               onTakeover={handleTakeover}
                               onRelease={handleRelease}
+                              onMarkViewed={handleMarkViewed}
                             />
                           ))
                         )}
@@ -1216,6 +1304,7 @@ function InboxContent() {
                   onSelect={() => {}}
                   onTakeover={() => {}}
                   onRelease={() => {}}
+                  onMarkViewed={() => {}}
                 />
               </div>
             ) : null}

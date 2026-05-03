@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import re
 import statistics
 import time
 from collections import deque
@@ -22,6 +23,50 @@ from ..vector_store.vector_store import VectorStore, VectorStoreUnavailableError
 from .gating import CheapGateDecision, cheap_gate
 
 logger = logging.getLogger(__name__)
+
+# Tags that could escape the <context> prompt boundary and inject instructions.
+_INJECTION_TAG_PATTERN = re.compile(
+    r"</?(context|instructions?|forbidden|system(_personality)?|history|"
+    r"user_input|input_safety|computation_rules|prompt|persona|"
+    r"jailbreak|injection|override|command|assistant|tool)[^>]*>",
+    re.IGNORECASE,
+)
+
+# Plain-text instruction-injection phrases embedded in document content.
+_INJECTION_TEXT_PATTERN = re.compile(
+    r"(?:"
+    # English imperative forms (high-specificity jailbreak phrases)
+    r"ignore\s+all\s+(previous|prior|above)\s+instructions?"
+    r"|disregard\s+all\s+(previous|prior|above)\s+instructions?"
+    r"|forget\s+all\s+(previous\s+)?instructions?"
+    r"|you\s+are\s+now\s+(?:a\s+|an\s+)?\w+"
+    r"|new\s+instructions?:\s*"
+    r"|\[?SYSTEM\]?:\s*"
+    r"|###\s*(?:system|instruction|prompt|task)"
+    # Spanish: require "todas las" or "tus" to reduce false positives on "ignora las X anteriores" in legitimate text
+    r"|ignora\s+(?:todas?\s+las\s+|tus\s+)instrucciones?\s+anteriores?"
+    r"|olvida\s+(?:todas?\s+)?(?:tus\s+|mis\s+)?instrucciones?\s+anteriores?"
+    r"|nuevas?\s+instrucciones?:\s*"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def sanitize_doc_content(text: str) -> str:
+    """Remove XML boundary-escape tags and instruction-injection patterns from retrieved document text."""
+    if not text:
+        return ""
+    text = _INJECTION_TAG_PATTERN.sub("[FILTERED]", text)
+    text = _INJECTION_TEXT_PATTERN.sub("[FILTERED]", text)
+    return text
+
+
+def sanitize_metadata_field(value: object) -> str:
+    """Sanitize a metadata string: collapse newlines and remove injection tags."""
+    text = str(value) if value is not None else ""
+    text = text.replace("\n", " ").replace("\r", " ")
+    return _INJECTION_TAG_PATTERN.sub("[FILTERED]", text)
+
 
 RETRIEVAL_CACHE_PREFIX = "rag:retrieval:"
 RETRIEVAL_UNAVAILABLE_MESSAGE = (
@@ -853,14 +898,14 @@ class RAGRetriever:
         emit_doc_marker = len(documents) > 1
 
         def _format_chunk(doc: Document) -> str:
-            content = doc.page_content.strip()
-            source = doc.metadata.get("source")
+            content = sanitize_doc_content(doc.page_content.strip())
+            source = sanitize_metadata_field(doc.metadata.get("source") or "")
             page_number = doc.metadata.get("page_number")
             source_parts = []
             if source:
-                source_parts.append(str(source))
+                source_parts.append(source)
             if page_number is not None and str(page_number).strip():
-                source_parts.append(f"pagina {page_number}")
+                source_parts.append(f"pagina {sanitize_metadata_field(page_number)}")
             counter["value"] += 1
             header_lines: list[str] = []
             if emit_doc_marker:

@@ -18,7 +18,14 @@ logger = get_logger(__name__)
 router = APIRouter(tags=["inbox"])
 
 
-def _to_card(doc: dict, message_count: Optional[int] = None) -> ConversationCard:
+_LAST_USER_MSG_MAX_CHARS = 200
+
+
+def _to_card(
+    doc: dict,
+    message_count: Optional[int] = None,
+    last_user_message: Optional[dict] = None,
+) -> ConversationCard:
     pending_since: Optional[datetime] = doc.get("pending_since")
     minutes_waiting: Optional[int] = None
     if pending_since is not None:
@@ -26,6 +33,16 @@ def _to_card(doc: dict, message_count: Optional[int] = None) -> ConversationCard
             pending_since = pending_since.replace(tzinfo=timezone.utc)
         delta = datetime.now(timezone.utc) - pending_since
         minutes_waiting = int(delta.total_seconds() // 60)
+
+    last_msg_text: Optional[str] = None
+    last_msg_at: Optional[datetime] = None
+    if last_user_message:
+        raw = (last_user_message.get("content") or "").strip()
+        if raw:
+            last_msg_text = raw[:_LAST_USER_MSG_MAX_CHARS]
+            if len(raw) > _LAST_USER_MSG_MAX_CHARS:
+                last_msg_text += "…"
+        last_msg_at = last_user_message.get("timestamp")
 
     return ConversationCard(
         conversation_id=doc.get("conversation_id", ""),
@@ -48,9 +65,13 @@ def _to_card(doc: dict, message_count: Optional[int] = None) -> ConversationCard
         lead_email=doc.get("lead_email"),
         lead_captured_at=doc.get("lead_captured_at"),
         lead_score=doc.get("lead_score"),
+        purchase_intent=doc.get("purchase_intent"),
         product_interests=doc.get("product_interests"),
         recommended_action=doc.get("recommended_action"),
         confidence=doc.get("confidence"),
+        viewed_at=doc.get("viewed_at"),
+        last_user_message=last_msg_text,
+        last_user_message_at=last_msg_at,
     )
 
 
@@ -71,6 +92,27 @@ async def _count_messages_by_conversation(
     async for row in db.messages.aggregate(pipeline):
         counts[row["_id"]] = int(row.get("count", 0))
     return counts
+
+
+async def _last_user_messages_by_conversation(
+    db, conversation_ids: list[str]
+) -> dict[str, dict]:
+    """Fetch the most recent user message per conversation in one aggregation."""
+    if not conversation_ids:
+        return {}
+    pipeline = [
+        {"$match": {"conversation_id": {"$in": conversation_ids}, "role": "user"}},
+        {"$sort": {"timestamp": -1}},
+        {"$group": {
+            "_id": "$conversation_id",
+            "content": {"$first": "$content"},
+            "timestamp": {"$first": "$timestamp"},
+        }},
+    ]
+    out: dict[str, dict] = {}
+    async for row in db.messages.aggregate(pipeline):
+        out[row["_id"]] = {"content": row.get("content"), "timestamp": row.get("timestamp")}
+    return out
 
 
 def _get_conv_repo(request: Request) -> ConversationRepository:
@@ -95,7 +137,15 @@ async def get_inbox(
     mongodb_client = getattr(request.app.state, "mongodb_client", None) or get_mongodb_client()
     conv_ids = [d.get("conversation_id") for d in docs if d.get("conversation_id")]
     counts = await _count_messages_by_conversation(mongodb_client.db, conv_ids)
-    items = [_to_card(d, message_count=counts.get(d.get("conversation_id"))) for d in docs]
+    last_msgs = await _last_user_messages_by_conversation(mongodb_client.db, conv_ids)
+    items = [
+        _to_card(
+            d,
+            message_count=counts.get(d.get("conversation_id")),
+            last_user_message=last_msgs.get(d.get("conversation_id")),
+        )
+        for d in docs
+    ]
     return InboxResponse(items=items, total=len(items))
 
 
@@ -193,9 +243,29 @@ async def takeover_conversation(
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
     agent_id = str(_current_user.id)
-    await repo.set_mode(conversation_id, "human", agent_id=agent_id)
+    if conv.get("mode") == "human":
+        raise HTTPException(status_code=409, detail="Conversation already taken by another agent")
+    result = await repo.atomic_takeover(conversation_id, agent_id)
+    if result is None:
+        raise HTTPException(status_code=409, detail="Conversation already taken by another agent")
     logger.info(f"[Inbox] conv={conversation_id} taken over by agent={agent_id}")
     return {"status": "ok", "mode": "human", "assigned_agent_id": agent_id}
+
+
+@router.post("/conversations/{conversation_id}/mark-viewed")
+async def mark_conversation_viewed(
+    conversation_id: str,
+    request: Request = None,
+    _current_user=Depends(require_admin),
+):
+    repo = _get_conv_repo(request)
+    conv = await repo.get_by_conversation_id(conversation_id)
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    agent_id = str(_current_user.id)
+    await repo.mark_viewed(conversation_id, agent_id)
+    logger.info(f"[Inbox] conv={conversation_id} marked viewed by agent={agent_id}")
+    return {"status": "ok", "viewed_by": agent_id}
 
 
 @router.post("/conversations/{conversation_id}/release")
@@ -252,7 +322,7 @@ async def capture_lead(
         raise HTTPException(status_code=404, detail="Conversation not found")
 
     lead_name = body.lead_name.strip()
-    lead_email = body.lead_email.strip()
+    lead_email = body.lead_email.strip().lower()
     if not lead_email or not _EMAIL_RE.match(lead_email):
         logger.warning(f"[LeadCapture] conv={conversation_id} invalid email rejected")
         raise HTTPException(status_code=400, detail="Invalid email format")
@@ -260,6 +330,14 @@ async def capture_lead(
     if conv.get("lead_email"):
         logger.info(f"[LeadCapture] conv={conversation_id} already captured, skipping insert")
         return {"status": "ok", "already_captured": True}
+
+    existing = await repo.find_by_lead_email(lead_email)
+    if existing and existing.get("conversation_id") != conversation_id:
+        logger.info(
+            "[LeadCapture] email=%s already captured in conv=%s, dedup",
+            lead_email, existing.get("conversation_id"),
+        )
+        return {"status": "ok", "already_captured": True, "source_conversation": existing.get("conversation_id")}
 
     await repo.set_lead(conversation_id, lead_name, lead_email)
     logger.info(f"[LeadCapture] conv={conversation_id} lead={lead_email}")

@@ -64,6 +64,8 @@ class MongodbClient:
                 serverSelectionTimeoutMS=getattr(app_settings, "mongo_timeout_ms", 5000),
                 waitQueueTimeoutMS=getattr(app_settings, "mongo_wait_queue_timeout_ms", 5000),
                 uuidRepresentation="standard",
+                tz_aware=True,
+                tzinfo=timezone.utc,
             )
             self.db = self.client[database_name]
             self.messages = self.db.messages

@@ -6,8 +6,8 @@ import Image from "next/image";
 import { resolveServerSession } from "@/app/lib/auth/serverSession";
 
 export const metadata: Metadata = {
-  title: "Iniciar Sesión",
-  description: "Inicia sesión en el panel de administración del chatbot",
+  title: "Iniciar sesión",
+  description: "Accede al panel de administración del chatbot",
 };
 
 function safeRedirectPath(from: string | undefined): string {
@@ -36,21 +36,27 @@ export default async function LoginPage({
             <div className="mb-6 inline-flex items-center justify-center bg-orange-100 text-orange-600 rounded-lg p-2">
               <Bot className="w-12 h-12" />
             </div>
-            <h1 className="text-4xl tracking-tight font-extrabold text-slate-900">Bienvenido<span className="text-orange-600">.</span></h1>
-            <p className="mt-2 text-lg text-slate-500">Ingresa a tu cuenta para gestionar al agente.</p>
+            <h1 className="text-4xl tracking-tight font-extrabold text-slate-900">
+              Ingresa al panel<span className="text-orange-600">.</span>
+            </h1>
+            <p className="mt-2 text-lg text-slate-500">
+              Administra tu chatbot, revisa su configuración y continúa donde lo dejaste.
+            </p>
           </div>
           <LoginForm redirectTo={redirectTo} />
         </div>
 
         <div className="absolute bottom-4 left-0 right-0 text-center">
-          <p className="text-[11px] text-slate-500 dark:text-slate-400">© 2025 Becas Grupo Romero. Todos los derechos reservados.</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+            © 2026 Aleph. Todos los derechos reservados.
+          </p>
         </div>
       </div>
 
       <div className="hidden lg:flex lg:w-1/2 relative">
         <Image
           src="https://images.unsplash.com/photo-1639322537228-f710d846310a?q=80&w=2632&auto=format&fit=crop"
-          alt="Background"
+          alt="Panel de chatbot con automatización"
           fill
           priority
           className="object-cover"
@@ -60,7 +66,7 @@ export default async function LoginPage({
         <div className="relative z-10 flex items-center justify-center w-full p-12">
           <div className="max-w-xl text-center">
             <h2 className="text-white text-4xl md:text-5xl font-bold leading-tight">
-              Potenciando la educación con Inteligencia Artificial.
+              Gestiona conversaciones con contexto, herramientas y control operativo.
             </h2>
           </div>
         </div>

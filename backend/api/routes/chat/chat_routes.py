@@ -43,6 +43,7 @@ async def _classify_web(conversation_id: str, app_state) -> None:
             urgency=result.urgency,
             ai_summary=result.summary,
             lead_score=result.lead_score,
+            purchase_intent=result.purchase_intent,
             product_interests=result.product_interests,
             recommended_action=result.recommended_action,
             confidence=result.confidence,

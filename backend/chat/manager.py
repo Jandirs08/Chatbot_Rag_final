@@ -6,6 +6,7 @@ Lógica especializada vive en módulos vecinos:
 - verifier.py  → ResponseVerifier (fact-checker en debug)
 - debug.py     → DebugInfoBuilder + log_stream_timing_summary
 """
+from dataclasses import dataclass
 from typing import Optional
 import asyncio
 import time
@@ -72,6 +73,14 @@ _CAP_FALLBACK_MESSAGE = (
     "No pude completar tu consulta con la información disponible. "
     "¿Podrías reformular la pregunta o ser más específico?"
 )
+
+
+@dataclass
+class AgenticResponseResult:
+    text: str
+    terminal_tool: Optional[str] = None
+    terminal_event: Optional[str] = None
+    terminal_payload: Optional[dict] = None
 
 
 def _messages_total_chars(messages) -> int:
@@ -625,6 +634,46 @@ class ChatManager:
                 conversation_lock,
                 acquired=lock_acquired,
             )
+
+    async def generate_agentic_response(
+        self,
+        input_text: str,
+        conversation_id: str,
+        source: str | None = None,
+        app_state=None,
+    ) -> AgenticResponseResult:
+        """Non-streaming adapter for channels that cannot consume SSE.
+
+        Reuses `stream_with_tools` so Web and WhatsApp share the same agentic
+        ReAct loop, persistence, metrics, tool handlers, and safety caps.
+        """
+        text_parts: list[str] = []
+        terminal_tool: Optional[str] = None
+        terminal_event: Optional[str] = None
+        terminal_payload: Optional[dict] = None
+
+        async for event in self.stream_with_tools(
+            input_text=input_text,
+            conversation_id=conversation_id,
+            source=source,
+            app_state=app_state,
+        ):
+            if event.kind == "text" and event.text:
+                text_parts.append(event.text)
+            elif event.kind == "tool_terminal":
+                terminal_tool = event.tool_name
+                terminal_event = event.sse_event
+                terminal_payload = event.sse_payload or {}
+                user_message = terminal_payload.get("user_message")
+                if isinstance(user_message, str) and user_message.strip():
+                    text_parts.append(user_message.strip())
+
+        return AgenticResponseResult(
+            text="".join(text_parts).strip(),
+            terminal_tool=terminal_tool,
+            terminal_event=terminal_event,
+            terminal_payload=terminal_payload,
+        )
 
     async def close(self) -> None:
         """Cierra la conexión de MongoDB."""

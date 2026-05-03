@@ -23,7 +23,7 @@ from typing import Any, AsyncIterator, Optional
 
 import pytest
 
-from core.tools import ToolContext, bootstrap_tools, registry
+from core.tools import ToolContext, ToolDefinition, bootstrap_tools, registry
 from core.tools.handoff_tool import HANDOFF_TOOL, HANDOFF_TOOL_NAME
 from chat.tool_dispatch import DispatchEvent, consume_stream
 
@@ -140,22 +140,55 @@ async def test_unknown_tool_name_logs_warning_and_ends(handoff_registry, tool_ct
     ]
     events = await _collect(chunks, tool_ctx)
 
-    assert [e.kind for e in events] == ["end"]
+    assert [e.kind for e in events] == ["text", "end"]
+    assert events[0].text
     assert any("unknown tool" in rec.message.lower() for rec in caplog.records)
 
 
-async def test_malformed_args_falls_back_to_empty_dict(handoff_registry, tool_ctx):
+async def test_malformed_args_emits_safe_text(handoff_registry, tool_ctx, caplog):
+    import logging
+    caplog.set_level(logging.WARNING, logger="chat.tool_dispatch")
+
     chunks = [
         MockChunk(tool_call_chunks=[{"index": 0, "name": HANDOFF_TOOL_NAME, "args": "{not json", "id": "c1"}]),
     ]
     events = await _collect(chunks, tool_ctx)
 
-    terminals = [e for e in events if e.kind == "tool_terminal"]
-    assert len(terminals) == 1
-    # Handler defaults reason to "user_request" when args is empty/missing.
-    assert terminals[0].tool_args == {}
-    assert terminals[0].sse_event == "lead_form"
-    assert terminals[0].sse_payload["reason"] == "user_request"
+    assert [e.kind for e in events] == ["text", "end"]
+    assert events[0].text
+    assert any("malformed tool args" in rec.message.lower() for rec in caplog.records)
+
+
+async def test_tool_handler_exception_emits_safe_text(handoff_registry, tool_ctx, caplog):
+    import logging
+    caplog.set_level(logging.ERROR, logger="chat.tool_dispatch")
+
+    async def _boom_handler(args, ctx):
+        raise RuntimeError("boom")
+
+    broken_tool = ToolDefinition(
+        name="broken_tool",
+        schema={
+            "type": "function",
+            "function": {
+                "name": "broken_tool",
+                "description": "Broken test tool",
+                "parameters": {"type": "object", "properties": {}},
+            },
+        },
+        mode="continuation",
+        handler=_boom_handler,
+    )
+    registry.register(broken_tool)
+
+    chunks = [
+        MockChunk(tool_call_chunks=[{"index": 0, "name": "broken_tool", "args": "{}", "id": "c1"}]),
+    ]
+    events = await _collect(chunks, tool_ctx)
+
+    assert [e.kind for e in events] == ["text", "end"]
+    assert events[0].text
+    assert any("tool handler broken_tool failed" in rec.message.lower() for rec in caplog.records)
 
 
 async def test_tool_call_chunk_without_index_defaults_to_slot_zero(handoff_registry, tool_ctx):

@@ -80,7 +80,7 @@ services:
       - HOST=0.0.0.0
       - PORT=8000
     ports:
-      - "8000:8000"
+      - "${BACKEND_HOST_PORT:-8000}:8000"
     networks:
       - chatbot-network
     healthcheck:

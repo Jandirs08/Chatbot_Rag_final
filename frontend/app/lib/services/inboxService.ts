@@ -20,6 +20,7 @@ export async function takeover(conversationId: string): Promise<void> {
     `${API_URL}/conversations/${conversationId}/takeover`,
     { method: "POST" },
   );
+  if (res.status === 409) throw new Error("ALREADY_TAKEN");
   if (!res.ok) throw new Error("Error al tomar la conversación");
 }
 
@@ -29,6 +30,14 @@ export async function release(conversationId: string): Promise<void> {
     { method: "POST" },
   );
   if (!res.ok) throw new Error("Error al devolver la conversación");
+}
+
+export async function markViewed(conversationId: string): Promise<void> {
+  const res = await authenticatedFetch(
+    `${API_URL}/conversations/${conversationId}/mark-viewed`,
+    { method: "POST" },
+  );
+  if (!res.ok) throw new Error("Error al marcar como visto");
 }
 
 export type HandoffStats = {

@@ -58,7 +58,7 @@ async def rag_status(
                 filename=pdf["filename"],
                 path=str(pdf["path"]),
                 size=pdf["size"],
-                last_modified=datetime.datetime.fromtimestamp(pdf["last_modified"]),
+                last_modified=datetime.datetime.fromtimestamp(pdf["last_modified"], tz=datetime.timezone.utc),
                 ingestion_status=(ingestion_statuses.get(pdf["filename"]) or {}).get("status", "ready"),
                 ingestion_error=(ingestion_statuses.get(pdf["filename"]) or {}).get("error"),
                 ingestion_updated_at=(ingestion_statuses.get(pdf["filename"]) or {}).get("updated_at"),
