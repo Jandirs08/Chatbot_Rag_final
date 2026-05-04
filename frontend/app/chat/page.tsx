@@ -73,6 +73,7 @@ export default function ChatPage() {
           key={conversationId}
           conversationId={conversationId}
           initialMessages={initialMessages || undefined}
+          isLoadingHistory={initialMessages === null}
           onNewChat={() => {
             resetConversationId();
             setInitialMessages([]);
