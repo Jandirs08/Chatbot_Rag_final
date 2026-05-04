@@ -40,6 +40,9 @@ export function WidgetPreview() {
   const [width, setWidth] = useState("400");
   const [height, setHeight] = useState("600");
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  // hasEverOpened: una vez abierto, mantenemos iframe montado para preservar
+  // estado (scroll, conversación, conexión SSE) en sucesivos toggles.
+  const [hasEverOpened, setHasEverOpened] = useState(false);
   const [position, setPosition] = useState<PositionType>("bottom-right");
   const [bubbleStartColor, setBubbleStartColor] = useState("#667eea");
   const [bubbleEndColor, setBubbleEndColor] = useState("#764ba2");
@@ -225,7 +228,7 @@ export function WidgetPreview() {
                         value={width}
                         onChange={(e) => setWidth(e.target.value)}
                         min="200"
-                        max="800"
+                        max="1000"
                         className="h-9 pr-8 text-sm"
                       />
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-mono">
@@ -371,7 +374,14 @@ export function WidgetPreview() {
                   const next = !isPreviewOpen;
                   setIsPreviewOpen(next);
                   if (next) {
-                    setIsLoading(true);
+                    if (!hasEverOpened) {
+                      setHasEverOpened(true);
+                      setIsLoading(true);
+                      // Failsafe: si onLoad nunca dispara (CSP block, network
+                      // hung), liberar isLoading tras 15s para no dejar
+                      // spinner colgado infinitamente.
+                      setTimeout(() => setIsLoading(false), 15000);
+                    }
                     setIsBouncing(true);
                     setTimeout(() => setIsBouncing(false), 200);
                   }
@@ -429,28 +439,28 @@ export function WidgetPreview() {
                 </svg>
               </div>
 
-              <iframe
-                src={getBaseUrl()}
-                style={{
-                  position: "absolute",
-                  ...getIframePositionStyles(),
-                  width: `${parsedWidth}px`,
-                  height: `${parsedHeight}px`,
-                  border: "none",
-                  borderRadius: "16px",
-                  boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-                  zIndex: 50,
-                  transition: "width 0.3s ease, height 0.3s ease",
-                }}
-                className={`animate-slide-in transition-all duration-200 ${
-                  isPreviewOpen
-                    ? "opacity-100 translate-y-0"
-                    : "opacity-0 translate-y-4 pointer-events-none"
-                }`}
-                title="AI Chatbot Widget Preview"
-                onLoad={handleIframeLoad}
-                onError={handleIframeError}
-              />
+              {hasEverOpened && (
+                <iframe
+                  src={getBaseUrl()}
+                  style={{
+                    position: "absolute",
+                    ...getIframePositionStyles(),
+                    width: `${parsedWidth}px`,
+                    height: `${parsedHeight}px`,
+                    border: "none",
+                    borderRadius: "16px",
+                    boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+                    zIndex: 50,
+                    transition: "width 0.3s ease, height 0.3s ease",
+                    visibility: isPreviewOpen ? "visible" : "hidden",
+                    pointerEvents: isPreviewOpen ? "auto" : "none",
+                  }}
+                  className="transition-all duration-200"
+                  title="AI Chatbot Widget Preview"
+                  onLoad={handleIframeLoad}
+                  onError={handleIframeError}
+                />
+              )}
             </BrowserMockup>
           </div>
         </div>

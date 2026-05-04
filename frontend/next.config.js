@@ -71,17 +71,31 @@ const nextConfig = {
       apiOrigin = u.origin;
     } catch {}
 
-    // Configuración de hosts permitidos para incrustar el widget (iframe)
-    // Se limpia el string para soportar formatos con comillas o comas
-    let allowedEmbedHosts = process.env.ALLOWED_EMBED_HOSTS || "*";
-    allowedEmbedHosts = allowedEmbedHosts
-      .replace(/["']/g, "")
+    // Hosts permitidos para incrustar el widget (iframe).
+    // Default seguro: 'self'. Para embeber en sitios externos
+    // setear ALLOWED_EMBED_HOSTS="https://campusromero.pe,https://otro.com".
+    // Soporta keywords CSP: self, none. Bloquea '*' (riesgo CSRF + abuso).
+    // Valida cada origen contra regex para evitar inyección de directivas CSP.
+    const CSP_KEYWORDS = new Set(["self", "none"]);
+    const ORIGIN_RE = /^https?:\/\/[a-zA-Z0-9.\-]+(?::\d{1,5})?$/;
+    const rawEmbedHosts = process.env.ALLOWED_EMBED_HOSTS || "self";
+    const embedTokens = rawEmbedHosts
       .split(",")
-      .map((h) => h.trim())
-      .filter((h) => h)
-      .join(" ");
-
-    if (!allowedEmbedHosts) allowedEmbedHosts = "*";
+      .map((h) => h.trim().replace(/^["']|["']$/g, ""))
+      .filter((h) => h && h !== "*")
+      .map((h) => {
+        const lower = h.toLowerCase();
+        if (CSP_KEYWORDS.has(lower)) return `'${lower}'`;
+        if (ORIGIN_RE.test(h)) return h;
+        // Token inválido — descartar y advertir
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[next.config] ALLOWED_EMBED_HOSTS token descartado (formato inválido): ${h}`,
+        );
+        return null;
+      })
+      .filter(Boolean);
+    const allowedEmbedHosts = embedTokens.length ? embedTokens.join(" ") : "'self'";
 
     // NOTE: 'unsafe-inline' in script-src is required by Next.js 14 for its own
     // inline hydration scripts. Removing it without nonce support breaks the app.

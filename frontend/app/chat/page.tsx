@@ -13,6 +13,18 @@ export default function ChatPage() {
     HookMessage[] | null
   >(null);
 
+  // Notifica al widget-loader (parent frame) que el chat está vivo. Usado por
+  // el handshake del loader para distinguir carga real de error pages / CSP
+  // blocks (donde iframe.load dispara igual). Solo hace efecto si /chat está
+  // dentro de un iframe.
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.parent === window) return;
+    try {
+      window.parent.postMessage({ type: "chatbot-widget-ready" }, "*");
+    } catch {}
+  }, []);
+
   // Cargar historial inicial cuando tengamos conversationId
   React.useEffect(() => {
     const loadHistory = async () => {
