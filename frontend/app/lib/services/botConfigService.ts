@@ -81,6 +81,29 @@ export interface BotRuntimeDTO {
   effective_personality_len?: number;
 }
 
+export interface PromptGeneratorRequest {
+  business_sector: string;
+  business_description: string;
+  audience?: string;
+  tone: "formal" | "cercano" | "tecnico" | "empatico";
+  restrictions?: string;
+  special_flows?: string;
+  website_url?: string;
+}
+
+export const generateBotPrompt = async (payload: PromptGeneratorRequest): Promise<string> => {
+  const res = await authenticatedFetch(`${API_URL}/bot/config/generate-prompt`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Error generando prompt: ${res.status} ${text}`);
+  }
+  const data = await res.json();
+  return data.prompt as string;
+};
+
 export const getBotRuntime = async (): Promise<BotRuntimeDTO> => {
   const res = await authenticatedFetch(`${API_URL}/bot/runtime`, {
     method: "GET",

@@ -113,7 +113,10 @@
       "Bash(python3 *)",
       "Bash(Get-ChildItem -Path \"C:\\\\Chatbot-final-jandir\\\\Chatbot_Rag_final\\\\backend\" -Recurse -Filter \"*.py\")",
       "Bash(Get-Content -Path \"C:\\\\Chatbot-final-jandir\\\\Chatbot_Rag_final\\\\backend\\\\api\\\\routes\\\\dashboard\\\\dashboard_routes.py\")",
-      "Bash(Measure-Object -Line)"
+      "Bash(Measure-Object -Line)",
+      "Bash(.venv\\\\Scripts\\\\python.exe -c \"from api.schemas.config import PromptGeneratorRequest, PromptGeneratorResponse; print\\('schemas OK'\\)\")",
+      "Bash(Get-ChildItem *)",
+      "Bash(ls *)"
     ]
   }
 }

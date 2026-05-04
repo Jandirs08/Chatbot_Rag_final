@@ -7,7 +7,7 @@ import logging
 import time
 from fastapi import APIRouter, HTTPException, Request, status, Depends
 
-from api.schemas.config import BotConfigDTO, UpdateBotConfigRequest
+from api.schemas.config import BotConfigDTO, UpdateBotConfigRequest, PromptGeneratorRequest, PromptGeneratorResponse
 from database.config_repository import ConfigRepository
 from auth.permissions import require_manage_bot_config
 from models.user import User
@@ -334,3 +334,199 @@ async def get_bot_public_config(request: Request):
 
     logger.warning("Returning hardcoded safe default public bot config after MongoDB and Redis failures.")
     return {key: SAFE_PUBLIC_BOT_CONFIG[key] for key in BOT_PUBLIC_CONFIG_FIELDS}
+
+
+_TONE_DESCRIPTIONS = {
+    "formal": "profesional y corporativo; usa 'usted'; lenguaje preciso, sin informalidades ni contracciones",
+    "cercano": "amigable y natural; usa 'tú'; conversacional pero siempre respetuoso y claro",
+    "tecnico": "experto y preciso; usa terminología del sector sin simplificar; respuestas detalladas con contexto técnico",
+    "empatico": "cálido y comprensivo; valida la emoción antes de informar; prioriza la escucha activa sobre la eficiencia",
+}
+
+_GENERATE_PROMPT_SYSTEM = """Eres un especialista en diseño de prompts para asistentes de IA empresariales.
+Tu tarea: generar instrucciones de personalidad completas y específicas para un chatbot RAG.
+Este chatbot solo responde usando documentos reales de la empresa — nunca inventa información ni da datos de otras fuentes.
+
+Reglas del output:
+- En español. Sin meta-comentarios, sin explicaciones, sin prefijos.
+- Concreto y accionable — nada genérico como "sé amable".
+- Usa exactamente estas secciones con sus etiquetas en mayúsculas seguidas de dos puntos.
+- Cada sección debe tener contenido específico al negocio descrito.
+
+Secciones requeridas:
+ROL:
+TONO:
+AUDIENCIA:
+SCOPE:
+RESTRICCIONES:
+COMPORTAMIENTO:
+EJEMPLO:"""
+
+_GENERATE_PROMPT_TEMPLATE = """Genera instrucciones de personalidad para este bot empresarial.
+
+RUBRO: {business_sector}
+NEGOCIO: {business_description}
+AUDIENCIA: {audience}
+TONO DESEADO: {tone_description}
+RESTRICCIONES ESPECÍFICAS: {restrictions}
+FLUJO ESPECIAL: {special_flows}
+{website_section}
+
+Formato de respuesta (sin intro, sin cierre, solo las secciones):
+
+ROL:
+[2-3 oraciones: qué es este bot, para qué empresa/rubro, qué puede hacer por el usuario]
+
+TONO:
+• [lineamiento de comunicación específico y aplicable]
+• [otro lineamiento]
+• [otro lineamiento]
+
+AUDIENCIA:
+[Cómo adaptar el trato según quién pregunta]
+
+SCOPE:
+• Responde sobre: [temas concretos del negocio]
+• No responde sobre: [qué está fuera de su alcance]
+
+RESTRICCIONES:
+• [límite concreto 1]
+• [límite concreto 2]
+
+COMPORTAMIENTO:
+[Qué hacer cuando preguntan algo fuera de scope o que no está en los documentos]
+
+EJEMPLO:
+Usuario: [pregunta típica que recibirá este bot en el rubro {business_sector}]
+Bot: [respuesta ideal que muestre exactamente el tono y estilo correcto]"""
+
+_MAX_RESPONSE_BYTES = 512 * 1024  # 512 KB — avoids memory bomb on large responses
+
+
+def _assert_host_allowed(host: str) -> None:
+    """Raise ValueError if host resolves to a private/reserved address."""
+    import ipaddress
+
+    if not host:
+        raise ValueError("Empty host not allowed")
+    # Reject obviously dangerous hostnames by string
+    _blocked = ["localhost", "metadata.google", "metadata.internal"]
+    for b in _blocked:
+        if b in host.lower():
+            raise ValueError(f"Host not allowed: {host}")
+    # Validate IP literals (covers all private/loopback/reserved ranges incl. IPv6)
+    try:
+        addr = ipaddress.ip_address(host)
+        if addr.is_private or addr.is_loopback or addr.is_reserved or addr.is_link_local:
+            raise ValueError(f"Private/reserved IP not allowed: {host}")
+    except ValueError as exc:
+        if "not allowed" in str(exc) or "not allowed" in str(exc):
+            raise
+        # hostname, not a numeric IP — allowed at this stage
+
+
+async def _fetch_website_context(url: str) -> str:
+    """Fetch and extract meaningful text. Validates each redirect destination."""
+    import re
+    import httpx
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError("URL must use http or https")
+    _assert_host_allowed(parsed.hostname or "")
+
+    async def _on_redirect(response: httpx.Response) -> None:
+        """Block redirects to private/internal hosts."""
+        if response.is_redirect:
+            location = response.headers.get("location", "")
+            dest = urlparse(location)
+            if dest.scheme and dest.scheme not in ("http", "https"):
+                raise ValueError(f"Redirect to non-http scheme blocked: {location}")
+            dest_host = dest.hostname or ""
+            if dest_host:
+                _assert_host_allowed(dest_host)
+
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; AlephContextBot/1.0)"}
+    async with httpx.AsyncClient(
+        timeout=8.0,
+        follow_redirects=True,
+        max_redirects=3,
+        event_hooks={"response": [_on_redirect]},
+    ) as client:
+        async with client.stream("GET", url, headers=headers) as resp:
+            resp.raise_for_status()
+            chunks: list[bytes] = []
+            total = 0
+            async for chunk in resp.aiter_bytes(chunk_size=8192):
+                total += len(chunk)
+                if total > _MAX_RESPONSE_BYTES:
+                    break
+                chunks.append(chunk)
+            encoding = resp.encoding or "utf-8"
+            html = b"".join(chunks).decode(encoding, errors="replace")
+
+    html = re.sub(r"<script[^>]*>.*?</script>", " ", html, flags=re.DOTALL | re.IGNORECASE)
+    html = re.sub(r"<style[^>]*>.*?</style>", " ", html, flags=re.DOTALL | re.IGNORECASE)
+    html = re.sub(r"<head[^>]*>.*?</head>", " ", html, flags=re.DOTALL | re.IGNORECASE)
+    html = re.sub(r"<nav[^>]*>.*?</nav>", " ", html, flags=re.DOTALL | re.IGNORECASE)
+    html = re.sub(r"<footer[^>]*>.*?</footer>", " ", html, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", " ", html)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:2500]
+
+
+@router.post("/config/generate-prompt", response_model=PromptGeneratorResponse, status_code=status.HTTP_200_OK)
+async def generate_bot_prompt(
+    request: Request,
+    payload: PromptGeneratorRequest,
+    _: User = Depends(require_manage_bot_config),
+) -> PromptGeneratorResponse:
+    """Generate a structured personality prompt using AI. Requires: authenticated user."""
+    from openai import AsyncOpenAI
+
+    try:
+        settings_obj = request.app.state.settings
+        api_key = settings_obj.openai_api_key.get_secret_value()
+    except Exception as e:
+        logger.error(f"Cannot read OpenAI API key: {e}")
+        raise HTTPException(status_code=500, detail="Configuración de API no disponible")
+
+    website_section = ""
+    if payload.website_url:
+        try:
+            web_text = await _fetch_website_context(payload.website_url)
+            website_section = f"\nCONTEXTO DEL SITIO WEB ({payload.website_url}):\n{web_text}"
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=f"URL no permitida: {e}")
+        except Exception as e:
+            logger.warning(f"Could not fetch website {payload.website_url}: {e}")
+            website_section = f"\n(No se pudo acceder al sitio {payload.website_url} — generando sin ese contexto)"
+
+    tone_desc = _TONE_DESCRIPTIONS.get(payload.tone, _TONE_DESCRIPTIONS["cercano"])
+    user_message = _GENERATE_PROMPT_TEMPLATE.format(
+        business_sector=payload.business_sector,
+        business_description=payload.business_description,
+        audience=payload.audience or "Clientes generales del negocio",
+        tone_description=tone_desc,
+        restrictions=payload.restrictions or "Ninguna especificada por el usuario",
+        special_flows=payload.special_flows or "Ninguno especificado",
+        website_section=website_section,
+    )
+
+    try:
+        client = AsyncOpenAI(api_key=api_key)
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": _GENERATE_PROMPT_SYSTEM},
+                {"role": "user", "content": user_message},
+            ],
+            max_tokens=900,
+            temperature=0.65,
+        )
+        generated = response.choices[0].message.content or ""
+        return PromptGeneratorResponse(prompt=generated.strip())
+    except Exception as e:
+        logger.error(f"Error calling OpenAI for prompt generation: {e}", exc_info=True)
+        raise HTTPException(status_code=502, detail="Error al generar el prompt con IA")

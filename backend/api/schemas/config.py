@@ -67,3 +67,26 @@ class UpdateBotConfigRequest(BaseModel):
         # Enforce max 6 and sanitize strings
         cleaned = [str(s).strip() for s in v if str(s).strip()]
         return cleaned[:6]
+
+
+class PromptGeneratorRequest(BaseModel):
+    """Payload for AI-assisted prompt generation."""
+    business_sector: str = Field(..., min_length=2, max_length=60, description="Rubro del negocio")
+    business_description: str = Field(..., min_length=10, max_length=600)
+    audience: Optional[str] = Field(default=None, max_length=200)
+    tone: str = Field(default="cercano", pattern="^(formal|cercano|tecnico|empatico)$")
+    restrictions: Optional[str] = Field(default=None, max_length=400)
+    special_flows: Optional[str] = Field(default=None, max_length=400)
+    website_url: Optional[str] = Field(default=None, max_length=300)
+
+    @field_validator("business_sector")
+    @classmethod
+    def validate_business_sector(cls, v: str) -> str:
+        if v.strip().lower() == "otro":
+            raise ValueError("business_sector must be a real sector name, not 'Otro'")
+        return v.strip()
+
+
+class PromptGeneratorResponse(BaseModel):
+    """Generated prompt result."""
+    prompt: str

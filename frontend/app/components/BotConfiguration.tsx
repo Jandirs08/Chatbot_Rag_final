@@ -7,13 +7,12 @@ import {
   CardTitle,
 } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
-import { Textarea } from "@/app/components/ui/textarea";
 import { Label } from "@/app/components/ui/label";
 import { Slider } from "@/app/components/ui/slider";
 import { Input } from "@/app/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/app/components/ui/tabs";
-import { Settings, Save, RotateCcw, Clock, Pencil } from "lucide-react";
-import { toast } from "sonner";
+import { Settings, Save, RotateCcw, Pencil } from "lucide-react";
+import { PromptBuilderAssistant } from "@/app/components/PromptBuilderAssistant";
 export interface BotConfigurationProps {
   botName?: string;
   onBotNameChange?: (value: string) => void;
@@ -122,10 +121,10 @@ export function BotConfiguration({
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Settings className="w-5 h-5 text-muted-foreground" />
-                    Instrucciones Adicionales
+                    Personalidad del Bot
                   </CardTitle>
                   <CardDescription>
-                    Complementa la personalidad base del bot sin reemplazarla
+                    Complementa la personalidad base sin reemplazarla
                   </CardDescription>
                   <div className="flex justify-end">
                     <Button
@@ -155,28 +154,11 @@ export function BotConfiguration({
                       />
                     </div>
                   )}
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="ui-extra">
-                        Instrucciones adicionales
-                      </Label>
-                    </div>
-                    <Textarea
-                      id="ui-extra"
-                      value={prompt}
-                      onChange={(e) => onPromptChange(e.target.value)}
-                      className="mt-2 min-h-[300px] font-mono text-sm bg-gray-50 border-gray-200 focus:ring-2 focus:ring-orange-500/20"
-                      placeholder="Añade lineamientos adicionales (tono, estilo, etc.)"
-                      disabled={!!fieldsReadOnly}
-                    />
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Caracteres: {prompt.length}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Consejo: usa frases breves y concretas; no incluyas
-                      variables ni herramientas.
-                    </p>
-                  </div>
+                  <PromptBuilderAssistant
+                    prompt={prompt}
+                    onPromptChange={onPromptChange}
+                    fieldsReadOnly={!!fieldsReadOnly}
+                  />
                 </CardContent>
               </Card>
             </TabsContent>
