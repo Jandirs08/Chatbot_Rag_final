@@ -1,15 +1,24 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Button } from "@/app/components/ui/button";
 import { Switch } from "@/app/components/ui/switch";
 import { Clock, Settings, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-function timeGreeting() {
+function getGreeting() {
   const h = new Date().getHours();
   if (h < 12) return "Buenos días";
   if (h < 19) return "Buenas tardes";
   return "Buenas noches";
+}
+
+function getDateStr() {
+  return new Date().toLocaleDateString("es-PE", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
 }
 
 interface DashboardHeaderProps {
@@ -25,18 +34,20 @@ export default function DashboardHeader({
   relativeLastActivity,
   onToggle,
 }: DashboardHeaderProps) {
+  const [greeting, setGreeting] = useState("");
+  const [dateStr, setDateStr] = useState("");
+
+  useEffect(() => {
+    setGreeting(getGreeting());
+    setDateStr(getDateStr());
+  }, []);
+
   return (
     <header className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
       <div className="space-y-4">
         <div className="space-y-0.5">
-          <h1 className="text-foreground">{timeGreeting()}</h1>
-          <p className="text-sm text-muted-foreground capitalize">
-            {new Date().toLocaleDateString("es-PE", {
-              weekday: "long",
-              day: "numeric",
-              month: "long",
-            })}
-          </p>
+          <h1 className="text-foreground">{greeting}</h1>
+          <p className="text-sm text-muted-foreground capitalize">{dateStr}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
