@@ -37,12 +37,12 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const loginUrl = new URL("/auth/login", window.location.origin);
-    if (pathname && pathname !== "/auth/login") {
-      loginUrl.searchParams.set("from", pathname);
-    }
+    const target =
+      pathname && pathname !== "/auth/login"
+        ? `/auth/login?from=${pathname}`
+        : "/auth/login";
 
-    router.replace(`${loginUrl.pathname}${loginUrl.search}`);
+    router.replace(target);
   }, [pathname, router, shouldRedirectToLogin]);
 
   if (isResolvingProtectedSession || shouldRedirectToLogin) {

@@ -60,7 +60,7 @@ export class PDFService {
     const expiresSoon = expiry !== null && expiry - Date.now() < 60_000;
     if (expiresSoon || !TokenManager.isTokenValid()) {
       try {
-        await authService.refreshToken();
+        await authService.refreshToken({ silent: true });
       } catch {
         // Continue with whatever token we have; XHR handler will manage 401/403.
       }
@@ -97,9 +97,9 @@ export class PDFService {
         if (xhr.readyState === XMLHttpRequest.DONE) {
           const status = xhr.status;
 
-          if ((status === 401 || status === 403) && !isRetry) {
+          if (status === 401 && !isRetry) {
             try {
-              await authService.refreshToken();
+              await authService.refreshToken({ silent: true });
               const result = await this.uploadPDF(file, onProgress, true);
               resolve(result);
             } catch (e) {

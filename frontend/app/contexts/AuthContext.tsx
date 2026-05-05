@@ -284,18 +284,28 @@ export function AuthProvider({
     void checkAuthStatus();
   }, [checkAuthStatus, initialSession, pathname]);
 
+  const retryCountRef = React.useRef(0);
   useEffect(() => {
-    if (initialSession || state.isInitialized || state.isLoading || !state.error) {
+    if (initialSession || state.isInitialized || !state.error) {
+      retryCountRef.current = 0;
       return;
     }
 
-    if (isPublicPath(pathname)) {
+    if (state.isLoading || isPublicPath(pathname)) {
       return;
     }
+
+    const MAX_RETRIES = 5;
+    if (retryCountRef.current >= MAX_RETRIES) {
+      return;
+    }
+
+    const delay = Math.min(2000 * Math.pow(2, retryCountRef.current), 60_000);
+    retryCountRef.current += 1;
 
     const retryId = window.setTimeout(() => {
       void checkAuthStatus();
-    }, 2000);
+    }, delay);
 
     return () => window.clearTimeout(retryId);
   }, [

@@ -10,12 +10,12 @@ import {
 } from "./app/lib/auth/sessionRefresh";
 import { verifyAccessToken } from "./app/lib/auth/jwtVerify";
 
-function buildLoginUrl(req: NextRequest, from: string): URL {
-  const url = new URL("/auth/login", req.url);
+function buildLoginUrl(req: NextRequest, from: string): string {
+  const base = new URL("/auth/login", req.url).href.split("?")[0];
   if (from && from !== "/auth/login") {
-    url.searchParams.set("from", from);
+    return `${base}?from=${from}`;
   }
-  return url;
+  return base;
 }
 
 function isLegacyLoginPath(pathname: string): boolean {
@@ -27,12 +27,9 @@ function redirectLegacyLogin(req: NextRequest, hasSession: boolean): NextRespons
     return NextResponse.redirect(new URL("/", req.url));
   }
 
-  const url = new URL("/auth/login", req.url);
+  const base = new URL("/auth/login", req.url).href.split("?")[0];
   const from = req.nextUrl.searchParams.get("from");
-  if (from) {
-    url.searchParams.set("from", from);
-  }
-  return NextResponse.redirect(url);
+  return NextResponse.redirect(from ? `${base}?from=${from}` : base);
 }
 
 export async function middleware(req: NextRequest) {

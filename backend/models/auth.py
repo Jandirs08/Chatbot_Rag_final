@@ -1,6 +1,6 @@
 """Authentication request and response models."""
 from typing import Optional
-from pydantic import BaseModel, EmailStr, Field, validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from datetime import datetime
 
 
@@ -94,10 +94,11 @@ class PasswordChangeRequest(BaseModel):
     current_password: str = Field(..., min_length=8, max_length=128, description="Current password")
     new_password: str = Field(..., min_length=8, max_length=128, description="New password")
     
-    @validator('new_password')
-    def validate_new_password(cls, v, values):
+    @field_validator('new_password')
+    @classmethod
+    def validate_new_password(cls, v, info):
         """Validate new password is different from current."""
-        if 'current_password' in values and v == values['current_password']:
+        if 'current_password' in info.data and v == info.data['current_password']:
             raise ValueError('New password must be different from current password')
         return v
     
@@ -131,3 +132,12 @@ class ForgotPasswordRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     token: str = Field(...)
     new_password: str = Field(..., min_length=8, max_length=128)
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password_complexity(cls, v):
+        if not any(c.isupper() for c in v):
+            raise ValueError("Password must contain at least 1 uppercase letter")
+        if not any(not c.isalnum() for c in v):
+            raise ValueError("Password must contain at least 1 special character")
+        return v

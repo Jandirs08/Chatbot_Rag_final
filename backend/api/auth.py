@@ -438,12 +438,18 @@ async def reset_password(
     request: Request,
     payload: ResetPasswordRequest,
     user_repository: UserRepository = Depends(get_user_repository),
+    token_blacklist=Depends(get_token_blacklist),
 ) -> Dict[str, str]:
     try:
         data = verify_token(payload.token, token_type="reset")
         user_id = data.get("sub")
+        jti = data.get("jti")
+        exp = data.get("exp", 0)
         if not user_id:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        # Reject already-used reset tokens
+        if token_blacklist and jti and token_blacklist.is_blacklisted(jti):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token already used")
         user = await user_repository.get_user_by_id(user_id)
         if not user or not user.is_active:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
@@ -451,6 +457,9 @@ async def reset_password(
         ok = await user_repository.update_password_by_id(str(user.id), hp)
         if not ok:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update password")
+        # Consume the reset token so it cannot be reused
+        if token_blacklist and jti:
+            token_blacklist.blacklist(jti, int(exp))
         return {"status": "ok"}
     except TokenExpiredError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")

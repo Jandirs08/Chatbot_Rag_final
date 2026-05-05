@@ -1,13 +1,14 @@
 import "server-only";
 
 import { cookies, headers } from "next/headers";
+import { decodeJwt } from "jose";
 import { API_URL } from "@/app/lib/config";
 import type { User } from "@/app/lib/services/authService";
 import type { AuthSessionSnapshot } from "./session";
 import { SSR_ACCESS_TOKEN_HEADER } from "./session";
 import { ACCESS_TOKEN_COOKIE, decodeTokenExpiry } from "./sessionRefresh";
 
-const SERVER_SESSION_TIMEOUT_MS = 10_000;
+const SERVER_SESSION_TIMEOUT_MS = 3_000;
 
 async function fetchCurrentUser(accessToken: string): Promise<User | null> {
   const controller = new AbortController();
@@ -36,6 +37,28 @@ async function fetchCurrentUser(accessToken: string): Promise<User | null> {
   }
 }
 
+function buildUserFromToken(accessToken: string): User | null {
+  try {
+    const payload = decodeJwt(accessToken);
+    const sub = typeof payload.sub === "string" ? payload.sub : null;
+    const email = typeof payload.email === "string" ? payload.email : null;
+    if (!sub || !email) return null;
+    return {
+      id: sub,
+      username: email.split("@")[0],
+      email,
+      full_name: undefined,
+      is_active: true,
+      is_admin: Boolean(payload.is_admin),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      last_login: undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function resolveServerSession(): Promise<AuthSessionSnapshot | null> {
   const headerStore = headers();
   const cookieStore = cookies();
@@ -49,12 +72,18 @@ export async function resolveServerSession(): Promise<AuthSessionSnapshot | null
   }
 
   const user = await fetchCurrentUser(accessToken);
-  if (!user) {
-    return null;
+  if (user) {
+    return { user, accessToken, expiresAt: decodeTokenExpiry(accessToken) };
   }
 
+  // Backend unavailable or slow — decode JWT locally as fallback.
+  // The middleware already verified the signature, so decoding without
+  // re-verification is safe here.
+  const fallbackUser = buildUserFromToken(accessToken);
+  if (!fallbackUser) return null;
+
   return {
-    user,
+    user: fallbackUser,
     accessToken,
     expiresAt: decodeTokenExpiry(accessToken),
   };

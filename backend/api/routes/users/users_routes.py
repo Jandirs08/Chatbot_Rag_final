@@ -119,6 +119,16 @@ async def create_user(
     user_repository: UserRepository = Depends(get_user_repository),
 ):
     """Crea un usuario. Requiere: usuario autenticado."""
+    if (
+        len(req.password) < 8
+        or not any(c.isupper() for c in req.password)
+        or not any(not c.isalnum() for c in req.password)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password does not meet policy requirements",
+        )
+
     if await user_repository.get_user_by_email(req.email):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already exists")
 
@@ -233,10 +243,15 @@ async def update_user(
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
     user_id: str,
-    _: User = Depends(require_manage_users),
+    current_user: User = Depends(require_manage_users),
     user_repository: UserRepository = Depends(get_user_repository),
 ):
     """Elimina un usuario. Requiere: usuario autenticado."""
+    if str(current_user.id) == user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete your own account",
+        )
     try:
         from bson import ObjectId
         users_collection = user_repository.mongodb_client.db[user_repository.collection_name]
