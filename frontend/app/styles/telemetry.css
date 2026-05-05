@@ -1,29 +1,29 @@
 /* ─── Telemetría — surface scoped tokens ──────────────────────────────────── */
-/* Aplica via [data-surface="telemetry"] wrapper. No afecta resto del sistema. */
+/* Aplica via [data-surface="telemetry"] wrapper. Hereda del sistema global.  */
 
 [data-surface="telemetry"] {
-  /* Surface — papel cálido tintado */
-  --t-canvas:        oklch(0.985 0.006 78);
-  --t-surface:       oklch(0.965 0.008 75);
-  --t-surface-deep:  oklch(0.935 0.010 72);
-  --t-surface-edge:  oklch(0.890 0.014 70);
+  /* Surfaces — heredadas del sistema global (light/dark automático) */
+  --t-canvas:        hsl(var(--background));
+  --t-surface:       hsl(var(--card));
+  --t-surface-deep:  hsl(var(--muted));
+  --t-surface-edge:  hsl(var(--border));
 
-  /* Ink — tinta azul fría */
-  --t-ink:           oklch(0.18 0.014 258);
-  --t-ink-mid:       oklch(0.42 0.012 258);
-  --t-ink-soft:      oklch(0.62 0.010 258);
-  --t-ink-mute:      oklch(0.78 0.008 258);
-  --t-ink-faint:     oklch(0.88 0.006 258);
+  /* Ink — usa foreground/muted del sistema global */
+  --t-ink:           hsl(var(--foreground));
+  --t-ink-mid:       hsl(var(--muted-foreground));
+  --t-ink-soft:      color-mix(in oklab, hsl(var(--muted-foreground)) 80%, hsl(var(--background)));
+  --t-ink-mute:      color-mix(in oklab, hsl(var(--muted-foreground)) 50%, hsl(var(--background)));
+  --t-ink-faint:     color-mix(in oklab, hsl(var(--muted-foreground)) 25%, hsl(var(--background)));
 
-  /* Signal — single-hue persimmon → oxblood */
-  --t-signal:        oklch(0.62 0.18 48);
-  --t-signal-deep:   oklch(0.45 0.20 32);
-  --t-signal-soft:   oklch(0.93 0.05 55);
-  --t-signal-tint:   oklch(0.97 0.02 55);
+  /* Signal — warning/error del sistema global */
+  --t-signal:        hsl(var(--warning));
+  --t-signal-deep:   hsl(var(--error));
+  --t-signal-soft:   color-mix(in oklab, hsl(var(--warning)) 12%, hsl(var(--background)));
+  --t-signal-tint:   color-mix(in oklab, hsl(var(--warning)) 5%, hsl(var(--background)));
 
-  /* Data accent — cool steel para sparklines neutras */
-  --t-data:          oklch(0.55 0.06 250);
-  --t-data-soft:     oklch(0.85 0.02 250);
+  /* Data accent — primary violet del sistema global */
+  --t-data:          hsl(var(--primary));
+  --t-data-soft:     hsl(var(--primary-faint));
 
   background: var(--t-canvas);
   color: var(--t-ink);
@@ -34,7 +34,7 @@
 /* ─── Tipografía display — escala saltos amplios ─────────────────────────── */
 
 [data-surface="telemetry"] .t-display {
-  font-family: var(--font-sans), Inter, system-ui, sans-serif;
+  font-family: var(--font-heading), 'Space Grotesk', system-ui, sans-serif;
   font-size: clamp(2.5rem, 4vw + 1rem, 3.75rem);
   font-weight: 600;
   letter-spacing: -0.035em;
@@ -44,7 +44,7 @@
 }
 
 [data-surface="telemetry"] .t-title {
-  font-family: var(--font-sans), Inter, system-ui, sans-serif;
+  font-family: var(--font-heading), 'Space Grotesk', system-ui, sans-serif;
   font-size: 1.75rem;
   font-weight: 600;
   letter-spacing: -0.022em;
@@ -53,7 +53,7 @@
 }
 
 [data-surface="telemetry"] .t-heading {
-  font-family: var(--font-sans), Inter, system-ui, sans-serif;
+  font-family: var(--font-heading), 'Space Grotesk', system-ui, sans-serif;
   font-size: 1.0625rem;
   font-weight: 600;
   letter-spacing: -0.012em;
@@ -118,7 +118,9 @@
 [data-surface="telemetry"] [data-severity="info"] { color: var(--t-ink-soft); }
 
 [data-surface="telemetry"] [data-severity-bg="warn"] { background: var(--t-signal-tint); }
-[data-surface="telemetry"] [data-severity-bg="crit"] { background: oklch(0.94 0.04 30); }
+[data-surface="telemetry"] [data-severity-bg="crit"] {
+  background: color-mix(in oklab, hsl(var(--error)) 8%, hsl(var(--background)));
+}
 
 /* ─── Glyph — health indicator sin glow ──────────────────────────────────── */
 
@@ -141,7 +143,7 @@
   50%       { opacity: 0.55; }
 }
 
-/* ─── Surfaces sin border-radius excesivo ────────────────────────────────── */
+/* ─── Surfaces ───────────────────────────────────────────────────────────── */
 
 [data-surface="telemetry"] .t-tile {
   background: var(--t-surface);
@@ -157,13 +159,12 @@
   padding: 1.125rem 1.25rem;
 }
 
-/* Tile severity outline */
 [data-surface="telemetry"] .t-tile[data-severity="warn"] {
   border-color: var(--t-signal);
 }
 [data-surface="telemetry"] .t-tile[data-severity="crit"] {
   border-color: var(--t-signal-deep);
-  background: oklch(0.97 0.025 35);
+  background: color-mix(in oklab, hsl(var(--error)) 5%, hsl(var(--card)));
 }
 
 /* ─── Sparkline path animations ──────────────────────────────────────────── */
@@ -180,7 +181,7 @@
   animation: t-data-enter 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* Number cross-fade on update — no count-up */
+/* Number cross-fade on update */
 @keyframes t-num-fade {
   from { opacity: 0.35; }
   to   { opacity: 1; }
