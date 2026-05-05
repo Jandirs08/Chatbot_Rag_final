@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import useSWR from "swr";
 import {
   ResponsiveContainer,
@@ -430,8 +430,15 @@ function SectionError({ message }: { message: string }) {
 
 export default function DashboardPage() {
   const { isAuthorized } = useRequireAdmin();
-  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [lastRefreshStr, setLastRefreshStr] = useState("");
+  const [todayStr, setTodayStr] = useState("");
   const [history7d, setHistory7d] = useState<HistoryItem[] | undefined>();
+
+  useEffect(() => {
+    const now = new Date();
+    setLastRefreshStr(now.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" }));
+    setTodayStr(now.toLocaleDateString("es-PE", { weekday: "long", day: "numeric", month: "long" }));
+  }, []);
 
   const {
     data: overview,
@@ -446,12 +453,10 @@ export default function DashboardPage() {
 
   const handleRefresh = useCallback(() => {
     refreshOverview();
-    setLastRefresh(new Date());
+    setLastRefreshStr(new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" }));
   }, [refreshOverview]);
 
   if (!isAuthorized) return null;
-
-  const today = new Date().toLocaleDateString("es-PE", { weekday: "long", day: "numeric", month: "long" });
 
   return (
     <div data-surface="telemetry" className="min-h-full -m-6 p-8 md:p-12 lg:p-14">
@@ -462,12 +467,10 @@ export default function DashboardPage() {
           <div>
             <p className="t-label mb-3">Métricas · resumen del día</p>
             <h1 className="t-title mb-1">Estado de actividad</h1>
-            <p className="t-body capitalize">{today}</p>
+            <p className="t-body capitalize">{todayStr}</p>
           </div>
           <div className="flex flex-col items-end gap-2">
-            <span className="t-mono-sm">
-              {lastRefresh.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}
-            </span>
+            <span className="t-mono-sm">{lastRefreshStr}</span>
             <button
               type="button"
               onClick={handleRefresh}
