@@ -233,7 +233,11 @@ export const authService = {
         return authData;
       } catch (error) {
         if (silent) {
+          // Clear in-memory tokens but do not redirect — let the caller decide.
+          // Dispatch expiry so AuthContext reacts immediately without waiting
+          // for the next authenticatedFetch to trigger a non-silent refresh.
           TokenManager.clearTokens();
+          dispatchAuthEvent(AUTH_SESSION_EXPIRED_EVENT);
         } else {
           await expireSession();
         }

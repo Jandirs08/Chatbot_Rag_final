@@ -13,7 +13,7 @@ import { verifyAccessToken } from "./app/lib/auth/jwtVerify";
 function buildLoginUrl(req: NextRequest, from: string): string {
   const base = new URL("/auth/login", req.url).href.split("?")[0];
   if (from && from !== "/auth/login") {
-    return `${base}?from=${from}`;
+    return `${base}?from=${encodeURIComponent(from)}`;
   }
   return base;
 }
@@ -21,6 +21,13 @@ function buildLoginUrl(req: NextRequest, from: string): string {
 function getSafeFrom(req: NextRequest): string {
   const from = req.nextUrl.searchParams.get("from");
   if (!from || !from.startsWith("/") || from.startsWith("//")) return "/";
+  // Reject open-redirect: resolved URL must stay on the same origin.
+  try {
+    const resolved = new URL(from, req.url);
+    if (resolved.origin !== req.nextUrl.origin) return "/";
+  } catch {
+    return "/";
+  }
   return from;
 }
 

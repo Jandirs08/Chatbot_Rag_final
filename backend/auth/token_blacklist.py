@@ -6,7 +6,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-_ROTATION_GRACE_SECONDS = 30
+_ROTATION_GRACE_SECONDS = 5
 
 
 class TokenBlacklist:

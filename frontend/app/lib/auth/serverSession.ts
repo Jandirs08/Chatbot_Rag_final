@@ -7,6 +7,7 @@ import type { User } from "@/app/lib/services/authService";
 import type { AuthSessionSnapshot } from "./session";
 import { SSR_ACCESS_TOKEN_HEADER } from "./session";
 import { ACCESS_TOKEN_COOKIE, decodeTokenExpiry } from "./sessionRefresh";
+import { verifyAccessToken } from "./jwtVerify";
 
 const SERVER_SESSION_TIMEOUT_MS = 3_000;
 
@@ -76,9 +77,10 @@ export async function resolveServerSession(): Promise<AuthSessionSnapshot | null
     return { user, accessToken, expiresAt: decodeTokenExpiry(accessToken) };
   }
 
-  // Backend unavailable or slow — decode JWT locally as fallback.
-  // The middleware already verified the signature, so decoding without
-  // re-verification is safe here.
+  // Backend unavailable or slow — verify signature + expiry before using
+  // the token locally to avoid accepting expired tokens.
+  const claims = await verifyAccessToken(accessToken);
+  if (!claims) return null;
   const fallbackUser = buildUserFromToken(accessToken);
   if (!fallbackUser) return null;
 

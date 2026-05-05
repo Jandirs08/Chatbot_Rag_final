@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { applySessionCookies, type SessionTokens } from '@/app/lib/auth/sessionRefresh';
 import { rejectCrossOrigin } from '@/app/lib/auth/apiAuth';
+import { verifyAccessToken } from '@/app/lib/auth/jwtVerify';
 
 export async function POST(request: NextRequest) {
   const csrfRejection = rejectCrossOrigin(request);
@@ -17,6 +18,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Verify signature + type before promoting to HttpOnly cookie.
+    const claims = await verifyAccessToken(access_token);
+    if (!claims) {
+      return NextResponse.json(
+        { error: 'Invalid token' },
+        { status: 401 }
+      );
+    }
+
     const response = NextResponse.json({ success: true });
     applySessionCookies(
       response,
@@ -30,7 +40,7 @@ export async function POST(request: NextRequest) {
     );
 
     return response;
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500 }
