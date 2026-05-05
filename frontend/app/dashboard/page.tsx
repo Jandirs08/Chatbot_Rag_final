@@ -16,7 +16,7 @@ import { useRequireAdmin } from "@/app/hooks/useAuthGuard";
 import { API_URL } from "@/app/lib/config";
 import { authenticatedJsonFetcher } from "@/app/lib/services/authService";
 import { Skeleton } from "@/app/components/ui/skeleton";
-import { Sparkline } from "@/app/_components/telemetry";
+import { TelemetryMetric } from "@/app/_components/telemetry";
 import type { Sample } from "@/app/hooks/useRingBuffer";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -96,32 +96,6 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
 
 // ─── Hero metrics row ─────────────────────────────────────────────────────────
 
-function HeroMetric({
-  label, value, sub, samples,
-}: {
-  label: string;
-  value: number | string;
-  sub?: string;
-  samples?: Sample[];
-}) {
-  return (
-    <div className="flex flex-col gap-2">
-      <span className="t-label">{label}</span>
-      <div className="flex items-end gap-3">
-        <span className="t-mono-xl" style={{ fontSize: "2rem" }}>
-          {typeof value === "number" ? fmtNum(value) : value}
-        </span>
-        {samples && samples.length >= 2 && (
-          <span className="pb-1.5">
-            <Sparkline samples={samples} width={90} height={22} />
-          </span>
-        )}
-      </div>
-      {sub && <span className="t-small">{sub}</span>}
-    </div>
-  );
-}
-
 function MetricRow({
   overview,
   loading,
@@ -150,27 +124,29 @@ function MetricRow({
 
   return (
     <section className="grid grid-cols-2 lg:grid-cols-4 gap-x-12 gap-y-8">
-      <HeroMetric
+      <TelemetryMetric
         label="Mensajes hoy"
-        value={overview?.today_messages ?? 0}
+        value={fmtNum(overview?.today_messages ?? 0)}
         sub={`${fmtNum(overview?.total_messages)} en total`}
         samples={messagesSamples}
       />
-      <HeroMetric
+      <TelemetryMetric
         label="Conversaciones hoy"
-        value={overview?.today_conversations ?? 0}
+        value={fmtNum(overview?.today_conversations ?? 0)}
         sub={`${fmtNum(overview?.total_conversations)} históricas`}
         samples={usersSamples}
       />
-      <HeroMetric
+      <TelemetryMetric
         label="Leads esta semana"
-        value={overview?.leads_this_week ?? 0}
+        value={fmtNum(overview?.leads_this_week ?? 0)}
         sub={`${fmtNum(overview?.leads_total)} en total`}
+        severity="info"
       />
-      <HeroMetric
+      <TelemetryMetric
         label="PDFs en base"
-        value={overview?.pdfs_ready ?? 0}
+        value={fmtNum(overview?.pdfs_ready ?? 0)}
         sub="documentos listos"
+        severity="info"
       />
     </section>
   );
