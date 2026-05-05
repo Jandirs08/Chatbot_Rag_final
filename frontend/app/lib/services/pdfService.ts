@@ -1,5 +1,5 @@
 import { API_URL } from "../constants";
-import { authService, authenticatedFetch } from "./authService";
+import { authService, authenticatedFetch, TokenManager } from "./authService";
 
 export class RateLimitError extends Error {
   readonly type = "RATE_LIMIT_EXCEEDED" as const;
@@ -56,11 +56,22 @@ export class PDFService {
       retryAfter?: number;
     };
   }> {
+    const expiry = TokenManager.getExpiryTime();
+    const expiresSoon = expiry !== null && expiry - Date.now() < 60_000;
+    if (expiresSoon || !TokenManager.isTokenValid()) {
+      try {
+        await authService.refreshToken();
+      } catch {
+        // Continue with whatever token we have; XHR handler will manage 401/403.
+      }
+    }
+
     // Usar XMLHttpRequest para poder obtener eventos de progreso de subida
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       const url = `${API_URL}/pdfs/upload`;
       xhr.open("POST", url);
+      xhr.withCredentials = true;
       const token = authService.getAuthToken();
       if (token) {
         xhr.setRequestHeader("Authorization", `Bearer ${token}`);
@@ -86,11 +97,9 @@ export class PDFService {
         if (xhr.readyState === XMLHttpRequest.DONE) {
           const status = xhr.status;
 
-          // Manejo de token expirado (401)
-          if (status === 401 && !isRetry) {
+          if ((status === 401 || status === 403) && !isRetry) {
             try {
               await authService.refreshToken();
-              // Reintentar subida con nuevo token
               const result = await this.uploadPDF(file, onProgress, true);
               resolve(result);
             } catch (e) {

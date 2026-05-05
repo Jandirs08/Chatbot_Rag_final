@@ -10,8 +10,16 @@ const sensitive = [
   "set-cookie",
 ];
 
+const TOKEN_QUERY_REGEX = /([?&])(token|access_token|refresh_token)=([^&\s]+)/gi;
+
+function maskTokensInUrl(value: string): string {
+  return value.replace(TOKEN_QUERY_REGEX, "$1$2=***");
+}
+
 function maskString(value: string) {
   if (!value) return value;
+  const urlMasked = maskTokensInUrl(value);
+  if (urlMasked !== value) return urlMasked;
   if (value.includes("@")) return "***";
   if (value.length > 8) return `***${value.slice(-4)}`;
   return "***";

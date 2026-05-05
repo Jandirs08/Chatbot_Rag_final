@@ -1,19 +1,37 @@
 "use client";
 
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/app/components/ui/card";
 import { Skeleton } from "@/app/components/ui/skeleton";
-import { FileText, Upload } from "lucide-react";
 
 interface DocumentStatsCardsProps {
   documentCount: number;
   totalSize: number;
   isLoading: boolean;
   formatFileSize: (bytes: number) => string;
+}
+
+function StatItem({
+  label,
+  value,
+  isLoading,
+}: {
+  label: string;
+  value: string;
+  isLoading: boolean;
+}) {
+  return (
+    <div>
+      {isLoading ? (
+        <Skeleton className="h-7 w-20 mb-1" />
+      ) : (
+        <p className="font-heading text-2xl font-semibold tabular-nums text-foreground leading-none">
+          {value}
+        </p>
+      )}
+      <p className="mt-1.5 font-heading text-[10px] uppercase tracking-[0.12em] text-muted-foreground/60">
+        {label}
+      </p>
+    </div>
+  );
 }
 
 export function DocumentStatsCards({
@@ -23,48 +41,21 @@ export function DocumentStatsCards({
   formatFileSize,
 }: DocumentStatsCardsProps) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <Card className="border-border/50">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            Total Documentos
-          </CardTitle>
-          <FileText className="h-4 w-4 text-primary" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-foreground">
-            {isLoading ? (
-              <Skeleton className="h-6 w-16" />
-            ) : (
-              documentCount
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            PDFs en el sistema
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card className="border-border/50">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            Tamaño Total
-          </CardTitle>
-          <Upload className="h-4 w-4 text-accent" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-foreground">
-            {isLoading ? (
-              <Skeleton className="h-6 w-24" />
-            ) : (
-              formatFileSize(totalSize)
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Espacio utilizado
-          </p>
-        </CardContent>
-      </Card>
-    </div>
+    <section className="flex flex-wrap items-end gap-x-10 gap-y-4">
+      <StatItem
+        label="PDFs en el sistema"
+        value={String(documentCount)}
+        isLoading={isLoading}
+      />
+      <div
+        className="hidden sm:block self-stretch w-px bg-border/60 my-1"
+        aria-hidden="true"
+      />
+      <StatItem
+        label="Espacio utilizado"
+        value={formatFileSize(totalSize)}
+        isLoading={isLoading}
+      />
+    </section>
   );
 }

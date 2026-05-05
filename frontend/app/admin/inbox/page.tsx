@@ -230,25 +230,19 @@ function ContextualStats({
                 scored.length,
             )
           : null;
-      const lastUpdate = conversations
-        .map((c) => c.updated_at)
-        .filter((v): v is string => Boolean(v))
-        .sort()
-        .at(-1);
-      const lastLabel = lastUpdate
-        ? new Date(lastUpdate).toLocaleTimeString("es-PE", {
-            hour: "numeric",
-            minute: "2-digit",
-          })
-        : "—";
+      const withLead = conversations.filter((c) => c.lead_email).length;
       return [
-        { label: "Leads activos", value: String(total) },
+        { label: "Conversaciones", value: String(total) },
+        {
+          label: "Con datos",
+          value: String(withLead),
+          hint: total > 0 ? `${Math.round((withLead / total) * 100)}% del total` : undefined,
+        },
         {
           label: "Score promedio",
           value: avg != null ? String(avg) : "—",
           hint: scored.length > 0 ? `${scored.length} con score` : undefined,
         },
-        { label: "Última actualización", value: lastLabel },
       ];
     }
 
@@ -289,14 +283,13 @@ function ContextualStats({
         const ageMin = (Date.now() - new Date(c.updated_at).getTime()) / 60000;
         return ageMin > 5;
       });
-      const scored = mine.filter((c) => c.lead_score != null);
-      const avg =
-        scored.length > 0
-          ? Math.round(
-              scored.reduce((acc, c) => acc + (c.lead_score ?? 0), 0) /
-                scored.length,
-            )
-          : null;
+      const oldestStaleMin = mine.reduce<number | null>((acc, c) => {
+        if (!c.updated_at) return acc;
+        const ageMin = Math.floor(
+          (Date.now() - new Date(c.updated_at).getTime()) / 60000,
+        );
+        return acc == null || ageMin > acc ? ageMin : acc;
+      }, null);
       return [
         {
           label: "Tus conversaciones",
@@ -308,8 +301,9 @@ function ContextualStats({
           tone: stale.length > 0 ? "warn" : "default",
         },
         {
-          label: "Score promedio",
-          value: avg != null ? String(avg) : "—",
+          label: "Más antigua",
+          value: oldestStaleMin != null ? `${oldestStaleMin}m` : "—",
+          tone: oldestStaleMin != null && oldestStaleMin >= 10 ? "warn" : "default",
         },
       ];
     }

@@ -8,5 +8,5 @@ export type Permission =
 
 export function hasPermission(user: User | null | undefined, permission: Permission): boolean {
   void permission;
-  return Boolean(user?.is_admin);
+  return Boolean(user?.is_admin && user?.is_active);
 }

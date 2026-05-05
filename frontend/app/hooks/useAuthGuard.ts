@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from './useAuth';
+import { useAuthContext } from '@/app/contexts/AuthContext';
 import {
   hasPermission,
   type Permission,
@@ -20,6 +21,7 @@ function buildLoginPath(pathname: string | null): string {
 
 export function useRequirePermission(permission?: Permission) {
   const { user, isAuthenticated, isAdmin, isLoading, isInitialized } = useAuth();
+  const { error } = useAuthContext();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -38,13 +40,15 @@ export function useRequirePermission(permission?: Permission) {
       return;
     }
 
-    if (!hasRequiredPermission) {
+    if (isInitialized && isAuthenticated && !hasRequiredPermission && !error) {
       router.replace('/');
     }
   }, [
+    error,
     hasRequiredPermission,
     isAuthenticated,
     isChecking,
+    isInitialized,
     pathname,
     router,
   ]);

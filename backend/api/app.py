@@ -758,8 +758,13 @@ def create_app() -> FastAPI:
     # Handlers globales de excepciones
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
-        main_logger.error(f"Error de validación: {exc}")
-        return JSONResponse(status_code=422, content={"detail": "Solicitud inválida", "errors": exc.errors()})
+        # Sanitizar: nunca loguear ni devolver el campo `input` (puede contener credenciales).
+        safe_errors = [
+            {"type": e.get("type"), "loc": e.get("loc"), "msg": e.get("msg")}
+            for e in exc.errors()
+        ]
+        main_logger.warning("Error de validación en %s: %s", request.url.path, safe_errors)
+        return JSONResponse(status_code=422, content={"detail": "Solicitud inválida", "errors": safe_errors})
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):

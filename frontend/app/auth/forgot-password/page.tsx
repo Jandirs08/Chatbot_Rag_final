@@ -57,7 +57,7 @@ export default function ForgotPasswordPage() {
             </CardFooter>
           </>
         ) : (
-          <form onSubmit={onSubmit}>
+          <form method="post" onSubmit={onSubmit}>
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Correo electrónico</Label>

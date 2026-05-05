@@ -46,6 +46,7 @@ export const AUTH_SESSION_EXPIRED_EVENT = "auth:session-expired";
 export const AUTH_STATE_INVALIDATED_EVENT = "auth:state-invalidated";
 
 let sessionExpirationInFlight: Promise<void> | null = null;
+let refreshInFlight: Promise<AuthResponse> | null = null;
 
 function dispatchAuthEvent(eventName: string): void {
   if (typeof window === "undefined") return;
@@ -209,30 +210,41 @@ export const authService = {
   async refreshToken(
     { silent = false }: { silent?: boolean } = {},
   ): Promise<AuthResponse> {
-    try {
-      const response = await publicFetch("/api/auth/refresh", {
-        method: "POST",
-      });
-
-      if (!response.ok) {
-        throw new Error("Token invalido");
-      }
-
-      const authData: AuthResponse = await response.json();
-      TokenManager.setTokens(
-        authData.access_token,
-        authData.expires_in,
-      );
-
-      return authData;
-    } catch (error) {
-      if (silent) {
-        TokenManager.clearTokens();
-      } else {
-        await expireSession();
-      }
-      throw error;
+    if (refreshInFlight) {
+      return refreshInFlight;
     }
+
+    const inFlight = (async () => {
+      try {
+        const response = await publicFetch("/api/auth/refresh", {
+          method: "POST",
+        });
+
+        if (!response.ok) {
+          throw new Error("Token invalido");
+        }
+
+        const authData: AuthResponse = await response.json();
+        TokenManager.setTokens(
+          authData.access_token,
+          authData.expires_in,
+        );
+
+        return authData;
+      } catch (error) {
+        if (silent) {
+          TokenManager.clearTokens();
+        } else {
+          await expireSession();
+        }
+        throw error;
+      } finally {
+        refreshInFlight = null;
+      }
+    })();
+
+    refreshInFlight = inFlight;
+    return inFlight;
   },
 
   async requestPasswordReset(email: string): Promise<void> {
@@ -275,11 +287,42 @@ export const authService = {
   },
 };
 
+async function maybeDispatchInvalidSession(
+  url: string,
+  response: Response,
+): Promise<void> {
+  if (response.status !== 403) return;
+
+  if (url.endsWith("/auth/me")) {
+    dispatchAuthEvent(AUTH_STATE_INVALIDATED_EVENT);
+    return;
+  }
+
+  try {
+    const cloned = response.clone();
+    const data = await cloned.json();
+    if (data && typeof data === "object" && (data as { code?: unknown }).code === "INVALID_SESSION") {
+      dispatchAuthEvent(AUTH_STATE_INVALIDATED_EVENT);
+    }
+  } catch {
+    // Body not JSON or unreadable: do not dispatch.
+  }
+}
+
 export const authenticatedFetch = async (
   url: string,
   options: RequestInit = {},
 ): Promise<Response> => {
   let token = TokenManager.getAccessToken();
+
+  if (!token && !TokenManager.isTokenValid()) {
+    try {
+      await authService.refreshToken({ silent: true });
+      token = TokenManager.getAccessToken();
+    } catch {
+      // Fall through; the upcoming request will hit 401 and follow normal flow.
+    }
+  }
 
   const getHeaders = (currentToken: string | null) => {
     const headers = new Headers(options.headers);
@@ -314,9 +357,7 @@ export const authenticatedFetch = async (
     }
   }
 
-  if (response.status === 403 && !url.endsWith("/auth/me")) {
-    dispatchAuthEvent(AUTH_STATE_INVALIDATED_EVENT);
-  }
+  await maybeDispatchInvalidSession(url, response);
 
   return response;
 };
@@ -337,6 +378,15 @@ export const authenticatedUpload = async (
   options: RequestInit = {},
 ): Promise<Response> => {
   let token = TokenManager.getAccessToken();
+
+  if (!token && !TokenManager.isTokenValid()) {
+    try {
+      await authService.refreshToken({ silent: true });
+      token = TokenManager.getAccessToken();
+    } catch {
+      // Fall through; the upcoming request will hit 401 and follow normal flow.
+    }
+  }
 
   const getHeaders = (currentToken: string | null) => {
     const headers = new Headers(options.headers);
@@ -370,9 +420,7 @@ export const authenticatedUpload = async (
     }
   }
 
-  if (response.status === 403 && !url.endsWith("/auth/me")) {
-    dispatchAuthEvent(AUTH_STATE_INVALIDATED_EVENT);
-  }
+  await maybeDispatchInvalidSession(url, response);
 
   return response;
 };

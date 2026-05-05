@@ -1,0 +1,198 @@
+/* ─── Telemetría — surface scoped tokens ──────────────────────────────────── */
+/* Aplica via [data-surface="telemetry"] wrapper. No afecta resto del sistema. */
+
+[data-surface="telemetry"] {
+  /* Surface — papel cálido tintado */
+  --t-canvas:        oklch(0.985 0.006 78);
+  --t-surface:       oklch(0.965 0.008 75);
+  --t-surface-deep:  oklch(0.935 0.010 72);
+  --t-surface-edge:  oklch(0.890 0.014 70);
+
+  /* Ink — tinta azul fría */
+  --t-ink:           oklch(0.18 0.014 258);
+  --t-ink-mid:       oklch(0.42 0.012 258);
+  --t-ink-soft:      oklch(0.62 0.010 258);
+  --t-ink-mute:      oklch(0.78 0.008 258);
+  --t-ink-faint:     oklch(0.88 0.006 258);
+
+  /* Signal — single-hue persimmon → oxblood */
+  --t-signal:        oklch(0.62 0.18 48);
+  --t-signal-deep:   oklch(0.45 0.20 32);
+  --t-signal-soft:   oklch(0.93 0.05 55);
+  --t-signal-tint:   oklch(0.97 0.02 55);
+
+  /* Data accent — cool steel para sparklines neutras */
+  --t-data:          oklch(0.55 0.06 250);
+  --t-data-soft:     oklch(0.85 0.02 250);
+
+  background: var(--t-canvas);
+  color: var(--t-ink);
+  font-family: var(--font-sans), Inter, system-ui, sans-serif;
+  font-feature-settings: "ss01", "cv11";
+}
+
+/* ─── Tipografía display — escala saltos amplios ─────────────────────────── */
+
+[data-surface="telemetry"] .t-display {
+  font-family: var(--font-sans), Inter, system-ui, sans-serif;
+  font-size: clamp(2.5rem, 4vw + 1rem, 3.75rem);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 0.95;
+  color: var(--t-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-surface="telemetry"] .t-title {
+  font-family: var(--font-sans), Inter, system-ui, sans-serif;
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  line-height: 1.1;
+  color: var(--t-ink);
+}
+
+[data-surface="telemetry"] .t-heading {
+  font-family: var(--font-sans), Inter, system-ui, sans-serif;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  line-height: 1.3;
+  color: var(--t-ink);
+}
+
+[data-surface="telemetry"] .t-body {
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--t-ink-mid);
+}
+
+[data-surface="telemetry"] .t-small {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--t-ink-soft);
+}
+
+[data-surface="telemetry"] .t-mono-xl {
+  font-family: var(--font-telemetry-mono), "JetBrains Mono", monospace;
+  font-size: 1.5rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--t-ink);
+}
+
+[data-surface="telemetry"] .t-mono {
+  font-family: var(--font-telemetry-mono), "JetBrains Mono", monospace;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.005em;
+  color: var(--t-ink);
+}
+
+[data-surface="telemetry"] .t-mono-sm {
+  font-family: var(--font-telemetry-mono), "JetBrains Mono", monospace;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  color: var(--t-ink-soft);
+}
+
+[data-surface="telemetry"] .t-label {
+  font-family: var(--font-sans), Inter, system-ui, sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--t-ink-soft);
+}
+
+/* ─── Severidad — silencio para OK, color solo en warn/crit ──────────────── */
+
+[data-surface="telemetry"] [data-severity="ok"]   { color: var(--t-ink-mid); }
+[data-surface="telemetry"] [data-severity="warn"] { color: var(--t-signal); }
+[data-surface="telemetry"] [data-severity="crit"] { color: var(--t-signal-deep); }
+[data-surface="telemetry"] [data-severity="info"] { color: var(--t-ink-soft); }
+
+[data-surface="telemetry"] [data-severity-bg="warn"] { background: var(--t-signal-tint); }
+[data-surface="telemetry"] [data-severity-bg="crit"] { background: oklch(0.94 0.04 30); }
+
+/* ─── Glyph — health indicator sin glow ──────────────────────────────────── */
+
+[data-surface="telemetry"] .t-glyph {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  display: inline-block;
+  background: var(--t-ink-mute);
+}
+[data-surface="telemetry"] .t-glyph[data-severity="ok"]   { background: var(--t-ink-soft); }
+[data-surface="telemetry"] .t-glyph[data-severity="warn"] { background: var(--t-signal); }
+[data-surface="telemetry"] .t-glyph[data-severity="crit"] {
+  background: var(--t-signal-deep);
+  animation: t-breathe 1.6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+@keyframes t-breathe {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.55; }
+}
+
+/* ─── Surfaces sin border-radius excesivo ────────────────────────────────── */
+
+[data-surface="telemetry"] .t-tile {
+  background: var(--t-surface);
+  border: 1px solid var(--t-surface-edge);
+  border-radius: 0.5rem;
+  padding: 1rem 1.125rem;
+}
+
+[data-surface="telemetry"] .t-tile-deep {
+  background: var(--t-surface-deep);
+  border: 1px solid var(--t-surface-edge);
+  border-radius: 0.5rem;
+  padding: 1.125rem 1.25rem;
+}
+
+/* Tile severity outline */
+[data-surface="telemetry"] .t-tile[data-severity="warn"] {
+  border-color: var(--t-signal);
+}
+[data-surface="telemetry"] .t-tile[data-severity="crit"] {
+  border-color: var(--t-signal-deep);
+  background: oklch(0.97 0.025 35);
+}
+
+/* ─── Sparkline path animations ──────────────────────────────────────────── */
+
+[data-surface="telemetry"] .t-spark-path {
+  transition: d 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes t-data-enter {
+  from { opacity: 0; transform: translate3d(8px, 0, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+[data-surface="telemetry"] .t-data-enter {
+  animation: t-data-enter 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Number cross-fade on update — no count-up */
+@keyframes t-num-fade {
+  from { opacity: 0.35; }
+  to   { opacity: 1; }
+}
+[data-surface="telemetry"] .t-num-fade {
+  animation: t-num-fade 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ─── Reduced motion ─────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  [data-surface="telemetry"] .t-glyph[data-severity="crit"] { animation: none; }
+  [data-surface="telemetry"] .t-data-enter { animation: none; }
+  [data-surface="telemetry"] .t-num-fade { animation: none; }
+}

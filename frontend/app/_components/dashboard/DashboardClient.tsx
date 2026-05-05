@@ -1,7 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
-import dynamic from "next/dynamic";
+import { useEffect, useState } from "react";
 import { logger } from "@/app/lib/logger";
 import { toast } from "sonner";
 import { botService } from "@/app/lib/services/botService";
@@ -9,15 +8,10 @@ import {
   useBotState,
   useDashboardStats,
 } from "@/app/hooks/useDashboardData";
-import { Skeleton } from "@/app/components/ui/skeleton";
+import { useAuth } from "@/app/hooks/useAuth";
 import DashboardHeader from "./DashboardHeader";
 import DashboardStats from "./DashboardStats";
 import DashboardQuickActions from "./DashboardQuickActions";
-
-const DashboardChartsLazy = dynamic(
-  () => import("@/components/dashboard/DashboardCharts"),
-  { ssr: false, suspense: true },
-);
 
 function Divider() {
   return (
@@ -25,17 +19,15 @@ function Divider() {
   );
 }
 
-function ChartsSkeleton() {
-  return <Skeleton className="h-[380px] w-full" />;
-}
-
 export default function DashboardClient() {
+  const { isAuthenticated, isInitialized } = useAuth();
+  const ready = isInitialized && isAuthenticated;
   const {
     data: botState,
     isLoading: isBotStateLoading,
     mutate: mutateBotState,
-  } = useBotState();
-  const { data: statsData, isLoading: isStatsLoading } = useDashboardStats();
+  } = useBotState({ enabled: ready });
+  const { data: statsData, isLoading: isStatsLoading } = useDashboardStats({ enabled: ready });
   const [isToggling, setIsToggling] = useState(false);
   const [relativeLastActivity, setRelativeLastActivity] = useState<string>("-");
 
@@ -114,14 +106,6 @@ export default function DashboardClient() {
         <Divider />
 
         <div className="animate-count-reveal" style={{ animationDelay: "160ms" }}>
-          <Suspense fallback={<ChartsSkeleton />}>
-            <DashboardChartsLazy />
-          </Suspense>
-        </div>
-
-        <Divider />
-
-        <div className="animate-count-reveal" style={{ animationDelay: "240ms" }}>
           <section>
             <p className="font-heading text-[10px] uppercase tracking-[0.08em] text-muted-foreground/50 mb-4">
               Accesos directos

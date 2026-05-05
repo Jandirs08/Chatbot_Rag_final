@@ -101,7 +101,7 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
 
   return (
     <Card className="mx-auto w-full max-w-md">
-      <form onSubmit={handleSubmit}>
+      <form method="post" onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
           <div role="alert" aria-live="polite" aria-atomic="true">
             {visibleError && (

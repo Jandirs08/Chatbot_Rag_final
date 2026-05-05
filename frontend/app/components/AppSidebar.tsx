@@ -122,7 +122,7 @@ export function AppSidebar() {
             <SidebarMenu>
               {([
                 { title: "Home", url: "/", icon: BarChart3 },
-                ...(isAdmin ? [{ title: "Dashboard", url: "/dashboard", icon: LayoutDashboard }] : []),
+                ...(isAdmin ? [{ title: "Métricas", url: "/dashboard", icon: LayoutDashboard }] : []),
                 { title: "Chat", url: "/chat", icon: MessageCircle },
                 ...(isAdmin ? [{ title: "Inbox", url: "/admin/inbox", icon: MessageSquare }] : []),
                 ...(isAdmin ? [{ title: "Conversaciones", url: "/admin/conversations", icon: History }] : []),

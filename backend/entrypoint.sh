@@ -24,6 +24,8 @@ echo "========================================"
 
 if [ "$ENVIRONMENT" = "production" ]; then
     echo "🚀 Iniciando en modo PRODUCCIÓN con $WORKERS workers..."
+    # Access log custom: omitimos query string para no persistir credenciales
+    # si algún cliente envía un GET con ?email=...&password=... por error.
     exec gunicorn main:app \
         --worker-class uvicorn.workers.UvicornWorker \
         --workers "$WORKERS" \
@@ -31,6 +33,7 @@ if [ "$ENVIRONMENT" = "production" ]; then
         --timeout 120 \
         --keep-alive 5 \
         --access-logfile - \
+        --access-logformat '%(h)s %(l)s %(u)s %(t)s "%(m)s %(U)s" %(s)s %(b)s "%(f)s" "%(a)s" %(D)sus' \
         --error-logfile -
 else
     echo "🔧 Iniciando en modo DESARROLLO con hot-reload..."

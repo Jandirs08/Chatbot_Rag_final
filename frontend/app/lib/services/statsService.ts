@@ -8,12 +8,6 @@ export interface Stats {
   total_pdfs: number;
 }
 
-export interface HistoryPoint {
-  date: string;
-  messages_count: number;
-  users_count: number;
-}
-
 class StatsService {
   async getStats(): Promise<Stats> {
     try {
@@ -36,29 +30,6 @@ class StatsService {
       };
     } catch (error) {
       logger.error("StatsService: Error al obtener stats:", error);
-      throw error;
-    }
-  }
-
-  async getHistory(days: number): Promise<HistoryPoint[]> {
-    try {
-      const response = await authenticatedFetch(
-        `${API_URL}/chat/stats/history?days=${days}`
-      );
-      if (!response.ok) {
-        throw new Error(`Error al obtener histórico (${response.status})`);
-      }
-      const data = await response.json();
-      if (!Array.isArray(data)) {
-        throw new Error("Formato de datos inválido (se esperaba lista)");
-      }
-      return data.map((d) => ({
-        date: String(d.date),
-        messages_count: Number(d.messages_count) || 0,
-        users_count: Number(d.users_count) || 0,
-      }));
-    } catch (error) {
-      logger.error("StatsService: Error al obtener histórico:", error);
       throw error;
     }
   }

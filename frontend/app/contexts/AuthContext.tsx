@@ -9,6 +9,7 @@ import React, {
   type ReactNode,
 } from "react";
 import { usePathname } from "next/navigation";
+import { useSWRConfig } from "swr";
 import { logger } from "@/app/lib/logger";
 import type { AuthSessionSnapshot } from "@/app/lib/auth/session";
 import {
@@ -19,6 +20,7 @@ import {
   TokenManager,
 } from "@/app/lib/services/authService";
 import { isPublicPath } from "@/app/lib/auth/routeAccess";
+import { useTokenExpiryWatcherWithFlag } from "@/app/hooks/useTokenExpiryWatcher";
 import type { User } from "@/app/lib/services/authService";
 
 export interface AuthState {
@@ -203,6 +205,7 @@ export function AuthProvider({
   initialSession = null,
 }: AuthProviderProps) {
   const pathname = usePathname();
+  const { cache, mutate: globalMutate } = useSWRConfig();
   const [state, dispatch] = useReducer(
     authReducer,
     initialSession,
@@ -335,7 +338,14 @@ export function AuthProvider({
       if (e.key !== "auth:logout-event" || e.newValue === null) return;
       TokenManager.clearTokens();
       dispatch({ type: "AUTH_LOGOUT" });
-      window.location.replace("/auth/login");
+      if (!isPublicPath(window.location.pathname)) {
+        window.location.replace("/auth/login");
+      }
+      try {
+        localStorage.removeItem("auth:logout-event");
+      } catch {
+        // Ignore storage cleanup errors.
+      }
     };
 
     window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, handleSessionExpired);
@@ -357,6 +367,42 @@ export function AuthProvider({
       window.removeEventListener("storage", handleCrossTabLogout);
     };
   }, [checkAuthStatus]);
+
+  useTokenExpiryWatcherWithFlag(state.isAuthenticated);
+
+  useEffect(() => {
+    if (!state.isAuthenticated) return;
+    if (isPublicPath(pathname)) return;
+
+    let lastCheck = 0;
+    const THROTTLE_MS = 60_000;
+    const REVALIDATE_INTERVAL_MS = 5 * 60_000;
+
+    const maybeCheck = () => {
+      const now = Date.now();
+      if (now - lastCheck < THROTTLE_MS) return;
+      lastCheck = now;
+      void checkAuthStatus();
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState !== "visible") return;
+      maybeCheck();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      lastCheck = Date.now();
+      void checkAuthStatus();
+    }, REVALIDATE_INTERVAL_MS);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.clearInterval(interval);
+    };
+  }, [checkAuthStatus, pathname, state.isAuthenticated]);
 
   const login = async (email: string, password: string) => {
     try {
@@ -383,8 +429,15 @@ export function AuthProvider({
       await authService.logout();
     } finally {
       dispatch({ type: "AUTH_LOGOUT" });
+      try {
+        for (const key of Array.from((cache as Map<string, unknown>).keys())) {
+          globalMutate(key, undefined, { revalidate: false });
+        }
+      } catch {
+        // Cache wipe is best-effort.
+      }
     }
-  }, []);
+  }, [cache, globalMutate]);
 
   const clearError = () => {
     dispatch({ type: "CLEAR_ERROR" });

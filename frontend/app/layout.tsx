@@ -1,6 +1,6 @@
 import "./globals.css";
 import type { Metadata } from "next";
-import { Inter, Space_Grotesk, DM_Mono } from "next/font/google";
+import { Inter, Space_Grotesk, DM_Mono, JetBrains_Mono } from "next/font/google";
 import { RootLayoutClient } from "./components/RootLayoutClient";
 import { SWRProvider } from "./components/SWRProvider";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -26,6 +26,13 @@ const dmMono = DM_Mono({
   display: "swap",
 });
 
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-telemetry-mono",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "Aleph — Panel de Control",
   description: "Plataforma RAG para asistentes inteligentes",
@@ -40,7 +47,7 @@ export default async function RootLayout({
 
   return (
     <html lang="es" className="h-full">
-      <body className={`${inter.variable} ${spaceGrotesk.variable} ${dmMono.variable} font-sans h-full`}>
+      <body className={`${inter.variable} ${spaceGrotesk.variable} ${dmMono.variable} ${jetbrainsMono.variable} font-sans h-full`}>
         <SWRProvider>
           <AuthProvider initialSession={initialSession}>
             <RootLayoutClient>{children}</RootLayoutClient>

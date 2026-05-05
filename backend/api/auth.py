@@ -80,46 +80,46 @@ async def login(
         # Get user by email
         user = await user_repository.get_user_by_email(login_data.email)
         if not user:
-            logger.warning(f"Login attempt with non-existent email: {login_data.email}")
+            logger.warning("Login attempt with non-existent email")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid credentials",
                 headers={"WWW-Authenticate": "Bearer"}
             )
-        
+
         # Check if user is active
         if not user.is_active:
-            logger.warning(f"Login attempt by inactive user: {login_data.email}")
+            logger.warning("Login attempt by inactive user_id=%s", user.id)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Account is inactive",
                 headers={"WWW-Authenticate": "Bearer"}
             )
-        
+
         # Verify password
         if not verify_password(login_data.password, user.hashed_password):
-            logger.warning(f"Invalid password for user: {login_data.email}")
+            logger.warning("Invalid password for user_id=%s", user.id)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid credentials",
                 headers={"WWW-Authenticate": "Bearer"}
             )
-        
+
         # Create token data
         token_data = {
             "sub": str(user.id),
             "email": user.email,
             "is_admin": user.is_admin
         }
-        
+
         # Create tokens
         access_token = create_access_token(data=token_data)
         refresh_token = create_refresh_token(data={"sub": str(user.id)})
-        
+
         # Update last login
         await user_repository.update_last_login(str(user.id))
-        
-        logger.info(f"Successful login for user: {login_data.email}")
+
+        logger.info("Successful login for user_id=%s", user.id)
         
         if response is not None:
             secure_flag = str(settings.environment).lower() in ("production", "prod", "staging")
@@ -143,7 +143,7 @@ async def login(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Login error for {login_data.email}: {str(e)}")
+        logger.error("Login error: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error during login"
@@ -175,7 +175,7 @@ async def get_current_user_profile(
         User profile information
     """
     try:
-        logger.debug(f"Profile requested for user: {current_user.email}")
+        logger.debug("Profile requested for user_id=%s", current_user.id)
         
         return UserProfileResponse(
             id=str(current_user.id),
@@ -189,7 +189,7 @@ async def get_current_user_profile(
         )
         
     except Exception as e:
-        logger.error(f"Error getting profile for {current_user.email}: {str(e)}")
+        logger.error("Error getting profile for user_id=%s: %s", current_user.id, str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error retrieving profile"
@@ -266,7 +266,7 @@ async def refresh_access_token(
         
         # Check if user is still active
         if not user.is_active:
-            logger.warning(f"Refresh token for inactive user: {user.email}")
+            logger.warning("Refresh token for inactive user_id=%s", user.id)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Account is inactive",
@@ -289,7 +289,7 @@ async def refresh_access_token(
             exp = payload.get("exp", 0)
             token_blacklist.blacklist(jti, int(exp))
 
-        logger.info(f"Token refreshed for user: {user.email}")
+        logger.info("Token refreshed for user_id=%s", user.id)
         
         if response is not None:
             secure_flag = str(settings.environment).lower() in ("production", "prod", "staging")
@@ -359,7 +359,7 @@ async def logout(
     response: Response = None,
 ) -> Dict[str, str]:
     """Logout current user and revoke both access and refresh tokens."""
-    logger.info(f"User logged out: {current_user.email}")
+    logger.info("User logged out: user_id=%s", current_user.id)
 
     if token_blacklist:
         # Revoke the access token

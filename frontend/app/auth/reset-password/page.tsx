@@ -97,7 +97,7 @@ function ResetPasswordContent() {
             </CardFooter>
           </>
         ) : (
-          <form onSubmit={onSubmit}>
+          <form method="post" onSubmit={onSubmit}>
             <CardContent className="space-y-4">
               <div role="alert" aria-live="polite" aria-atomic="true">
                 {error && (

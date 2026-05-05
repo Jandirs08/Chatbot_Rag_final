@@ -146,7 +146,7 @@ export function RegisterForm({ onSuccess, redirectTo = "/auth/login" }: Register
         </CardDescription>
       </CardHeader>
       
-      <form onSubmit={handleSubmit}>
+      <form method="post" onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
           <div role="alert" aria-live="polite" aria-atomic="true">
             {error && (
