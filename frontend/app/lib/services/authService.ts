@@ -315,15 +315,6 @@ export const authenticatedFetch = async (
 ): Promise<Response> => {
   let token = TokenManager.getAccessToken();
 
-  if (!token && !TokenManager.isTokenValid()) {
-    try {
-      await authService.refreshToken({ silent: true });
-      token = TokenManager.getAccessToken();
-    } catch {
-      // Fall through; the upcoming request will hit 401 and follow normal flow.
-    }
-  }
-
   const getHeaders = (currentToken: string | null) => {
     const headers = new Headers(options.headers);
     headers.set("Content-Type", "application/json");
@@ -340,20 +331,33 @@ export const authenticatedFetch = async (
   });
 
   if (response.status === 401) {
-    try {
-      await authService.refreshToken();
-      token = TokenManager.getAccessToken();
+    // Re-read: syncedRef (AuthProvider) may have populated TokenManager
+    // while the fetch was in-flight (child effects run before parent effects).
+    token = TokenManager.getAccessToken();
+    if (token && TokenManager.isTokenValid()) {
       response = await fetchWithRetrySafe(url, {
         ...options,
         credentials: "include",
         headers: getHeaders(token),
       });
+    }
 
-      if (response.status === 401) {
-        await expireSession();
+    if (response.status === 401) {
+      try {
+        await authService.refreshToken();
+        token = TokenManager.getAccessToken();
+        response = await fetchWithRetrySafe(url, {
+          ...options,
+          credentials: "include",
+          headers: getHeaders(token),
+        });
+
+        if (response.status === 401) {
+          await expireSession();
+        }
+      } catch {
+        return response;
       }
-    } catch {
-      return response;
     }
   }
 
@@ -379,15 +383,6 @@ export const authenticatedUpload = async (
 ): Promise<Response> => {
   let token = TokenManager.getAccessToken();
 
-  if (!token && !TokenManager.isTokenValid()) {
-    try {
-      await authService.refreshToken({ silent: true });
-      token = TokenManager.getAccessToken();
-    } catch {
-      // Fall through; the upcoming request will hit 401 and follow normal flow.
-    }
-  }
-
   const getHeaders = (currentToken: string | null) => {
     const headers = new Headers(options.headers);
     if (currentToken) {
@@ -403,20 +398,31 @@ export const authenticatedUpload = async (
   });
 
   if (response.status === 401) {
-    try {
-      await authService.refreshToken();
-      token = TokenManager.getAccessToken();
+    token = TokenManager.getAccessToken();
+    if (token && TokenManager.isTokenValid()) {
       response = await fetch(url, {
         ...options,
         credentials: "include",
         headers: getHeaders(token),
       });
+    }
 
-      if (response.status === 401) {
-        await expireSession();
+    if (response.status === 401) {
+      try {
+        await authService.refreshToken();
+        token = TokenManager.getAccessToken();
+        response = await fetch(url, {
+          ...options,
+          credentials: "include",
+          headers: getHeaders(token),
+        });
+
+        if (response.status === 401) {
+          await expireSession();
+        }
+      } catch {
+        return response;
       }
-    } catch {
-      return response;
     }
   }
 

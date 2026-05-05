@@ -245,8 +245,15 @@ async def refresh_access_token(
                 headers={"WWW-Authenticate": "Bearer"}
             )
 
-        # Reject blacklisted (already-used) refresh tokens
+        # Reject blacklisted (already-used) refresh tokens.
+        # Grace window: if the browser cancelled the response before receiving
+        # new cookies, the same (now-blacklisted) RT arrives again. Return the
+        # cached result instead of failing so the browser finally gets the cookies.
         if token_blacklist and jti and token_blacklist.is_blacklisted(jti):
+            grace = token_blacklist.get_rotation_result(jti)
+            if grace:
+                logger.info("Returning cached rotation for jti=%s (grace window)", jti)
+                return TokenResponse(**grace)
             logger.warning("Reuse of blacklisted refresh token jti=%s", jti)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -284,10 +291,17 @@ async def refresh_access_token(
         access_token = create_access_token(data=token_data)
         new_refresh_token = create_refresh_token(data={"sub": str(user.id)})
 
-        # Blacklist the consumed refresh token's JTI
+        # Blacklist the consumed refresh token's JTI and cache the rotation
+        # result for the grace window (handles browser-cancel race condition).
         if token_blacklist and jti:
             exp = payload.get("exp", 0)
             token_blacklist.blacklist(jti, int(exp))
+            token_blacklist.store_rotation_result(jti, {
+                "access_token": access_token,
+                "refresh_token": new_refresh_token,
+                "token_type": "bearer",
+                "expires_in": settings.jwt_access_token_expire_minutes * 60,
+            })
 
         logger.info("Token refreshed for user_id=%s", user.id)
         
