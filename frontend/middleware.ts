@@ -18,13 +18,20 @@ function buildLoginUrl(req: NextRequest, from: string): string {
   return base;
 }
 
+function getSafeFrom(req: NextRequest): string {
+  const from = req.nextUrl.searchParams.get("from");
+  if (!from || !from.startsWith("/") || from.startsWith("//")) return "/";
+  return from;
+}
+
 function isLegacyLoginPath(pathname: string): boolean {
   return pathname === "/login" || pathname === "/admin/login";
 }
 
 function redirectLegacyLogin(req: NextRequest, hasSession: boolean): NextResponse {
   if (hasSession) {
-    return NextResponse.redirect(new URL("/", req.url));
+    const from = getSafeFrom(req);
+    return NextResponse.redirect(new URL(from, req.url));
   }
 
   const base = new URL("/auth/login", req.url).href.split("?")[0];
@@ -52,7 +59,7 @@ export async function middleware(req: NextRequest) {
   if (needsSsrSessionNormalization) {
     if (hasValidAccessToken) {
       if (pathname.startsWith("/auth")) {
-        return NextResponse.redirect(new URL("/", req.url));
+        return NextResponse.redirect(new URL(getSafeFrom(req), req.url));
       }
       return NextResponse.next();
     }
@@ -67,7 +74,7 @@ export async function middleware(req: NextRequest) {
         );
 
         if (pathname.startsWith("/auth") || isLegacyLoginPath(pathname)) {
-          const response = NextResponse.redirect(new URL("/", req.url));
+          const response = NextResponse.redirect(new URL(getSafeFrom(req), req.url));
           applySessionCookies(response, refreshedSession, refreshToken);
           return response;
         }
