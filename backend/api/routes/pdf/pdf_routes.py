@@ -50,12 +50,15 @@ async def _run_pdf_ingestion(app_state, file_path: Path) -> None:
         ingest_status = str(ingest_result.get("status", "error")).lower()
 
         if ingest_status == "skipped":
-            if pdf_file_manager is not None:
-                try:
-                    await pdf_file_manager.delete_pdf(filename)
-                except Exception:
-                    logger.warning("No se pudo eliminar PDF duplicado tras ingesta: %s", filename)
-            raise RuntimeError("Este PDF ya fue procesado anteriormente (contenido duplicado).")
+            logger.info("PDF con contenido duplicado; ya existe en vector store: %s", filename)
+            if ingestion_repo is not None:
+                await ingestion_repo.mark_ready(
+                    filename=filename,
+                    doc_id=ingest_result.get("doc_id"),
+                    parent_count=int(ingest_result.get("parent_count", 0) or 0),
+                    child_count=int(ingest_result.get("child_count", 0) or 0),
+                )
+            return
 
         if ingest_status != "success":
             detail = ingest_result.get("error") or "La ingesta del PDF fallo"
