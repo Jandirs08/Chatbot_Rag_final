@@ -42,8 +42,8 @@ function redirectLegacyLogin(req: NextRequest, hasSession: boolean): NextRespons
   }
 
   const base = new URL("/auth/login", req.url).href.split("?")[0];
-  const from = req.nextUrl.searchParams.get("from");
-  return NextResponse.redirect(from ? `${base}?from=${from}` : base);
+  const from = getSafeFrom(req);
+  return NextResponse.redirect(from !== "/" ? `${base}?from=${encodeURIComponent(from)}` : base);
 }
 
 export async function middleware(req: NextRequest) {

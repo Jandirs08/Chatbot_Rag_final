@@ -1,7 +1,6 @@
 import "server-only";
 
 import { cookies, headers } from "next/headers";
-import { decodeJwt } from "jose";
 import { API_URL } from "@/app/lib/config";
 import type { User } from "@/app/lib/services/authService";
 import type { AuthSessionSnapshot } from "./session";
@@ -38,27 +37,6 @@ async function fetchCurrentUser(accessToken: string): Promise<User | null> {
   }
 }
 
-function buildUserFromToken(accessToken: string): User | null {
-  try {
-    const payload = decodeJwt(accessToken);
-    const sub = typeof payload.sub === "string" ? payload.sub : null;
-    const email = typeof payload.email === "string" ? payload.email : null;
-    if (!sub || !email) return null;
-    return {
-      id: sub,
-      username: email.split("@")[0],
-      email,
-      full_name: undefined,
-      is_active: true,
-      is_admin: Boolean(payload.is_admin),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      last_login: undefined,
-    };
-  } catch {
-    return null;
-  }
-}
 
 export async function resolveServerSession(): Promise<AuthSessionSnapshot | null> {
   const headerStore = headers();
@@ -81,8 +59,23 @@ export async function resolveServerSession(): Promise<AuthSessionSnapshot | null
   // the token locally to avoid accepting expired tokens.
   const claims = await verifyAccessToken(accessToken);
   if (!claims) return null;
-  const fallbackUser = buildUserFromToken(accessToken);
-  if (!fallbackUser) return null;
+
+  // Build user from already-verified claims — no second decode needed.
+  const sub = typeof claims.sub === "string" ? claims.sub : null;
+  const email = typeof claims.email === "string" ? claims.email : null;
+  if (!sub || !email) return null;
+
+  const fallbackUser: User = {
+    id: sub,
+    username: email.split("@")[0],
+    email,
+    full_name: undefined,
+    is_active: true,
+    is_admin: Boolean(claims.is_admin),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    last_login: undefined,
+  };
 
   return {
     user: fallbackUser,
