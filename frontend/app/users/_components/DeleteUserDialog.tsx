@@ -40,7 +40,7 @@ export function DeleteUserDialog({
         <AlertDialogFooter>
           <AlertDialogCancel>Cancelar</AlertDialogCancel>
           <AlertDialogAction
-            className="bg-red-600 hover:bg-red-700"
+            className="bg-destructive hover:bg-destructive/90"
             onClick={onConfirm}
           >
             Eliminar

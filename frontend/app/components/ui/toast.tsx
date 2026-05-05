@@ -29,11 +29,11 @@ const toastVariants = cva(
       variant: {
         default: "border-border/40 bg-background text-foreground",
         destructive:
-          "border-red-200 bg-red-50 text-red-900 dark:border-red-900/50 dark:bg-red-950/50 dark:text-red-200",
+          "border-error/25 bg-error/10 text-error",
         success:
-          "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/50 dark:text-emerald-200",
+          "border-success/25 bg-success/10 text-success",
         warning:
-          "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/50 dark:text-amber-200",
+          "border-amber/25 bg-amber/10 text-amber",
       },
     },
     defaultVariants: {
@@ -79,7 +79,7 @@ const ToastClose = React.forwardRef<
   <ToastPrimitives.Close
     ref={ref}
     className={cn(
-      "absolute right-2 top-2 rounded-md p-1 text-foreground/50 opacity-0 transition-opacity hover:text-foreground focus:opacity-100 focus:outline-none focus:ring-2 group-hover:opacity-100 group-[.destructive]:text-red-300 group-[.destructive]:hover:text-red-50 group-[.destructive]:focus:ring-red-400 group-[.destructive]:focus:ring-offset-red-600",
+      "absolute right-2 top-2 rounded-md p-1 text-foreground/50 opacity-0 transition-opacity hover:text-foreground focus:opacity-100 focus:outline-none focus:ring-2 group-hover:opacity-100 group-[.destructive]:text-error/70 group-[.destructive]:hover:text-error group-[.destructive]:focus:ring-error group-[.destructive]:focus:ring-offset-error/20",
       className
     )}
     toast-close=""

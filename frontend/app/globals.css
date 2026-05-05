@@ -1,82 +1,93 @@
-/* ─── Design tokens: Aleph — Deep Violet-Indigo system ───────────────────── */
+/* ─── Design tokens: Aleph — Deep Signal identity ────────────────────────── */
+/*
+ * Primary: deep teal (hue 168) — signal, precision, intelligence
+ * Background light: cool morning mist (hue 210) — not white, not warm
+ * Background dark: petroleum void (hue 218) — depth, not just "dark gray"
+ * Amber: personality token — notifications, highlights, warmth moments
+ * Shadows: teal-tinted depth, hover glows with signal color
+ */
 :root {
-  /* Page backgrounds */
-  --background: 240 100% 99%;       /* #fafaff — barely violet white */
-  --surface: 240 100% 99%;          /* body background */
-  --surface-elevated: 0 0% 100%;    /* cards, panels */
-  --foreground: 243 38% 11%;        /* #131228 — near-black with violet tint */
+  /* Page backgrounds — cool morning mist */
+  --background: 210 20% 97%;
+  --surface: 210 20% 97%;
+  --surface-elevated: 210 28% 99%;
+  --foreground: 218 32% 10%;
 
   /* Layout tokens */
   --container-max-width: 1440px;
   --spacing-page-x: 2rem;
   --spacing-page-y: 2rem;
 
-  /* Shadows — violet-tinted, not black */
-  --shadow-sm: 0 1px 2px 0 rgb(79 53 204 / 0.04);
-  --shadow-card: 0 1px 3px 0 rgb(79 53 204 / 0.05), 0 1px 2px -1px rgb(79 53 204 / 0.04);
-  --shadow-md: 0 4px 6px -1px rgb(79 53 204 / 0.06), 0 2px 4px -2px rgb(79 53 204 / 0.04);
-  --shadow-lg: 0 10px 15px -3px rgb(79 53 204 / 0.08), 0 4px 6px -4px rgb(79 53 204 / 0.05);
-  --shadow-hover: 0 4px 20px rgb(79 53 204 / 0.12);
+  /* Shadows — teal-tinted depth */
+  --shadow-sm:   0 1px 2px 0 rgb(20 60 70 / 0.05);
+  --shadow-card: 0 1px 3px 0 rgb(20 60 70 / 0.07), 0 1px 2px -1px rgb(20 60 70 / 0.05);
+  --shadow-md:   0 4px 6px -1px rgb(20 60 70 / 0.09), 0 2px 4px -2px rgb(20 60 70 / 0.06);
+  --shadow-lg:   0 10px 15px -3px rgb(20 60 70 / 0.11), 0 4px 6px -4px rgb(20 60 70 / 0.07);
+  --shadow-hover: 0 4px 20px rgb(20 60 70 / 0.16);
 
   --radius-card: 0.75rem;
 
-  --card: 0 0% 100%;
-  --card-foreground: 243 38% 11%;
+  --card: 210 28% 99%;
+  --card-foreground: 218 32% 10%;
 
-  --popover: 0 0% 100%;
-  --popover-foreground: 243 38% 11%;
+  --popover: 210 28% 99%;
+  --popover-foreground: 218 32% 10%;
 
-  /* Primary — deep violet-indigo (#4f35cc) */
-  --primary: 250 60% 50%;
+  /* Primary — deep teal signal */
+  --primary: 168 65% 30%;
   --primary-foreground: 0 0% 100%;
-  --primary-faint: 250 100% 97%;    /* #f0edff — hover/surface tint */
-  --primary-muted: 248 50% 67%;     /* #8b7fd4 — secondary labels */
+  --primary-faint: 168 50% 94%;
+  --primary-muted: 168 28% 52%;
 
-  /* Secondary / accent — violet-tinted surface */
-  --secondary: 250 100% 97%;
-  --secondary-foreground: 250 60% 50%;
+  /* Secondary / accent */
+  --secondary: 168 50% 94%;
+  --secondary-foreground: 168 65% 30%;
 
-  --accent: 250 100% 97%;
-  --accent-foreground: 250 60% 50%;
+  --accent: 168 50% 94%;
+  --accent-foreground: 218 32% 10%;
 
   /* Semantic */
   --success: 154 76% 38%;
   --success-foreground: 0 0% 100%;
 
-  --warning: 39 91% 44%;
+  --warning: 38 90% 46%;
   --warning-foreground: 0 0% 100%;
 
   --error: 0 72% 51%;
   --error-foreground: 0 0% 100%;
 
-  --info: 199 89% 48%;
+  --info: 220 75% 54%;
   --info-foreground: 0 0% 100%;
 
-  --muted: 250 100% 97%;
-  --muted-foreground: 249 14% 47%;  /* #6b6688 */
+  /* Amber — identity personality token (not warning: warmer, richer) */
+  --amber: 40 85% 52%;
+  --amber-foreground: 28 30% 12%;
+
+  --muted: 210 18% 93%;
+  --muted-foreground: 215 15% 46%;
 
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
 
-  --border: 244 36% 91%;            /* #e0dff0 */
-  --input: 250 100% 97%;
-  --ring: 250 60% 50%;
+  --border: 210 22% 88%;
+  --input: 210 18% 93%;
+  --ring: 168 65% 30%;
   --radius: 0.75rem;
 
   /* Sidebar — light mode */
-  --sidebar-background: 0 0% 100%;
-  --sidebar-foreground: 249 14% 47%;
-  --sidebar-primary: 250 60% 50%;
+  --sidebar-background: 210 28% 99%;
+  --sidebar-foreground: 215 15% 46%;
+  --sidebar-primary: 168 65% 30%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 250 100% 97%;
-  --sidebar-accent-foreground: 243 38% 11%;
-  --sidebar-border: 244 36% 91%;
-  --sidebar-ring: 250 60% 50%;
-  --sidebar-item-hover: 250 100% 97%;
-  --sidebar-item-active: 250 60% 50%;
+  --sidebar-accent: 168 50% 94%;
+  --sidebar-accent-foreground: 218 32% 10%;
+  --sidebar-border: 210 22% 88%;
+  --sidebar-ring: 168 65% 30%;
+  --sidebar-item-hover: 168 50% 94%;
+  --sidebar-item-active: 168 65% 30%;
 
-  /* Brand color — admin-configurable, violet as fallback */
-  --brand-color: #4f35cc;
+  /* Bot brand color — admin-configurable, deep teal as default */
+  --brand-color: #1a9980;
 
   /* Font families — loaded via next/font */
   --font-heading: 'Space Grotesk', system-ui, sans-serif;
@@ -84,69 +95,73 @@
 }
 
 .dark {
-  /* Page backgrounds — dark void */
-  --background: 245 30% 8%;         /* #100f1c */
-  --surface: 245 30% 8%;
-  --surface-elevated: 243 32% 14%;  /* #1a1930 */
-  --foreground: 244 100% 97%;       /* #f2f1ff */
+  /* Page backgrounds — petroleum void */
+  --background: 218 32% 8%;
+  --surface: 218 32% 8%;
+  --surface-elevated: 216 28% 12%;
+  --foreground: 210 22% 92%;
 
-  /* Shadows (dark) */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.45), 0 4px 6px -4px rgb(0 0 0 / 0.35);
-  --shadow-hover: 0 4px 20px rgb(79 53 204 / 0.25);
+  /* Shadows — deep with teal-signal hover glow */
+  --shadow-sm:   0 1px 2px 0 rgb(4 14 18 / 0.4);
+  --shadow-card: 0 1px 4px 0 rgb(4 14 18 / 0.5), 0 1px 2px -1px rgb(4 14 18 / 0.35);
+  --shadow-md:   0 4px 8px -1px rgb(4 14 18 / 0.55), 0 2px 4px -2px rgb(4 14 18 / 0.4);
+  --shadow-lg:   0 10px 20px -3px rgb(4 14 18 / 0.6), 0 4px 8px -4px rgb(4 14 18 / 0.45);
+  --shadow-hover: 0 4px 24px rgb(20 180 140 / 0.22);
 
-  --card: 243 32% 14%;              /* #1a1930 */
-  --card-foreground: 244 100% 97%;
+  --card: 215 26% 14%;
+  --card-foreground: 210 22% 92%;
 
-  --popover: 243 25% 18%;           /* #232238 */
-  --popover-foreground: 244 100% 97%;
+  --popover: 213 24% 17%;
+  --popover-foreground: 210 22% 92%;
 
-  /* Primary — lighter for dark bg contrast */
-  --primary: 252 65% 75%;           /* #a594e8 — readable on dark */
-  --primary-foreground: 245 30% 8%;
-  --primary-faint: 243 25% 18%;
-  --primary-muted: 246 16% 65%;     /* #9a97b4 */
+  /* Primary — vivid teal signal on dark */
+  --primary: 168 70% 52%;
+  --primary-foreground: 218 32% 8%;
+  --primary-faint: 215 26% 14%;
+  --primary-muted: 168 20% 60%;
 
-  --secondary: 243 32% 14%;
-  --secondary-foreground: 244 100% 97%;
+  --secondary: 215 26% 14%;
+  --secondary-foreground: 210 22% 92%;
 
-  --accent: 243 25% 18%;
-  --accent-foreground: 244 100% 97%;
+  --accent: 213 24% 17%;
+  --accent-foreground: 210 22% 92%;
 
-  --success: 154 65% 42%;
+  --success: 154 65% 45%;
   --success-foreground: 0 0% 100%;
 
-  --warning: 39 91% 44%;
+  --warning: 38 85% 52%;
   --warning-foreground: 0 0% 100%;
 
-  --error: 0 72% 51%;
+  --error: 0 72% 55%;
   --error-foreground: 0 0% 100%;
 
-  --info: 199 89% 48%;
+  --info: 220 72% 62%;
   --info-foreground: 0 0% 100%;
 
-  --muted: 243 25% 18%;
-  --muted-foreground: 246 16% 65%;
+  --amber: 40 80% 55%;
+  --amber-foreground: 28 30% 12%;
 
-  --destructive: 0 55% 40%;
-  --destructive-foreground: 244 100% 97%;
+  --muted: 213 24% 17%;
+  --muted-foreground: 215 16% 60%;
 
-  --border: 244 25% 23%;            /* #2e2c4a */
-  --input: 243 32% 14%;
-  --ring: 248 50% 67%;
+  --destructive: 0 55% 42%;
+  --destructive-foreground: 210 22% 92%;
+
+  --border: 215 22% 20%;
+  --input: 215 26% 14%;
+  --ring: 168 70% 52%;
 
   /* Sidebar — dark mode */
-  --sidebar-background: 245 30% 8%;
-  --sidebar-foreground: 246 16% 65%;
-  --sidebar-primary: 252 65% 75%;
-  --sidebar-primary-foreground: 245 30% 8%;
-  --sidebar-accent: 243 32% 14%;
-  --sidebar-accent-foreground: 244 100% 97%;
-  --sidebar-border: 244 25% 23%;
-  --sidebar-ring: 248 50% 67%;
-  --sidebar-item-hover: 243 32% 14%;
-  --sidebar-item-active: 252 65% 75%;
+  --sidebar-background: 218 32% 8%;
+  --sidebar-foreground: 215 16% 60%;
+  --sidebar-primary: 168 70% 52%;
+  --sidebar-primary-foreground: 218 32% 8%;
+  --sidebar-accent: 215 26% 14%;
+  --sidebar-accent-foreground: 210 22% 92%;
+  --sidebar-border: 215 22% 20%;
+  --sidebar-ring: 168 70% 52%;
+  --sidebar-item-hover: 215 26% 14%;
+  --sidebar-item-active: 168 70% 52%;
 }
 
 @tailwind base;
@@ -162,8 +177,16 @@
 
   body {
     @apply text-foreground;
-    background: hsl(var(--surface));
+    background-color: hsl(var(--surface));
     font-family: var(--font-sans, Inter, system-ui, sans-serif);
+  }
+
+  .dark body {
+    background-image: radial-gradient(
+      ellipse 140% 55% at 65% -5%,
+      hsl(168 35% 10%) 0%,
+      transparent 60%
+    );
   }
 
   /* Headings use Space Grotesk */
@@ -456,7 +479,12 @@
 
 @layer utilities {
   .gradient-primary {
-    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--info)) 100%);
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(148 72% 38%) 100%);
+  }
+
+  /* Identity gradient — teal signal arc */
+  .gradient-brand {
+    background: linear-gradient(135deg, hsl(168 65% 28%) 0%, hsl(193 65% 34%) 100%);
   }
 
   .gradient-secondary {
@@ -466,6 +494,18 @@
   .gradient-soft {
     background: linear-gradient(135deg, hsl(var(--primary) / 0.08) 0%, hsl(var(--primary) / 0.04) 100%);
   }
+
+  /* Surface inset — wells, code blocks, indented sections */
+  .surface-inset {
+    background-color: hsl(var(--muted));
+    border: 1px solid hsl(var(--border));
+    border-radius: calc(var(--radius) - 2px);
+  }
+
+  /* Amber utility — personality token for highlights, unread dots */
+  .bg-amber { background-color: hsl(var(--amber)); }
+  .text-amber { color: hsl(var(--amber)); }
+  .border-amber { border-color: hsl(var(--amber)); }
 
   .gpu-accelerated {
     transform: translate3d(0, 0, 0);

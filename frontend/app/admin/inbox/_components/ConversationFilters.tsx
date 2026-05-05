@@ -120,7 +120,7 @@ export function ConversationFilters({
             </div>
           </div>
           <div className="pt-2 space-y-2">
-            <div className="text-xs font-semibold text-slate-700">Calidad</div>
+            <div className="text-xs font-semibold text-foreground">Calidad</div>
             <label className="flex items-center gap-2 text-sm">
               <Switch
                 checked={config.hideTrivial}

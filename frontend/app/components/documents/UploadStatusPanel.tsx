@@ -115,9 +115,9 @@ export function UploadStatusPanel({
             className={cn(
               "mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border",
               isSuccess
-                ? "border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300"
+                ? "border-success/25 bg-success/10 text-success"
                 : isError
-                  ? "border-red-200 bg-red-50 text-red-600 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300"
+                  ? "border-error/25 bg-error/10 text-error"
                   : "border-primary/15 bg-primary/5 text-primary",
             )}
           >
@@ -166,10 +166,10 @@ export function UploadStatusPanel({
                     className={cn(
                       "rounded-2xl border px-3 py-3 transition-colors",
                       isDone
-                        ? "border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/50 dark:bg-emerald-950/20"
+                        ? "border-success/25 bg-success/10"
                         : isCurrent
                           ? isError
-                            ? "border-red-200 bg-red-50/80 dark:border-red-900/50 dark:bg-red-950/20"
+                            ? "border-error/25 bg-error/10"
                             : "border-primary/30 bg-primary/5"
                           : "border-border/60 bg-background/70",
                     )}
@@ -179,10 +179,10 @@ export function UploadStatusPanel({
                         className={cn(
                           "flex h-6 w-6 items-center justify-center rounded-full border text-xs font-semibold",
                           isDone
-                            ? "border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300"
+                            ? "border-success/25 bg-success/15 text-success"
                             : isCurrent
                               ? isError
-                                ? "border-red-200 bg-red-100 text-red-700 dark:border-red-800 dark:bg-red-900/50 dark:text-red-300"
+                                ? "border-error/25 bg-error/10 text-error"
                                 : "border-primary/20 bg-primary/10 text-primary"
                               : "border-border/70 bg-muted/40 text-muted-foreground",
                         )}
@@ -261,8 +261,8 @@ export function UploadStatusPanel({
             className={cn(
               "rounded-2xl border px-3 py-2 text-sm",
               isSuccess
-                ? "border-emerald-200 bg-emerald-50/80 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-300"
-                : "border-red-200 bg-red-50/80 text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300",
+                ? "border-success/25 bg-success/8 text-success"
+                : "border-error/25 bg-error/8 text-error",
             )}
           >
             {isSuccess

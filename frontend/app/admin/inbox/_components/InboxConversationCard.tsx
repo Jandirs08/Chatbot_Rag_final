@@ -59,16 +59,16 @@ interface InboxConversationCardProps {
 }
 
 const MODE_DOT: Record<InboxMode, string> = {
-  bot: "bg-slate-400",
-  pending: "bg-amber-500",
-  human: "bg-violet-500",
-  paused: "bg-slate-300",
+  bot: "bg-muted-foreground/60",
+  pending: "bg-warning",
+  human: "bg-primary",
+  paused: "bg-muted-foreground/40",
 };
 
 const URGENCY_DOT: Record<string, string> = {
-  alta: "bg-red-500",
-  media: "bg-amber-400",
-  baja: "bg-emerald-500",
+  alta: "bg-error",
+  media: "bg-warning",
+  baja: "bg-success",
 };
 
 const MODE_LABEL: Record<InboxMode, string> = {
@@ -182,13 +182,13 @@ export function InboxConversationCard({
           isActive
             ? "border-primary/40 bg-primary/[0.05] shadow-[0_0_0_2px_hsl(var(--primary)/0.18)]"
             : isCompleted
-              ? "border-border/40 bg-white/70 opacity-80 hover:opacity-100 hover:border-violet-300/60 dark:bg-card/70"
-              : "border-border/60 bg-white hover:-translate-y-px hover:border-primary/30 hover:shadow-[0_4px_20px_rgb(79_53_204/0.1)] dark:bg-card",
+              ? "border-border/40 bg-card/70 opacity-80 hover:opacity-100 hover:border-primary/30"
+              : "border-border/60 bg-card hover:-translate-y-px hover:border-primary/30 hover:shadow-[0_4px_20px_rgb(79_53_204/0.1)]",
         )}
       >
       {/* Alta urgency: full top bar (not a side stripe) */}
       {urgency === "alta" && (
-        <div className="absolute inset-x-0 top-0 h-0.5 bg-red-500" />
+        <div className="absolute inset-x-0 top-0 h-0.5 bg-error" />
       )}
 
       <div className="p-3 pt-3.5">
@@ -272,7 +272,7 @@ export function InboxConversationCard({
               <span
                 className={cn(
                   "h-1.5 w-1.5 flex-none rounded-full",
-                  URGENCY_DOT[urgency] ?? "bg-slate-400",
+                  URGENCY_DOT[urgency] ?? "bg-muted-foreground/60",
                 )}
               />
             </>
@@ -289,7 +289,7 @@ export function InboxConversationCard({
             </>
           )}
           {isPending && minutes_waiting != null && (
-            <span className="ml-auto font-mono text-[10px] font-semibold text-amber-600">
+            <span className="ml-auto font-mono text-[10px] font-semibold text-amber">
               {minutes_waiting}m
             </span>
           )}

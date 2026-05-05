@@ -167,7 +167,7 @@ export default function UsuariosPage() {
         <Button onClick={() => setShowCreate(true)}>Crear Usuario</Button>
       </div>
 
-      {pageError && <p className="text-red-600">{pageError}</p>}
+      {pageError && <p className="text-error">{pageError}</p>}
 
       <Card>
         <CardContent>

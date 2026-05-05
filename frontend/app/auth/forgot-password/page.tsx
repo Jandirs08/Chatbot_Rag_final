@@ -46,7 +46,7 @@ export default function ForgotPasswordPage() {
         {success ? (
           <>
             <CardContent className="text-center">
-              <MailCheck className="w-16 h-16 text-orange-500 mb-4 mx-auto" />
+              <MailCheck className="w-16 h-16 text-primary mb-4 mx-auto" />
               <div className="text-xl font-bold mb-2">¡Correo enviado!</div>
               <p className="text-sm text-muted-foreground">
                 Hemos enviado las instrucciones a tu bandeja de entrada. Revisa también la carpeta de Spam.

@@ -212,7 +212,7 @@ export function ConversationList({
                       >
                         <div className="flex items-start gap-3">
                           <div
-                            className="flex h-11 w-11 flex-none items-center justify-center rounded-2xl border border-white/50 text-slate-700 shadow-sm"
+                            className="flex h-11 w-11 flex-none items-center justify-center rounded-2xl border border-white/50 text-foreground shadow-sm"
                             style={{
                               backgroundColor: colorFromId(c.conversation_id),
                             }}

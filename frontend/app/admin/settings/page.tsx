@@ -282,13 +282,13 @@ export default function AdminSettingsPage() {
             <span
               className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold ${
                 isBotActive
-                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                  : "bg-slate-100 text-slate-700 border border-slate-200"
+                  ? "bg-success/10 text-success border border-success/25"
+                  : "bg-muted text-muted-foreground border border-border"
               }`}
             >
               <span
                 className={`inline-block w-2 h-2 rounded-full ${
-                  isBotActive ? "bg-emerald-500" : "bg-gray-400"
+                  isBotActive ? "bg-success" : "bg-muted-foreground/50"
                 }`}
               />
               {isBotActive ? "Estado: Activo" : "Estado: En Pausa"}

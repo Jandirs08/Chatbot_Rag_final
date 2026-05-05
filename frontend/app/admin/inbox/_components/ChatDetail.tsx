@@ -74,7 +74,7 @@ export function ChatDetail({
             <ChevronLeft className="w-5 h-5" />
           </Button>
           <div
-            className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/60 text-sm font-semibold text-slate-700 shadow-sm"
+            className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/60 text-sm font-semibold text-foreground shadow-sm"
             style={{ backgroundColor: colorFromId(chatId) }}
           >
             VT
@@ -94,7 +94,7 @@ export function ChatDetail({
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
                 En vivo
               </span>
               {selectedConversation?.updated_at && (

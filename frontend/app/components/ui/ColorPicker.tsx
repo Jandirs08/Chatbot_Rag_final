@@ -55,9 +55,9 @@ const ColorPicker = React.forwardRef<HTMLDivElement, ColorPickerProps>(
                     }
                     className={cn(
                         "group flex items-center gap-3 w-full p-3 rounded-lg",
-                        "bg-slate-50 dark:bg-slate-800",
+                        "bg-muted/50",
                         "border border-transparent",
-                        "hover:bg-slate-100 dark:hover:bg-slate-700",
+                        "hover:bg-muted",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20",
                         "transition-all duration-150"
                     )}
@@ -66,7 +66,7 @@ const ColorPicker = React.forwardRef<HTMLDivElement, ColorPickerProps>(
                     <div
                         className={cn(
                             "w-10 h-10 rounded-full",
-                            "ring-2 ring-white dark:ring-slate-700",
+                            "ring-2 ring-white dark:ring-border",
                             "shadow-sm",
                             "transition-transform duration-150 group-hover:scale-105"
                         )}

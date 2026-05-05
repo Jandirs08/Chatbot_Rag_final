@@ -83,12 +83,12 @@ export function UserTable({
       <table className="min-w-full text-sm">
         <thead>
           <tr className="text-left border-b">
-            <th className="py-2 text-gray-500 font-medium">Usuario</th>
-            <th className="py-2 text-gray-500 font-medium">Email</th>
-            <th className="py-2 text-gray-500 font-medium">Nombre</th>
-            <th className="py-2 text-gray-500 font-medium">Activo</th>
-            <th className="py-2 text-gray-500 font-medium">Rol</th>
-            <th className="py-2 text-gray-500 font-medium">Acciones</th>
+            <th className="py-2 text-muted-foreground font-medium">Usuario</th>
+            <th className="py-2 text-muted-foreground font-medium">Email</th>
+            <th className="py-2 text-muted-foreground font-medium">Nombre</th>
+            <th className="py-2 text-muted-foreground font-medium">Activo</th>
+            <th className="py-2 text-muted-foreground font-medium">Rol</th>
+            <th className="py-2 text-muted-foreground font-medium">Acciones</th>
           </tr>
         </thead>
         <tbody>
@@ -132,7 +132,7 @@ export function UserTable({
                       Enviar reset password
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      className="text-red-600 focus:text-red-600"
+                      className="text-error focus:text-error"
                       onClick={() => onDelete(u)}
                     >
                       Eliminar
@@ -150,7 +150,7 @@ export function UserTable({
           size="sm"
           disabled={skip === 0}
           onClick={() => onSkipChange(Math.max(0, skip - limit))}
-          className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600"
+          className="dark:bg-card dark:text-foreground dark:border-border dark:hover:bg-muted"
         >
           Anterior
         </Button>
@@ -163,7 +163,7 @@ export function UserTable({
           size="sm"
           disabled={skip + limit >= total}
           onClick={() => onSkipChange(skip + limit)}
-          className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600"
+          className="dark:bg-card dark:text-foreground dark:border-border dark:hover:bg-muted"
         >
           Siguiente
         </Button>

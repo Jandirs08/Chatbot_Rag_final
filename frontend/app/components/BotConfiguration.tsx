@@ -67,7 +67,7 @@ export function BotConfiguration({
           <h2 className="text-3xl font-bold tracking-tight text-foreground">Estado del Sistema</h2>
           <div className="flex items-center gap-2 text-base text-muted-foreground/90 font-medium">
             <div
-              className={`w-2.5 h-2.5 rounded-full ${isBotActive ? "bg-emerald-500 animate-pulse" : "bg-red-500"
+              className={`w-2.5 h-2.5 rounded-full ${isBotActive ? "bg-success animate-pulse" : "bg-error"
                 }`}
             />
             {isBotActive
@@ -79,7 +79,7 @@ export function BotConfiguration({
               Sincronizando...
             </div>
           )}
-          {error && <div className="text-sm text-red-500">{error}</div>}
+          {error && <div className="text-sm text-error">{error}</div>}
         </div>
 
         <div className="flex items-center gap-12 pt-1">
@@ -211,7 +211,7 @@ export function BotConfiguration({
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <pre className="text-sm whitespace-pre-wrap break-words font-mono text-muted-foreground bg-muted/20 dark:bg-slate-800 p-3 rounded-md border border-border/50 dark:border-slate-700">
+                    <pre className="text-sm whitespace-pre-wrap break-words font-mono text-muted-foreground bg-muted/20 p-3 rounded-md border border-border/50">
                       {previewText || ""}
                     </pre>
                   </CardContent>

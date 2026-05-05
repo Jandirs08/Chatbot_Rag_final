@@ -167,14 +167,14 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
           <div className="flex justify-end">
             <a
               href="/auth/forgot-password"
-              className="text-sm font-medium text-orange-600 hover:text-orange-700"
+              className="text-sm font-medium text-primary hover:text-primary/80"
             >
               ¿Olvidaste tu contraseña?
             </a>
           </div>
           <Button
             type="submit"
-            className="w-full bg-orange-600 font-semibold text-white shadow-md hover:bg-orange-700"
+            className="w-full font-semibold shadow-md"
             disabled={isBusy}
             aria-busy={isBusy}
           >

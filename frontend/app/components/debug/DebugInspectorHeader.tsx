@@ -30,7 +30,7 @@ export function DebugInspectorHeader({
   const verificationState = data.verification?.is_grounded;
 
   return (
-    <div className="flex-none border-b border-border/60 bg-background/95 px-4 py-3 supports-[backdrop-filter]:bg-background/90 dark:bg-slate-900 dark:border-slate-800">
+    <div className="flex-none border-b border-border/60 bg-background/95 px-4 py-3 supports-[backdrop-filter]:bg-background/90">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="text-sm font-semibold text-foreground">
@@ -73,7 +73,7 @@ export function DebugInspectorHeader({
           <Button
             variant="outline"
             size="sm"
-            className="h-8 rounded-full gap-2 border-border bg-card px-3 text-xs font-medium text-muted-foreground transition-all hover:border-primary/30 hover:bg-primary/5 hover:text-primary dark:border-slate-700"
+            className="h-8 rounded-full gap-2 border-border bg-card px-3 text-xs font-medium text-muted-foreground transition-all hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
             onClick={onShowPrompt}
           >
             <Terminal className="w-3.5 h-3.5" />
@@ -82,7 +82,7 @@ export function DebugInspectorHeader({
           <Button
             variant="outline"
             size="sm"
-            className="h-8 rounded-full gap-2 border-border bg-card px-3 text-xs font-medium text-muted-foreground transition-all hover:border-primary/30 hover:bg-primary/5 hover:text-primary dark:border-slate-700"
+            className="h-8 rounded-full gap-2 border-border bg-card px-3 text-xs font-medium text-muted-foreground transition-all hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
             onClick={onShowJson}
           >
             <Braces className="w-3.5 h-3.5" />

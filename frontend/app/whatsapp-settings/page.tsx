@@ -121,17 +121,17 @@ export default function ConfiguracionWhatsAppPage() {
         <div className="flex items-center gap-3">
           <h1 className="text-3xl font-bold text-foreground">Configuración de WhatsApp</h1>
           {status === "ok" && (
-            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold">
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-success/10 text-success border border-success/25 text-xs font-semibold">
               <CheckCircle className="w-3 h-3" /> Conectado
             </span>
           )}
           {status === "dirty" && (
-            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold">
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-warning/10 text-warning border border-warning/25 text-xs font-semibold">
               <AlertTriangle className="w-3 h-3" /> Cambios sin probar
             </span>
           )}
           {status === "error" && (
-            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-xs font-semibold">
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-error/10 text-error border border-error/25 text-xs font-semibold">
               <AlertTriangle className="w-3 h-3" /> Error de conexión
             </span>
           )}
@@ -157,7 +157,7 @@ export default function ConfiguracionWhatsAppPage() {
             <Label htmlFor="twilio_sid">Twilio Account SID</Label>
             <Input
               id="twilio_sid"
-              className="font-mono bg-gray-50"
+              className="font-mono bg-muted/50"
               value={twilioSid}
               onChange={(e) => {
                 setTwilioSid(e.target.value);
@@ -171,7 +171,7 @@ export default function ConfiguracionWhatsAppPage() {
             <Label htmlFor="twilio_token">Twilio Auth Token</Label>
             <Input
               id="twilio_token"
-              className="font-mono bg-gray-50"
+              className="font-mono bg-muted/50"
               type="password"
               value={twilioToken}
               onChange={(e) => {
@@ -186,7 +186,7 @@ export default function ConfiguracionWhatsAppPage() {
             <Label htmlFor="twilio_from">Twilio WhatsApp From</Label>
             <Input
               id="twilio_from"
-              className="font-mono bg-gray-50"
+              className="font-mono bg-muted/50"
               value={twilioFrom}
               onChange={(e) => {
                 setTwilioFrom(e.target.value);
@@ -200,7 +200,7 @@ export default function ConfiguracionWhatsAppPage() {
             <Label htmlFor="wa_webhook">Webhook URL</Label>
             <Input
               id="wa_webhook"
-              className="font-mono bg-gray-50"
+              className="font-mono bg-muted/50"
               value={webhookUrl}
               readOnly
             />

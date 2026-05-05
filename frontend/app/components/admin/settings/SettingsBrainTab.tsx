@@ -64,7 +64,7 @@ export function SettingsBrainTab({
             size="sm"
             onClick={handleOpenRuntime}
             disabled={runtimeLoading}
-            className="bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-100 hover:text-orange-700"
+            className="bg-warning/10 text-warning border border-warning/25 hover:bg-warning/15"
           >
             <Terminal className="w-4 h-4 mr-2" />
             {runtimeLoading ? "Cargando..." : "Ver Runtime"}

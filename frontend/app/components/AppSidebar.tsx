@@ -138,7 +138,7 @@ export function AppSidebar() {
                     tooltip={{
                       children: item.title,
                       className:
-                        "bg-slate-900 text-white text-xs rounded px-2 py-1 z-50",
+                        "bg-popover text-popover-foreground text-xs rounded px-2 py-1 z-50 shadow-md border border-border",
                     }}
                   >
                     <Link
@@ -180,7 +180,7 @@ export function AppSidebar() {
                     tooltip={{
                       children: item.title,
                       className:
-                        "bg-slate-900 text-white text-xs rounded px-2 py-1 z-50",
+                        "bg-popover text-popover-foreground text-xs rounded px-2 py-1 z-50 shadow-md border border-border",
                     }}
                   >
                     <Link
@@ -219,7 +219,7 @@ export function AppSidebar() {
                       className={`transition-all duration-200 ${state === "collapsed" ? "flex flex-col items-center justify-center" : ""}`}
                       tooltip={{
                         children: item.title,
-                        className: "bg-slate-900 text-white text-xs rounded px-2 py-1 z-50",
+                        className: "bg-popover text-popover-foreground text-xs rounded px-2 py-1 z-50 shadow-md border border-border",
                       }}
                     >
                       <Link
@@ -265,7 +265,7 @@ export function AppSidebar() {
                     className={`transition-all duration-200 ${state === "collapsed" ? "flex flex-col items-center justify-center" : ""}`}
                     tooltip={{
                       children: item.title,
-                      className: "bg-slate-900 text-white text-xs rounded px-2 py-1 z-50",
+                      className: "bg-popover text-popover-foreground text-xs rounded px-2 py-1 z-50 shadow-md border border-border",
                     }}
                   >
                     <Link
@@ -306,7 +306,7 @@ export function AppSidebar() {
             )}
             <button
               onClick={handleLogout}
-              className={`flex items-center w-full gap-2 px-2 py-1.5 text-[12px] text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-md transition-colors ${state === "collapsed" ? "justify-center" : ""}`}
+              className={`flex items-center w-full gap-2 px-2 py-1.5 text-[12px] text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors ${state === "collapsed" ? "justify-center" : ""}`}
             >
               <LogOut className="w-3.5 h-3.5" />
               {state !== "collapsed" && <span>Cerrar sesión</span>}

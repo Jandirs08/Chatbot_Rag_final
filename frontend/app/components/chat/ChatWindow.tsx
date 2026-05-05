@@ -242,8 +242,8 @@ export function ChatWindow(props: {
                     aria-label="En línea"
                     title="En línea"
                   >
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 ring-2 ring-emerald-400/30" />
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-60" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-success ring-2 ring-success/30" />
                   </span>
                 )}
               </div>
@@ -254,11 +254,11 @@ export function ChatWindow(props: {
                   className={cn(
                     "px-2.5 py-1 rounded-full flex items-center gap-2",
                     isThemeLight
-                      ? "bg-slate-900/90 text-white"
-                      : "bg-white/90 text-slate-800",
+                      ? "bg-background/90 text-white"
+                      : "bg-white/90 text-foreground",
                   )}
                 >
-                  <div className="w-2 h-2 rounded-full bg-amber-400" />
+                  <div className="w-2 h-2 rounded-full bg-amber" />
                   <div className="text-xs font-semibold">En pausa</div>
                 </div>
               )}
@@ -288,7 +288,7 @@ export function ChatWindow(props: {
                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
                     <AlertDialogAction
                       onClick={handleClearConfirmed}
-                      className="bg-red-600 hover:bg-red-700 text-white"
+                      className="bg-destructive hover:bg-destructive/90 text-white"
                     >
                       Limpiar
                     </AlertDialogAction>
@@ -398,10 +398,10 @@ export function ChatWindow(props: {
         <div
           role="status"
           aria-live="polite"
-          className="border-t border-emerald-100 bg-emerald-50 px-4 py-2 text-[12px] font-medium text-emerald-700"
+          className="border-t border-success/20 bg-success/8 px-4 py-2 text-[12px] font-medium text-success"
         >
           <div className="mx-auto flex w-full max-w-3xl items-center justify-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" aria-hidden="true" />
+            <span className="h-2 w-2 rounded-full bg-success animate-pulse" aria-hidden="true" />
             Conectado con un asesor
           </div>
         </div>

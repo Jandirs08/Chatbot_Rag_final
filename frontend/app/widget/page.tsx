@@ -48,7 +48,7 @@ function WidgetPreviewSkeleton() {
         {/* Preview section skeleton */}
         <div className="border rounded-lg p-6">
           <Skeleton className="h-6 w-32 mb-4" />
-          <div className="bg-gray-100 rounded-lg p-4 h-96">
+          <div className="bg-muted rounded-lg p-4 h-96">
             <Skeleton className="h-full w-full" />
           </div>
         </div>

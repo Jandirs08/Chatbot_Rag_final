@@ -150,7 +150,7 @@ export function WidgetPreview() {
           <DialogTrigger asChild>
             <Button
               size="lg"
-              className="gap-2 bg-gradient-to-r from-primary to-blue-600 hover:opacity-90 shadow-lg"
+              className="gap-2 bg-gradient-to-r from-primary to-info hover:opacity-90 shadow-lg"
             >
               <Plug className="w-4 h-4" />
               Integrar Widget

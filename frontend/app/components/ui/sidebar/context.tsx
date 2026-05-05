@@ -122,7 +122,7 @@ export const SidebarProvider = React.forwardRef<
               } as React.CSSProperties
             }
             className={cn(
-              "group/sidebar-wrapper h-screen w-full overflow-hidden has-[[data-variant=inset]]:bg-sidebar dark:bg-slate-950",
+              "group/sidebar-wrapper h-screen w-full overflow-hidden has-[[data-variant=inset]]:bg-sidebar",
               className,
             )}
             ref={ref}

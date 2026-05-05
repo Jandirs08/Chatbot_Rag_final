@@ -148,7 +148,7 @@ export default function PlaygroundPage() {
         <section className="min-h-0 rounded-[26px] border border-border/60 bg-card p-3 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_18px_48px_rgba(15,23,42,0.08)]">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 px-1">
             <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600">
+              <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-success/10 text-success">
                 <FlaskConical className="h-4.5 w-4.5" />
               </div>
               <div>

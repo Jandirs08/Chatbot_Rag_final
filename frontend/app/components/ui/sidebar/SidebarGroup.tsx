@@ -29,7 +29,7 @@ export const SidebarGroupLabel = React.forwardRef<
       ref={ref as any}
       data-sidebar="group-label"
       className={cn(
-        "duration-200 flex h-6 shrink-0 items-center px-2.5 text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider outline-none ring-sidebar-ring transition-[margin,opacity] ease-linear focus-visible:ring-2 [&>svg]:size-3.5 [&>svg]:shrink-0 dark:text-slate-500",
+        "duration-200 flex h-6 shrink-0 items-center px-2.5 text-[10px] font-medium text-sidebar-foreground/50 uppercase tracking-wider outline-none ring-sidebar-ring transition-[margin,opacity] ease-linear focus-visible:ring-2 [&>svg]:size-3.5 [&>svg]:shrink-0",
         "group-data-[collapsible=icon]:-mt-6 group-data-[collapsible=icon]:opacity-0",
         className,
       )}

@@ -50,6 +50,10 @@ const config: Config = {
           DEFAULT: "hsl(var(--info))",
           foreground: "hsl(var(--info-foreground))",
         },
+        amber: {
+          DEFAULT: "hsl(var(--amber))",
+          foreground: "hsl(var(--amber-foreground))",
+        },
         muted: {
           DEFAULT: "hsl(var(--muted))",
           foreground: "hsl(var(--muted-foreground))",

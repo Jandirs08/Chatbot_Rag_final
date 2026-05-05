@@ -124,7 +124,7 @@ export function DocumentTable({
                               doc.ingestion_status}
                           </Badge>
                           {doc.ingestion_error && (
-                            <span className="max-w-[240px] truncate text-xs text-red-600 dark:text-red-400">
+                            <span className="max-w-[240px] truncate text-xs text-error">
                               {doc.ingestion_error}
                             </span>
                           )}
@@ -144,7 +144,7 @@ export function DocumentTable({
                               doc.ingestion_status !== "ready"
                             }
                             title="Preview"
-                            className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600"
+                            className="dark:bg-card dark:border-border dark:hover:bg-muted"
                           >
                             <Search className="w-4 h-4" />
                           </Button>
@@ -159,7 +159,7 @@ export function DocumentTable({
                               doc.ingestion_status !== "ready"
                             }
                             title="Download"
-                            className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600"
+                            className="dark:bg-card dark:border-border dark:hover:bg-muted"
                           >
                             <Download className="w-4 h-4" />
                           </Button>
@@ -167,7 +167,7 @@ export function DocumentTable({
                             variant="outline"
                             size="sm"
                             onClick={() => onDelete(doc.filename)}
-                            className="text-gray-500 hover:text-red-600 hover:bg-red-50 dark:text-slate-400 dark:hover:text-red-500 dark:bg-slate-700 dark:border-slate-600 dark:hover:bg-red-900/20"
+                            className="text-muted-foreground hover:text-error hover:bg-error/10"
                             disabled={
                               !canManageDocuments ||
                               isLoadingList ||

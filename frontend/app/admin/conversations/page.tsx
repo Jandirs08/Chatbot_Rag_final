@@ -142,7 +142,7 @@ function ConversationsContent() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-400">
+            <div className="inline-flex items-center gap-2 rounded-full border border-success/25 bg-success/10 px-3 py-1.5 text-xs font-medium text-success">
               <span className="h-2 w-2 rounded-full bg-current animate-pulse" />
               En vivo
             </div>

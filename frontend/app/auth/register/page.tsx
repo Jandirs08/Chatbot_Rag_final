@@ -11,10 +11,10 @@ export default function RegisterPage() {
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-2">
+          <h1 className="text-3xl font-bold text-foreground mb-2">
             Chatbot Admin
           </h1>
-          <p className="text-slate-600 dark:text-slate-400">
+          <p className="text-muted-foreground">
             Crear Cuenta de Administrador
           </p>
         </div>

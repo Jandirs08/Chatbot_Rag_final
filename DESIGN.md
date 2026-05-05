@@ -2,23 +2,24 @@
 name: Aleph
 description: Plataforma RAG para empresas — el panel de control de tu asistente inteligente
 colors:
-  primary: "#4f35cc"
-  primary-faint: "#f0edff"
-  primary-muted: "#8b7fd4"
-  bg-light: "#fafaff"
-  bg-dark: "#100f1c"
-  surface-dark: "#1a1930"
-  surface-dark-elevated: "#232238"
-  fg-light: "#131228"
-  fg-dark: "#f2f1ff"
-  muted-light: "#6b6688"
-  muted-dark: "#9a97b4"
-  border-light: "#e0dff0"
-  border-dark: "#2e2c4a"
+  primary: "#1a9980"
+  primary-light: "#168b72"
+  primary-dark: "#2dd4a8"
+  bg-light: "#f4f6f8"
+  bg-dark: "#0d1117"
+  surface-dark: "#111820"
+  surface-dark-elevated: "#16202a"
+  fg-light: "#0f1823"
+  fg-dark: "#dce8f0"
+  muted-light: "#6b7888"
+  muted-dark: "#8898aa"
+  border-light: "#dce4ec"
+  border-dark: "#1e2a36"
+  amber: "#e89430"
   success: "#17a96a"
   warning: "#d48c0a"
   error: "#dc2626"
-  info: "#0ea5e9"
+  info: "#3b7be8"
 typography:
   display:
     fontFamily: "'Space Grotesk', system-ui, sans-serif"
@@ -71,206 +72,230 @@ spacing:
   xl: "32px"
   "2xl": "48px"
   "3xl": "64px"
-components:
-  button-primary:
-    backgroundColor: "{colors.primary}"
-    textColor: "#ffffff"
-    rounded: "{rounded.md}"
-    padding: "10px 20px"
-    typography: "{typography.label}"
-  button-primary-hover:
-    backgroundColor: "#3d25b0"
-    textColor: "#ffffff"
-    rounded: "{rounded.md}"
-    padding: "10px 20px"
-  button-outline:
-    backgroundColor: "transparent"
-    textColor: "{colors.primary}"
-    rounded: "{rounded.md}"
-    padding: "10px 20px"
-  button-outline-hover:
-    backgroundColor: "{colors.primary-faint}"
-    textColor: "{colors.primary}"
-    rounded: "{rounded.md}"
-    padding: "10px 20px"
-  status-ok:
-    backgroundColor: "#dcfce7"
-    textColor: "#15803d"
-    rounded: "{rounded.full}"
-    padding: "3px 10px"
-  status-warn:
-    backgroundColor: "#fef9c3"
-    textColor: "#a16207"
-    rounded: "{rounded.full}"
-    padding: "3px 10px"
-  status-crit:
-    backgroundColor: "#fee2e2"
-    textColor: "#b91c1c"
-    rounded: "{rounded.full}"
-    padding: "3px 10px"
 ---
 
-# Design System: Aleph
+# Design System: Aleph — Deep Signal
 
-## 1. Overview
+## 1. Identity Concept
 
-**Creative North Star: "La Sala de Control"**
+**Name:** Aleph (ℵ) — from Borges: the point in space that contains all other points simultaneously. The product is a RAG system: it ingests documents and answers questions. The visual language reflects that: depth that contains knowledge, with precise moments of signal emerging from it.
 
-Aleph es una herramienta de trabajo seria. El usuario que la abre tiene una tarea: entender si su bot funciona, tomar acción si no. El diseño responde a esa misión con densidad controlada — información disponible cuando se necesita, silenciosa cuando no. La estética viene de los centros de misión crítica: cada elemento en pantalla justifica su presencia, cada color tiene un significado, cada animación tiene una función.
+**Creative North Star: "Deep Signal"**
 
-El sistema opera en dos registros visuales. El dashboard principal (modo claro) es el espacio de trabajo cotidiano: limpio, confiable, con el violeta primario como señal de autoridad en elementos interactivos. La página de observabilidad es territorio oscuro: dark-mode-first, números monoespaciados, animaciones que pulsan al ritmo del sistema vivo. La transición entre ambos no es un accidente — es diseño intencional que comunica "aquí entramos al motor".
+The UI lives in a dark, substantial space. Not "dark mode because tools look cool dark" — but because the primary user is monitoring active conversations and decision-making systems, often in mixed or low-light environments. Against that depth, a single vivid teal primary color acts like a signal: precise, purposeful, honest. Warm amber moments mark human interactions and attention states. Nothing is decorative.
 
-La paleta rechaza el reflejo de categoría: nada de azul SaaS corporativo, nada de verde startup. El violeta-índigo es raro en este mercado y tiene carga semántica correcta para IA/conocimiento sin gritar "hecho con IA". No hay gradientes de texto, glassmorphism decorativo, ni iconos de cerebros flotantes. La sofisticación se demuestra con precisión tipográfica, espaciado deliberado y datos que hablan solos.
+**Breaks the category reflex:** B2B SaaS admin panel category reflex = navy + corporate blue, or clean white + slate. Aleph uses petroleum-dark backgrounds with teal-signal primary and amber personality. No purple, no indigo, no "AI gradient."
 
 **Key Characteristics:**
-- Violeta índigo como color primario — infrecuente en chatbot SaaS, semánticamente correcto para conocimiento/IA
-- Dos modos de superficie: light (trabajo cotidiano) + dark (observabilidad / ingeniería)
-- Tipografía en tres capas: Space Grotesk para identidad, Inter para lectura, DM Mono para datos técnicos
-- Animaciones funcionales: pulso en servicios vivos, transición de pipeline, no decoración
-- Densidad variable: dashboard ligero, observabilidad densa pero legible
+- Deep teal as primary — signal, precision, intelligence. Not Slack cyan, not healthcare teal.
+- Petroleum void backgrounds in dark mode — substantial depth, not generic charcoal
+- Cool morning mist in light mode — not white, not warm gray
+- Amber as personality token — warmth, human, notifications. Distinct from warning.
+- Teal-tinted shadows and glow on hover — the surface has presence
+- Space Grotesk + Inter + DM Mono — unchanged, proven hierarchy
 
 
-## 2. Colors: La Paleta Violeta Índigo
+## 2. Color System
 
-El sistema usa violeta-índigo como único acento, con neutrales tintados hacia ese mismo hue para coherencia perceptual. Nada es puramente gris — cada neutral carga 4-6 unidades de hue 280-285 en OKLCH.
+### CSS Custom Properties (globals.css)
 
-### Primary
-- **Deep Violet-Indigo** (`#4f35cc` / `oklch(45% 0.24 280)`): El acento único del sistema. Botones primarios, estados activos en sidebar, el dot de estado del bot activo, el segmento dominante del donut de gating. Nunca usado como fondo de página.
-- **Soft Violet Tint** (`#f0edff` / `oklch(95% 0.04 280)`): Fondo de hover en sidebar, highlight de item activo en modo claro, background de chips en estado seleccionado.
-- **Muted Violet** (`#8b7fd4` / `oklch(62% 0.12 280)`): Texto de soporte, etiquetas secundarias, iconos en estado idle. No para texto sobre fondo blanco sin verificar contraste.
+All colors flow through `--token` CSS custom properties. Never use raw Tailwind color classes
+(`slate-*`, `gray-*`, `emerald-*`, `red-*`, `amber-*`, `blue-*`, `orange-*`) in components.
+Always use semantic tokens.
 
-### Neutral (Light Mode)
-- **Barely Violet White** (`#fafaff`): Background de página en modo claro. El violet hint es subliminal — no perceptible como "morado", sí perceptible como "no genérico".
-- **Near-Black Violet** (`#131228`): Foreground principal. Más rico que `#000000` puro.
-- **Muted Light** (`#6b6688`): Texto secundario, labels, metadata. Contraste AA sobre `#fafaff`.
-- **Border Light** (`#e0dff0`): Separadores, bordes de inputs en rest, divisores de tabla.
+### Light Mode — Cool Morning Mist (hue 210)
 
-### Neutral (Dark Mode — Observabilidad)
-- **Dark Void** (`#100f1c`): Background de página en modo oscuro. Casi negro con hue violeta profundo.
-- **Surface Dark** (`#1a1930`): Primer nivel de elevación — cards, paneles laterales.
-- **Surface Dark Elevated** (`#232238`): Segundo nivel — dropdowns, tooltips, modales sobre dark.
-- **Off-White Violet** (`#f2f1ff`): Foreground en dark mode. No es blanco puro.
-- **Muted Dark** (`#9a97b4`): Texto secundario en dark.
-- **Border Dark** (`#2e2c4a`): Bordes sutiles en dark mode.
+| Token | HSL | Hex approx |
+|-------|-----|-----------|
+| `--background` / `--surface` | `210 20% 97%` | `#f4f6f8` |
+| `--surface-elevated` | `210 28% 99%` | `#fafbfc` |
+| `--card` | `210 28% 99%` | `#fafbfc` |
+| `--popover` | `210 28% 99%` | `#fafbfc` |
+| `--foreground` | `218 32% 10%` | `#0f1823` |
+| `--muted` | `210 18% 93%` | `#e8edf2` |
+| `--muted-foreground` | `215 15% 46%` | `#6b7888` |
+| `--border` | `210 22% 88%` | `#d8e1ea` |
+| `--input` | `210 18% 93%` | `#e8edf2` |
 
-### Semantic
-- **Success** (`#17a96a`): Estado healthy en observabilidad, tasa de éxito alta, bot activo.
-- **Warning** (`#d48c0a`): Estado degraded, atención requerida, Redis en fallback.
-- **Error** (`#dc2626`): Estado crítico, MongoDB/Qdrant caído, tasa de error alta.
-- **Info** (`#0ea5e9`): Datos neutrales sin evaluación de salud.
+### Dark Mode — Petroleum Void (hue 218)
 
-**La Regla del Color Único.** El violeta-índigo es la única señal de acento. No existe un segundo color de acento diferente. Los colores semánticos (success/warning/error) son de estado — no son identidad. Si algo necesita énfasis y no es un estado, usa peso tipográfico, no un color nuevo.
+| Token | HSL | Hex approx |
+|-------|-----|-----------|
+| `--background` / `--surface` | `218 32% 8%` | `#0d1117` |
+| `--surface-elevated` | `216 28% 12%` | `#141c24` |
+| `--card` | `215 26% 14%` | `#18212c` |
+| `--popover` | `213 24% 17%` | `#1d2735` |
+| `--foreground` | `210 22% 92%` | `#dce8f0` |
+| `--muted` | `213 24% 17%` | `#1d2735` |
+| `--muted-foreground` | `215 16% 60%` | `#8898aa` |
+| `--border` | `215 22% 20%` | `#233040` |
+| `--input` | `215 26% 14%` | `#18212c` |
 
-**La Regla del Tinte Neutral.** Ningún fondo o borde es gray puro. Todos los neutrales llevan al menos `C=0.004` en OKLCH apuntando a H=280. Esto crea cohesión sin que el usuario lo note conscientemente.
+### Primary — Teal Signal (hue 168)
 
+| Token | Light HSL | Dark HSL |
+|-------|-----------|----------|
+| `--primary` | `168 65% 30%` | `168 70% 52%` |
+| `--primary-foreground` | `0 0% 100%` | `218 32% 8%` |
+| `--primary-faint` | `168 50% 94%` | `215 26% 14%` |
+| `--primary-muted` | `168 28% 52%` | `168 20% 60%` |
 
-## 3. Typography: Tres Capas, Un Sistema
+Primary in light mode is dark teal (readable on white). Primary in dark mode is vivid teal (bright signal on dark). The same hue, different luminosity.
 
-**Display / Heading Font:** Space Grotesk (Google Fonts, variable)
-**Body Font:** Inter (Google Fonts, variable)
-**Mono Font:** DM Mono (Google Fonts)
+### Semantic Tokens
 
-**Character:** Space Grotesk da carácter geométrico sin frialdad — sus letras tienen idiosincrasia sutil que Inter no tiene, especialmente en mayúsculas y en números. Inter sigue siendo el mejor texto de cuerpo para pantalla. DM Mono tiene la presencia de una fuente de terminal sin ser incómoda de leer — perfecta para latencias, PIDs, timestamps.
+| Name | Light HSL | Dark HSL | Use |
+|------|-----------|----------|-----|
+| `--success` | `154 76% 38%` | `154 65% 45%` | Completed, active, healthy state |
+| `--warning` | `38 90% 46%` | `38 85% 52%` | Caution, pending, degraded state |
+| `--error` | `0 72% 51%` | `0 72% 55%` | Failure, blocked, critical state |
+| `--info` | `220 75% 54%` | `220 72% 62%` | Neutral informational |
+| `--destructive` | `0 72% 51%` | `0 55% 42%` | Destructive actions only |
 
-### Hierarchy
-- **Display** (Space Grotesk 700, clamp 2–3.5rem, lh 1.05, tracking -0.03em): Número dominante en el dashboard. El "1,247 mensajes" tipográfico sin card wrapper. Una vez por pantalla, máximo.
-- **Headline** (Space Grotesk 600, clamp 1.25–1.75rem, lh 1.2, tracking -0.02em): Títulos de sección, nombre de página en header. Máximo 2-3 por pantalla.
-- **Title** (Space Grotesk 600, 1rem, lh 1.3, tracking -0.01em): Títulos de cards, labels de sección en sidebar, headers de tabla.
-- **Body** (Inter 400, 15px, lh 1.6, max 65ch): Descripciones, tooltips, contenido de párrafo. Nunca más ancho de 65ch.
-- **Label** (Space Grotesk 500, 12px, lh 1.4, tracking +0.06em, UPPERCASE): Labels de KPI, headers de tabla, chips de estado, navegación sidebar. Uppercase solo en este rol.
-- **Mono** (DM Mono 400, 14px, lh 1.5, tracking -0.01em): Todos los datos técnicos: latencias en ms, worker PID, conteo de muestras, timestamps, throughput values, versiones. Si es un número que mide un sistema, va en mono.
+**Semantic badge pattern:**
+```
+bg-success/10 text-success border border-success/25
+bg-warning/10 text-warning border border-warning/25
+bg-error/10 text-error border border-error/25
+bg-info/10 text-info border border-info/25
+bg-amber/10 text-amber border border-amber/25
+```
 
-**La Regla Mono.** Todo número que representa una métrica del sistema — latencia, uptime, tokens, costo, chats/min — se renderiza en DM Mono. Los números tipográficos de marketing (el gran "1,247 mensajes" en dashboard) van en Space Grotesk. La diferencia es intencional: sistema vs identidad.
+### Amber — Personality Token (hue 40)
 
+| Token | Light HSL | Dark HSL |
+|-------|-----------|----------|
+| `--amber` | `40 85% 52%` | `40 80% 55%` |
+| `--amber-foreground` | `28 30% 12%` | `28 30% 12%` |
 
-## 4. Elevation
+**Amber is NOT warning.** Amber = warmth, human presence, attention (not alarm). Use for:
+- Unread message counts, notification dots
+- Waiting time indicators ("esperando 4 min")
+- Kanban columns: comercial, soporte
+- Human handoff moments
 
-El sistema usa elevación tonal, no sombras decorativas. En modo claro, la jerarquía se comunica con fondos: `#fafaff` (base) → `#ffffff` (cards y paneles) → `#f0edff` (highlighted). En modo oscuro, la jerarquía es la secuencia `#100f1c` → `#1a1930` → `#232238`.
+Warning = system state problem. Amber = human moment that needs attention.
 
-Las sombras existen solo como respuesta a estado, no en rest:
+### Sidebar Token Namespace
 
-### Shadow Vocabulary
-- **Sombra de reposo de card** (`0 1px 2px rgb(0 0 0 / 0.04)`): Aplicada a cards en light mode únicamente. Apenas visible — su función es separar del fondo, no decorar.
-- **Sombra de hover** (`0 4px 20px rgb(79 53 204 / 0.12)`): Aparece en hover de elementos interactivos grandes (cards cliqueables, botones de acción). El color de la sombra es el primario, no negro — crea un halo violeta sutil.
-- **Sombra de foco** (`0 0 0 3px rgb(79 53 204 / 0.25)`): Ring de focus para accesibilidad. Visible sobre fondo claro y oscuro.
+| Token | Light | Dark |
+|-------|-------|------|
+| `--sidebar-background` | `210 28% 99%` | `218 32% 8%` |
+| `--sidebar-foreground` | `215 15% 46%` | `215 16% 60%` |
+| `--sidebar-primary` | `168 65% 30%` | `168 70% 52%` |
+| `--sidebar-accent` | `168 50% 94%` | `215 26% 14%` |
+| `--sidebar-border` | `210 22% 88%` | `215 22% 20%` |
 
-**La Regla Flat-by-Default.** Las superficies están planas en reposo. La elevación es una respuesta a interacción o estado elevado — no decoración estática. Un card no tiene sombra porque existe; la tiene cuando el usuario interactúa con él.
-
-
-## 5. Components
-
-### Buttons
-Los botones tienen bordes redondeados suaves (8px) — no pill, no rectangular. Comunican acción sin agresividad.
-- **Shape:** Gently rounded (8px)
-- **Primary:** Background `#4f35cc`, text white, padding 10px 20px, label uppercase Space Grotesk 500 12px tracking 0.06em. Hover: background oscurece a `#3d25b0` con transición 150ms ease-out.
-- **Outline:** Border 1.5px `#4f35cc`, text `#4f35cc`, background transparent. Hover: background `#f0edff`.
-- **Ghost:** No border, no background. Text `#6b6688`. Hover: background `#f0edff`, text `#4f35cc`.
-- **Destructive:** Background `#dc2626`, white text. Solo para acciones irreversibles confirmadas.
-- **Focus ring:** `0 0 0 3px rgb(79 53 204 / 0.25)` sobre cualquier fondo.
-
-### Status Badges / Pills
-Elemento central del sistema — indica salud de servicios, estado del bot, health del sistema.
-- **OK:** Background `#dcfce7`, text `#15803d`, dot animado (pulse verde).
-- **Warn:** Background `#fef9c3`, text `#a16207`, dot ámbar estático.
-- **Crit:** Background `#fee2e2`, text `#b91c1c`, dot rojo con pulse rápido (1s).
-- **Info / Unknown:** Background `#f0edff`, text `#4f35cc`, dot gris.
-- Shape: pill completo (border-radius 9999px), padding 3px 10px, label 11px Space Grotesk 500.
-
-### Cards / Containers
-- **Light mode:** Background `#ffffff`, border 1px `#e0dff0`, radius 12px, shadow de reposo mínima. Padding interno 20-24px.
-- **Dark mode:** Background `#1a1930`, border 1px `#2e2c4a`, radius 12px, sin sombra.
-- **Hover interactivo:** Sombra `0 4px 20px rgb(79 53 204 / 0.12)`, translateY(-1px), 200ms ease-out.
-- **Prohibido:** Franja de borde izquierdo/derecho como acento de color. Nunca `border-left: 3px solid`. Usar tint de fondo o nada.
-
-### Inputs / Fields
-- **Rest:** Background `#fafaff`, border 1.5px `#e0dff0`, radius 8px, text `#131228`.
-- **Focus:** Border `#4f35cc`, shadow `0 0 0 3px rgb(79 53 204 / 0.15)`, background `#ffffff`.
-- **Error:** Border `#dc2626`, shadow `0 0 0 3px rgb(220 38 38 / 0.15)`.
-- **Dark mode rest:** Background `#1a1930`, border `#2e2c4a`.
-- **Dark mode focus:** Border `#8b7fd4`, shadow `0 0 0 3px rgb(139 127 212 / 0.2)`.
-
-### Navigation (Sidebar)
-- **Background:** Blanco en light, `#100f1c` en dark.
-- **Item rest:** Text `#6b6688` (light) / `#9a97b4` (dark), no background.
-- **Item hover:** Background `#f0edff` (light) / `#1a1930` (dark), text `#131228` / `#f2f1ff`.
-- **Item active:** Background `#f0edff` (light) / `#1a1930` (dark), text `#4f35cc` (ambos), dot violeta a la izquierda del label (2px × 16px, `border-left: 2px solid #4f35cc` — excepción permitida solo en nav items, no en cards).
-- **Label de grupo:** Space Grotesk 500 11px uppercase tracking 0.1em, `#9a97b4`.
-
-### Pipeline Waterfall (Componente Signature)
-El visualizador del pipeline RAG en la página de observabilidad. Único en el mercado de chatbot SaaS.
-- **Nodos:** Rectángulos con radius 8px, background `#232238`, border 1px `#2e2c4a`. Texto en Space Grotesk title. Latencia en DM Mono.
-- **Conectores:** Líneas horizontales con grosor proporcional al p50 del segmento (min 2px, max 8px). Color = estado de salud (verde/ámbar/rojo según thresholds).
-- **Animación al cargar datos nuevos:** Los conectores hacen `stroke-dashoffset` de derecha a izquierda en 600ms ease-out-quart. Respeta `prefers-reduced-motion`.
-- **Nodo activo (hover):** Border cambia a `#4f35cc`, aparece tooltip con p50/p95/p99 + sample count.
-
-### Systems Status Bar (Componente Signature)
-Muestra MongoDB, Redis, Qdrant, RAG como nodos con estado vivo.
-- **Nodo healthy:** Dot circular 8px con pulse animation (scale 1→1.4→1, opacity 1→0, 2s infinite). Color `#17a96a`.
-- **Nodo degraded:** Dot ámbar estático con border punteado.
-- **Nodo critical:** Dot rojo con pulse rápido (1s). El nodo completo tiene background `#fee2e2` en dark mode para visibilidad inmediata.
-- **Latencia del servicio:** Bajo el nombre del nodo, en DM Mono 11px `#9a97b4`.
+Bot brand color (`--brand-color`): `#1a9980` default, admin-configurable per bot instance.
 
 
-## 6. Do's and Don'ts
+## 3. Elevation
+
+Five visible layers. In dark mode each step is ≥3% lighter than the previous.
+
+| Layer | Token | Dark approx |
+|-------|-------|------------|
+| 0 — Page | `--background` | `hsl(218 32% 8%)` — `#0d1117` |
+| 1 — Elevated panel | `--surface-elevated` | `hsl(216 28% 12%)` — `#141c24` |
+| 2 — Card | `--card` | `hsl(215 26% 14%)` — `#18212c` |
+| 3 — Popover | `--popover` | `hsl(213 24% 17%)` — `#1d2735` |
+
+Cards in dark mode have NO inner glow, NO gradient — just the solid layer step. The elevation is legible from the lightness contrast alone.
+
+
+## 4. Shadows
+
+Shadows use teal-tinted depth (not pure black). Hover emits a teal signal glow.
+
+```css
+/* Light mode */
+--shadow-sm:    0 1px 2px 0 rgb(20 60 70 / 0.05);
+--shadow-card:  0 1px 3px 0 rgb(20 60 70 / 0.07), 0 1px 2px -1px rgb(20 60 70 / 0.05);
+--shadow-md:    0 4px 6px -1px rgb(20 60 70 / 0.09), 0 2px 4px -2px rgb(20 60 70 / 0.06);
+--shadow-lg:    0 10px 15px -3px rgb(20 60 70 / 0.11), 0 4px 6px -4px rgb(20 60 70 / 0.07);
+--shadow-hover: 0 4px 20px rgb(20 60 70 / 0.16);
+
+/* Dark mode */
+--shadow-sm:    0 1px 2px 0 rgb(4 14 18 / 0.4);
+--shadow-card:  0 1px 4px 0 rgb(4 14 18 / 0.5), 0 1px 2px -1px rgb(4 14 18 / 0.35);
+--shadow-md:    0 4px 8px -1px rgb(4 14 18 / 0.55), 0 2px 4px -2px rgb(4 14 18 / 0.4);
+--shadow-hover: 0 4px 24px rgb(20 180 140 / 0.22);  /* teal signal glow */
+```
+
+
+## 5. Dark Mode Background
+
+Dark mode body has a subtle radial teal glow at the upper area — atmospheric presence, not decoration:
+
+```css
+.dark body {
+  background-image: radial-gradient(
+    ellipse 140% 55% at 65% -5%,
+    hsl(168 35% 10%) 0%,
+    transparent 60%
+  );
+}
+```
+
+
+## 6. Typography
+
+| Font | Role | Token |
+|------|------|-------|
+| Space Grotesk | Headings, labels, UI caps | `--font-heading` |
+| Inter / system-ui | Body text | `--font-sans` |
+| DM Mono | Code, data, mono UI | `--font-mono-ui` |
+
+Heading scale:
+- `h1`: `clamp(1.75rem, 2vw + 0.5rem, 2.25rem)` — weight 700, tracking -0.03em
+- `h2`: `clamp(1.25rem, 1vw + 0.5rem, 1.5rem)` — weight 600, tracking -0.02em
+- `h3`: `clamp(1rem, 0.5vw + 0.5rem, 1.125rem)` — weight 600, tracking -0.01em
+- Body: 15px, line-height 1.6
+
+**Mono rule:** Any number that measures a system — latency, uptime, tokens, costs, chat/min — renders in DM Mono. Marketing numbers (big dashboard KPIs) use Space Grotesk.
+
+
+## 7. Utility Classes
+
+| Class | Definition |
+|-------|-----------|
+| `.gradient-primary` | `linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(148 72% 38%) 100%)` |
+| `.gradient-brand` | `linear-gradient(135deg, hsl(168 65% 28%) 0%, hsl(193 65% 34%) 100%)` |
+| `.gradient-soft` | `linear-gradient(135deg, hsl(var(--primary) / 0.08) 0%, hsl(var(--primary) / 0.04) 100%)` |
+| `.surface-inset` | `bg-muted border border-border rounded-md` — wells, code blocks |
+| `.skeleton-shimmer` | Animated loading shimmer using `--muted` + `--primary-faint` |
+| `.text-label` | Space Grotesk 500 12px uppercase tracking-wide — KPI labels |
+| `.font-data` | DM Mono tabular-nums — system metrics |
+| `.bg-amber` / `.text-amber` | Amber personality token |
+
+
+## 8. Token Usage Rules
+
+1. **Never** use raw Tailwind palette classes in components: `slate-*`, `gray-*`, `zinc-*`, `blue-*`, `emerald-*`, `red-*`, `amber-*`, `orange-*`, `purple-*`, `violet-*`, `indigo-*`.
+2. **Dark: overrides almost always wrong.** Tokens handle dark mode natively. Only add `dark:` when overriding for a surface that uses a different token in dark mode.
+3. **Status badge pattern:** `bg-success/10 text-success border border-success/25` — not raw emerald.
+4. **Destructive hover:** `hover:bg-error/10 hover:text-error` — not `hover:bg-red-50`.
+5. **Side-stripe borders banned.** Never `border-left/right > 1px` as accent. Use full border + bg tint.
+6. **Amber ≠ Warning.** Wrong: `text-amber` for a system degraded state. Right: `text-warning`.
+7. **No gradient text.** `background-clip: text` with gradient = banned. Use solid `text-primary`.
+
+
+## 9. Do / Don't
 
 ### Do:
-- **Do** usar `#fafaff` (barely violet white) como background de página en light mode, no `#ffffff` puro ni ningún `hsl(0 0% 100%)` sin tinte.
-- **Do** renderizar todas las métricas técnicas (latencias, uptime, PIDs, tokens, costos) en DM Mono. La distinción mono/sans comunica "dato de sistema" vs "dato de negocio".
-- **Do** usar `oklch()` en los tokens CSS del proyecto, aunque la YAML frontmatter use hex por compatibilidad Stitch.
-- **Do** animar los dots de estado vivo con `@keyframes pulse` en `box-shadow` o `opacity`. Los servicios que respiran se sienten diferentes a los servicios estáticos.
-- **Do** hacer que la sombra de hover use el color primario (`rgb(79 53 204 / 0.12)`), no negro. El halo violeta en hover conecta visualmente el elemento con la identidad del sistema.
-- **Do** usar el pipeline waterfall como la visualización central de latencia. Es la diferencia visual más fuerte contra cualquier competidor.
-- **Do** verificar contraste WCAG AA antes de usar `#8b7fd4` (muted violet) como texto. Solo es seguro sobre `#fafaff` a tamaños ≥16px o bold.
+- Use `bg-card` not `bg-white`. Card handles dark mode automatically.
+- Use `border-border` not any raw color for dividers.
+- Use `text-muted-foreground` for secondary labels, metadata, captions.
+- Use `text-foreground` for any primary content text.
+- Use `bg-primary/10 text-primary` for tint states (selected, highlighted).
+- Use `.gradient-primary` for CTA buttons when `.gradient-brand` is too strong.
+- Keep semantic colors consistent: `success` always = positive health, `error` always = failure.
 
 ### Don't:
-- **Don't** usar `border-left: 3px solid [color]` como acento decorativo en cards, list items o callouts. Prohibido. Usar tint de fondo o border completo si se necesita separación visual.
-- **Don't** usar `background-clip: text` con gradient para texto de énfasis. Usar `#4f35cc` sólido y peso 700.
-- **Don't** usar `#3b82f6` (Tailwind blue-500) en ningún lugar del sistema. Es el color que reemplazamos explícitamente.
-- **Don't** imitar visualmente a Intercom, Zendesk, Hubspot, Salesforce ni ChatGPT. Si alguien ve la pantalla y piensa en alguna de esas herramientas, el diseño falló.
-- **Don't** usar glassmorphism (blur + transparencia) como decoración. Si aparece, es porque hay una razón estructural, no estética.
-- **Don't** crear un diseño que parezca una plantilla shadcn sin modificar. Cards idénticas en grids uniformes, Inter como única fuente, azul primario — eso es exactamente el estado anterior.
-- **Don't** animar propiedades de layout CSS (width, height, top, left, padding). Solo `transform` y `opacity`. Sin excepciones.
-- **Don't** usar gradientes de texto decorativos en headings. Es el patrón más fácil para que algo parezca "hecho con IA" sin diseñador real.
-- **Don't** mostrar el pipeline RAG como un bar chart agrupado genérico. El pipeline tiene forma secuencial — debe visualizarse como flujo, no como estadística.
-- **Don't** mostrar los servicios (MongoDB, Qdrant, Redis) como filas de tabla con dots de color. Merecen presencia visual como nodos de sistema, no como checkboxes.
-- **Don't** ignorar `prefers-reduced-motion`. Todas las animaciones de pulse, flujo de pipeline y transiciones deben estar wrapped en `@media (prefers-reduced-motion: no-preference)`.
+- Don't use `border-left: 3px solid [color]` as a decorative accent stripe.
+- Don't use gradient text (`background-clip: text`).
+- Don't use glassmorphism (blur + transparency) decoratively.
+- Don't animate CSS layout properties (width, height, top, left) — only `transform` + `opacity`.
+- Don't use `prefers-reduced-motion` without wrapping pulse/flow animations.
+- Don't imitate Intercom, Linear, Notion, or ChatGPT visually.
+- Don't add `dark:` overrides for things that tokens already handle.

@@ -95,55 +95,55 @@ const COLUMNS: KanbanColumnDef[] = [
   {
     key: null,
     label: "Sin clasificar",
-    headerBg: "bg-slate-200 dark:bg-slate-800",
-    headerText: "text-slate-700 dark:text-slate-200",
-    colBg: "bg-slate-50/90 dark:bg-slate-900/30",
-    dotClass: "bg-slate-400",
+    headerBg: "bg-muted",
+    headerText: "text-foreground",
+    colBg: "bg-muted/30",
+    dotClass: "bg-muted-foreground/50",
     emptyLabel: "Sin conversaciones",
   },
   {
     key: "informacion",
     label: "Información",
-    headerBg: "bg-sky-500 dark:bg-sky-700",
-    headerText: "text-white",
-    colBg: "bg-sky-50/70 dark:bg-sky-950/20",
-    dotClass: "bg-sky-500",
+    headerBg: "bg-info",
+    headerText: "text-info-foreground",
+    colBg: "bg-info/10",
+    dotClass: "bg-info",
     emptyLabel: "Sin consultas informativas",
   },
   {
     key: "comercial",
     label: "Comercial",
-    headerBg: "bg-emerald-600 dark:bg-emerald-700",
-    headerText: "text-white",
-    colBg: "bg-emerald-50/70 dark:bg-emerald-950/20",
-    dotClass: "bg-emerald-500",
+    headerBg: "bg-success",
+    headerText: "text-success-foreground",
+    colBg: "bg-success/10",
+    dotClass: "bg-success",
     emptyLabel: "Sin oportunidades comerciales",
   },
   {
     key: "soporte",
     label: "Soporte",
-    headerBg: "bg-amber-500 dark:bg-amber-700",
-    headerText: "text-white",
-    colBg: "bg-amber-50/70 dark:bg-amber-950/20",
-    dotClass: "bg-amber-500",
+    headerBg: "bg-warning",
+    headerText: "text-warning-foreground",
+    colBg: "bg-warning/10",
+    dotClass: "bg-warning",
     emptyLabel: "Sin casos de soporte",
   },
   {
     key: "sin_valor",
     label: "Sin valor",
-    headerBg: "bg-slate-400 dark:bg-slate-700",
-    headerText: "text-white",
-    colBg: "bg-slate-50/50 dark:bg-slate-900/15",
-    dotClass: "bg-slate-400",
+    headerBg: "bg-muted border border-border",
+    headerText: "text-muted-foreground",
+    colBg: "bg-muted/30",
+    dotClass: "bg-muted-foreground/50",
     emptyLabel: "Sin descartados",
   },
   {
     key: COMPLETED_KEY,
     label: "Completado",
-    headerBg: "bg-violet-600 dark:bg-violet-700",
-    headerText: "text-white",
-    colBg: "bg-violet-50/70 dark:bg-violet-950/20",
-    dotClass: "bg-violet-500",
+    headerBg: "bg-primary",
+    headerText: "text-primary-foreground",
+    colBg: "bg-primary/10",
+    dotClass: "bg-primary",
     emptyLabel: "Sin conversaciones completadas",
   },
 ];
@@ -152,7 +152,7 @@ const COLUMNS: KanbanColumnDef[] = [
 
 function SkeletonCard() {
   return (
-    <div className="w-full animate-pulse rounded-xl border border-border/40 bg-white p-3 dark:bg-card">
+    <div className="w-full animate-pulse rounded-xl border border-border/40 bg-card p-3">
       <div className="flex items-center gap-2">
         <div className="h-8 w-8 flex-none rounded-lg bg-muted/60" />
         <div className="flex-1 space-y-1.5">
@@ -182,12 +182,12 @@ interface StatTileProps {
 function StatTile({ label, value, hint, tone = "default" }: StatTileProps) {
   const valueClass =
     tone === "warn"
-      ? "text-amber-700 dark:text-amber-400"
+      ? "text-warning"
       : tone === "success"
-        ? "text-emerald-700 dark:text-emerald-400"
+        ? "text-success"
         : "text-foreground";
   return (
-    <div className="flex min-w-[140px] flex-1 flex-col justify-center rounded-xl border border-border/60 bg-white px-3.5 py-2.5 transition-all duration-150 hover:border-primary/20 hover:shadow-[0_4px_20px_rgb(79_53_204/0.08)] dark:bg-card">
+    <div className="flex min-w-[140px] flex-1 flex-col justify-center rounded-xl border border-border/60 bg-card px-3.5 py-2.5 transition-all duration-150 hover:border-primary/20 hover:shadow-[0_4px_20px_rgb(79_53_204/0.08)]">
       <span className="font-heading text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/70">
         {label}
       </span>
@@ -361,7 +361,7 @@ function TabsStrip({ active, counts, onChange }: TabsStripProps) {
     <div
       role="tablist"
       aria-label="Filtro por estado"
-      className="inline-flex items-center gap-1 rounded-xl border border-border/60 bg-white p-1 dark:bg-card"
+      className="inline-flex items-center gap-1 rounded-xl border border-border/60 bg-card p-1"
     >
       {TABS.map((t) => {
         const isActive = active === t.key;
@@ -1122,8 +1122,8 @@ function InboxContent() {
               </p>
             </div>
             <div className="flex flex-none items-center gap-2">
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-semibold text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-400">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-success/25 bg-success/10 px-3 py-1.5 text-[11px] font-semibold text-success">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" />
                 En vivo
               </div>
               <Button

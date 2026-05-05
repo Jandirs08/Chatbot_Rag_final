@@ -14,19 +14,19 @@ export const CATEGORY_CLASS: Record<NonNullable<ConversationCategory>, string> =
   informacion:
     "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/50 dark:bg-sky-950/50 dark:text-sky-300",
   comercial:
-    "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/50 dark:text-emerald-300",
+    "border-success/25 bg-success/10 text-success",
   soporte:
-    "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/50 dark:text-amber-300",
+    "border-amber/25 bg-amber/10 text-amber",
   sin_valor:
-    "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-900/50 dark:bg-slate-950/50 dark:text-slate-300",
+    "border-border bg-muted text-muted-foreground",
 };
 
 // ── Urgency helpers ───────────────────────────────────────────────────────────
 
 export const URGENCY_DOT: Record<NonNullable<ConversationUrgency>, string> = {
-  alta: "bg-red-500",
-  media: "bg-amber-500",
-  baja: "bg-emerald-500",
+  alta: "bg-error",
+  media: "bg-amber",
+  baja: "bg-success",
 };
 
 export const URGENCY_LABEL: Record<NonNullable<ConversationUrgency>, string> = {

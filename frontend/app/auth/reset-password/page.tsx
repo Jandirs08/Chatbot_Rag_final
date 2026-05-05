@@ -88,7 +88,7 @@ function ResetPasswordContent() {
         {success ? (
           <>
             <CardContent className="text-center">
-              <CheckCircle className="w-16 h-16 text-green-500 mb-4 mx-auto" />
+              <CheckCircle className="w-16 h-16 text-success mb-4 mx-auto" />
               <div className="text-xl font-bold mb-2">¡Contraseña Actualizada!</div>
               <p className="text-sm text-muted-foreground">Redirigiendo al login...</p>
             </CardContent>
@@ -111,15 +111,15 @@ function ResetPasswordContent() {
                 <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo 8 caracteres" disabled={loading} />
                 <div className="mt-2 space-y-1 text-sm">
                   <div className="flex items-center gap-2 text-muted-foreground">
-                    {lenOk ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Circle className="w-4 h-4 text-gray-400" />}
+                    {lenOk ? <CheckCircle2 className="w-4 h-4 text-success" /> : <Circle className="w-4 h-4 text-muted-foreground/60" />}
                     <span>Mínimo 8 caracteres</span>
                   </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
-                    {upperOk ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Circle className="w-4 h-4 text-gray-400" />}
+                    {upperOk ? <CheckCircle2 className="w-4 h-4 text-success" /> : <Circle className="w-4 h-4 text-muted-foreground/60" />}
                     <span>Al menos 1 mayúscula</span>
                   </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
-                    {specialOk ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Circle className="w-4 h-4 text-gray-400" />}
+                    {specialOk ? <CheckCircle2 className="w-4 h-4 text-success" /> : <Circle className="w-4 h-4 text-muted-foreground/60" />}
                     <span>Al menos 1 carácter especial</span>
                   </div>
                 </div>

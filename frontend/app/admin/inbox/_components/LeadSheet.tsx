@@ -468,7 +468,7 @@ export function LeadSheet({
                   {isPending && minutes_waiting != null && (
                     <>
                       <span className="text-muted-foreground/40">·</span>
-                      <span className="font-mono text-[11px] font-semibold text-amber-600">
+                      <span className="font-mono text-[11px] font-semibold text-amber">
                         {minutes_waiting}m esperando
                       </span>
                     </>
@@ -573,10 +573,10 @@ export function LeadSheet({
                                 className={cn(
                                   "h-2 w-2 flex-none rounded-full",
                                   urgency === "alta"
-                                    ? "bg-red-500"
+                                    ? "bg-error"
                                     : urgency === "media"
-                                      ? "bg-amber-500"
-                                      : "bg-emerald-500",
+                                      ? "bg-warning"
+                                      : "bg-success",
                                 )}
                                 aria-hidden="true"
                               />

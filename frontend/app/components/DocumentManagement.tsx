@@ -111,7 +111,7 @@ export function DocumentManagement() {
               rateLimitInfo.remaining === 0 &&
               countdown !== null &&
               countdown > 0 && (
-                <div className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                <div className="flex items-center gap-2 rounded-full bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground">
                   <Clock className="h-3 w-3" />
                   <span>Disponible en {formatCountdown(countdown)}</span>
                 </div>

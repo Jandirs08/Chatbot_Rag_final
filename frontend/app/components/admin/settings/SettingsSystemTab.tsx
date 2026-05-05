@@ -92,7 +92,7 @@ export function SettingsSystemTab({ isLoading }: SettingsSystemTabProps) {
                 <div className="space-y-3">
                   <Progress value={progress} />
                   {success && (
-                    <div className="flex items-center gap-2 text-green-700 text-sm">
+                    <div className="flex items-center gap-2 text-success text-sm">
                       <CheckCircle2 className="w-5 h-5" /> Base de datos limpia
                     </div>
                   )}

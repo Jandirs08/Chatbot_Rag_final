@@ -40,8 +40,8 @@ type PreviewProps = {
 
 function PhonePreview(p: PreviewProps) {
   return (
-    <div className="w-[320px] h-[600px] bg-white border-[14px] border-gray-900 rounded-[2.5rem] shadow-2xl relative overflow-hidden mx-auto">
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 mt-1 h-6 w-28 bg-gray-900 rounded-b-2xl" />
+    <div className="w-[320px] h-[600px] bg-white border-[14px] border-foreground rounded-[2.5rem] shadow-2xl relative overflow-hidden mx-auto">
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 mt-1 h-6 w-28 bg-foreground rounded-b-2xl" />
       <div className="flex h-full w-full flex-col">
         <div
           className="h-16 flex items-center justify-between px-4 text-white"
@@ -51,7 +51,7 @@ function PhonePreview(p: PreviewProps) {
             {p.avatarUrl ? (
               <Image src={p.avatarUrl} alt="avatar" width={32} height={32} className="h-8 w-8 rounded-full object-cover" unoptimized />
             ) : (
-              <div className="h-8 w-8 rounded-full bg-white/90 flex items-center justify-center text-gray-700 font-semibold">
+              <div className="h-8 w-8 rounded-full bg-white/90 flex items-center justify-center text-foreground font-semibold">
                 {p.name.charAt(0) || "A"}
               </div>
             )}
@@ -59,20 +59,20 @@ function PhonePreview(p: PreviewProps) {
           </div>
           <div className="h-8 w-8 rounded-full bg-white/20" />
         </div>
-        <div className="flex-1 bg-gray-50 p-3 overflow-y-auto space-y-3">
+        <div className="flex-1 bg-muted/50 p-3 overflow-y-auto space-y-3">
           {p.starters.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {p.starters.map((s, i) => (
-                <div key={`${s}-${i}`} className="rounded-full border px-3 py-1 bg-white text-gray-700 text-xs">{s}</div>
+                <div key={`${s}-${i}`} className="rounded-full border px-3 py-1 bg-white text-foreground text-xs">{s}</div>
               ))}
             </div>
           )}
         </div>
         <div className="h-16 bg-white border-t flex items-center px-3">
-          <div className="flex-1 h-10 rounded-full border bg-gray-50 flex items-center px-4 text-gray-500 text-sm">
+          <div className="flex-1 h-10 rounded-full border bg-muted/50 flex items-center px-4 text-muted-foreground text-sm">
             <span className="truncate">{p.placeholder}</span>
           </div>
-          <div className="ml-2 h-10 w-10 rounded-full bg-gray-200" />
+          <div className="ml-2 h-10 w-10 rounded-full bg-muted" />
         </div>
       </div>
     </div>
@@ -92,7 +92,7 @@ function DesktopPreview(p: PreviewProps) {
             {p.avatarUrl ? (
               <Image src={p.avatarUrl} alt="avatar" width={32} height={32} className="h-8 w-8 rounded-full object-cover" unoptimized />
             ) : (
-              <div className="h-8 w-8 rounded-full bg-white/90 flex items-center justify-center text-gray-700 font-semibold">
+              <div className="h-8 w-8 rounded-full bg-white/90 flex items-center justify-center text-foreground font-semibold">
                 {p.name.charAt(0) || "A"}
               </div>
             )}
@@ -104,20 +104,20 @@ function DesktopPreview(p: PreviewProps) {
             <div className="h-2 w-2 rounded-full bg-white/70" />
           </div>
         </div>
-        <div className="flex-1 bg-gray-50 p-3 overflow-y-auto space-y-3">
+        <div className="flex-1 bg-muted/50 p-3 overflow-y-auto space-y-3">
           {p.starters.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {p.starters.map((s, i) => (
-                <div key={`${s}-${i}`} className="rounded-full border px-3 py-1 bg-white text-gray-700 text-xs">{s}</div>
+                <div key={`${s}-${i}`} className="rounded-full border px-3 py-1 bg-white text-foreground text-xs">{s}</div>
               ))}
             </div>
           )}
         </div>
         <div className="h-16 bg-white border-t flex items-center px-3">
-          <div className="flex-1 h-10 rounded-md border bg-gray-50 flex items-center px-4 text-gray-500 text-sm">
+          <div className="flex-1 h-10 rounded-md border bg-muted/50 flex items-center px-4 text-muted-foreground text-sm">
             <span className="truncate">{p.placeholder}</span>
           </div>
-          <div className="ml-2 h-10 w-10 rounded-md bg-gray-200" />
+          <div className="ml-2 h-10 w-10 rounded-md bg-muted" />
         </div>
       </div>
     </div>
@@ -203,12 +203,12 @@ export function SettingsAppearanceTab({
               </div>
             ) : (
               <div className="flex flex-col h-full relative">
-                <Card className="border shadow-sm bg-white rounded-xl flex flex-col">
+                <Card className="border shadow-sm bg-card rounded-xl flex flex-col">
                   <div className="p-4 space-y-4">
                     {/* Identidad Visual */}
                     <div className="space-y-1 border-b pb-2">
-                      <div className="flex items-center gap-2 text-base font-semibold text-gray-900">
-                        <Palette className="w-4 h-4 text-blue-500" />
+                      <div className="flex items-center gap-2 text-base font-semibold text-foreground">
+                        <Palette className="w-4 h-4 text-primary" />
                         Identidad Visual
                       </div>
                     </div>
@@ -222,7 +222,7 @@ export function SettingsAppearanceTab({
                           className="relative group cursor-pointer"
                           onClick={() => document.getElementById('avatar-file')?.click()}
                         >
-                          <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-lg ring-1 ring-gray-200 relative bg-gray-50 flex items-center justify-center transition-transform group-hover:scale-105">
+                          <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-card shadow-lg ring-1 ring-border relative bg-muted/50 flex items-center justify-center transition-transform group-hover:scale-105">
                             {config.avatarUrl ? (
                               <Image
                                 src={config.avatarUrl}
@@ -233,13 +233,13 @@ export function SettingsAppearanceTab({
                                   unoptimized
                                 />
                               ) : (
-                                <User className="w-12 h-12 text-gray-300" />
+                                <User className="w-12 h-12 text-muted-foreground/30" />
                               )}
                               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                 <Upload className="w-8 h-8 text-white" />
                               </div>
                             </div>
-                            <div className="absolute bottom-1 right-1 bg-white rounded-full p-2.5 shadow-md border border-gray-100 text-blue-600 transition-transform hover:scale-110">
+                            <div className="absolute bottom-1 right-1 bg-card rounded-full p-2.5 shadow-md border border-border text-primary transition-transform hover:scale-110">
                               <Pencil className="w-4 h-4" />
                             </div>
                           </div>
@@ -284,7 +284,7 @@ export function SettingsAppearanceTab({
                                 type="button"
                                 variant="ghost"
                                 size="sm"
-                                className="text-red-500 hover:text-red-600 hover:bg-red-50 h-8 text-xs"
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 text-xs"
                                 onClick={async () => {
                                   try {
                                     const res = await authenticatedFetch(
@@ -330,9 +330,9 @@ export function SettingsAppearanceTab({
                                   type="button"
                                   onClick={() => setConfig((c) => ({ ...c, brandColor: col }))}
                                   className={`h-9 w-9 rounded-full transition-all duration-200 ${
-                                    config.brandColor === col 
-                                      ? "ring-2 ring-offset-2 ring-blue-500 scale-110" 
-                                      : "ring-1 ring-gray-200 hover:scale-105"
+                                    config.brandColor === col
+                                      ? "ring-2 ring-offset-2 ring-primary scale-110"
+                                      : "ring-1 ring-border hover:scale-105"
                                   }`}
                                   style={{ backgroundColor: col }}
                                   disabled={appearanceLocked}
@@ -340,7 +340,7 @@ export function SettingsAppearanceTab({
                               ))}
                               
                               <div className="relative flex items-center ml-2">
-                                <div className="absolute left-3 text-gray-400 select-none text-xs">#</div>
+                                <div className="absolute left-3 text-muted-foreground/60 select-none text-xs">#</div>
                                 <Input
                                   value={config.brandColor.startsWith('#') ? config.brandColor.substring(1) : config.brandColor}
                                   onChange={(e) => {
@@ -410,7 +410,7 @@ export function SettingsAppearanceTab({
                             }
                           }}
                           disabled={config.starters.length >= 6 || appearanceLocked}
-                          className="gap-2 text-blue-600 border-blue-100 hover:bg-blue-50"
+                          className="gap-2 text-primary border-primary/20 hover:bg-primary/10"
                         >
                           <Plus className="w-4 h-4" /> Agregar
                         </Button>
@@ -418,7 +418,7 @@ export function SettingsAppearanceTab({
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {config.starters.length === 0 && (
-                          <div className="col-span-1 md:col-span-2 text-center py-6 border-2 border-dashed rounded-lg text-muted-foreground text-sm bg-gray-50/50">
+                          <div className="col-span-1 md:col-span-2 text-center py-6 border-2 border-dashed rounded-lg text-muted-foreground text-sm bg-muted/50">
                             Sin atajos configurados.
                           </div>
                         )}
@@ -464,7 +464,7 @@ export function SettingsAppearanceTab({
                                   starters: c.starters.filter((_, i) => i !== idx),
                                 }))
                               }
-                              className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all"
+                              className="h-8 w-8 text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-all"
                             >
                               <Trash className="w-4 h-4" />
                             </Button>
@@ -475,13 +475,13 @@ export function SettingsAppearanceTab({
                   </div>
 
                   {/* Sticky Footer Action Bar */}
-                  <div className="sticky bottom-0 z-20 bg-white/80 backdrop-blur-md border-t p-4 flex justify-between items-center rounded-b-xl">
+                  <div className="sticky bottom-0 z-20 bg-card/80 backdrop-blur-md border-t p-4 flex justify-between items-center rounded-b-xl">
                     <span className="text-xs text-muted-foreground pl-0 hidden md:inline-block">
                       {appearanceIsDirty ? "Tienes cambios sin guardar" : "Todo actualizado"}
                     </span>
                     <Button
                       type="button"
-                      className="min-w-[140px] bg-blue-600 hover:bg-blue-700 text-white shadow-md transition-all hover:shadow-lg"
+                      className="min-w-[140px] gradient-primary hover:opacity-90 shadow-md transition-all hover:shadow-lg"
                       onClick={handleSave}
                       disabled={saving || !appearanceIsDirty}
                     >
@@ -504,7 +504,7 @@ export function SettingsAppearanceTab({
       <div className="lg:col-span-7 h-auto lg:h-full">
         <div className="relative h-full">
           <div className="relative lg:sticky lg:top-5 h-[650px] lg:h-full">
-            <div className="border rounded-md bg-white/60 backdrop-blur-sm">
+            <div className="border rounded-md bg-card/60 backdrop-blur-sm">
               <div className="flex items-center justify-between px-4 py-2 border-b">
                 <div className="text-sm font-medium">Preview</div>
                 <Tabs
