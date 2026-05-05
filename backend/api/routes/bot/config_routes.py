@@ -12,6 +12,7 @@ from database.config_repository import ConfigRepository
 from auth.permissions import require_manage_bot_config
 from models.user import User
 from cache.manager import cache
+from utils.audit import audit
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["bot"])
@@ -246,7 +247,7 @@ async def get_bot_config(
 async def update_bot_config(
     request: Request,
     payload: UpdateBotConfigRequest,
-    _: User = Depends(require_manage_bot_config),
+    current_user: User = Depends(require_manage_bot_config),
 ) -> BotConfigDTO:
     """Update bot configuration fields. Requires: authenticated user."""
     try:
@@ -277,6 +278,9 @@ async def update_bot_config(
                 )
         write_runtime_config_to_cache(runtime_payload)
         request.app.state.last_synced_bot_config = runtime_payload
+
+        changed_keys = [k for k, v in payload.model_dump().items() if v is not None]
+        audit("bot_config_updated", str(current_user.id), changed_fields=changed_keys, ip=request.client.host if request.client else None)
 
         return _build_bot_config_dto(updated)
     except HTTPException:
@@ -310,6 +314,7 @@ async def reset_bot_config(
                 )
         write_runtime_config_to_cache(runtime_payload)
         request.app.state.last_synced_bot_config = runtime_payload
+        audit("bot_config_reset", None, ip=request.client.host if request.client else None)
         return _build_bot_config_dto(updated)
     except Exception as e:
         logger.error(f"Error resetting bot config: {e}", exc_info=True)

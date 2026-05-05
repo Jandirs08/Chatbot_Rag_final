@@ -30,6 +30,7 @@ from services.email_service import EmailService
 from auth.dependencies import get_current_user, get_current_active_user, get_token_blacklist
 from config import get_settings
 from utils.rate_limiter import conditional_limit
+from utils.audit import audit
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -81,6 +82,7 @@ async def login(
         user = await user_repository.get_user_by_email(login_data.email)
         if not user:
             logger.warning("Login attempt with non-existent email")
+            audit("login_failure", None, email=login_data.email, ip=request.client.host if request.client else None)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid credentials",
@@ -90,6 +92,7 @@ async def login(
         # Check if user is active
         if not user.is_active:
             logger.warning("Login attempt by inactive user_id=%s", user.id)
+            audit("login_failure", str(user.id), ip=request.client.host if request.client else None)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Account is inactive",
@@ -99,6 +102,7 @@ async def login(
         # Verify password
         if not verify_password(login_data.password, user.hashed_password):
             logger.warning("Invalid password for user_id=%s", user.id)
+            audit("login_failure", str(user.id), ip=request.client.host if request.client else None)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid credentials",
@@ -120,7 +124,8 @@ async def login(
         await user_repository.update_last_login(str(user.id))
 
         logger.info("Successful login for user_id=%s", user.id)
-        
+        audit("login_success", str(user.id), ip=request.client.host if request.client else None)
+
         if response is not None:
             secure_flag = str(settings.environment).lower() in ("production", "prod", "staging")
             response.set_cookie(
@@ -304,7 +309,8 @@ async def refresh_access_token(
             })
 
         logger.info("Token refreshed for user_id=%s", user.id)
-        
+        audit("token_refreshed", str(user.id))
+
         if response is not None:
             secure_flag = str(settings.environment).lower() in ("production", "prod", "staging")
             response.set_cookie(
@@ -408,6 +414,7 @@ async def logout(
 
     if response is not None:
         response.delete_cookie(key="access_token", path="/")
+    audit("logout", str(current_user.id), ip=request.client.host if request.client else None)
     return {"message": "Successfully logged out"}
 
 
@@ -437,6 +444,7 @@ async def forgot_password(
             link = f"{base}?token={token}"
             svc = EmailService()
             await svc.send_reset_password(payload.email, link)
+            audit("password_reset_requested", str(user.id), ip=request.client.host if request.client else None)
         return {"status": "ok"}
     except Exception:
         return {"status": "ok"}
@@ -474,6 +482,7 @@ async def reset_password(
         # Consume the reset token so it cannot be reused
         if token_blacklist and jti:
             token_blacklist.blacklist(jti, int(exp))
+        audit("password_reset_completed", str(user.id))
         return {"status": "ok"}
     except TokenExpiredError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")

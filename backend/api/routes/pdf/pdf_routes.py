@@ -18,6 +18,7 @@ from auth.permissions import require_manage_documents
 from config import settings
 from models.user import User
 from utils.rate_limiter import conditional_limit
+from utils.audit import audit
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["pdfs"])
@@ -88,6 +89,7 @@ async def upload_pdf(
     current_user: User = Depends(require_manage_documents),
 ):
     """Sube el PDF y agenda su ingesta asincronica."""
+    _uploader_id = str(current_user.id)
     del response, current_user
     pdf_file_manager = request.app.state.pdf_file_manager
     _require_rag_ingestor(request)
@@ -106,6 +108,7 @@ async def upload_pdf(
         await file.seek(0)
 
         file_path = await pdf_file_manager.save_pdf(file)
+        audit("document_uploaded", _uploader_id, filename=file_path.name, ip=request.client.host if request.client else None)
         if ingestion_repo is not None:
             await ingestion_repo.mark_queued(
                 filename=file_path.name,
@@ -203,7 +206,7 @@ async def delete_pdf(
     request: Request,
     background_tasks: BackgroundTasks,
     filename: str,
-    _: User = Depends(require_manage_documents),
+    current_user: User = Depends(require_manage_documents),
 ):
     """Elimina un PDF y sus indices RAG. Requiere manage_documents."""
     pdf_file_manager = request.app.state.pdf_file_manager
@@ -215,6 +218,7 @@ async def delete_pdf(
 
         await pdf_file_manager.delete_pdf(safe_filename)
         logger.info("PDF eliminado fisicamente: %s", safe_filename)
+        audit("document_deleted", str(current_user.id), filename=safe_filename, ip=request.client.host if request.client else None)
 
         ingestion_repo = getattr(request.app.state, "document_ingestion_status_repository", None)
         if ingestion_repo is not None:

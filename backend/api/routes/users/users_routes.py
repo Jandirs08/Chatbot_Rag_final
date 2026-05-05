@@ -14,6 +14,7 @@ from database.user_repository import UserRepository, get_user_repository
 from auth.password_handler import hash_password
 from auth.permissions import require_manage_users
 from models.user import User
+from utils.audit import audit
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["users"])
@@ -115,7 +116,7 @@ async def list_users(
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(
     req: CreateUserRequest,
-    _: User = Depends(require_manage_users),
+    actor: User = Depends(require_manage_users),
     user_repository: UserRepository = Depends(get_user_repository),
 ):
     """Crea un usuario. Requiere: usuario autenticado."""
@@ -173,6 +174,7 @@ async def create_user(
         except Exception:
             logger.warning("Failed to set is_admin flag after creation")
 
+    audit("user_created", str(actor.id), new_user_id=str(created.id))
     return UserResponse.from_model(created)
 
 
@@ -180,7 +182,7 @@ async def create_user(
 async def update_user(
     user_id: str,
     req: UpdateUserRequest,
-    _: User = Depends(require_manage_users),
+    actor: User = Depends(require_manage_users),
     user_repository: UserRepository = Depends(get_user_repository),
 ):
     """Actualiza un usuario. Requiere: usuario autenticado."""
@@ -229,6 +231,7 @@ async def update_user(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to load updated user",
             )
+        audit("user_updated", str(actor.id), target_user_id=user_id)
         return UserResponse.from_model(updated)
     except HTTPException:
         raise
@@ -258,6 +261,7 @@ async def delete_user(
         result = await users_collection.delete_one({"_id": ObjectId(user_id)})
         if result.deleted_count == 0:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        audit("user_deleted", str(current_user.id), target_user_id=user_id)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except HTTPException:
         raise
