@@ -14,8 +14,8 @@ export function buildInboxUrl(params?: InboxFetchParams): string {
   if (params?.category) url.searchParams.set("category", params.category);
   if (params?.min_score != null)
     url.searchParams.set("min_score", String(params.min_score));
-  if (params?.limit) url.searchParams.set("limit", String(params.limit));
-  if (params?.skip) url.searchParams.set("skip", String(params.skip));
+  if (params?.limit != null) url.searchParams.set("limit", String(params.limit));
+  if (params?.skip != null) url.searchParams.set("skip", String(params.skip));
   return url.toString();
 }
 
