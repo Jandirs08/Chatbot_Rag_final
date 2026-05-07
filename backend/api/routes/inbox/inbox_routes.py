@@ -2,7 +2,7 @@ import re
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel
 from utils.logging_utils import get_logger
 from utils.rate_limiter import conditional_limit
@@ -127,6 +127,7 @@ def _get_conv_repo(request: Request) -> ConversationRepository:
 async def get_inbox(
     request: Request,
     _current_user=Depends(require_admin),
+    response: Response = None,
     category: Optional[ConversationCategory] = Query(None),
     min_score: Optional[int] = Query(None, ge=0, le=100),
     limit: int = Query(50, ge=1, le=500),
