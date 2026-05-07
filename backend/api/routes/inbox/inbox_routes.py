@@ -140,6 +140,8 @@ async def get_inbox(
         skip=skip,
     )
 
+    logger.info(f"[DEBUG] inbox_conversations: total={total}, docs_count={len(docs)}, category={category}, min_score={min_score}, limit={limit}, skip={skip}")
+
     page = skip // limit + 1 if limit > 0 else 1
     total_pages = max(1, (total + limit - 1) // limit) if limit > 0 else 1
     has_next = page < total_pages

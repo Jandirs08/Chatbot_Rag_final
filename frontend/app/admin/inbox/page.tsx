@@ -814,6 +814,14 @@ function InboxContent() {
 
   const conversations = listData?.items ?? EMPTY_LIST;
 
+  // Debug logs
+  useEffect(() => {
+    console.log("[DEBUG] listData:", listData);
+    console.log("[DEBUG] conversations count:", conversations.length);
+    console.log("[DEBUG] loadingList:", loadingList);
+    console.log("[DEBUG] isAuthorized:", isAuthorized);
+  }, [listData, conversations.length, loadingList, isAuthorized]);
+
   const handlePrevPage = useCallback(() => {
     setPage((p) => Math.max(1, p - 1));
   }, []);
