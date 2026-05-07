@@ -27,7 +27,7 @@ from auth.jwt_handler import (
 )
 from auth.password_handler import verify_password, hash_password
 from services.email_service import EmailService
-from auth.dependencies import get_current_user, get_current_active_user, get_token_blacklist
+from auth.dependencies import get_current_user, get_current_active_user, get_token_blacklist, extract_token_from_request
 from config import get_settings
 from utils.rate_limiter import conditional_limit
 from utils.audit import audit
@@ -383,12 +383,7 @@ async def logout(
 
     if token_blacklist:
         # Revoke the access token
-        auth_header = request.headers.get("Authorization", "")
-        access_token_str = (
-            auth_header[7:]
-            if auth_header.startswith("Bearer ")
-            else request.cookies.get("access_token")
-        )
+        access_token_str = extract_token_from_request(request)
         if access_token_str:
             try:
                 payload = decode_token(access_token_str)

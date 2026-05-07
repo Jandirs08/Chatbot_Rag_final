@@ -8,9 +8,19 @@ from .mongodb import get_mongodb_client, MongodbClient
 
 logger = logging.getLogger(__name__)
 
-_URGENCY_ORDER = {"alta": 0, "media": 1, "baja": 2}
-
 HANDOFF_REASONS = ("user_request", "low_confidence", "out_of_scope")
+
+_INBOX_PROJECTION = {
+    "_id": 0,
+    "conversation_id": 1, "channel": 1, "external_id": 1,
+    "mode": 1, "stage": 1, "completed_at": 1,
+    "category": 1, "urgency": 1, "ai_summary": 1,
+    "ai_summary_at": 1, "ai_summary_at_msg_count": 1,
+    "assigned_agent_id": 1, "pending_since": 1, "updated_at": 1,
+    "lead_name": 1, "lead_email": 1, "lead_captured_at": 1,
+    "lead_score": 1, "purchase_intent": 1, "product_interests": 1,
+    "recommended_action": 1, "confidence": 1, "viewed_at": 1,
+}
 
 
 class ConversationRepository:
@@ -21,6 +31,12 @@ class ConversationRepository:
     async def ensure_indexes(self) -> None:
         try:
             coll = self.mongodb_client.db[self.collection_name]
+            # Primary lookup key — every mutation filters by this
+            await coll.create_index(
+                "conversation_id",
+                unique=True,
+                name="conversation_id_unique",
+            )
             await coll.create_index(
                 [("mode", ASCENDING), ("pending_since", ASCENDING)],
                 name="mode_pending_since",
@@ -37,6 +53,22 @@ class ConversationRepository:
             await coll.create_index(
                 [("handoff_at", DESCENDING)],
                 name="handoff_at_desc",
+            )
+            # Covers auto_complete_idle: {stage, updated_at < cutoff}
+            await coll.create_index(
+                [("stage", ASCENDING), ("updated_at", ASCENDING)],
+                name="stage_updated_idx",
+            )
+            # Covers list_inbox_conversations: {mode: $in, updated_at: $gte}
+            await coll.create_index(
+                [("mode", ASCENDING), ("updated_at", DESCENDING)],
+                name="mode_updated_at_idx",
+            )
+            # Covers list_leads: {lead_email: $ne, mode: bot}
+            await coll.create_index(
+                [("lead_email", ASCENDING), ("mode", ASCENDING)],
+                sparse=True,
+                name="lead_email_mode_idx",
             )
         except Exception as e:
             logger.error(f"Error ensuring conversations indexes: {e}")
@@ -156,27 +188,6 @@ class ConversationRepository:
             },
         )
 
-    async def list_pending(self) -> list:
-        coll = self.mongodb_client.db[self.collection_name]
-        docs = await coll.find({"mode": "pending"}).to_list(length=500)
-        # Sort: alta first, then by pending_since ascending
-        docs.sort(
-            key=lambda d: (
-                _URGENCY_ORDER.get(d.get("urgency") or "", 99),
-                d.get("pending_since") or datetime.max.replace(tzinfo=timezone.utc),
-            )
-        )
-        return docs
-
-    async def list_active_for_agent(self, agent_id: str) -> list:
-        coll = self.mongodb_client.db[self.collection_name]
-        return await coll.find(
-            {"mode": "human", "assigned_agent_id": agent_id}
-        ).to_list(length=500)
-
-    async def list_all_active(self) -> list:
-        coll = self.mongodb_client.db[self.collection_name]
-        return await coll.find({"mode": "human"}).to_list(length=500)
 
     async def atomic_takeover(self, conversation_id: str, agent_id: str) -> Optional[dict]:
         """Atomically claim a conversation from bot/pending. Returns updated doc or None if already in human mode."""
@@ -213,16 +224,27 @@ class ConversationRepository:
         docs = await coll.find({"lead_email": {"$ne": None}, "mode": "bot"}).sort("updated_at", -1).to_list(length=200)
         return docs
 
-    async def list_inbox_conversations(self, days: int = 30, limit: int = 500) -> list:
+    async def list_inbox_conversations(
+        self,
+        days: int = 30,
+        limit: int = 50,
+        skip: int = 0,
+        category: str | None = None,
+        min_score: int | None = None,
+    ) -> tuple[list, int]:
         coll = self.mongodb_client.db[self.collection_name]
         since = datetime.now(timezone.utc) - timedelta(days=max(1, int(days)))
-        docs = await coll.find(
-            {
-                "mode": {"$in": ["bot", "human", "pending", "paused"]},
-                "updated_at": {"$gte": since},
-            }
-        ).sort("updated_at", -1).to_list(length=limit)
-        return docs
+        query: dict = {
+            "mode": {"$in": ["bot", "human", "pending", "paused"]},
+            "updated_at": {"$gte": since},
+        }
+        if category is not None:
+            query["category"] = category
+        if min_score is not None:
+            query["lead_score"] = {"$gte": min_score}
+        total = await coll.count_documents(query)
+        docs = await coll.find(query, _INBOX_PROJECTION).sort("updated_at", -1).skip(skip).limit(limit).to_list(length=limit)
+        return docs, total
 
     async def set_stage(self, conversation_id: str, stage: str) -> None:
         if stage not in ("active", "completed"):

@@ -36,6 +36,10 @@ import type { InboxConversation } from "./_components/InboxConversationCard";
 type InboxListResponse = {
   items: InboxConversation[];
   total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+  has_next: boolean;
 };
 
 const EMPTY_LIST: InboxConversation[] = [];
@@ -744,6 +748,8 @@ function InboxContent() {
     : "todos";
   const activeDatos: DatosKey = isDatosKey(datosParam) ? datosParam : "todos";
   const [onlyUnseen, setOnlyUnseen] = useState(false);
+  const [page, setPage] = useState(1);
+  const limit = 50;
 
   const isCardSeen = useCallback((c: InboxConversation): boolean => {
     if (!c.viewed_at) return false;
@@ -794,17 +800,34 @@ function InboxContent() {
   const [mutatingId, setMutatingId] = useState<string | null>(null);
   const [mobileColumnKey, setMobileColumnKey] = useState<string>("__null__");
 
+  const skip = (page - 1) * limit;
+
   const {
     data: listData,
     isLoading: loadingList,
     mutate: refreshList,
   } = useSWR<InboxListResponse>(
-    isAuthorized ? `${API_URL}/conversations/inbox` : null,
+    isAuthorized ? inboxService.buildInboxUrl({ limit, skip }) : null,
     authenticatedJsonFetcher,
     { refreshInterval: 5000, revalidateOnFocus: true },
   );
 
   const conversations = listData?.items ?? EMPTY_LIST;
+
+  const handlePrevPage = useCallback(() => {
+    setPage((p) => Math.max(1, p - 1));
+  }, []);
+
+  const handleNextPage = useCallback(() => {
+    if (listData) {
+      setPage((p) => Math.min(p + 1, listData.total_pages));
+    }
+  }, [listData]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [activeTab, activeChannel, activeDatos, onlyUnseen]);
 
   // ─ Apply filters (tab + channel + datos) before kanban grouping
   const filteredConversations = useMemo(() => {
@@ -1305,6 +1328,33 @@ function InboxContent() {
           </DragOverlay>
         </DndContext>
       </div>
+
+      {/* Pagination controls */}
+      {listData && (
+        <div className="flex items-center justify-between border-t border-border/60 bg-card/80 px-4 py-3">
+          <div className="text-xs text-muted-foreground">
+            Página {listData.page} de {listData.total_pages} ({listData.total} conversaciones)
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePrevPage}
+              disabled={page === 1}
+            >
+              Anterior
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNextPage}
+              disabled={!listData.has_next}
+            >
+              Siguiente
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Lead Sheet — rendered outside the board container */}
       <LeadSheet

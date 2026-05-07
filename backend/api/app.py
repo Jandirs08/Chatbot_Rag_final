@@ -23,7 +23,6 @@ from chat.manager import ChatManager
 from rag.retrieval import HierarchicalRetriever
 from rag.retrieval.reranker import build_parent_reranker
 from storage.documents import PDFManager
-from database.config_repository import ConfigRepository
 from database import RAGChildLexicalRepository, RAGParentDocumentRepository
 from database.whatsapp_session_repository import WhatsAppSessionRepository
 
@@ -162,6 +161,12 @@ from .routes.users.users_routes import router as users_router
 from .routes.inbox.inbox_routes import router as inbox_router
 from .routes.dashboard.dashboard_routes import router as dashboard_router
 from .auth import router as auth_router
+from .bot_state_repo import (
+    read_is_active_from_redis,
+    write_is_active_to_redis,
+    read_is_active_from_mongo,
+    read_runtime_config_from_mongo,
+)
 from auth.middleware import AuthenticationMiddleware
 
 # Dependencias para inicializar managers
@@ -176,94 +181,21 @@ from utils.deploy_log import build_full_startup_summary
 from storage.pdf_processor_adapter import PDFProcessorAdapter
 from cache.manager import cache
 
-BOT_CONFIG_COLLECTION = "bot_config"
-BOT_CONFIG_DOC_ID = "default"
-BOT_IS_ACTIVE_CACHE_KEY = "bot:is_active"
 RUNTIME_SYNC_PATH_PREFIXES = ("/api/v1/bot", "/api/v1/chat", "/api/v1/whatsapp")
-
-
-def _redis_coordination_available() -> bool:
-    try:
-        return bool(cache.get_health_status().get("redis_connected"))
-    except Exception:
-        return False
-
-
-def _normalize_is_active(value: object) -> bool | None:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)):
-        return bool(value)
-    if isinstance(value, str):
-        normalized = value.strip().lower()
-        if normalized in {"1", "true", "yes", "on"}:
-            return True
-        if normalized in {"0", "false", "no", "off"}:
-            return False
-    return None
-
-
-def _read_bot_is_active_from_cache() -> bool | None:
-    if not _redis_coordination_available():
-        return None
-
-    try:
-        return _normalize_is_active(cache.get(BOT_IS_ACTIVE_CACHE_KEY))
-    except Exception:
-        return None
-
-
-def _write_bot_is_active_to_cache(value: bool) -> None:
-    if not _redis_coordination_available():
-        return
-
-    try:
-        cache.set(BOT_IS_ACTIVE_CACHE_KEY, bool(value), ttl=0)
-    except Exception:
-        pass
-
-
-async def _read_bot_is_active_from_mongo(mongo_client) -> bool | None:
-    try:
-        if mongo_client is None:
-            return None
-
-        doc = await mongo_client.db.get_collection(BOT_CONFIG_COLLECTION).find_one(
-            {"_id": BOT_CONFIG_DOC_ID},
-            {"is_active": 1},
-        )
-        if not doc:
-            return None
-
-        return _normalize_is_active(doc.get("is_active"))
-    except Exception:
-        return None
-
-
-async def _read_runtime_config_from_mongo(mongo_client) -> dict | None:
-    try:
-        if mongo_client is None:
-            return None
-
-        repo = ConfigRepository(mongo=mongo_client)
-        config = await repo.get_config()
-        return build_runtime_config_payload(config)
-    except Exception:
-        return None
 
 
 async def _load_shared_runtime_snapshot(mongo_client) -> tuple[dict | None, bool | None]:
     runtime_config = read_runtime_config_from_cache()
     if runtime_config is None:
-        runtime_config = await _read_runtime_config_from_mongo(mongo_client)
+        runtime_config = await read_runtime_config_from_mongo(mongo_client)
         if runtime_config is not None:
             write_runtime_config_to_cache(runtime_config)
 
-    is_active = _read_bot_is_active_from_cache()
+    is_active = read_is_active_from_redis()
     if is_active is None:
-        is_active = await _read_bot_is_active_from_mongo(mongo_client)
+        is_active = await read_is_active_from_mongo(mongo_client)
         if is_active is not None:
-            _write_bot_is_active_to_cache(is_active)
+            write_is_active_to_redis(is_active)
 
     return runtime_config, is_active
 
@@ -338,13 +270,251 @@ async def _ensure_rag_runtime_available(app: FastAPI) -> bool:
         get_logger(__name__).warning("Qdrant volvió a estar disponible. RAG reactivado en runtime.")
     return bool(reconnected)
 
+async def _init_cache(app: FastAPI, s) -> None:
+    logger = get_logger(__name__)
+    try:
+        logger.debug(
+            f"Cache activo: backend={type(cache.backend).__name__}, ttl={cache.ttl}, max_size={cache.max_size}"
+        )
+    except Exception as e:
+        logger.warning(f"No se pudo determinar el estado del cache en arranque: {e}")
+
+    try:
+        cache_health = cache.get_health_status()
+    except Exception as cache_error:
+        cache_health = {
+            "backend_type": "unknown",
+            "is_degraded": True,
+            "redis_connected": False,
+            "message": f"Cache health unavailable: {cache_error}",
+        }
+
+    if s.environment.lower() == "production" and not bool(cache_health.get("redis_connected")):
+        raise RuntimeError(
+            "Redis es obligatorio en producción. El backend detectó que CacheManager está en modo degradado "
+            f"({cache_health.get('backend_type')}). Configure REDIS_URL y restaure la conectividad antes de iniciar."
+        )
+
+    if s.environment.lower() == "production" and not getattr(s, "mongo_uri", None):
+        raise RuntimeError(
+            "MONGO_URI es obligatorio en producción. Configure la variable de entorno MONGO_URI antes de iniciar."
+        )
+
+
+async def _init_mongodb(app: FastAPI, s) -> None:
+    logger = get_logger(__name__)
+
+    try:
+        from database.mongodb import get_mongodb_client
+        logger.debug("Initializing persistent MongoDB client for application lifespan...")
+        if not getattr(app.state, "mongodb_client", None):
+            app.state.mongodb_client = get_mongodb_client()
+        await app.state.mongodb_client.ensure_indexes()
+        logger.debug(f"[DB] MongoDB client id={id(app.state.mongodb_client)}")
+        try:
+            await app.state.mongodb_client.ensure_user_indexes()
+        except Exception as e_idx:
+            logger.warning(f"No se pudieron aplicar índices de usuarios al arranque: {e_idx}")
+        try:
+            wa_repo = WhatsAppSessionRepository(app.state.mongodb_client)
+            await wa_repo.ensure_indexes()
+        except Exception as e_idx:
+            logger.warning(f"No se pudieron aplicar índices de whatsapp_sessions al arranque: {e_idx}")
+        try:
+            from database.conversation_repository import ConversationRepository
+            conv_repo = ConversationRepository(app.state.mongodb_client)
+            await conv_repo.ensure_indexes()
+        except Exception as e_idx:
+            logger.warning(f"No se pudieron aplicar índices de conversations al arranque: {e_idx}")
+        try:
+            from database.failed_message_repository import FailedMessageRepository
+            dlq_repo = FailedMessageRepository(app.state.mongodb_client)
+            await dlq_repo.ensure_indexes()
+        except Exception as e_idx:
+            logger.warning(f"No se pudieron aplicar índices de failed_whatsapp_messages al arranque: {e_idx}")
+        try:
+            from database.retrieval_log_repository import RetrievalLogRepository
+            rl_repo = RetrievalLogRepository(app.state.mongodb_client)
+            await rl_repo.ensure_indexes()
+        except Exception as e_idx:
+            logger.warning(f"No se pudieron aplicar índices de retrieval_logs al arranque: {e_idx}")
+        try:
+            app.state.rag_parent_repository = RAGParentDocumentRepository(
+                mongodb_client=app.state.mongodb_client,
+                collection_name=s.rag_parent_collection_name,
+            )
+            app.state.rag_child_lexical_repository = RAGChildLexicalRepository(
+                mongodb_client=app.state.mongodb_client,
+                documents_collection_name=s.rag_child_lexical_collection_name,
+                postings_collection_name=s.rag_child_lexical_postings_collection_name,
+            )
+        except Exception as e_idx:
+            app.state.rag_parent_repository = None
+            app.state.rag_child_lexical_repository = None
+            logger.warning(f"No se pudieron crear repositorios RAG al arranque: {e_idx}")
+        try:
+            if app.state.rag_parent_repository:
+                await app.state.rag_parent_repository.ensure_indexes()
+            if app.state.rag_child_lexical_repository:
+                await app.state.rag_child_lexical_repository.ensure_indexes()
+        except Exception as e_idx:
+            logger.warning(f"No se pudieron aplicar índices RAG al arranque: {e_idx}")
+        try:
+            app.state.hierarchical_chunker = HierarchicalChunker()
+            app.state.rag_ingestor = HierarchicalIngestionService(
+                chunker=app.state.hierarchical_chunker,
+                parent_repository=app.state.rag_parent_repository,
+                embedding_manager=app.state.embedding_manager,
+                vector_store=app.state.vector_store,
+                lexical_repository=app.state.rag_child_lexical_repository,
+            )
+            app.state.rag_retriever = HierarchicalRetriever(
+                child_vector_store=app.state.vector_store,
+                parent_repository=app.state.rag_parent_repository,
+                embedding_manager=app.state.embedding_manager,
+                lexical_repository=app.state.rag_child_lexical_repository,
+                reranker=build_parent_reranker(),
+                child_fetch_multiplier=getattr(s, "retrieval_k_multiplier", 3),
+                cache_enabled=s.enable_cache,
+            )
+            app.state.bot_instance.rag_retriever = app.state.rag_retriever
+        except Exception as e_idx:
+            app.state.hierarchical_chunker = None
+            app.state.rag_ingestor = None
+            app.state.rag_retriever = None
+            logger.warning(f"No se pudo inicializar el pipeline RAG jerarquico al arranque: {e_idx}")
+        logger.debug("Persistent MongoDB client initialized and indexes created successfully")
+    except Exception as e:
+        logger.error(f"Error initializing persistent MongoDB client: {e}", exc_info=True)
+
+
+async def _init_rag(app: FastAPI, s) -> None:
+    logger = get_logger(__name__)
+
+    app.state.pdf_file_manager = PDFManager(base_dir=Path(s.pdfs_dir).resolve() if s.pdfs_dir else None)
+
+    app.state.embedding_manager = EmbeddingManager(model_name=s.embedding_model)
+
+    app.state.vector_store = VectorStore(
+        embedding_function=app.state.embedding_manager,
+        distance_strategy=s.distance_strategy,
+        cache_enabled=s.enable_cache,
+        cache_ttl=s.cache_ttl,
+        batch_size=s.batch_size,
+        collection_name=s.rag_child_collection_name,
+    )
+    app.state.rag_available = bool(getattr(app.state.vector_store, "is_available", False))
+    if app.state.rag_available:
+        logger.debug("VectorStore inicializado (Qdrant)")
+    else:
+        logger.critical("Qdrant no disponible al arranque. La aplicación continuará sin contexto RAG.")
+
+    app.state.rag_ingestor = None
+    app.state.rag_retriever = None
+    app.state.rag_parent_repository = None
+    app.state.rag_child_lexical_repository = None
+    app.state.hierarchical_chunker = None
+
+    try:
+        emb = await app.state.embedding_manager.embed_text("ping")
+        emb_ok = bool(emb and isinstance(emb, list) and len(emb) > 0)
+        if emb_ok:
+            logger.debug("Ping Embeddings: OK")
+        else:
+            logger.warning("Ping Embeddings retornó fallback vector — embeddings posiblemente degradados.")
+    except Exception as e:
+        logger.warning(f"Ping Embeddings falló: {e}")
+
+
+async def _init_bot(app: FastAPI, s) -> None:
+    logger = get_logger(__name__)
+
+    bot_memory_type = MemoryTypes.BASE_MEMORY
+    if s.memory_type:
+        try:
+            bot_memory_type = MemoryTypes[s.memory_type.upper()]
+        except KeyError:
+            logger.warning(f"Tipo de memoria '{s.memory_type}' no válido en settings. Usando BASE_MEMORY.")
+
+    bootstrap_tools(s)
+    app.state.bot_instance = Bot(
+        settings=s,
+        memory_type=bot_memory_type,
+        memory_kwargs={"conversation_id": "default_session"},
+        cache=None,
+        model_type=None,
+        rag_retriever=app.state.rag_retriever,
+        tools=tool_registry.list_tools(),
+    )
+    if app.state.startup_bot_is_active is not None:
+        app.state.bot_instance.is_active = app.state.startup_bot_is_active
+    app.state.last_synced_bot_config = build_runtime_config_payload(app.state.settings)
+    app.state.last_synced_bot_is_active = app.state.bot_instance.is_active
+    logger.debug(f"Instancia de Bot creada con tipo de memoria: {bot_memory_type}")
+
+    app.state.chat_manager = ChatManager(bot_instance=app.state.bot_instance)
+
+    logger.debug("ChatManager inicializado.")
+
+
+async def _init_auth(app: FastAPI, s) -> None:
+    logger = get_logger(__name__)
+
+    # TokenBlacklist (Redis-backed JWT JTI revocation).
+    # Sin esto, /logout y la rotación de refresh tokens degradan a no-op:
+    # los JTI revocados siguen siendo aceptados hasta su expiración natural.
+    try:
+        from auth.token_blacklist import build_token_blacklist
+
+        redis_url_raw = getattr(s, "redis_url", None)
+        if redis_url_raw is None:
+            redis_url_str = None
+        elif hasattr(redis_url_raw, "get_secret_value"):
+            redis_url_str = redis_url_raw.get_secret_value()
+        else:
+            redis_url_str = str(redis_url_raw)
+
+        if redis_url_str:
+            app.state.token_blacklist = build_token_blacklist(redis_url_str)
+        else:
+            app.state.token_blacklist = None
+
+        if app.state.token_blacklist is None:
+            if s.environment.lower() == "production":
+                logger.warning(
+                    "TokenBlacklist no disponible en producción — la revocación de JWT está desactivada. "
+                    "Verifique REDIS_URL y la conectividad."
+                )
+            else:
+                logger.debug("TokenBlacklist no disponible — revocación de tokens en modo no-op (dev/sin Redis).")
+        else:
+            logger.debug("TokenBlacklist inicializado (Redis).")
+    except Exception as e:
+        logger.warning(f"TokenBlacklist init error: {e}")
+        app.state.token_blacklist = None
+
+    try:
+        from auth.dependencies import AuthDependencies
+        from database.user_repository import get_user_repository
+
+        user_repo = get_user_repository()
+        app.state.auth_deps = AuthDependencies(
+            user_repo,
+            token_blacklist=app.state.token_blacklist,
+        )
+        logger.debug("AuthDependencies inicializado correctamente en app.state.")
+    except Exception as e:
+        logger.error(f"Error inicializando AuthDependencies: {e}", exc_info=True)
+        raise
+
+
 # ---- Lifespan ----
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan context manager for setup and teardown."""
     logger = get_logger(__name__)
     logger.debug("Iniciando aplicación...")
-    
+
     try:
         s = settings
         app.state.settings = s
@@ -353,34 +523,7 @@ async def lifespan(app: FastAPI):
         logger.debug(f"SIMILARITY_THRESHOLD={s.similarity_threshold}")
         app.state.startup_bot_is_active = None
 
-        # Visibilidad del backend de caché activo al inicio
-        try:
-            logger.debug(
-                f"Cache activo: backend={type(cache.backend).__name__}, ttl={cache.ttl}, max_size={cache.max_size}"
-            )
-        except Exception as e:
-            logger.warning(f"No se pudo determinar el estado del cache en arranque: {e}")
-
-        try:
-            cache_health = cache.get_health_status()
-        except Exception as cache_error:
-            cache_health = {
-                "backend_type": "unknown",
-                "is_degraded": True,
-                "redis_connected": False,
-                "message": f"Cache health unavailable: {cache_error}",
-            }
-
-        if s.environment.lower() == "production" and not bool(cache_health.get("redis_connected")):
-            raise RuntimeError(
-                "Redis es obligatorio en producción. El backend detectó que CacheManager está en modo degradado "
-                f"({cache_health.get('backend_type')}). Configure REDIS_URL y restaure la conectividad antes de iniciar."
-            )
-
-        if s.environment.lower() == "production" and not getattr(s, "mongo_uri", None):
-            raise RuntimeError(
-                "MONGO_URI es obligatorio en producción. Configure la variable de entorno MONGO_URI antes de iniciar."
-            )
+        await _init_cache(app, s)
 
         # Cargar configuración dinámica del bot desde Mongo (si disponible)
         try:
@@ -402,186 +545,11 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning(f"No se pudo cargar configuración dinámica inicial: {e}")
 
-        # Inicializar componentes
-        app.state.pdf_file_manager = PDFManager(base_dir=Path(s.pdfs_dir).resolve() if s.pdfs_dir else None)
+        await _init_rag(app, s)
+        await _init_bot(app, s)
+        await _init_mongodb(app, s)
+        await _init_auth(app, s)
 
-        app.state.embedding_manager = EmbeddingManager(model_name=s.embedding_model)
-
-        app.state.vector_store = VectorStore(
-            embedding_function=app.state.embedding_manager,
-            distance_strategy=s.distance_strategy,
-            cache_enabled=s.enable_cache,
-            cache_ttl=s.cache_ttl,
-            batch_size=s.batch_size,
-            collection_name=s.rag_child_collection_name,
-        )
-        app.state.rag_available = bool(getattr(app.state.vector_store, "is_available", False))
-        if app.state.rag_available:
-            logger.debug("VectorStore inicializado (Qdrant)")
-        else:
-            logger.critical("Qdrant no disponible al arranque. La aplicación continuará sin contexto RAG.")
-
-        app.state.rag_ingestor = None
-        app.state.rag_retriever = None
-        app.state.rag_parent_repository = None
-        app.state.rag_child_lexical_repository = None
-        app.state.hierarchical_chunker = None
-
-        # Ping ligero de embeddings para visibilidad (sin bloquear arranque si falla)
-        try:
-            emb = await app.state.embedding_manager.embed_text("ping")
-            emb_ok = bool(emb and isinstance(emb, list) and len(emb) > 0)
-            if emb_ok:
-                logger.debug("Ping Embeddings: OK")
-            else:
-                logger.warning("Ping Embeddings retornó fallback vector — embeddings posiblemente degradados.")
-        except Exception as e:
-            logger.warning(f"Ping Embeddings falló: {e}")
-
-        bot_memory_type = MemoryTypes.BASE_MEMORY
-        if s.memory_type:
-            try:
-                bot_memory_type = MemoryTypes[s.memory_type.upper()]
-            except KeyError:
-                logger.warning(f"Tipo de memoria '{s.memory_type}' no válido en settings. Usando BASE_MEMORY.")
-
-        bootstrap_tools(s)
-        app.state.bot_instance = Bot(
-            settings=s,
-            memory_type=bot_memory_type,
-            memory_kwargs={"conversation_id": "default_session"},
-            cache=None,
-            model_type=None,
-            rag_retriever=app.state.rag_retriever,
-            tools=tool_registry.list_tools(),
-        )
-        if app.state.startup_bot_is_active is not None:
-            app.state.bot_instance.is_active = app.state.startup_bot_is_active
-        app.state.last_synced_bot_config = build_runtime_config_payload(app.state.settings)
-        app.state.last_synced_bot_is_active = app.state.bot_instance.is_active
-        logger.debug(f"Instancia de Bot creada con tipo de memoria: {bot_memory_type}")
-
-        app.state.chat_manager = ChatManager(bot_instance=app.state.bot_instance)
-
-        logger.debug("ChatManager inicializado.")
-
-        # Inicializar MongoDB client persistente para middleware de autenticación
-        try:
-            from database.mongodb import get_mongodb_client
-            logger.debug("Initializing persistent MongoDB client for application lifespan...")
-            if not getattr(app.state, "mongodb_client", None):
-                app.state.mongodb_client = get_mongodb_client()
-            await app.state.mongodb_client.ensure_indexes()
-            logger.debug(f"[DB] MongoDB client id={id(app.state.mongodb_client)}")
-            # Asegurar índices de usuarios (únicos y de estado)
-            try:
-                await app.state.mongodb_client.ensure_user_indexes()
-            except Exception as e_idx:
-                logger.warning(f"No se pudieron aplicar índices de usuarios al arranque: {e_idx}")
-            try:
-                wa_repo = WhatsAppSessionRepository(app.state.mongodb_client)
-                await wa_repo.ensure_indexes()
-            except Exception as e_idx:
-                logger.warning(f"No se pudieron aplicar índices de whatsapp_sessions al arranque: {e_idx}")
-            try:
-                from database.conversation_repository import ConversationRepository
-                conv_repo = ConversationRepository(app.state.mongodb_client)
-                await conv_repo.ensure_indexes()
-            except Exception as e_idx:
-                logger.warning(f"No se pudieron aplicar índices de conversations al arranque: {e_idx}")
-            try:
-                from database.failed_message_repository import FailedMessageRepository
-                dlq_repo = FailedMessageRepository(app.state.mongodb_client)
-                await dlq_repo.ensure_indexes()
-            except Exception as e_idx:
-                logger.warning(f"No se pudieron aplicar índices de failed_whatsapp_messages al arranque: {e_idx}")
-            try:
-                app.state.rag_parent_repository = RAGParentDocumentRepository(
-                    mongodb_client=app.state.mongodb_client,
-                    collection_name=s.rag_parent_collection_name,
-                )
-                await app.state.rag_parent_repository.ensure_indexes()
-                app.state.rag_child_lexical_repository = RAGChildLexicalRepository(
-                    mongodb_client=app.state.mongodb_client,
-                    documents_collection_name=s.rag_child_lexical_collection_name,
-                    postings_collection_name=s.rag_child_lexical_postings_collection_name,
-                )
-                await app.state.rag_child_lexical_repository.ensure_indexes()
-                app.state.hierarchical_chunker = HierarchicalChunker()
-                app.state.rag_ingestor = HierarchicalIngestionService(
-                    chunker=app.state.hierarchical_chunker,
-                    parent_repository=app.state.rag_parent_repository,
-                    embedding_manager=app.state.embedding_manager,
-                    vector_store=app.state.vector_store,
-                    lexical_repository=app.state.rag_child_lexical_repository,
-                )
-                app.state.rag_retriever = HierarchicalRetriever(
-                    child_vector_store=app.state.vector_store,
-                    parent_repository=app.state.rag_parent_repository,
-                    embedding_manager=app.state.embedding_manager,
-                    lexical_repository=app.state.rag_child_lexical_repository,
-                    reranker=build_parent_reranker(),
-                    child_fetch_multiplier=getattr(s, "retrieval_k_multiplier", 3),
-                    cache_enabled=s.enable_cache,
-                )
-                app.state.bot_instance.rag_retriever = app.state.rag_retriever
-            except Exception as e_idx:
-                app.state.rag_parent_repository = None
-                app.state.rag_child_lexical_repository = None
-                app.state.hierarchical_chunker = None
-                app.state.rag_ingestor = None
-                app.state.rag_retriever = None
-                logger.warning(f"No se pudo inicializar el pipeline RAG jerarquico al arranque: {e_idx}")
-            logger.debug("Persistent MongoDB client initialized and indexes created successfully")
-        except Exception as e:
-            logger.error(f"Error initializing persistent MongoDB client: {e}", exc_info=True)
-            # No fallar la aplicación por esto, solo registrar el error
-        # TokenBlacklist (Redis-backed JWT JTI revocation).
-        # Sin esto, /logout y la rotación de refresh tokens degradan a no-op:
-        # los JTI revocados siguen siendo aceptados hasta su expiración natural.
-        try:
-            from auth.token_blacklist import build_token_blacklist
-
-            redis_url_raw = getattr(s, "redis_url", None)
-            if redis_url_raw is None:
-                redis_url_str = None
-            elif hasattr(redis_url_raw, "get_secret_value"):
-                redis_url_str = redis_url_raw.get_secret_value()
-            else:
-                redis_url_str = str(redis_url_raw)
-
-            if redis_url_str:
-                app.state.token_blacklist = build_token_blacklist(redis_url_str)
-            else:
-                app.state.token_blacklist = None
-
-            if app.state.token_blacklist is None:
-                if s.environment.lower() == "production":
-                    logger.warning(
-                        "TokenBlacklist no disponible en producción — la revocación de JWT está desactivada. "
-                        "Verifique REDIS_URL y la conectividad."
-                    )
-                else:
-                    logger.debug("TokenBlacklist no disponible — revocación de tokens en modo no-op (dev/sin Redis).")
-            else:
-                logger.debug("TokenBlacklist inicializado (Redis).")
-        except Exception as e:
-            logger.warning(f"TokenBlacklist init error: {e}")
-            app.state.token_blacklist = None
-
-        try:
-            from auth.dependencies import AuthDependencies
-            from database.user_repository import get_user_repository
-
-            user_repo = get_user_repository()
-            app.state.auth_deps = AuthDependencies(
-                user_repo,
-                token_blacklist=app.state.token_blacklist,
-            )
-            logger.debug("AuthDependencies inicializado correctamente en app.state.")
-        except Exception as e:
-            logger.error(f"Error inicializando AuthDependencies: {e}", exc_info=True)
-            raise
         # --- PDF Processor para RAG status ---
         app.state.pdf_processor = PDFProcessorAdapter(app.state.pdf_file_manager, app.state.vector_store)
 

@@ -172,7 +172,7 @@ class RAGChildLexicalRepository:
             return []
 
         avg_doc_length = await self._average_doc_length(docs_filter)
-        postings = await self.postings_collection.find(postings_filter).to_list(length=None)
+        postings = await self.postings_collection.find(postings_filter).to_list(length=50_000)
         if not postings:
             return []
 
@@ -197,7 +197,7 @@ class RAGChildLexicalRepository:
         if not ranked_child_ids:
             return []
 
-        docs = await self.documents_collection.find({"child_id": {"$in": ranked_child_ids}, **docs_filter}).to_list(length=None)
+        docs = await self.documents_collection.find({"child_id": {"$in": ranked_child_ids}, **docs_filter}).to_list(length=len(ranked_child_ids))
         child_map = {str(doc["child_id"]): doc for doc in docs}
 
         return [

@@ -116,7 +116,26 @@
       "Bash(Measure-Object -Line)",
       "Bash(.venv\\\\Scripts\\\\python.exe -c \"from api.schemas.config import PromptGeneratorRequest, PromptGeneratorResponse; print\\('schemas OK'\\)\")",
       "Bash(Get-ChildItem *)",
-      "Bash(ls *)"
+      "Bash(ls *)",
+      "Bash(npm install *)",
+      "Bash(Select-Object -First 50)",
+      "Bash(Select-Object Name)",
+      "Bash(grep -E \"\\\\.\\(py|ts\\)$\")",
+      "Bash(xargs cat *)",
+      "Bash(gh pr *)",
+      "PowerShell(gh pr *)",
+      "Bash(Select-Object Name, PSIsContainer)",
+      "Bash(find frontend/app -name \"error.tsx\")",
+      "Bash(dir /s /b frontend\\\\app\\\\error.tsx)",
+      "PowerShell(git *)",
+      "PowerShell(ls -Path \"C:\\\\Jandir2026\\\\DesarrolloJandir\\\\Chatbot_Rag_final\\\\frontend\\\\app\" -Force | Where-Object { $_.PSIsContainer } | Select-Object Name)",
+      "Bash(npm run *)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Test-Path *)",
+      "Bash(npx autoskills *)",
+      "Bash(Measure-Object)",
+      "Bash(Get-Content -Path \"C:\\\\Jandir2026\\\\DesarrolloJandir\\\\Chatbot_Rag_final\\\\backend\\\\core\\\\bot.py\" -TotalCount 450)",
+      "Bash(Select-Object -Skip 300)"
     ]
   }
 }

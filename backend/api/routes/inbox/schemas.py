@@ -41,6 +41,10 @@ class AgentMessageRequest(BaseModel):
 class InboxResponse(BaseModel):
     items: list[ConversationCard]
     total: int
+    page: int = 1
+    limit: int = 50
+    total_pages: int = 1
+    has_next: bool = False
 
 
 class HandoffStatsResponse(BaseModel):

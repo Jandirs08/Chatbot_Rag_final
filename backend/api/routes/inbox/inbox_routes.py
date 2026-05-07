@@ -125,14 +125,21 @@ async def get_inbox(
     request: Request = None,
     category: Optional[str] = Query(None),
     min_score: Optional[int] = Query(None, ge=0, le=100),
+    limit: int = Query(50, ge=1, le=500),
+    skip: int = Query(0, ge=0),
     _current_user=Depends(require_admin),
 ):
     repo = _get_conv_repo(request)
-    docs = await repo.list_inbox_conversations()
-    if category is not None:
-        docs = [d for d in docs if d.get("category") == category]
-    if min_score is not None:
-        docs = [d for d in docs if (d.get("lead_score") or 0) >= min_score]
+    docs, total = await repo.list_inbox_conversations(
+        category=category,
+        min_score=min_score,
+        limit=limit,
+        skip=skip,
+    )
+
+    page = skip // limit + 1 if limit > 0 else 1
+    total_pages = (total + limit - 1) // limit if limit > 0 else 1
+    has_next = page < total_pages
 
     mongodb_client = getattr(request.app.state, "mongodb_client", None) or get_mongodb_client()
     conv_ids = [d.get("conversation_id") for d in docs if d.get("conversation_id")]
@@ -146,7 +153,14 @@ async def get_inbox(
         )
         for d in docs
     ]
-    return InboxResponse(items=items, total=len(items))
+    return InboxResponse(
+        items=items,
+        total=total,
+        page=page,
+        limit=limit,
+        total_pages=total_pages,
+        has_next=has_next,
+    )
 
 
 @router.get("/inbox/handoff-stats", response_model=HandoffStatsResponse)

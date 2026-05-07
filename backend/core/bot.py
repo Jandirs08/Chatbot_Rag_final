@@ -16,10 +16,12 @@ from common.objects import Message
 from utils import CacheTypes, ChatbotCache
 from utils.logging_utils import get_logger
 from config import Settings, settings as app_settings
+from common.chunk_utils import extract_text_from_chunk
 from .chain import ChainManager
 from .tools import ToolDefinition
 from .request_context import get_request_context
 from rag.retrieval import RAGRetriever, RetrievalBackendUnavailableError
+from database.retrieval_log_repository import RetrievalLogRepository
 
 
 class Bot:
@@ -187,6 +189,16 @@ class Bot:
                 ctx = self.rag_retriever.format_context_from_documents(docs)
                 req_ctx.context = ctx if (isinstance(ctx, str) and ctx.strip()) else fallback_ctx
                 req_ctx.rag_time = time.perf_counter() - t_start
+
+                asyncio.create_task(
+                    RetrievalLogRepository().log_retrieval(
+                        conversation_id=x.get("conversation_id", ""),
+                        query=query,
+                        docs=docs,
+                        latency_ms=req_ctx.rag_time * 1000,
+                        gating_reason=req_ctx.gating_reason,
+                    )
+                )
                 return req_ctx.context
 
             except RetrievalBackendUnavailableError:
@@ -336,37 +348,8 @@ class Bot:
 
         buffer = ""
 
-        def _extract_text(p: Any) -> str:
-            c = getattr(p, "content", None)
-            if isinstance(c, str):
-                return c
-            if isinstance(c, list):
-                try:
-                    parts = []
-                    for item in c:
-                        if isinstance(item, dict):
-                            if item.get("type") == "text" and isinstance(item.get("text"), str):
-                                parts.append(item.get("text") or "")
-                        else:
-                            t = getattr(item, "text", None)
-                            tp = getattr(item, "type", None)
-                            if tp == "text" and isinstance(t, str):
-                                parts.append(t)
-                    return "".join(parts)
-                except Exception:
-                    try:
-                        return "".join(str(x) for x in c)
-                    except Exception:
-                        return ""
-            t = getattr(p, "text", None)
-            if isinstance(t, str):
-                return t
-            if isinstance(p, str):
-                return p
-            return ""
-
         async for part in self.chain_manager.runnable_chain.astream(inp):
-            txt = _extract_text(part)
+            txt = extract_text_from_chunk(part)
             if not txt:
                 continue
             buffer += txt

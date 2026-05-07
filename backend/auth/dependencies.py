@@ -125,7 +125,7 @@ def _get_auth_deps(request: Request) -> AuthDependencies:
     return request.app.state.auth_deps
 
 
-def _extract_token_from_request(request: Request) -> Optional[str]:
+def extract_token_from_request(request: Request) -> Optional[str]:
     auth_header = request.headers.get("Authorization")
     if auth_header and isinstance(auth_header, str):
         parts = auth_header.split(" ")
@@ -143,7 +143,7 @@ async def get_current_user(
     request: Request,
     deps: AuthDependencies = Depends(_get_auth_deps),
 ) -> User:
-    token = _extract_token_from_request(request)
+    token = extract_token_from_request(request)
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -181,7 +181,7 @@ async def get_optional_current_user(
     request: Request,
     deps: AuthDependencies = Depends(_get_auth_deps),
 ) -> Optional[User]:
-    token = _extract_token_from_request(request)
+    token = extract_token_from_request(request)
     if not token:
         return None
 

@@ -15,7 +15,7 @@ from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.security import HTTPAuthorizationCredentials
-from .dependencies import _extract_token_from_request
+from .dependencies import extract_token_from_request
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +76,7 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
 
         # Rutas autenticadas: verificar token + usuario activo.
         if self._requires_auth(path):
-            token = _extract_token_from_request(request)
+            token = extract_token_from_request(request)
             if not token:
                 return JSONResponse(
                     status_code=status.HTTP_401_UNAUTHORIZED,

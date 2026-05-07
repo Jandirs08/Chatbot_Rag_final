@@ -91,7 +91,7 @@ class MongoFields(BaseSettings):
     mongo_uri: Optional[SecretStr] = Field(default=None, env="MONGO_URI")
     mongo_database_name: str = Field(default="chatbot_rag_db", env="MONGO_DATABASE_NAME")
     mongo_collection_name: str = Field(default="chat_history", env="MONGO_COLLECTION_NAME")
-    mongo_max_pool_size: int = Field(default=500, env="MONGO_MAX_POOL_SIZE")
+    mongo_max_pool_size: int = Field(default=100, env="MONGO_MAX_POOL_SIZE")
     mongo_timeout_ms: int = Field(default=5000, env="MONGO_TIMEOUT_MS")
     mongo_wait_queue_timeout_ms: int = Field(default=5000, env="MONGO_WAIT_QUEUE_TIMEOUT_MS")
 

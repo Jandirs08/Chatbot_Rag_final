@@ -68,7 +68,7 @@ class RAGParentDocumentRepository:
 
     async def get_by_doc_id(self, doc_id: str) -> list[ParentDocument]:
         cursor = self.collection.find({"doc_id": doc_id}).sort("parent_index", 1)
-        docs = await cursor.to_list(length=None)
+        docs = await cursor.to_list(length=10_000)
         return [ParentDocument(**doc) for doc in docs]
 
     async def get_by_parent_ids(self, parent_ids: Sequence[str]) -> list[ParentDocument]:
@@ -76,6 +76,6 @@ class RAGParentDocumentRepository:
             return []
 
         cursor = self.collection.find({"parent_id": {"$in": list(parent_ids)}})
-        docs = await cursor.to_list(length=None)
+        docs = await cursor.to_list(length=len(parent_ids))
         mapped = {doc["parent_id"]: ParentDocument(**doc) for doc in docs}
         return [mapped[parent_id] for parent_id in parent_ids if parent_id in mapped]

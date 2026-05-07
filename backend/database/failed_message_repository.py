@@ -17,7 +17,12 @@ class FailedMessageRepository:
     async def ensure_indexes(self) -> None:
         try:
             coll = self.mongodb_client.db[self.collection_name]
-            await coll.create_index("failed_at")
+            # TTL: dead-letter entries purged after 30 days
+            await coll.create_index(
+                "failed_at",
+                expireAfterSeconds=30 * 24 * 3600,
+                name="failed_at_ttl",
+            )
             await coll.create_index("wa_id")
         except Exception as e:
             logger.error(f"Error ensuring failed_whatsapp_messages indexes: {e}")

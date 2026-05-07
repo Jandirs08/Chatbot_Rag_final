@@ -21,6 +21,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, Optional
 
+from common.chunk_utils import extract_text_from_chunk
 from core.tools import ToolContext, ToolDefinition, ToolResult, registry as default_registry
 from core.tools.registry import ToolRegistry
 
@@ -44,27 +45,6 @@ class DispatchEvent:
     tool_call_id: Optional[str] = None
     tool_content: Optional[str] = None
 
-
-def _extract_text(chunk: Any) -> str:
-    """Pull plain text from an AIMessageChunk-like object (mirrors bot._extract_text)."""
-    content = getattr(chunk, "content", None)
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts = []
-        for item in content:
-            if isinstance(item, dict):
-                if item.get("type") == "text" and isinstance(item.get("text"), str):
-                    parts.append(item["text"])
-            else:
-                t = getattr(item, "text", None)
-                tp = getattr(item, "type", None)
-                if tp == "text" and isinstance(t, str):
-                    parts.append(t)
-        return "".join(parts)
-    if isinstance(chunk, str):
-        return chunk
-    return ""
 
 
 def _extract_tool_call_chunks(chunk: Any) -> list[dict]:
@@ -150,7 +130,7 @@ async def consume_stream(
             # Once we're in tool-call territory, ignore any trailing text deltas.
             continue
 
-        text = _extract_text(chunk)
+        text = extract_text_from_chunk(chunk)
         if not text:
             continue
         text_buffer += text

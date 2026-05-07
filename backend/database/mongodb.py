@@ -1,5 +1,6 @@
 """MongoDB client for chat history."""
 import asyncio
+import uuid
 from typing import Optional
 from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -60,7 +61,7 @@ class MongodbClient:
         try:
             self.client = AsyncIOMotorClient(
                 mongo_uri,
-                maxPoolSize=getattr(app_settings, "mongo_max_pool_size", 500),
+                maxPoolSize=getattr(app_settings, "mongo_max_pool_size", 100),
                 serverSelectionTimeoutMS=getattr(app_settings, "mongo_timeout_ms", 5000),
                 waitQueueTimeoutMS=getattr(app_settings, "mongo_wait_queue_timeout_ms", 5000),
                 uuidRepresentation="standard",
@@ -75,9 +76,11 @@ class MongodbClient:
             raise
 
 
-    async def add_message(self, conversation_id: str, role: str, content: str, source: Optional[str] = None) -> None:
-        """Add a message to the conversation history."""
+    async def add_message(self, conversation_id: str, role: str, content: str, source: Optional[str] = None) -> str:
+        """Add a message to the conversation history. Returns message_id."""
+        message_id = str(uuid.uuid4())
         doc = {
+            "message_id": message_id,
             "conversation_id": conversation_id,
             "role": role,
             "content": content,
@@ -88,7 +91,7 @@ class MongodbClient:
             try:
                 await self.messages.insert_one(doc)
                 logger.debug(f"Mensaje agregado a la conversación {conversation_id}")
-                return
+                return message_id
             except Exception as e:
                 if attempt == 2:
                     logger.error(f"Error al agregar mensaje (attempt {attempt}): {str(e)}")
@@ -98,25 +101,20 @@ class MongodbClient:
                     attempt, conversation_id, e,
                 )
                 await asyncio.sleep(0.5)
+        return message_id
 
     async def ensure_indexes(self) -> None:
         """Ensure MongoDB indexes are created for optimal performance."""
         try:
-            # Índice compuesto para conversation_id + timestamp (consultas de historial)
-            await self.messages.create_index([
-                ("conversation_id", 1),
-                ("timestamp", 1)
-            ], name="conversation_timeline")
-            
-            # Índice individual para timestamp (consultas por fecha)
-            await self.messages.create_index([
-                ("timestamp", 1)
-            ], name="timestamp_idx")
-            
-            # Índice individual para role (análisis y filtros)
-            await self.messages.create_index([
-                ("role", 1)
-            ], name="role_idx")
+            await self.messages.create_index(
+                [("conversation_id", 1), ("timestamp", 1)],
+                name="conversation_timeline",
+            )
+            await self.messages.create_index([("timestamp", 1)], name="timestamp_idx")
+            await self.messages.create_index([("role", 1)], name="role_idx")
+            await self.messages.create_index(
+                "message_id", unique=True, sparse=True, name="message_id_unique"
+            )
             
             logger.debug("Índices MongoDB aplicados correctamente")
             
@@ -142,7 +140,7 @@ class MongodbClient:
     async def list_recent_conversations(self, limit: int = 50, skip: int = 0) -> dict:
         try:
             pipeline = [
-                {"$sort": {"conversation_id": 1, "timestamp": -1}},
+                {"$sort": {"timestamp": -1}},
                 {
                     "$group": {
                         "_id": "$conversation_id",
