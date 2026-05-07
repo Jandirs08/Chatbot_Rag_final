@@ -125,12 +125,12 @@ def _get_conv_repo(request: Request) -> ConversationRepository:
 @router.get("/conversations/inbox", response_model=InboxResponse)
 @conditional_limit("60/minute")
 async def get_inbox(
-    request: Request = None,
+    request: Request,
+    _current_user=Depends(require_admin),
     category: Optional[ConversationCategory] = Query(None),
     min_score: Optional[int] = Query(None, ge=0, le=100),
     limit: int = Query(50, ge=1, le=500),
     skip: int = Query(0, ge=0, le=1_000_000),
-    _current_user=Depends(require_admin),
 ):
     repo = _get_conv_repo(request)
     docs, total = await repo.list_inbox_conversations(
@@ -170,9 +170,9 @@ async def get_inbox(
 
 @router.get("/inbox/handoff-stats", response_model=HandoffStatsResponse)
 async def get_handoff_stats(
-    days: int = Query(30, ge=1, le=365),
-    request: Request = None,
+    request: Request,
     _current_user=Depends(require_admin),
+    days: int = Query(30, ge=1, le=365),
 ):
     repo = _get_conv_repo(request)
     counts = await repo.get_handoff_reason_counts(days)
@@ -189,7 +189,8 @@ async def get_handoff_stats(
 @router.post("/conversations/{conversation_id}/refresh-summary", response_model=ConversationCard)
 async def refresh_summary_on_demand(
     conversation_id: str,
-    request: Request = None,
+    *,
+    request: Request,
     _current_user=Depends(require_admin),
 ):
     mongodb_client = getattr(request.app.state, "mongodb_client", None) or get_mongodb_client()
@@ -214,7 +215,8 @@ async def refresh_summary_on_demand(
 @router.post("/conversations/{conversation_id}/complete", response_model=ConversationCard)
 async def complete_conversation(
     conversation_id: str,
-    request: Request = None,
+    *,
+    request: Request,
     _current_user=Depends(require_admin),
 ):
     repo = _get_conv_repo(request)
@@ -234,7 +236,8 @@ async def complete_conversation(
 @router.post("/conversations/{conversation_id}/reopen", response_model=ConversationCard)
 async def reopen_conversation(
     conversation_id: str,
-    request: Request = None,
+    *,
+    request: Request,
     _current_user=Depends(require_admin),
 ):
     repo = _get_conv_repo(request)
@@ -254,7 +257,8 @@ async def reopen_conversation(
 @router.post("/conversations/{conversation_id}/takeover")
 async def takeover_conversation(
     conversation_id: str,
-    request: Request = None,
+    *,
+    request: Request,
     _current_user=Depends(require_admin),
 ):
     repo = _get_conv_repo(request)
@@ -274,7 +278,8 @@ async def takeover_conversation(
 @router.post("/conversations/{conversation_id}/mark-viewed")
 async def mark_conversation_viewed(
     conversation_id: str,
-    request: Request = None,
+    *,
+    request: Request,
     _current_user=Depends(require_admin),
 ):
     repo = _get_conv_repo(request)
@@ -290,7 +295,8 @@ async def mark_conversation_viewed(
 @router.post("/conversations/{conversation_id}/release")
 async def release_conversation(
     conversation_id: str,
-    request: Request = None,
+    *,
+    request: Request,
     _current_user=Depends(require_admin),
 ):
     repo = _get_conv_repo(request)
@@ -305,7 +311,8 @@ async def release_conversation(
 @router.post("/conversations/{conversation_id}/pause")
 async def pause_conversation(
     conversation_id: str,
-    request: Request = None,
+    *,
+    request: Request,
     _current_user=Depends(require_admin),
 ):
     repo = _get_conv_repo(request)
@@ -333,7 +340,8 @@ _LEAD_BOT_REPLY = (
 async def capture_lead(
     conversation_id: str,
     body: LeadCaptureRequest,
-    request: Request = None,
+    *,
+    request: Request,
 ):
     repo = _get_conv_repo(request)
     conv = await repo.get_by_conversation_id(conversation_id)
@@ -386,7 +394,8 @@ async def capture_lead(
 @router.get("/conversations/{conversation_id}/messages")
 async def get_conversation_messages(
     conversation_id: str,
-    request: Request = None,
+    *,
+    request: Request,
     _current_user=Depends(require_admin),
 ):
     mongodb_client = getattr(request.app.state, "mongodb_client", None) or get_mongodb_client()
@@ -406,7 +415,8 @@ async def get_conversation_messages(
 async def send_agent_message(
     conversation_id: str,
     body: AgentMessageRequest,
-    request: Request = None,
+    *,
+    request: Request,
     _current_user=Depends(require_admin),
 ):
     repo = _get_conv_repo(request)
