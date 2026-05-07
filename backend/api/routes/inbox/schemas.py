@@ -1,7 +1,15 @@
 from datetime import datetime
+from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel
+
+
+class ConversationCategory(str, Enum):
+    informacion = "informacion"
+    comercial = "comercial"
+    soporte = "soporte"
+    sin_valor = "sin_valor"
 
 
 class ConversationCard(BaseModel):

@@ -5,6 +5,8 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from utils.logging_utils import get_logger
+from utils.rate_limiter import conditional_limit
+from config import settings
 
 from auth.dependencies import require_admin
 from database.conversation_repository import ConversationRepository
@@ -12,7 +14,7 @@ from database.mongodb import get_mongodb_client
 from services.classification import classify_conversation, regenerate_summary
 from config import settings
 
-from .schemas import AgentMessageRequest, ConversationCard, HandoffStatsResponse, InboxResponse
+from .schemas import AgentMessageRequest, ConversationCard, ConversationCategory, HandoffStatsResponse, InboxResponse
 
 logger = get_logger(__name__)
 router = APIRouter(tags=["inbox"])
@@ -121,17 +123,18 @@ def _get_conv_repo(request: Request) -> ConversationRepository:
 
 
 @router.get("/conversations/inbox", response_model=InboxResponse)
+@conditional_limit("60/minute")
 async def get_inbox(
     request: Request = None,
-    category: Optional[str] = Query(None),
+    category: Optional[ConversationCategory] = Query(None),
     min_score: Optional[int] = Query(None, ge=0, le=100),
     limit: int = Query(50, ge=1, le=500),
-    skip: int = Query(0, ge=0),
+    skip: int = Query(0, ge=0, le=1_000_000),
     _current_user=Depends(require_admin),
 ):
     repo = _get_conv_repo(request)
     docs, total = await repo.list_inbox_conversations(
-        category=category,
+        category=category.value if category else None,
         min_score=min_score,
         limit=limit,
         skip=skip,
