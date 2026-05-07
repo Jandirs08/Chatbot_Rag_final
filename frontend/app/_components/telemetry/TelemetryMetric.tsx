@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Sparkline } from "./Sparkline";
+import { HelpTooltip } from "./HelpTooltip";
 import type { Sample } from "@/app/hooks/useRingBuffer";
 import type { Severity } from "./HealthGlyph";
 
@@ -12,16 +13,20 @@ interface Props {
   severity?: Severity;
   samples?: Sample[];
   hero?: boolean;
+  tooltip?: React.ReactNode;
 }
 
 /**
  * Single metric with sparkline. Hero = bigger display + wider chart.
  * No glow, no count-up, no card border.
  */
-export function TelemetryMetric({ label, value, sub, severity = "ok", samples, hero = false }: Props) {
+export function TelemetryMetric({ label, value, sub, severity = "ok", samples, hero = false, tooltip }: Props) {
   return (
     <div className="flex flex-col gap-2">
-      <span className="t-label">{label}</span>
+      <div className="flex items-center gap-1.5">
+        <span className="t-label">{label}</span>
+        {tooltip && <HelpTooltip content={tooltip} />}
+      </div>
       <div className="flex items-end gap-3">
         <span
           key={value}
@@ -35,8 +40,8 @@ export function TelemetryMetric({ label, value, sub, severity = "ok", samples, h
             <Sparkline
               samples={samples}
               severity={severity}
-              width={hero ? 180 : 90}
-              height={hero ? 36 : 22}
+              width={hero ? 240 : 90}
+              height={hero ? 56 : 22}
               fill={hero}
             />
           </span>

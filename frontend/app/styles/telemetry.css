@@ -190,6 +190,70 @@
   animation: t-num-fade 200ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* ─── Section cards & alert banners ──────────────────────────────────────── */
+
+[data-surface="telemetry"] .t-section-card {
+  background: var(--t-surface);
+  border: 1px solid var(--t-surface-edge);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+}
+[data-surface="telemetry"] .t-section-card[data-severity="warn"] {
+  border-color: var(--t-signal);
+}
+[data-surface="telemetry"] .t-section-card[data-severity="crit"] {
+  border-color: var(--t-signal-deep);
+  background: color-mix(in oklab, hsl(var(--error)) 4%, hsl(var(--card)));
+}
+
+[data-surface="telemetry"] .t-crit-banner {
+  background: color-mix(in oklab, hsl(var(--error)) 10%, hsl(var(--background)));
+  border: 1px solid color-mix(in oklab, hsl(var(--error)) 30%, transparent);
+  border-left: 4px solid var(--t-signal-deep);
+  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+}
+
+[data-surface="telemetry"] .t-warn-banner {
+  background: var(--t-signal-soft);
+  border: 1px solid color-mix(in oklab, hsl(var(--warning)) 30%, transparent);
+  border-left: 4px solid var(--t-signal);
+  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+}
+
+/* ─── Help icon inline ──────────────────────────────────────────────────────── */
+
+[data-surface="telemetry"] .t-help-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.9375rem;
+  height: 0.9375rem;
+  border-radius: 999px;
+  border: 1px solid var(--t-ink-mute);
+  color: var(--t-ink-mute);
+  font-size: 0.625rem;
+  font-weight: 700;
+  cursor: help;
+  flex-shrink: 0;
+  transition: border-color 150ms, color 150ms;
+}
+[data-surface="telemetry"] .t-help-icon:hover {
+  border-color: var(--t-ink-mid);
+  color: var(--t-ink-mid);
+}
+
+/* ─── Section title (header de sección) ─────────────────────────────────────── */
+
+[data-surface="telemetry"] .t-section-title {
+  font-family: var(--font-heading), 'Space Grotesk', system-ui, sans-serif;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--t-ink);
+}
+
 /* ─── Reduced motion ─────────────────────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {

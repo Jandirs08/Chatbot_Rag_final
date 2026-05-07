@@ -135,7 +135,9 @@
       "Bash(npx autoskills *)",
       "Bash(Measure-Object)",
       "Bash(Get-Content -Path \"C:\\\\Jandir2026\\\\DesarrolloJandir\\\\Chatbot_Rag_final\\\\backend\\\\core\\\\bot.py\" -TotalCount 450)",
-      "Bash(Select-Object -Skip 300)"
+      "Bash(Select-Object -Skip 300)",
+      "Bash(curl -s http://localhost:8000/api/v1/conversations/inbox -H 'Authorization: Bearer __CMDSUB_OUTPUT__')",
+      "Bash(curl -s -w \"\\\\nHTTP: %{http_code}\\\\n\" http://localhost:8000/api/v1/conversations/inbox)"
     ]
   }
 }

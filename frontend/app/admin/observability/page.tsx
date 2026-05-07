@@ -2,15 +2,17 @@
 
 import React, { useCallback, useMemo, useState } from "react";
 import useSWR from "swr";
-import { RefreshCw, AlertCircle } from "lucide-react";
+import { RefreshCw, AlertCircle, AlertTriangle } from "lucide-react";
 import { useRequireAdmin } from "@/app/hooks/useAuthGuard";
 import { useRingBuffer } from "@/app/hooks/useRingBuffer";
 import { API_URL } from "@/app/lib/config";
 import { authenticatedJsonFetcher } from "@/app/lib/services/authService";
 import { Switch } from "@/app/components/ui/switch";
 import { Skeleton } from "@/app/components/ui/skeleton";
+import { TooltipProvider } from "@/app/components/ui/tooltip";
 import {
   HealthLabel,
+  HelpTooltip,
   PipelineWaterfall,
   ServiceTile,
   TelemetryMetric,
@@ -251,255 +253,299 @@ export default function ObservabilityPage() {
   if (isChecking || !isAuthorized) return null;
 
   return (
-    <div data-surface="telemetry" className="min-h-full -m-6 p-8 md:p-12 lg:p-14">
-      <div className="mx-auto max-w-[1100px]">
+    <TooltipProvider>
+      <div data-surface="telemetry" className="min-h-full -m-6 p-8 md:p-12 lg:p-14">
+        <div className="mx-auto max-w-[1100px]">
 
-        {/* ── Hero ────────────────────────────────────────────────────────── */}
-        <header className="flex items-start justify-between gap-6 mb-14">
-          <div>
-            <p className="t-label mb-3">Observabilidad · panel de control</p>
-            <h1 className="t-title mb-2">Estado del sistema</h1>
-            <p className="t-body max-w-md">
-              {data ? (
-                <>El backend atendió{" "}
-                  <span className="t-mono">{(t60?.chats ?? 0).toLocaleString("es-PE")}</span>{" "}
-                  chats en la última hora con{" "}
-                  <span className="t-mono" data-severity={severities.successSev}>
-                    {fmtPct(successRate60, 2)}
-                  </span>{" "}
-                  de éxito.</>
-              ) : (
-                "Cargando métricas en vivo…"
-              )}
-            </p>
-          </div>
-
-          <div className="flex flex-col items-end gap-3">
-            <HealthLabel severity={overall} />
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <Switch checked={autoRefresh} onCheckedChange={setAutoRefresh} className="h-4 w-8 [&>span]:h-3 [&>span]:w-3 [&>span[data-state=checked]]:translate-x-4" />
-                <span className="t-label">auto 30s</span>
-              </label>
-              <button
-                type="button"
-                onClick={handleRefresh}
-                disabled={isValidating}
-                className="t-mono-sm inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm border transition-colors hover:bg-[var(--t-surface)]"
-                style={{ borderColor: "var(--t-surface-edge)", color: "var(--t-ink-mid)" }}
-              >
-                <RefreshCw className={`h-3 w-3 ${isValidating ? "animate-spin" : ""}`} />
-                {fmtClock(lastRefresh)}
-              </button>
+          {/* ── Header ──────────────────────────────────────────────────────── */}
+          <header className="flex items-start justify-between gap-8 pb-8 mb-8 border-b" style={{ borderColor: "var(--t-surface-edge)" }}>
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-xs font-mono uppercase tracking-wide" style={{ color: "var(--t-ink-soft)" }}>Sistema</span>
+                <HealthLabel severity={overall} />
+              </div>
+              <h1 className="t-title text-4xl font-bold mb-3">Estado del sistema</h1>
+              <p className="t-body max-w-2xl">
+                Métricas en vivo del backend. Actualiza cada 30 segundos.
+              </p>
             </div>
-          </div>
-        </header>
 
-        {error && !data && (
-          <div className="flex items-center gap-3 mb-12 px-4 py-3 rounded-sm" style={{ background: "var(--t-signal-soft)", color: "var(--t-signal-deep)" }}>
-            <AlertCircle className="h-4 w-4" />
-            <span className="t-small" style={{ color: "var(--t-signal-deep)" }}>
-              No se pudo cargar las métricas. Verifica tu conexión.
-            </span>
-          </div>
-        )}
-
-        {isLoading && !data ? (
-          <LoadingSkeleton />
-        ) : data ? (
-          <div className="space-y-14">
-
-            {/* ── Hero metric — success rate w/ big sparkline ─────────────── */}
-            <section>
-              <TelemetryMetric
-                hero
-                label="Tasa de éxito · ventana 60 min"
-                value={fmtPct(successRate60, 2)}
-                sub={t60 ? `${fmtPct(t60.error_rate, 2)} con error · serie de ${successBuf.length} muestras` : undefined}
-                severity={severities.successSev}
-                samples={successBuf}
-              />
-            </section>
-
-            {/* ── Telemetry strip — KPIs con sparklines ───────────────────── */}
-            <section>
-              <p className="t-label mb-5">Telemetría en vivo</p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-10 gap-y-8">
-                <TelemetryMetric
-                  label="Chats por minuto"
-                  value={t60 ? t60.chats_per_min.toFixed(2) : "—"}
-                  sub={t60 ? `${t60.chats.toLocaleString("es-PE")} chats / 60m` : undefined}
-                  samples={chatsPerMinBuf}
-                />
-                <TelemetryMetric
-                  label="1er token p95"
-                  value={fmtMs(ftP95)}
-                  sub={ftP95 != null ? "objetivo < 3 s" : undefined}
-                  severity={severities.ftSev}
-                  samples={ftBuf}
-                />
-                <TelemetryMetric
-                  label="Latencia total p95"
-                  value={fmtMs(totalP95)}
-                  sub={totalP95 != null ? "objetivo < 5 s" : undefined}
-                  severity={severities.totalSev}
-                  samples={totalBuf}
-                />
+            <div className="flex flex-col items-end gap-4">
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Switch checked={autoRefresh} onCheckedChange={setAutoRefresh} className="h-4 w-8 [&>span]:h-3 [&>span]:w-3 [&>span[data-state=checked]]:translate-x-4" />
+                  <span className="t-label">Auto-actualizar</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={handleRefresh}
+                  disabled={isValidating}
+                  className="t-mono-sm inline-flex items-center gap-1.5 px-3 py-1.5 rounded-sm border transition-colors hover:bg-[var(--t-surface)]"
+                  style={{ borderColor: "var(--t-surface-edge)", color: "var(--t-ink-mid)" }}
+                >
+                  <RefreshCw className={`h-3 w-3 ${isValidating ? "animate-spin" : ""}`} />
+                  {fmtClock(lastRefresh)}
+                </button>
               </div>
-            </section>
+            </div>
+          </header>
 
-            {/* ── Pipeline waterfall ──────────────────────────────────────── */}
-            <section>
-              <div className="flex items-baseline justify-between mb-5">
-                <p className="t-label">Pipeline RAG · barras proporcionales al tiempo total</p>
-                <span className="t-mono-sm">
+          {/* ── Critical/Warning Alert Banner ────────────────────────────── */}
+          {overall === 'crit' && (
+            <div className="t-crit-banner flex items-start gap-3 mb-8">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" style={{ color: "var(--t-signal-deep)" }} />
+              <div>
+                <p className="t-section-title" style={{ color: "var(--t-signal-deep)" }}>Sistema en estado crítico</p>
+                <p className="t-small mt-1">Revisa la sección de Servicios Externos y los Indicadores Clave para identificar el problema.</p>
+              </div>
+            </div>
+          )}
+          {overall === 'warn' && (
+            <div className="t-warn-banner flex items-start gap-3 mb-8">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" style={{ color: "var(--t-signal)" }} />
+              <div>
+                <p className="t-section-title" style={{ color: "var(--t-signal)" }}>Atención requerida</p>
+                <p className="t-small mt-1">Una o más métricas están fuera de sus objetivos normales.</p>
+              </div>
+            </div>
+          )}
+
+          {error && !data && (
+            <div className="flex items-center gap-3 mb-12 px-4 py-3 rounded-sm" style={{ background: "var(--t-signal-soft)", color: "var(--t-signal-deep)" }}>
+              <AlertCircle className="h-4 w-4" />
+              <span className="t-small" style={{ color: "var(--t-signal-deep)" }}>
+                No se pudo cargar las métricas. Verifica tu conexión.
+              </span>
+            </div>
+          )}
+
+          {isLoading && !data ? (
+            <LoadingSkeleton />
+          ) : data ? (
+            <div className="space-y-8">
+
+              {/* ── KPIs Card ───────────────────────────────────────────────── */}
+              <section className="t-section-card" data-severity={severities.successSev}>
+                <div className="flex items-center gap-2 mb-6">
+                  <p className="t-section-title">Indicadores Clave</p>
+                  <HelpTooltip content="Métricas críticas que indican la salud operacional. Verde = dentro del objetivo. Amarillo = revisar. Rojo = acción inmediata." />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                  <TelemetryMetric
+                    hero
+                    label="Tasa de éxito (60 min)"
+                    value={fmtPct(successRate60, 2)}
+                    sub={t60 ? `${fmtPct(t60.error_rate, 2)} con error` : undefined}
+                    severity={severities.successSev}
+                    samples={successBuf}
+                    tooltip="Porcentaje de chats completados sin error. Objetivo: >99%."
+                  />
+                  <TelemetryMetric
+                    hero
+                    label="Primer Token (p95)"
+                    value={fmtMs(ftP95)}
+                    sub={ftP95 != null ? "objetivo < 3 s" : undefined}
+                    severity={severities.ftSev}
+                    samples={ftBuf}
+                    tooltip="Tiempo hasta que el LLM produce el primer token. Afecta la percepción de velocidad del usuario."
+                  />
+                  <TelemetryMetric
+                    hero
+                    label="Latencia Total (p95)"
+                    value={fmtMs(totalP95)}
+                    sub={totalP95 != null ? "objetivo < 5 s" : undefined}
+                    severity={severities.totalSev}
+                    samples={totalBuf}
+                    tooltip="Tiempo completo desde consulta hasta respuesta final. SLA típico: <5s para 95% de requests."
+                  />
+                </div>
+
+                {t60 && (
+                  <div className="pt-4 mt-4 border-t" style={{ borderColor: "var(--t-surface-edge)" }}>
+                    <p className="t-small"><span className="font-semibold">Throughput actual:</span> {t60.chats_per_min.toFixed(1)} chats/min · {t60.chats.toLocaleString("es-PE")} en última hora</p>
+                  </div>
+                )}
+              </section>
+
+              {/* ── Servicios Externos Card ─────────────────────────────────── */}
+              <section className="t-section-card">
+                <div className="flex items-center gap-2 mb-5">
+                  <p className="t-section-title">Servicios Externos — Estado Actual</p>
+                  <HelpTooltip content="Dependencias críticas que el backend necesita para funcionar. Si alguno cae (rojo), afecta al chat." />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <ServiceTile
+                    name="MongoDB"
+                    variant="db"
+                    severity={depSeverity(healthData?.mongodb)}
+                    primary={healthData?.mongodb?.latency_ms != null ? `${healthData.mongodb.latency_ms} ms` : "—"}
+                    secondary={healthData?.mongodb?.status}
+                    samples={mongoLatBuf}
+                    tooltip="Base de datos principal. Si cae, usuarios no pueden guardar conversaciones."
+                  />
+                  <ServiceTile
+                    name="Redis"
+                    variant="cache"
+                    severity={depSeverity(healthData?.redis)}
+                    primary={healthData?.redis?.backend ?? healthData?.redis?.status ?? "—"}
+                    secondary={depSeverity(healthData?.redis) === "warn" ? "fallback memoria" : undefined}
+                    tooltip="Cache en memoria. Si falla, fallback a memoria del sistema."
+                  />
+                  <ServiceTile
+                    name="Qdrant"
+                    variant="vector"
+                    severity={depSeverity(healthData?.qdrant)}
+                    primary={healthData?.qdrant?.latency_ms != null ? `${healthData.qdrant.latency_ms} ms` : "—"}
+                    secondary={
+                      statusData?.qdrant_circuit_breaker
+                        ? `CB ${statusData.qdrant_circuit_breaker.state}`
+                        : healthData?.qdrant?.points_count != null
+                        ? `${healthData.qdrant.points_count.toLocaleString("es-PE")} vectores`
+                        : undefined
+                    }
+                    samples={qdrantLatBuf}
+                    tooltip="Motor de búsqueda vectorial. Si cae, no hay búsqueda semántica."
+                  />
+                  <ServiceTile
+                    name="RAG Engine"
+                    variant="engine"
+                    severity={statusData?.rag_available ? "ok" : statusData ? "warn" : "info"}
+                    primary={statusData ? (statusData.rag_available ? "disponible" : "no disponible") : "—"}
+                    secondary={statusData ? `v${statusData.version}` : undefined}
+                    tooltip="Motor de recuperación aumentada por generación. Orquesta búsqueda + LLM."
+                  />
+                </div>
+              </section>
+
+              {/* ── Pipeline RAG Card ───────────────────────────────────────── */}
+              <section className="t-section-card">
+                <div className="flex items-center justify-between mb-5">
+                  <div className="flex items-center gap-2">
+                    <p className="t-section-title">Pipeline RAG — Tiempo por Etapa</p>
+                    <HelpTooltip content="Cuánto tarda cada fase del pipeline. p50 = mediana, p95 = el 95% más lento. Identifica cuellos de botella." />
+                  </div>
                   {data.latency_ms.total_ms?.p50 != null && (
-                    <>p50 {fmtMs(data.latency_ms.total_ms.p50)} · p95 {fmtMs(totalP95)}</>
-                  )}
-                </span>
-              </div>
-              {stages.length === 0 ? (
-                <p className="t-small">Sin muestras en la ventana actual.</p>
-              ) : (
-                <PipelineWaterfall stages={stages} total={data.latency_ms.total_ms?.p50 ?? null} />
-              )}
-            </section>
-
-            {/* ── Servicios — fichas asimétricas ──────────────────────────── */}
-            <section>
-              <p className="t-label mb-5">Dependencias</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <ServiceTile
-                  name="MongoDB"
-                  variant="db"
-                  severity={depSeverity(healthData?.mongodb)}
-                  primary={healthData?.mongodb?.latency_ms != null ? `${healthData.mongodb.latency_ms} ms` : "—"}
-                  secondary={healthData?.mongodb?.status}
-                  samples={mongoLatBuf}
-                />
-                <ServiceTile
-                  name="Redis"
-                  variant="cache"
-                  severity={depSeverity(healthData?.redis)}
-                  primary={healthData?.redis?.backend ?? healthData?.redis?.status ?? "—"}
-                  secondary={depSeverity(healthData?.redis) === "warn" ? "fallback memoria" : undefined}
-                />
-                <ServiceTile
-                  name="Qdrant"
-                  variant="vector"
-                  severity={depSeverity(healthData?.qdrant)}
-                  primary={healthData?.qdrant?.latency_ms != null ? `${healthData.qdrant.latency_ms} ms` : "—"}
-                  secondary={
-                    statusData?.qdrant_circuit_breaker
-                      ? `CB ${statusData.qdrant_circuit_breaker.state}`
-                      : healthData?.qdrant?.points_count != null
-                      ? `${healthData.qdrant.points_count.toLocaleString("es-PE")} vectores`
-                      : undefined
-                  }
-                  samples={qdrantLatBuf}
-                />
-                <ServiceTile
-                  name="RAG engine"
-                  variant="engine"
-                  severity={statusData?.rag_available ? "ok" : statusData ? "warn" : "info"}
-                  primary={statusData ? (statusData.rag_available ? "disponible" : "no disponible") : "—"}
-                  secondary={statusData ? `v${statusData.version}` : undefined}
-                />
-              </div>
-            </section>
-
-            {/* ── Throughput + Gating ─────────────────────────────────────── */}
-            <section className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-x-16 gap-y-12">
-              <div>
-                <p className="t-label mb-5">Throughput por ventana</p>
-                <div className="space-y-2">
-                  {THROUGHPUT_WINDOWS.map((win) => {
-                    const row = data.throughput[win];
-                    if (!row) return null;
-                    const errPct = row.error_rate * 100;
-                    const sev: Severity = errPct >= 5 ? "crit" : errPct > 0 ? "warn" : "ok";
-                    return (
-                      <div key={win} className="grid grid-cols-[3rem_1fr_5rem_5rem] items-center gap-3 py-1.5">
-                        <span className="t-mono-sm">últ. {win}</span>
-                        <span className="t-mono">{row.chats.toLocaleString("es-PE")}</span>
-                        <span className="t-mono-sm text-right">{row.chats_per_min.toFixed(2)}/min</span>
-                        <span className="t-mono-sm text-right" data-severity={sev}>
-                          {errPct.toFixed(2)}%
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-baseline justify-between mb-5">
-                  <p className="t-label">Filtros internos RAG</p>
-                  {gatingTotal > 0 && (
-                    <span className="t-mono-sm">{gatingTotal} eventos</span>
+                    <span className="t-mono-sm">
+                      p50 {fmtMs(data.latency_ms.total_ms.p50)} · p95 {fmtMs(totalP95)}
+                    </span>
                   )}
                 </div>
-                <GatingBars items={gatingItems} total={gatingTotal} />
-              </div>
-            </section>
+                {stages.length === 0 ? (
+                  <p className="t-small">Sin muestras en la ventana actual.</p>
+                ) : (
+                  <PipelineWaterfall stages={stages} total={data.latency_ms.total_ms?.p50 ?? null} />
+                )}
+              </section>
 
-            {/* ── Tokens + costo ──────────────────────────────────────────── */}
-            <section>
-              <p className="t-label mb-5">Tokens y costo · desde último arranque</p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-10 gap-y-6">
-                <div className="flex flex-col gap-1">
-                  <span className="t-label">Costo aprox.</span>
-                  <span className="t-display" style={{ fontSize: "2.25rem" }}>
-                    {data.tokens.pending_token_callback ? "—" : fmtUsd(data.tokens.estimated_cost_usd)}
-                  </span>
-                  {data.tokens.pending_token_callback && (
-                    <span className="t-small">esperando primer chat</span>
-                  )}
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className="t-label">Tokens entrada</span>
-                  <span className="t-mono-xl">{fmtNum(data.tokens.tokens_in)}</span>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className="t-label">Tokens salida</span>
-                  <span className="t-mono-xl">{fmtNum(data.tokens.tokens_out)}</span>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className="t-label">Tasa salida/entrada</span>
-                  <span className="t-mono-xl">
-                    {data.tokens.tokens_in > 0
-                      ? (data.tokens.tokens_out / data.tokens.tokens_in).toFixed(2)
-                      : "—"}
-                  </span>
-                </div>
-              </div>
-            </section>
+              {/* ── Throughput + Gating (2-col) ───────────────────────────── */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Throughput */}
+                <section className="t-section-card">
+                  <div className="flex items-center gap-2 mb-5">
+                    <p className="t-section-title">Volumen de Tráfico</p>
+                    <HelpTooltip content="Chats procesados en diferentes ventanas temporales. Error rate muestra problemas operacionales." />
+                  </div>
+                  <div className="space-y-3">
+                    {THROUGHPUT_WINDOWS.map((win) => {
+                      const row = data.throughput[win];
+                      if (!row) return null;
+                      const errPct = row.error_rate * 100;
+                      const sev: Severity = errPct >= 5 ? "crit" : errPct > 0 ? "warn" : "ok";
+                      return (
+                        <div key={win} className="flex flex-col gap-2 p-3 rounded-md" style={{ background: "var(--t-surface-deep)" }}>
+                          <div className="flex items-center justify-between">
+                            <span className="t-label">Últimos {win}</span>
+                            <span className="t-mono-sm">{row.chats.toLocaleString("es-PE")} chats</span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="t-mono-sm">{row.chats_per_min.toFixed(1)}/min</span>
+                            <span className="t-mono-sm" data-severity={sev}>
+                              Error: {errPct.toFixed(2)}%
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
 
-            {/* ── Meta footer ─────────────────────────────────────────────── */}
-            <footer className="pt-6 mt-2 border-t" style={{ borderColor: "var(--t-surface-edge)" }}>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-8 gap-y-3">
-                <div className="flex flex-col gap-1">
-                  <span className="t-label">Worker PID</span>
-                  <span className="t-mono">{data.worker_pid}</span>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className="t-label">Muestras</span>
-                  <span className="t-mono">{data.samples.in_window}/{data.samples.max}</span>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className="t-label">Ventana TTL</span>
-                  <span className="t-mono">{Math.round(data.samples.ttl_seconds / 60)} min</span>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className="t-label">Uptime</span>
-                  <span className="t-mono">{fmtUptime(data.uptime_seconds)}</span>
-                </div>
+                {/* Gating */}
+                <section className="t-section-card">
+                  <div className="flex items-center justify-between mb-5">
+                    <div className="flex items-center gap-2">
+                      <p className="t-section-title">¿Por Qué se Filtraron?</p>
+                      <HelpTooltip content="Razones por las que una consulta no pasó por RAG completo. Útil para entender tráfico." />
+                    </div>
+                    {gatingTotal > 0 && (
+                      <span className="t-mono-sm">{gatingTotal} eventos</span>
+                    )}
+                  </div>
+                  <GatingBars items={gatingItems} total={gatingTotal} />
+                </section>
               </div>
-            </footer>
 
-          </div>
-        ) : null}
+              {/* ── Economía de Tokens Card ────────────────────────────────── */}
+              <section className="t-section-card">
+                <div className="flex items-center gap-2 mb-5">
+                  <p className="t-section-title">Economía de Tokens — Desde Arranque</p>
+                  <HelpTooltip content="Consumo acumulado de LLM tokens. Útil para estimar costos mensuales y tendencias de uso." />
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-8 gap-y-6">
+                  <div className="flex flex-col gap-2">
+                    <span className="t-label">Costo Aproximado</span>
+                    <span className="t-display text-3xl font-bold">
+                      {data.tokens.pending_token_callback ? "—" : fmtUsd(data.tokens.estimated_cost_usd)}
+                    </span>
+                    {data.tokens.pending_token_callback && (
+                      <span className="t-small">esperando primer chat</span>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <span className="t-label">Tokens Entrada</span>
+                    <span className="t-mono-xl">{fmtNum(data.tokens.tokens_in)}</span>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <span className="t-label">Tokens Salida</span>
+                    <span className="t-mono-xl">{fmtNum(data.tokens.tokens_out)}</span>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <span className="t-label">Ratio Salida/Entrada</span>
+                    <span className="t-mono-xl">
+                      {data.tokens.tokens_in > 0
+                        ? (data.tokens.tokens_out / data.tokens.tokens_in).toFixed(2)
+                        : "—"}
+                    </span>
+                  </div>
+                </div>
+              </section>
+
+              {/* ── Meta Footer ─────────────────────────────────────────────── */}
+              <footer className="pt-6 mt-2 border-t" style={{ borderColor: "var(--t-surface-edge)" }}>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-8 gap-y-3">
+                  <div className="flex flex-col gap-1">
+                    <span className="t-label">Worker PID</span>
+                    <span className="t-mono">{data.worker_pid}</span>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="t-label">Muestras</span>
+                    <span className="t-mono">{data.samples.in_window}/{data.samples.max}</span>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="t-label">Ventana TTL</span>
+                    <span className="t-mono">{Math.round(data.samples.ttl_seconds / 60)} min</span>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="t-label">Uptime</span>
+                    <span className="t-mono">{fmtUptime(data.uptime_seconds)}</span>
+                  </div>
+                </div>
+              </footer>
+
+            </div>
+          ) : null}
+        </div>
       </div>
-    </div>
+    </TooltipProvider>
   );
 }

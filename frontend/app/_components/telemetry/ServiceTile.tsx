@@ -3,6 +3,8 @@
 import React from "react";
 import { HealthGlyph, type Severity } from "./HealthGlyph";
 import { Sparkline } from "./Sparkline";
+import { HelpTooltip } from "./HelpTooltip";
+import { Badge } from "@/app/components/ui/badge";
 import type { Sample } from "@/app/hooks/useRingBuffer";
 
 type Variant = "db" | "cache" | "vector" | "engine";
@@ -16,7 +18,22 @@ interface Props {
   tertiary?: string;
   samples?: Sample[];
   className?: string;
+  tooltip?: React.ReactNode;
 }
+
+const BADGE_VARIANT: Record<Severity, "success" | "warning" | "destructive" | "outline"> = {
+  ok: "success",
+  warn: "warning",
+  crit: "destructive",
+  info: "outline",
+};
+
+const STATUS_TEXT: Record<Severity, string> = {
+  ok: "Conectado",
+  warn: "Degradado",
+  crit: "Crítico",
+  info: "Sin datos",
+};
 
 const ICONS: Record<Variant, React.ReactNode> = {
   db: (
@@ -49,7 +66,7 @@ const ICONS: Record<Variant, React.ReactNode> = {
   ),
 };
 
-export function ServiceTile({ name, variant, severity, primary, secondary, tertiary, samples, className }: Props) {
+export function ServiceTile({ name, variant, severity, primary, secondary, tertiary, samples, className, tooltip }: Props) {
   return (
     <div className={`t-tile flex flex-col gap-3 ${className ?? ""}`} data-severity={severity}>
       <div className="flex items-center justify-between gap-2">
@@ -57,7 +74,12 @@ export function ServiceTile({ name, variant, severity, primary, secondary, terti
           {ICONS[variant]}
           <span className="t-label" style={{ color: "var(--t-ink-mid)" }}>{name}</span>
         </div>
-        <HealthGlyph severity={severity} />
+        <div className="flex items-center gap-2">
+          <Badge variant={BADGE_VARIANT[severity]} className="text-xs">
+            {STATUS_TEXT[severity]}
+          </Badge>
+          {tooltip && <HelpTooltip content={tooltip} />}
+        </div>
       </div>
 
       <div className="flex items-end gap-3">
