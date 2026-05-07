@@ -70,6 +70,11 @@ class ConversationRepository:
                 sparse=True,
                 name="lead_email_mode_idx",
             )
+            # Covers complex inbox filters: {mode, category, lead_score, updated_at}
+            await coll.create_index(
+                [("mode", ASCENDING), ("category", ASCENDING), ("lead_score", ASCENDING), ("updated_at", DESCENDING)],
+                name="mode_category_score_updated_idx",
+            )
         except Exception as e:
             logger.error(f"Error ensuring conversations indexes: {e}")
 

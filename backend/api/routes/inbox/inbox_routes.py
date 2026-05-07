@@ -141,7 +141,7 @@ async def get_inbox(
     )
 
     page = skip // limit + 1 if limit > 0 else 1
-    total_pages = (total + limit - 1) // limit if limit > 0 else 1
+    total_pages = max(1, (total + limit - 1) // limit) if limit > 0 else 1
     has_next = page < total_pages
 
     mongodb_client = getattr(request.app.state, "mongodb_client", None) or get_mongodb_client()
