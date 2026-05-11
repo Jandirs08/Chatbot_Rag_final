@@ -64,7 +64,7 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
             </div>
           )}
           {shouldShowSidebar ? (
-            <div className="w-full p-8">{children}</div>
+            <div className="w-full h-full p-8">{children}</div>
           ) : (
             children
           )}

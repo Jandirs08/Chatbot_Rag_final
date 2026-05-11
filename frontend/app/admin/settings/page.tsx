@@ -2,17 +2,8 @@
 import React, { useMemo, useState } from "react";
 import { useRequirePermission } from "@/app/hooks/useAuthGuard";
 import { useBotConfig } from "@/app/hooks/useBotConfig";
-import {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
-} from "@/app/components/ui/tabs";
 import { Button } from "@/app/components/ui/button";
-import {
-  Loader2,
-  Terminal,
-} from "lucide-react";
+import { Loader2, Palette, Brain, Shield, Terminal } from "lucide-react";
 import { toast } from "sonner";
 import {
   updateBotConfig,
@@ -56,12 +47,26 @@ function sanitizeUiExtra(val?: string | null) {
   return txt;
 }
 
+const presetColors = [
+  "#0EA5E9",
+  "#22C55E",
+  "#EF4444",
+  "#F59E0B",
+  "#8B5CF6",
+  "#06B6D4",
+];
+
+type SettingsTab = "appearance" | "brain" | "system";
+
+const NAV_ITEMS: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
+  { id: "appearance", label: "Apariencia", icon: Palette },
+  { id: "brain",      label: "Personalidad", icon: Brain },
+  { id: "system",     label: "Sistema",     icon: Shield },
+];
+
 export default function AdminSettingsPage() {
-  const { isAuthorized, isChecking } =
-    useRequirePermission("manage_bot_config");
-  const [activeTab, setActiveTab] = useState<"appearance" | "brain" | "system">(
-    "appearance",
-  );
+  const { isAuthorized, isChecking } = useRequirePermission("manage_bot_config");
+  const [activeTab, setActiveTab] = useState<SettingsTab>("appearance");
   const [config, setConfig] = useState({
     name: "",
     avatarUrl: "",
@@ -77,9 +82,7 @@ export default function AdminSettingsPage() {
     const name = data?.bot_name || "Asistente IA";
     const brand = data?.theme_color || "#F97316";
     const ph = data?.input_placeholder || "Escribe aquí...";
-    const starters = Array.isArray(data?.starters)
-      ? data!.starters!.slice(0, 6)
-      : [];
+    const starters = Array.isArray(data?.starters) ? data!.starters!.slice(0, 6) : [];
     const avatarUrl = `${API_URL}/assets/logo`;
     return { name, brandColor: brand, placeholder: ph, starters, avatarUrl };
   }, [data]);
@@ -93,90 +96,66 @@ export default function AdminSettingsPage() {
   const [uiExtra, setUiExtra] = useState<string>("");
   const [fieldsLocked, setFieldsLocked] = useState<boolean>(true);
   const [appearanceLocked, setAppearanceLocked] = useState<boolean>(true);
-
   const [baselineUiExtra, setBaselineUiExtra] = useState<string>("");
   const [baselineTemperature, setBaselineTemperature] = useState<number>(0.7);
   const [savingBrain, setSavingBrain] = useState<boolean>(false);
   const [errorBrain, setErrorBrain] = useState<string | null>(null);
   const [isBotActive, setIsBotActive] = useState<boolean>(false);
 
-  const brainIsDirty = useMemo(() => {
-    return uiExtra !== baselineUiExtra || temperature !== baselineTemperature;
-  }, [uiExtra, baselineUiExtra, temperature, baselineTemperature]);
+  const brainIsDirty = useMemo(
+    () => uiExtra !== baselineUiExtra || temperature !== baselineTemperature,
+    [uiExtra, baselineUiExtra, temperature, baselineTemperature],
+  );
 
-  const appearanceIsDirty = useMemo(() => {
-    return (
+  const appearanceIsDirty = useMemo(
+    () =>
       config.name !== baseline.name ||
       config.brandColor !== baseline.brandColor ||
       config.placeholder !== baseline.placeholder ||
-      JSON.stringify(config.starters) !== JSON.stringify(baseline.starters)
-    );
-  }, [config, baseline]);
-
-  const { checkUnsavedChanges } = useUnsavedChanges(
-    appearanceIsDirty || brainIsDirty,
+      JSON.stringify(config.starters) !== JSON.stringify(baseline.starters),
+    [config, baseline],
   );
 
-  const handleTabChange = (value: string) => {
-    const targetTab = value as "appearance" | "brain" | "system";
+  const { checkUnsavedChanges } = useUnsavedChanges(appearanceIsDirty || brainIsDirty);
 
-    // Check for unsaved changes in Appearance tab
-    if (
-      activeTab === "appearance" &&
-      appearanceIsDirty &&
-      targetTab !== "appearance"
-    ) {
+  const handleTabChange = (targetTab: SettingsTab) => {
+    if (activeTab === "appearance" && appearanceIsDirty && targetTab !== "appearance") {
       checkUnsavedChanges(() => setActiveTab(targetTab));
       return;
     }
-
-    // Check for unsaved changes in Brain tab
     if (activeTab === "brain" && brainIsDirty && targetTab !== "brain") {
       checkUnsavedChanges(() => setActiveTab(targetTab));
       return;
     }
-
     setActiveTab(targetTab);
   };
 
   React.useEffect(() => {
     if (typeof window !== "undefined") {
-      const hash = window.location.hash.replace("#", "");
+      const hash = window.location.hash.replace("#", "") as SettingsTab;
       if (hash === "appearance" || hash === "brain" || hash === "system") {
-        setActiveTab(hash as "appearance" | "brain" | "system");
+        setActiveTab(hash);
       }
     }
-    if (data) {
-      setTemperature(
-        typeof data.temperature === "number" ? data.temperature : 0.7,
-      );
-      setUiExtra(sanitizeUiExtra(data.ui_prompt_extra));
-      setBaselineUiExtra(sanitizeUiExtra(data.ui_prompt_extra));
-      setBaselineTemperature(
-        typeof data.temperature === "number" ? data.temperature : 0.7,
-      );
-      botService
-        .getState()
-        .then((st) => setIsBotActive(!!st.is_active))
-        .catch(() => setIsBotActive(false));
-    }
-  }, [data]);
+  }, []);
 
-  const presetColors = [
-    "#0EA5E9",
-    "#22C55E",
-    "#EF4444",
-    "#F59E0B",
-    "#8B5CF6",
-    "#06B6D4",
-  ];
+  React.useEffect(() => {
+    if (!data) return;
+    setTemperature(typeof data.temperature === "number" ? data.temperature : 0.7);
+    setUiExtra(sanitizeUiExtra(data.ui_prompt_extra));
+    setBaselineUiExtra(sanitizeUiExtra(data.ui_prompt_extra));
+    setBaselineTemperature(typeof data.temperature === "number" ? data.temperature : 0.7);
+    botService
+      .getState()
+      .then((st) => setIsBotActive(!!st.is_active))
+      .catch(() => setIsBotActive(false));
+  }, [data]);
 
   const handleSave = async () => {
     try {
       setSaving(true);
       await updateBotConfig({
         bot_name: config.name || undefined,
-        temperature,
         theme_color: config.brandColor,
         input_placeholder: config.placeholder,
         starters: config.starters.slice(0, 6),
@@ -190,22 +169,6 @@ export default function AdminSettingsPage() {
     }
   };
 
-  const effectivePreview = useMemo(() => {
-    const effectiveName = config.name || data?.bot_name || "Asistente IA";
-    const base = [
-      `Nombre: ${effectiveName}`,
-      "Rol: Asistente experto, analítico y cercano.",
-      "Rasgos:",
-      "- Agudeza: Verifica que los datos pertenezcan al sujeto correcto antes de responder.",
-      "- Tono: Natural y fluido. Evita sonar como un robot o una base de datos.",
-      "- Honestidad: Si no sabe algo, lo admite con naturalidad.",
-    ].join("\n");
-    const extra = uiExtra.trim()
-      ? `\n\nInstrucciones adicionales:\n${uiExtra.trim()}`
-      : "";
-    return `${base}${extra}`;
-  }, [config.name, data?.bot_name, uiExtra]);
-
   const handleBrainSave = async () => {
     try {
       setSavingBrain(true);
@@ -217,7 +180,6 @@ export default function AdminSettingsPage() {
       setUiExtra(sanitizeUiExtra(updated.ui_prompt_extra));
       setBaselineUiExtra(sanitizeUiExtra(updated.ui_prompt_extra));
       setBaselineTemperature(updated.temperature ?? temperature);
-      setFieldsLocked(true);
       toast.success("Configuración guardada. Cambios aplicados al bot.");
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Error al guardar configuración";
@@ -235,7 +197,10 @@ export default function AdminSettingsPage() {
       await resetBotConfig();
       setUiExtra("");
       setBaselineUiExtra("");
-      toast.success("Configuración restablecida y limpiada en backend.");
+      setTemperature(0.7);
+      setBaselineTemperature(0.7);
+      mutate();
+      toast.success("Configuración restablecida.");
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Error al restablecer configuración";
       setErrorBrain(msg);
@@ -250,6 +215,7 @@ export default function AdminSettingsPage() {
   const [runtimeLoading, setRuntimeLoading] = useState<boolean>(false);
 
   const handleOpenRuntime = async () => {
+    if (runtimeLoading) return;
     try {
       setRuntimeLoading(true);
       const rt = await getBotRuntime();
@@ -262,7 +228,16 @@ export default function AdminSettingsPage() {
     }
   };
 
-  if (isChecking || !isAuthorized) return null;
+  if (isChecking) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!isAuthorized) return null;
+
   if (isLoading || !data) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -274,50 +249,76 @@ export default function AdminSettingsPage() {
   }
 
   return (
-    <div className="flex flex-col lg:h-full lg:overflow-hidden">
-      <div className="px-4 md:px-6 pt-4 md:pt-6 pb-4 border-b">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold text-foreground">Configuración del Bot</h1>
+    <div className="flex h-full overflow-hidden">
+      {/* ── Sidebar nav ─────────────────────────────────────────────────────── */}
+      <aside className="w-56 flex-shrink-0 flex flex-col overflow-hidden border-r border-border bg-card">
+        <div className="px-5 pt-6 pb-4 border-b border-border">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+            Configuración
+          </p>
+          <div
+            className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-md text-xs font-medium ${
+              isBotActive
+                ? "bg-success/10 text-success border border-success/20"
+                : "bg-muted text-muted-foreground border border-border"
+            }`}
+          >
             <span
-              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold ${
-                isBotActive
-                  ? "bg-success/10 text-success border border-success/25"
-                  : "bg-muted text-muted-foreground border border-border"
+              className={`w-1.5 h-1.5 rounded-full ${
+                isBotActive ? "bg-success animate-pulse" : "bg-muted-foreground/50"
               }`}
-            >
-              <span
-                className={`inline-block w-2 h-2 rounded-full ${
-                  isBotActive ? "bg-success" : "bg-muted-foreground/50"
-                }`}
-              />
-              {isBotActive ? "Estado: Activo" : "Estado: En Pausa"}
-            </span>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              onClick={handleOpenRuntime}
-              disabled={runtimeLoading}
-              className="gradient-primary hover:opacity-90"
-            >
-              <Terminal className="w-4 h-4 mr-2" />
-              {runtimeLoading ? "Cargando..." : "Ver Runtime"}
-            </Button>
+            />
+            {isBotActive ? "Activo" : "En pausa"}
           </div>
         </div>
-      </div>
-      <Tabs
-        value={activeTab}
-        onValueChange={handleTabChange}
-        className="flex-1 min-h-0 flex flex-col"
-      >
-        <TabsList className="w-full overflow-x-auto whitespace-nowrap scroll-smooth md:overflow-visible">
-          <TabsTrigger value="appearance">Apariencia</TabsTrigger>
-          <TabsTrigger value="brain">Cerebro</TabsTrigger>
-          <TabsTrigger value="system">Sistema</TabsTrigger>
-        </TabsList>
-        <TabsContent value="appearance" className="flex-1 min-h-0">
+
+        <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
+          {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
+            const isActive = activeTab === id;
+            const isDirty =
+              (id === "appearance" && appearanceIsDirty) ||
+              (id === "brain" && brainIsDirty);
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => handleTabChange(id)}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
+                  isActive
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+              >
+                <Icon className="w-4 h-4 flex-shrink-0" />
+                <span className="flex-1">{label}</span>
+                {isDirty && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-warning flex-shrink-0" />
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="flex-shrink-0 p-3 border-t border-border">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start gap-2 text-xs text-primary/70 hover:text-primary hover:bg-primary/10"
+            onClick={handleOpenRuntime}
+            disabled={runtimeLoading}
+          >
+            {runtimeLoading
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+              : <Terminal className="w-3.5 h-3.5 flex-shrink-0" />}
+            Ver Runtime
+          </Button>
+        </div>
+      </aside>
+
+      {/* ── Content ─────────────────────────────────────────────────────────── */}
+      <main className="flex-1 min-w-0 overflow-hidden">
+        {activeTab === "appearance" && (
           <SettingsAppearanceTab
             isLoading={isLoading}
             config={config}
@@ -330,8 +331,8 @@ export default function AdminSettingsPage() {
             appearanceIsDirty={appearanceIsDirty}
             handleSave={handleSave}
           />
-        </TabsContent>
-        <TabsContent value="brain" className="flex-1 min-h-0">
+        )}
+        {activeTab === "brain" && (
           <SettingsBrainTab
             uiExtra={uiExtra}
             setUiExtra={setUiExtra}
@@ -344,53 +345,40 @@ export default function AdminSettingsPage() {
             isLoading={isLoading}
             savingBrain={savingBrain}
             errorBrain={errorBrain}
-            effectivePreview={effectivePreview}
             brainIsDirty={brainIsDirty}
-            isBotActive={isBotActive}
-            handleOpenRuntime={handleOpenRuntime}
-            runtimeLoading={runtimeLoading}
           />
-        </TabsContent>
-        <TabsContent value="system" className="flex-1 min-h-0">
+        )}
+        {activeTab === "system" && (
           <SettingsSystemTab isLoading={isLoading} />
-        </TabsContent>
+        )}
+      </main>
 
-        <Dialog open={runtimeOpen} onOpenChange={setRuntimeOpen}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Runtime del Bot</DialogTitle>
-              <DialogDescription>
-                Estado efectivo actual (modelo, temperatura, nombre y
-                composición del prompt)
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-3">
-              {runtimeData ? (
-                <pre className="text-sm whitespace-pre-wrap break-words bg-muted/30 p-3 rounded-md border border-border/50">
-                  {JSON.stringify(runtimeData, null, 2)}
-                </pre>
-              ) : (
-                <div className="text-sm text-muted-foreground">
-                  No hay datos
-                </div>
-              )}
-              <div className="flex gap-2 justify-end">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleOpenRuntime}
-                  disabled={runtimeLoading}
-                >
-                  {runtimeLoading ? "Actualizando..." : "Actualizar"}
-                </Button>
-                <Button size="sm" onClick={() => setRuntimeOpen(false)}>
-                  Cerrar
-                </Button>
-              </div>
+      {/* ── Runtime dialog ───────────────────────────────────────────────────── */}
+      <Dialog open={runtimeOpen} onOpenChange={setRuntimeOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Runtime del Bot</DialogTitle>
+            <DialogDescription>
+              Estado efectivo actual: modelo, temperatura, nombre y composición del prompt.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {runtimeData ? (
+              <pre className="text-sm whitespace-pre-wrap break-words bg-muted/50 p-4 rounded-lg border border-border font-mono max-h-[60vh] overflow-y-auto">
+                {JSON.stringify(runtimeData, null, 2)}
+              </pre>
+            ) : (
+              <p className="text-sm text-muted-foreground">No hay datos disponibles.</p>
+            )}
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" size="sm" onClick={handleOpenRuntime} disabled={runtimeLoading}>
+                {runtimeLoading ? "Actualizando..." : "Actualizar"}
+              </Button>
+              <Button size="sm" onClick={() => setRuntimeOpen(false)}>Cerrar</Button>
             </div>
-          </DialogContent>
-        </Dialog>
-      </Tabs>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

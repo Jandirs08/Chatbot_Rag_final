@@ -60,9 +60,9 @@ settings = get_settings()
 @conditional_limit(settings.login_rate_limit)
 async def login(
     request: Request,
+    response: Response,
     login_data: LoginRequest,
     user_repository: UserRepository = Depends(get_user_repository),
-    response: Response = None,
 ) -> TokenResponse:
     """
     Authenticate user and return JWT tokens.
@@ -126,17 +126,16 @@ async def login(
         logger.info("Successful login for user_id=%s", user.id)
         audit("login_success", str(user.id), ip=request.client.host if request.client else None)
 
-        if response is not None:
-            secure_flag = str(settings.environment).lower() in ("production", "prod", "staging")
-            response.set_cookie(
-                key="access_token",
-                value=access_token,
-                httponly=True,
-                samesite="lax",
-                secure=secure_flag,
-                max_age=settings.jwt_access_token_expire_minutes * 60,
-                path="/",
-            )
+        secure_flag = str(settings.environment).lower() in ("production", "prod", "staging")
+        response.set_cookie(
+            key="access_token",
+            value=access_token,
+            httponly=True,
+            samesite="lax",
+            secure=secure_flag,
+            max_age=settings.jwt_access_token_expire_minutes * 60,
+            path="/",
+        )
 
         return TokenResponse(
             access_token=access_token,
@@ -144,7 +143,7 @@ async def login(
             token_type="bearer",
             expires_in=settings.jwt_access_token_expire_minutes * 60
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -218,10 +217,10 @@ async def get_current_user_profile(
 @conditional_limit(settings.auth_refresh_rate_limit)
 async def refresh_access_token(
     request: Request,
+    response: Response,
     refresh_data: RefreshTokenRequest,
     user_repository: UserRepository = Depends(get_user_repository),
     token_blacklist=Depends(get_token_blacklist),
-    response: Response = None,
 ) -> TokenResponse:
     """
     Refresh access token using refresh token.
@@ -311,17 +310,16 @@ async def refresh_access_token(
         logger.info("Token refreshed for user_id=%s", user.id)
         audit("token_refreshed", str(user.id))
 
-        if response is not None:
-            secure_flag = str(settings.environment).lower() in ("production", "prod", "staging")
-            response.set_cookie(
-                key="access_token",
-                value=access_token,
-                httponly=True,
-                samesite="lax",
-                secure=secure_flag,
-                max_age=settings.jwt_access_token_expire_minutes * 60,
-                path="/",
-            )
+        secure_flag = str(settings.environment).lower() in ("production", "prod", "staging")
+        response.set_cookie(
+            key="access_token",
+            value=access_token,
+            httponly=True,
+            samesite="lax",
+            secure=secure_flag,
+            max_age=settings.jwt_access_token_expire_minutes * 60,
+            path="/",
+        )
 
         return TokenResponse(
             access_token=access_token,
@@ -373,10 +371,10 @@ async def refresh_access_token(
 )
 async def logout(
     request: Request,
+    response: Response,
     logout_data: LogoutRequest = None,
     current_user: User = Depends(get_current_user),
     token_blacklist=Depends(get_token_blacklist),
-    response: Response = None,
 ) -> Dict[str, str]:
     """Logout current user and revoke both access and refresh tokens."""
     logger.info("User logged out: user_id=%s", current_user.id)
@@ -407,8 +405,7 @@ async def logout(
             except Exception as exc:
                 logger.debug("Refresh token revocation skipped on logout: %s", exc)
 
-    if response is not None:
-        response.delete_cookie(key="access_token", path="/")
+    response.delete_cookie(key="access_token", path="/")
     audit("logout", str(current_user.id), ip=request.client.host if request.client else None)
     return {"message": "Successfully logged out"}
 

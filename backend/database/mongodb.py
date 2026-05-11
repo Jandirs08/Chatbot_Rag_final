@@ -77,20 +77,40 @@ class MongodbClient:
 
 
     async def add_message(self, conversation_id: str, role: str, content: str, source: Optional[str] = None) -> str:
-        """Add a message to the conversation history. Returns message_id."""
+        """Add a message to the conversation history. Returns message_id.
+
+        Also bumps the parent conversation's `last_message_at` (inbox sort key)
+        and increments `message_count` (denormalized counter), so the inbox
+        reflects real activity without aggregating over `messages`.
+        """
         message_id = str(uuid.uuid4())
+        ts = datetime.now(timezone.utc)
         doc = {
             "message_id": message_id,
             "conversation_id": conversation_id,
             "role": role,
             "content": content,
             "source": source or "embed-default",
-            "timestamp": datetime.now(timezone.utc),
+            "timestamp": ts,
         }
         for attempt in range(1, 3):
             try:
                 await self.messages.insert_one(doc)
                 logger.debug(f"Mensaje agregado a la conversación {conversation_id}")
+                # Bump conversation activity counters. Best-effort: failure here
+                # must not lose the inserted message.
+                # $max guards against out-of-order updates under concurrent
+                # message inserts: an older ts can never overwrite a newer one.
+                try:
+                    await self.db["conversations"].update_one(
+                        {"conversation_id": conversation_id},
+                        {"$max": {"last_message_at": ts}, "$inc": {"message_count": 1}},
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to bump conversation counters for conv=%s: %s",
+                        conversation_id, exc,
+                    )
                 return message_id
             except Exception as e:
                 if attempt == 2:

@@ -137,7 +137,16 @@
       "Bash(Get-Content -Path \"C:\\\\Jandir2026\\\\DesarrolloJandir\\\\Chatbot_Rag_final\\\\backend\\\\core\\\\bot.py\" -TotalCount 450)",
       "Bash(Select-Object -Skip 300)",
       "Bash(curl -s http://localhost:8000/api/v1/conversations/inbox -H 'Authorization: Bearer __CMDSUB_OUTPUT__')",
-      "Bash(curl -s -w \"\\\\nHTTP: %{http_code}\\\\n\" http://localhost:8000/api/v1/conversations/inbox)"
+      "Bash(curl -s -w \"\\\\nHTTP: %{http_code}\\\\n\" http://localhost:8000/api/v1/conversations/inbox)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(grep *)",
+      "PowerShell(npx tsc --noEmit -p .)",
+      "Bash(Select-Object FullName, Length)",
+      "Bash(Sort-Object FullName)",
+      "Read(//mnt/c/Jandir2026/DesarrolloJandir/**)",
+      "Bash(ls frontend/app/admin/settings/)",
+      "PowerShell(cd \"C:\\\\Jandir2026\\\\DesarrolloJandir\\\\Chatbot_Rag_final\\\\frontend\"; $output = npx tsc --noEmit 2>&1; $exitCode = $LASTEXITCODE; if \\($output\\) { $output } else { \"No errors\" }; \"Exit code: $exitCode\")",
+      "Bash(echo \"exit=$?\")"
     ]
   }
 }

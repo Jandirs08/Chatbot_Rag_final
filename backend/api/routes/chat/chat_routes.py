@@ -277,7 +277,7 @@ async def chat_stream_log(
 
 
 @router.get("/history/{conversation_id}")
-async def get_history(conversation_id: str, request: Request):
+async def get_history(conversation_id: str, request: Request, _: Optional[User] = Depends(get_optional_current_user)):
     """Devuelve el historial de mensajes para una conversación.
 
     - Lee de la colección 'messages'.

@@ -87,7 +87,10 @@ async def upload_logo(file: UploadFile, _admin=Depends(require_manage_documents)
             raise HTTPException(status_code=400, detail="Tipo de imagen no soportado")
 
         target = d / f"logo.{ext}"
-        content = await file.read()
+        MAX_LOGO_BYTES = 5 * 1024 * 1024  # 5 MB
+        content = await file.read(MAX_LOGO_BYTES + 1)
+        if len(content) > MAX_LOGO_BYTES:
+            raise HTTPException(status_code=413, detail="El logo debe pesar menos de 5 MB")
         target.write_bytes(content)
 
         url = "/api/v1/assets/logo"

@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel
 from utils.logging_utils import get_logger
 from utils.rate_limiter import conditional_limit
-from config import settings
 
 from auth.dependencies import require_admin
 from database.conversation_repository import ConversationRepository
@@ -14,7 +13,13 @@ from database.mongodb import get_mongodb_client
 from services.classification import classify_conversation, regenerate_summary
 from config import settings
 
-from .schemas import AgentMessageRequest, ConversationCard, ConversationCategory, HandoffStatsResponse, InboxResponse
+from .schemas import (
+    AgentMessageRequest,
+    ConversationCard,
+    HandoffStatsResponse,
+    InboxResponse,
+    InboxTabCountsResponse,
+)
 
 logger = get_logger(__name__)
 router = APIRouter(tags=["inbox"])
@@ -25,9 +30,10 @@ _LAST_USER_MSG_MAX_CHARS = 200
 
 def _to_card(
     doc: dict,
-    message_count: Optional[int] = None,
     last_user_message: Optional[dict] = None,
 ) -> ConversationCard:
+    raw_count = doc.get("message_count")
+    message_count = raw_count if isinstance(raw_count, int) else None
     pending_since: Optional[datetime] = doc.get("pending_since")
     minutes_waiting: Optional[int] = None
     if pending_since is not None:
@@ -77,25 +83,6 @@ def _to_card(
     )
 
 
-async def _count_messages_by_conversation(
-    db, conversation_ids: list[str]
-) -> dict[str, int]:
-    """Single aggregation to get message counts for many conversations at once.
-
-    Avoids N+1 count_documents calls when building the inbox list.
-    """
-    if not conversation_ids:
-        return {}
-    pipeline = [
-        {"$match": {"conversation_id": {"$in": conversation_ids}}},
-        {"$group": {"_id": "$conversation_id", "count": {"$sum": 1}}},
-    ]
-    counts: dict[str, int] = {}
-    async for row in db.messages.aggregate(pipeline):
-        counts[row["_id"]] = int(row.get("count", 0))
-    return counts
-
-
 async def _last_user_messages_by_conversation(
     db, conversation_ids: list[str]
 ) -> dict[str, dict]:
@@ -126,22 +113,37 @@ def _get_conv_repo(request: Request) -> ConversationRepository:
 @conditional_limit("60/minute")
 async def get_inbox(
     request: Request,
+    response: Response,
     _current_user=Depends(require_admin),
-    response: Response = None,
-    category: Optional[ConversationCategory] = Query(None),
-    min_score: Optional[int] = Query(None, ge=0, le=100),
     limit: int = Query(50, ge=1, le=500),
-    skip: int = Query(0, ge=0, le=1_000_000),
+    skip: int = Query(0, ge=0, le=10_000),
+    tab: Optional[str] = Query(None, regex=r"^(todos|pendientes|mias|bot)$"),
+    channel: Optional[str] = Query(None, regex=r"^(todos|web|whatsapp)$"),
+    datos: Optional[str] = Query(None, regex=r"^(todos|leads|sin_datos)$"),
+    only_unseen: bool = Query(False),
 ):
     repo = _get_conv_repo(request)
+    has_lead: Optional[bool] = None
+    if datos == "leads":
+        has_lead = True
+    elif datos == "sin_datos":
+        has_lead = False
+
+    agent_id = str(_current_user.id)
     docs, total = await repo.list_inbox_conversations(
-        category=category.value if category else None,
-        min_score=min_score,
         limit=limit,
         skip=skip,
+        tab=tab if tab != "todos" else None,
+        agent_id=agent_id,
+        channel=channel if channel != "todos" else None,
+        has_lead=has_lead,
+        only_unseen=only_unseen,
     )
 
-    logger.info(f"[DEBUG] inbox_conversations: total={total}, docs_count={len(docs)}, category={category}, min_score={min_score}, limit={limit}, skip={skip}")
+    logger.debug(
+        "inbox_conversations total=%s docs=%s tab=%s channel=%s datos=%s only_unseen=%s limit=%s skip=%s",
+        total, len(docs), tab, channel, datos, only_unseen, limit, skip,
+    )
 
     page = skip // limit + 1 if limit > 0 else 1
     total_pages = max(1, (total + limit - 1) // limit) if limit > 0 else 1
@@ -149,12 +151,11 @@ async def get_inbox(
 
     mongodb_client = getattr(request.app.state, "mongodb_client", None) or get_mongodb_client()
     conv_ids = [d.get("conversation_id") for d in docs if d.get("conversation_id")]
-    counts = await _count_messages_by_conversation(mongodb_client.db, conv_ids)
+    # message_count is denormalized on the conversation doc; no live aggregation needed.
     last_msgs = await _last_user_messages_by_conversation(mongodb_client.db, conv_ids)
     items = [
         _to_card(
             d,
-            message_count=counts.get(d.get("conversation_id")),
             last_user_message=last_msgs.get(d.get("conversation_id")),
         )
         for d in docs
@@ -169,9 +170,34 @@ async def get_inbox(
     )
 
 
+@router.get("/conversations/inbox/counts", response_model=InboxTabCountsResponse)
+@conditional_limit("60/minute")
+async def get_inbox_counts(
+    request: Request,
+    response: Response,
+    _current_user=Depends(require_admin),
+    channel: Optional[str] = Query(None, regex=r"^(todos|web|whatsapp)$"),
+    datos: Optional[str] = Query(None, regex=r"^(todos|leads|sin_datos)$"),
+):
+    repo = _get_conv_repo(request)
+    has_lead: Optional[bool] = None
+    if datos == "leads":
+        has_lead = True
+    elif datos == "sin_datos":
+        has_lead = False
+    counts = await repo.inbox_tab_counts(
+        channel=channel if channel != "todos" else None,
+        has_lead=has_lead,
+        agent_id=str(_current_user.id),
+    )
+    return InboxTabCountsResponse(**counts)
+
+
 @router.get("/inbox/handoff-stats", response_model=HandoffStatsResponse)
+@conditional_limit("60/minute")
 async def get_handoff_stats(
     request: Request,
+    response: Response,
     _current_user=Depends(require_admin),
     days: int = Query(30, ge=1, le=365),
 ):
@@ -187,18 +213,45 @@ async def get_handoff_stats(
     )
 
 
+@router.get("/conversations/{conversation_id}", response_model=ConversationCard)
+@conditional_limit("60/minute")
+async def get_conversation_card(
+    conversation_id: str,
+    *,
+    request: Request,
+    response: Response,
+    _current_user=Depends(require_admin),
+):
+    """Fetch a single conversation card by id — powers the workspace route."""
+    repo = _get_conv_repo(request)
+    doc = await repo.get_by_conversation_id(conversation_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    mongodb_client = getattr(request.app.state, "mongodb_client", None) or get_mongodb_client()
+    last_msgs = await _last_user_messages_by_conversation(
+        mongodb_client.db, [conversation_id]
+    )
+    return _to_card(doc, last_user_message=last_msgs.get(conversation_id))
+
+
 @router.post("/conversations/{conversation_id}/refresh-summary", response_model=ConversationCard)
+@conditional_limit("5/minute")
 async def refresh_summary_on_demand(
     conversation_id: str,
     *,
     request: Request,
+    response: Response,
     _current_user=Depends(require_admin),
 ):
+    repo = _get_conv_repo(request)
+    # Check existence BEFORE invoking the LLM — avoids paying for tokens on a 404.
+    if not await repo.get_by_conversation_id(conversation_id):
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
     mongodb_client = getattr(request.app.state, "mongodb_client", None) or get_mongodb_client()
     result = await regenerate_summary(conversation_id, mongodb_client.db, settings)
     if result is None:
         raise HTTPException(status_code=400, detail="No hay mensajes para resumir")
-    repo = _get_conv_repo(request)
     await repo.set_summary_only(
         conversation_id,
         ai_summary=result.summary,
@@ -207,80 +260,81 @@ async def refresh_summary_on_demand(
     doc = await repo.get_by_conversation_id(conversation_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    msg_count = await mongodb_client.db.messages.count_documents(
-        {"conversation_id": conversation_id}
-    )
-    return _to_card(doc, message_count=msg_count)
+    return _to_card(doc)
 
 
 @router.post("/conversations/{conversation_id}/complete", response_model=ConversationCard)
+@conditional_limit("30/minute")
 async def complete_conversation(
     conversation_id: str,
     *,
     request: Request,
+    response: Response,
     _current_user=Depends(require_admin),
 ):
     repo = _get_conv_repo(request)
-    conv = await repo.get_by_conversation_id(conversation_id)
-    if not conv:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    await repo.set_stage(conversation_id, "completed")
-    doc = await repo.get_by_conversation_id(conversation_id)
-    mongodb_client = getattr(request.app.state, "mongodb_client", None) or get_mongodb_client()
-    msg_count = await mongodb_client.db.messages.count_documents(
-        {"conversation_id": conversation_id}
-    )
-    logger.info(f"[Inbox] conv={conversation_id} marked completed")
-    return _to_card(doc, message_count=msg_count)
+    doc = await repo.atomic_set_stage(conversation_id, "completed")
+    if doc is None:
+        # Either id doesn't exist or already completed — disambiguate.
+        existing = await repo.get_by_conversation_id(conversation_id)
+        if not existing:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        doc = existing  # idempotent: already completed
+    logger.info("[Inbox] conv=%s marked completed", conversation_id)
+    return _to_card(doc)
 
 
 @router.post("/conversations/{conversation_id}/reopen", response_model=ConversationCard)
+@conditional_limit("30/minute")
 async def reopen_conversation(
     conversation_id: str,
     *,
     request: Request,
+    response: Response,
     _current_user=Depends(require_admin),
 ):
     repo = _get_conv_repo(request)
-    conv = await repo.get_by_conversation_id(conversation_id)
-    if not conv:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    await repo.set_stage(conversation_id, "active")
-    doc = await repo.get_by_conversation_id(conversation_id)
-    mongodb_client = getattr(request.app.state, "mongodb_client", None) or get_mongodb_client()
-    msg_count = await mongodb_client.db.messages.count_documents(
-        {"conversation_id": conversation_id}
-    )
-    logger.info(f"[Inbox] conv={conversation_id} reopened")
-    return _to_card(doc, message_count=msg_count)
+    doc = await repo.atomic_set_stage(conversation_id, "active")
+    if doc is None:
+        existing = await repo.get_by_conversation_id(conversation_id)
+        if not existing:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        doc = existing  # idempotent: already active
+    logger.info("[Inbox] conv=%s reopened", conversation_id)
+    return _to_card(doc)
 
 
 @router.post("/conversations/{conversation_id}/takeover")
+@conditional_limit("10/minute")
 async def takeover_conversation(
     conversation_id: str,
     *,
     request: Request,
+    response: Response,
     _current_user=Depends(require_admin),
 ):
     repo = _get_conv_repo(request)
-    conv = await repo.get_by_conversation_id(conversation_id)
-    if not conv:
-        raise HTTPException(status_code=404, detail="Conversation not found")
     agent_id = str(_current_user.id)
-    if conv.get("mode") == "human":
-        raise HTTPException(status_code=409, detail="Conversation already taken by another agent")
     result = await repo.atomic_takeover(conversation_id, agent_id)
     if result is None:
+        # Disambiguate: idempotent if same agent already owns, else 409.
+        existing = await repo.get_by_conversation_id(conversation_id)
+        if not existing:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        if existing.get("mode") == "human" and existing.get("assigned_agent_id") == agent_id:
+            return {"status": "ok", "mode": "human", "assigned_agent_id": agent_id}
         raise HTTPException(status_code=409, detail="Conversation already taken by another agent")
-    logger.info(f"[Inbox] conv={conversation_id} taken over by agent={agent_id}")
+    logger.info("[Inbox] conv=%s taken over by agent=%s", conversation_id, agent_id)
     return {"status": "ok", "mode": "human", "assigned_agent_id": agent_id}
 
 
 @router.post("/conversations/{conversation_id}/mark-viewed")
+@conditional_limit("60/minute")
 async def mark_conversation_viewed(
     conversation_id: str,
     *,
     request: Request,
+    response: Response,
     _current_user=Depends(require_admin),
 ):
     repo = _get_conv_repo(request)
@@ -289,40 +343,32 @@ async def mark_conversation_viewed(
         raise HTTPException(status_code=404, detail="Conversation not found")
     agent_id = str(_current_user.id)
     await repo.mark_viewed(conversation_id, agent_id)
-    logger.info(f"[Inbox] conv={conversation_id} marked viewed by agent={agent_id}")
+    logger.info("[Inbox] conv=%s marked viewed by agent=%s", conversation_id, agent_id)
     return {"status": "ok", "viewed_by": agent_id}
 
 
 @router.post("/conversations/{conversation_id}/release")
+@conditional_limit("30/minute")
 async def release_conversation(
     conversation_id: str,
     *,
     request: Request,
+    response: Response,
     _current_user=Depends(require_admin),
 ):
     repo = _get_conv_repo(request)
-    conv = await repo.get_by_conversation_id(conversation_id)
-    if not conv:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    await repo.set_mode(conversation_id, "bot")
-    logger.info(f"[Inbox] conv={conversation_id} released back to bot")
+    agent_id = str(_current_user.id)
+    result = await repo.atomic_release_owned(conversation_id, agent_id)
+    if result is None:
+        existing = await repo.get_by_conversation_id(conversation_id)
+        if not existing:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        if existing.get("mode") != "human":
+            raise HTTPException(status_code=409, detail="Conversation is not in human mode")
+        # Owned by another agent — forbid the release.
+        raise HTTPException(status_code=403, detail="Conversation owned by another agent")
+    logger.info("[Inbox] conv=%s released back to bot by agent=%s", conversation_id, agent_id)
     return {"status": "ok", "mode": "bot"}
-
-
-@router.post("/conversations/{conversation_id}/pause")
-async def pause_conversation(
-    conversation_id: str,
-    *,
-    request: Request,
-    _current_user=Depends(require_admin),
-):
-    repo = _get_conv_repo(request)
-    conv = await repo.get_by_conversation_id(conversation_id)
-    if not conv:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    await repo.set_mode(conversation_id, "paused")
-    logger.info(f"[Inbox] conv={conversation_id} paused (mode=paused)")
-    return {"status": "ok", "mode": "paused"}
 
 
 class LeadCaptureRequest(BaseModel):
@@ -338,12 +384,17 @@ _LEAD_BOT_REPLY = (
 
 
 @router.post("/conversations/{conversation_id}/capture-lead")
+@conditional_limit("3/minute")
 async def capture_lead(
     conversation_id: str,
     body: LeadCaptureRequest,
     *,
     request: Request,
+    response: Response,
 ):
+    # Public endpoint — invoked by the customer chat widget (anonymous).
+    # Abuse protection: per-IP rate limit, email regex, per-conversation
+    # dedup, and cross-conversation email dedup below.
     repo = _get_conv_repo(request)
     conv = await repo.get_by_conversation_id(conversation_id)
     if not conv:
@@ -352,23 +403,26 @@ async def capture_lead(
     lead_name = body.lead_name.strip()
     lead_email = body.lead_email.strip().lower()
     if not lead_email or not _EMAIL_RE.match(lead_email):
-        logger.warning(f"[LeadCapture] conv={conversation_id} invalid email rejected")
+        logger.warning("[LeadCapture] conv=%s invalid email rejected", conversation_id)
         raise HTTPException(status_code=400, detail="Invalid email format")
 
     if conv.get("lead_email"):
-        logger.info(f"[LeadCapture] conv={conversation_id} already captured, skipping insert")
+        logger.info("[LeadCapture] conv=%s already captured, skipping insert", conversation_id)
         return {"status": "ok", "already_captured": True}
 
     existing = await repo.find_by_lead_email(lead_email)
     if existing and existing.get("conversation_id") != conversation_id:
         logger.info(
-            "[LeadCapture] email=%s already captured in conv=%s, dedup",
-            lead_email, existing.get("conversation_id"),
+            "[LeadCapture] email already captured (different conv), dedup",
         )
-        return {"status": "ok", "already_captured": True, "source_conversation": existing.get("conversation_id")}
+        return {"status": "ok", "already_captured": True}
 
-    await repo.set_lead(conversation_id, lead_name, lead_email)
-    logger.info(f"[LeadCapture] conv={conversation_id} lead={lead_email}")
+    # Atomic: only set lead if not yet captured for this conversation.
+    captured_doc = await repo.atomic_capture_lead(conversation_id, lead_name, lead_email)
+    if captured_doc is None:
+        # Lost the race: another request just captured. Treat as success/idempotent.
+        return {"status": "ok", "already_captured": True}
+    logger.info("[LeadCapture] conv=%s lead captured", conversation_id)
 
     mongodb_client = getattr(request.app.state, "mongodb_client", None) or get_mongodb_client()
     timestamp = datetime.now(timezone.utc)
@@ -381,8 +435,10 @@ async def capture_lead(
         "source": conv.get("channel") or "web",
     }
     insert_result = await mongodb_client.db.messages.insert_one(msg_doc)
+    await repo.record_message_inserted(conversation_id, timestamp)
     logger.info(
-        f"[LeadCapture] conv={conversation_id} bot reply inserted id={insert_result.inserted_id}"
+        "[LeadCapture] conv=%s bot reply inserted id=%s",
+        conversation_id, insert_result.inserted_id,
     )
     return {
         "status": "ok",
@@ -393,52 +449,85 @@ async def capture_lead(
 
 
 @router.get("/conversations/{conversation_id}/messages")
+@conditional_limit("60/minute")
 async def get_conversation_messages(
     conversation_id: str,
     *,
     request: Request,
+    response: Response,
     _current_user=Depends(require_admin),
+    limit: int = Query(100, ge=1, le=500),
+    before: Optional[datetime] = Query(None),
 ):
+    """Return up to `limit` most-recent messages, optionally older than `before`.
+
+    Cursor pagination: pass the timestamp of the oldest visible message back
+    as `before` to load the previous page. Response order is ascending
+    (chronological) for direct display.
+    """
     mongodb_client = getattr(request.app.state, "mongodb_client", None) or get_mongodb_client()
     messages_coll = mongodb_client.db.messages
+    query: dict = {"conversation_id": conversation_id}
+    if before is not None:
+        if before.tzinfo is None:
+            before = before.replace(tzinfo=timezone.utc)
+        query["timestamp"] = {"$lt": before}
+
+    # Fetch newest-first to honour `limit`, then return chronological.
     raw = (
         await messages_coll
-        .find({"conversation_id": conversation_id})
-        .sort("timestamp", 1)
-        .to_list(length=200)
+        .find(query)
+        .sort("timestamp", -1)
+        .to_list(length=limit)
     )
+    raw.reverse()
     for msg in raw:
         msg.pop("_id", None)
-    return {"conversation_id": conversation_id, "messages": raw}
+    has_more = len(raw) == limit
+    next_before = raw[0]["timestamp"].isoformat() if has_more and raw else None
+    return {
+        "conversation_id": conversation_id,
+        "messages": raw,
+        "has_more": has_more,
+        "next_before": next_before,
+    }
 
 
 @router.post("/conversations/{conversation_id}/agent-message")
+@conditional_limit("60/minute")
 async def send_agent_message(
     conversation_id: str,
     body: AgentMessageRequest,
     *,
     request: Request,
+    response: Response,
     _current_user=Depends(require_admin),
 ):
     repo = _get_conv_repo(request)
+    agent_id = str(_current_user.id)
     conv = await repo.get_by_conversation_id(conversation_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
     if conv.get("mode") != "human":
         raise HTTPException(status_code=409, detail="Conversation not in human mode")
+    if conv.get("assigned_agent_id") != agent_id:
+        raise HTTPException(status_code=403, detail="Conversation owned by another agent")
 
-    agent_id = str(_current_user.id)
+    # body.content already validated + stripped by Pydantic (min/max length, non-blank)
+    content = body.content
     mongodb_client = getattr(request.app.state, "mongodb_client", None) or get_mongodb_client()
+    timestamp = datetime.now(timezone.utc)
     msg_doc = {
         "conversation_id": conversation_id,
         "role": "agent",
-        "content": body.content.strip(),
+        "content": content,
         "sender_type": "agent",
         "agent_id": agent_id,
-        "timestamp": datetime.now(timezone.utc),
+        "timestamp": timestamp,
         "source": conv.get("channel", "web"),
     }
     await mongodb_client.db.messages.insert_one(msg_doc)
+    await repo.record_message_inserted(conversation_id, timestamp)
 
-    logger.info(f"[Inbox] Agent={agent_id} sent message to conv={conversation_id}")
+    logger.info("[Inbox] Agent=%s sent message to conv=%s", agent_id, conversation_id)
     return {"status": "ok"}

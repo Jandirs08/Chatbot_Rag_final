@@ -1,10 +1,8 @@
 "use client";
 
 import { useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
 
 export function useUnsavedChanges(isDirty: boolean) {
-  const router = useRouter();
 
   // 1. Handle browser refresh/close (Native behavior)
   useEffect(() => {

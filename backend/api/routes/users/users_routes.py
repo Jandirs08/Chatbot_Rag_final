@@ -4,6 +4,7 @@ Proteccion: los endpoints requieren el permiso semantico manage_users.
 Hoy manage_users mapea a admin; la dependencia queda lista para roles futuros.
 """
 import logging
+import re
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
 from pydantic import ValidationError
@@ -82,9 +83,10 @@ async def list_users(
     """Lista usuarios. Requiere: usuario autenticado."""
     query: Dict[str, Any] = {}
     if search:
+        safe_search = re.escape(search)
         query["$or"] = [
-            {"email": {"$regex": search, "$options": "i"}},
-            {"username": {"$regex": search, "$options": "i"}},
+            {"email": {"$regex": safe_search, "$options": "i"}},
+            {"username": {"$regex": safe_search, "$options": "i"}},
         ]
     if role == "admin":
         query["is_admin"] = True

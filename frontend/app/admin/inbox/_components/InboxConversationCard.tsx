@@ -10,10 +10,10 @@ import {
   displayLabel,
   fmtDate,
   getInitials,
-  getScoreColor,
+  getScoreTone,
 } from "./utils";
 
-export type InboxMode = "bot" | "pending" | "human" | "paused";
+export type InboxMode = "bot" | "pending" | "human";
 
 export type InboxStage = "active" | "completed";
 
@@ -62,7 +62,6 @@ const MODE_DOT: Record<InboxMode, string> = {
   bot: "bg-muted-foreground/60",
   pending: "bg-warning",
   human: "bg-primary",
-  paused: "bg-muted-foreground/40",
 };
 
 const URGENCY_DOT: Record<string, string> = {
@@ -75,10 +74,9 @@ const MODE_LABEL: Record<InboxMode, string> = {
   bot: "Bot",
   pending: "Pendiente",
   human: "Agente",
-  paused: "Pausa",
 };
 
-export function InboxConversationCard({
+function InboxConversationCardImpl({
   conversation,
   isActive,
   isMutating,
@@ -132,7 +130,7 @@ export function InboxConversationCard({
   const isCompleted = conversation.stage === "completed";
 
   const hasScore = lead_score != null;
-  const sc = hasScore ? getScoreColor(lead_score!) : null;
+  const scoreTone = hasScore ? getScoreTone(lead_score!) : null;
   const hasInterests = (product_interests?.length ?? 0) > 0;
 
   // Score is "frozen" if the conversation was completed >7d ago — show snapshot tooltip
@@ -165,6 +163,7 @@ export function InboxConversationCard({
   return (
     <div
       ref={setDragRef}
+      role="listitem"
       className={cn(
         "group/card relative",
         isDragging && "opacity-40",
@@ -173,17 +172,19 @@ export function InboxConversationCard({
       <button
         type="button"
         onClick={() => onSelect(conversation_id)}
+        aria-current={isActive ? "true" : undefined}
+        aria-label={`${name}${isSeen ? "" : " — mensaje nuevo"}`}
         className={cn(
           "group relative w-full overflow-hidden rounded-xl border text-left",
           "transition-[transform,box-shadow,border-color,background-color,opacity] duration-150 ease-out",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1 focus-visible:ring-offset-background",
           isMutating && "pointer-events-none opacity-60",
-          isSeen && !isActive && "opacity-65 hover:opacity-100",
+          isSeen && !isActive && "opacity-70 hover:opacity-100",
           isActive
             ? "border-primary/40 bg-primary/[0.05] shadow-[0_0_0_2px_hsl(var(--primary)/0.18)]"
             : isCompleted
               ? "border-border/40 bg-card/70 opacity-80 hover:opacity-100 hover:border-primary/30"
-              : "border-border/60 bg-card hover:-translate-y-px hover:border-primary/30 hover:shadow-[0_4px_20px_rgb(79_53_204/0.1)]",
+              : "border-border/60 bg-card hover:-translate-y-px hover:border-primary/30 hover:shadow-hover",
         )}
       >
       {/* Alta urgency: full top bar (not a side stripe) */}
@@ -195,8 +196,9 @@ export function InboxConversationCard({
         {/* Row 1: avatar + name + score */}
         <div className="flex items-center gap-2">
           <div
-            className="flex h-8 w-8 flex-none items-center justify-center rounded-lg font-heading text-[11px] font-bold leading-none shadow-sm"
-            style={{ backgroundColor: avatarBg, color: "rgba(0,0,0,0.55)" }}
+            aria-hidden="true"
+            className="flex h-8 w-8 flex-none items-center justify-center rounded-lg font-heading text-[11px] font-bold leading-none text-foreground/70 shadow-sm"
+            style={{ backgroundColor: avatarBg }}
           >
             {initials}
           </div>
@@ -223,21 +225,26 @@ export function InboxConversationCard({
             )}
           </div>
 
-          {/* Score badge */}
-          {hasScore && (
+          {/* Score badge — semantic token, not hardcoded hex */}
+          {hasScore && scoreTone && (
             <div
-              className="flex-none rounded-md px-1.5 py-0.5"
-              style={{ backgroundColor: sc!.bg }}
+              className={cn(
+                "flex-none rounded-md border px-1.5 py-0.5",
+                scoreTone === "success" &&
+                  "border-success/25 bg-success/10 text-success",
+                scoreTone === "warning" &&
+                  "border-warning/25 bg-warning/10 text-warning",
+                scoreTone === "error" &&
+                  "border-error/25 bg-error/10 text-error",
+              )}
               title={
                 isScoreSnapshot
                   ? "Score congelado al completar la conversación"
-                  : undefined
+                  : `Lead score ${lead_score} de 100`
               }
+              aria-label={`Lead score ${lead_score} de 100`}
             >
-              <span
-                className="font-mono text-[12px] font-bold tabular-nums"
-                style={{ color: sc!.color }}
-              >
+              <span className="font-mono text-[12px] font-bold tabular-nums">
                 {lead_score}
               </span>
             </div>
@@ -245,11 +252,23 @@ export function InboxConversationCard({
         </div>
 
         {/* Score bar */}
-        {hasScore && (
-          <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-muted/30">
+        {hasScore && scoreTone && (
+          <div
+            className="mt-2 h-1 w-full overflow-hidden rounded-full bg-muted/30"
+            role="progressbar"
+            aria-valuenow={lead_score!}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label="Lead score"
+          >
             <div
-              className="h-full rounded-full transition-[width] duration-300 ease-out"
-              style={{ width: `${lead_score}%`, backgroundColor: sc!.color }}
+              className={cn(
+                "h-full rounded-full transition-[width] duration-300 ease-out",
+                scoreTone === "success" && "bg-success",
+                scoreTone === "warning" && "bg-warning",
+                scoreTone === "error" && "bg-error",
+              )}
+              style={{ width: `${lead_score}%` }}
             />
           </div>
         )}
@@ -281,7 +300,7 @@ export function InboxConversationCard({
             <>
               <span className="text-muted-foreground/40">·</span>
               <span
-                className="rounded-sm bg-violet-100/80 px-1 font-heading text-[9px] font-semibold uppercase tracking-wide text-violet-700 dark:bg-violet-950/60 dark:text-violet-300"
+                className="rounded-sm border border-border bg-muted px-1 font-heading text-[9px] font-semibold uppercase tracking-wide text-muted-foreground"
                 title="Score congelado al completar la conversación"
               >
                 snapshot
@@ -319,7 +338,8 @@ export function InboxConversationCard({
           <div className="mt-2 flex min-w-0 items-start gap-1.5">
             {!isSeen && (
               <span
-                className="mt-1 h-1.5 w-1.5 flex-none rounded-full bg-sky-500"
+                className="mt-1 h-1.5 w-1.5 flex-none rounded-full bg-amber"
+                aria-label="Mensaje nuevo sin ver"
                 title="No visto"
               />
             )}
@@ -336,7 +356,7 @@ export function InboxConversationCard({
           </p>
         )}
 
-        {/* Action button */}
+        {/* Action button — h-7 = 28px, large enough on touch without dominating the card */}
         {(showTakeover || showRelease) && (
           <div className="mt-2.5 flex gap-1.5">
             {showTakeover && (
@@ -348,10 +368,10 @@ export function InboxConversationCard({
                   e.stopPropagation();
                   onTakeover(conversation_id);
                 }}
-                className="h-6 flex-1 rounded-lg px-2 font-heading text-[10px] font-semibold"
+                className="h-7 flex-1 rounded-lg px-2 font-heading text-[11px] font-semibold"
               >
                 {isMutating ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <Loader2 className="h-3 w-3 animate-spin" aria-label="Procesando" />
                 ) : (
                   "Tomar"
                 )}
@@ -366,12 +386,12 @@ export function InboxConversationCard({
                   e.stopPropagation();
                   onRelease(conversation_id);
                 }}
-                className="h-6 flex-1 rounded-lg px-2 font-heading text-[10px] font-semibold"
+                className="h-7 flex-1 rounded-lg px-2 font-heading text-[11px] font-semibold"
               >
                 {isMutating ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <Loader2 className="h-3 w-3 animate-spin" aria-label="Procesando" />
                 ) : (
-                  "Al bot"
+                  "Devolver"
                 )}
               </Button>
             )}
@@ -379,18 +399,20 @@ export function InboxConversationCard({
         )}
       </div>
       </button>
-      {/* Drag handle — hover-only, doesn't intercept card click */}
+      {/* Drag handle — 24x24 hit target (WCAG 2.2 AA), opacity transition keeps it discreet */}
       <button
         type="button"
         {...listeners}
         {...attributes}
-        aria-label="Arrastrar conversación"
+        aria-label="Arrastrar conversación entre columnas"
+        style={{ touchAction: "none" }}
         className={cn(
-          "absolute right-1.5 top-1.5 z-10 hidden h-5 w-5 items-center justify-center rounded-md text-muted-foreground/60",
+          "absolute right-1 top-1 z-10 flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/50",
           "cursor-grab active:cursor-grabbing",
-          "transition-colors duration-150 ease-out hover:bg-muted/60 hover:text-foreground",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
-          "group-hover/card:flex",
+          "opacity-0 transition-[opacity,background-color,color] duration-150 ease-out",
+          "hover:bg-muted/60 hover:text-foreground",
+          "focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+          "group-hover/card:opacity-100",
         )}
         onClick={(e) => e.stopPropagation()}
       >
@@ -399,3 +421,18 @@ export function InboxConversationCard({
     </div>
   );
 }
+
+// Memoized: with a 5s SWR poll and many cards in view, unchanged cards must skip re-render.
+// Equality fast-paths on the shallow conversation reference and primitives.
+export const InboxConversationCard = React.memo(
+  InboxConversationCardImpl,
+  (prev, next) =>
+    prev.conversation === next.conversation &&
+    prev.isActive === next.isActive &&
+    prev.isMutating === next.isMutating &&
+    prev.agentId === next.agentId &&
+    prev.onSelect === next.onSelect &&
+    prev.onTakeover === next.onTakeover &&
+    prev.onRelease === next.onRelease &&
+    prev.onMarkViewed === next.onMarkViewed,
+);

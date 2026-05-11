@@ -1,15 +1,7 @@
 from datetime import datetime
-from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel
-
-
-class ConversationCategory(str, Enum):
-    informacion = "informacion"
-    comercial = "comercial"
-    soporte = "soporte"
-    sin_valor = "sin_valor"
+from pydantic import BaseModel, Field, field_validator
 
 
 class ConversationCard(BaseModel):
@@ -43,7 +35,15 @@ class ConversationCard(BaseModel):
 
 
 class AgentMessageRequest(BaseModel):
-    content: str
+    content: str = Field(..., min_length=1, max_length=4000)
+
+    @field_validator("content")
+    @classmethod
+    def _strip_and_non_empty(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("content must not be blank")
+        return stripped
 
 
 class InboxResponse(BaseModel):
@@ -61,3 +61,10 @@ class HandoffStatsResponse(BaseModel):
     out_of_scope: int
     total: int
     period_days: int
+
+
+class InboxTabCountsResponse(BaseModel):
+    todos: int
+    pendientes: int
+    mias: int
+    bot: int

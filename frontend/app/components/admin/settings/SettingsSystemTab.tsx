@@ -44,16 +44,28 @@ export function SettingsSystemTab({ isLoading }: SettingsSystemTabProps) {
   }, [open]);
 
   return (
-    <div className="p-4 md:p-6 h-full overflow-y-auto">
-      <section className="space-y-4">
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border flex-shrink-0">
         <div>
-          <p className="font-heading text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/60">
-            Zona de peligro
-          </p>
-          <p className="text-xs text-muted-foreground/70 mt-1">
-            Acciones irreversibles sobre los datos del sistema.
+          <h2 className="text-base font-semibold text-foreground">Sistema</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Administración avanzada y acciones irreversibles.
           </p>
         </div>
+      </div>
+
+      {/* Scrollable content */}
+      <div className="flex-1 px-6 py-6">
+        <section className="space-y-4 max-w-xl">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+              Zona de peligro
+            </p>
+            <p className="text-xs text-muted-foreground/70 mt-1">
+              Acciones irreversibles sobre los datos del sistema.
+            </p>
+          </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/20 bg-destructive/[0.03] px-4 py-3">
           <div className="flex items-start gap-3">
@@ -92,8 +104,13 @@ export function SettingsSystemTab({ isLoading }: SettingsSystemTabProps) {
                 <div className="space-y-3">
                   <Progress value={progress} />
                   {success && (
-                    <div className="flex items-center gap-2 text-success text-sm">
-                      <CheckCircle2 className="w-5 h-5" /> Base de datos limpia
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-success text-sm">
+                        <CheckCircle2 className="w-5 h-5" /> Base de datos limpia
+                      </div>
+                      <Button variant="outline" size="sm" onClick={() => setOpen(false)}>
+                        Cerrar
+                      </Button>
                     </div>
                   )}
                   {error && (
@@ -105,7 +122,7 @@ export function SettingsSystemTab({ isLoading }: SettingsSystemTabProps) {
                   )}
                 </div>
               )}
-              {!processing && !success && (
+              {!processing && !success && !error && (
                 <div className="space-y-3">
                   <div className="space-y-2">
                     <label className="text-sm font-medium" htmlFor="confirm">
@@ -120,6 +137,7 @@ export function SettingsSystemTab({ isLoading }: SettingsSystemTabProps) {
                   </div>
                   <DialogFooter>
                     <Button
+                      type="button"
                       variant="destructive"
                       className="w-full"
                       disabled={
@@ -188,7 +206,8 @@ export function SettingsSystemTab({ isLoading }: SettingsSystemTabProps) {
             </DialogContent>
           </Dialog>
         </div>
-      </section>
+        </section>
+      </div>
     </div>
   );
 }

@@ -32,7 +32,6 @@ BOT_CONFIG_CACHE_FIELDS = (
     "starters",
     "input_placeholder",
     "twilio_account_sid",
-    "twilio_auth_token",
     "twilio_whatsapp_from",
 )
 BOT_PUBLIC_CONFIG_FIELDS = (
@@ -84,7 +83,6 @@ def normalize_runtime_config_payload(payload: object) -> dict | None:
         "theme_color",
         "input_placeholder",
         "twilio_account_sid",
-        "twilio_auth_token",
         "twilio_whatsapp_from",
     ):
         value = normalized.get(field)

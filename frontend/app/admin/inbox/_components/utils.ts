@@ -40,7 +40,7 @@ export const humanizeId = (id?: string | null) => {
   return `Visitante #${tag || "0000"}`;
 };
 
-// ─── Lead helpers (shared by InboxConversationCard + LeadSheet) ───────────────
+// ─── Lead helpers (shared by InboxConversationCard + ConversationWorkspace) ───
 
 export function getInitials(name?: string | null, id?: string): string {
   if (name) {
@@ -52,23 +52,39 @@ export function getInitials(name?: string | null, id?: string): string {
   return clean.slice(-2).toUpperCase() || "??";
 }
 
-export function getScoreColor(score: number): { color: string; bg: string } {
-  if (score >= 71) return { color: "#047857", bg: "#d1fae5" };
-  if (score >= 41) return { color: "#b45309", bg: "#fef3c7" };
-  return { color: "#b91c1c", bg: "#fee2e2" };
+/**
+ * Semantic score tone. The card maps this to Tailwind token classes
+ * (bg-success/10, etc.); ConversationWorkspace uses `getScoreStyle` to render
+ * the bar inline via the same CSS variables so both stay consistent across themes.
+ */
+export type ScoreTone = "success" | "warning" | "error";
+
+export function getScoreTone(score: number): ScoreTone {
+  if (score >= 71) return "success";
+  if (score >= 41) return "warning";
+  return "error";
 }
 
-/**
- * Extends `getScoreColor` with a human-readable label. Used by LeadSheet's
- * Score bar; the card uses the lighter `getScoreColor` directly.
- */
-export type ScoreStyle = { color: string; bg: string; label: string };
+export type ScoreStyle = {
+  tone: ScoreTone;
+  /** CSS color expression referencing the matching design-system token */
+  color: string;
+  /** CSS background expression referencing the matching design-system token */
+  bg: string;
+  label: string;
+};
 
 export function getScoreStyle(score: number): ScoreStyle {
-  const base = getScoreColor(score);
-  if (score >= 71) return { ...base, label: "Listo para comprar" };
-  if (score >= 41) return { ...base, label: "Interés moderado" };
-  return { ...base, label: "Sin interés claro" };
+  const tone = getScoreTone(score);
+  const color = `hsl(var(--${tone}))`;
+  const bg = `hsl(var(--${tone}) / 0.12)`;
+  const label =
+    tone === "success"
+      ? "Listo para comprar"
+      : tone === "warning"
+        ? "Interés moderado"
+        : "Sin interés claro";
+  return { tone, color, bg, label };
 }
 
 const CHANNEL_LABEL: Record<string, string> = {
