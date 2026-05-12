@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { useUsers, useUsersMutations } from "@/app/hooks/useUsers";
 import { useRequirePermission } from "@/app/hooks/useAuthGuard";
 import { Button } from "@/app/components/ui/button";
-import { Card, CardContent } from "@/app/components/ui/card";
 import type {
   CreateUserData,
   UserListItem,
@@ -143,7 +142,19 @@ export default function UsuariosPage() {
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-5 p-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-heading font-semibold tracking-tight">Gestión de Usuarios</h1>
+          {!loading && (
+            <p className="text-sm text-muted-foreground mt-0.5">
+              <span className="font-data">{total}</span> usuario{total !== 1 ? "s" : ""}
+            </p>
+          )}
+        </div>
+        <Button onClick={() => setShowCreate(true)}>Crear Usuario</Button>
+      </div>
+
       <UserFilters
         search={search}
         onSearchChange={(v) => {
@@ -160,34 +171,25 @@ export default function UsuariosPage() {
           setActiveFilter(v);
           setSkip(0);
         }}
-        total={total}
       />
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Gestión de Usuarios</h1>
-        <Button onClick={() => setShowCreate(true)}>Crear Usuario</Button>
-      </div>
 
-      {pageError && <p className="text-error">{pageError}</p>}
+      {pageError && <p className="text-sm text-destructive">{pageError}</p>}
 
-      <Card>
-        <CardContent>
-          <UserTable
-            users={users}
-            loading={loading}
-            total={total}
-            skip={skip}
-            limit={limit}
-            onSkipChange={setSkip}
-            onLimitChange={setLimit}
-            togglingIds={togglingIds}
-            pendingActiveById={pendingActiveById}
-            onToggleActive={toggleActive}
-            onEdit={setEditingUser}
-            onResetPassword={handleResetPassword}
-            onDelete={setDeleteUser}
-          />
-        </CardContent>
-      </Card>
+      <UserTable
+        users={users}
+        loading={loading}
+        total={total}
+        skip={skip}
+        limit={limit}
+        onSkipChange={setSkip}
+        onLimitChange={setLimit}
+        togglingIds={togglingIds}
+        pendingActiveById={pendingActiveById}
+        onToggleActive={toggleActive}
+        onEdit={setEditingUser}
+        onResetPassword={handleResetPassword}
+        onDelete={setDeleteUser}
+      />
 
       <UserCreateDialog
         open={showCreate}

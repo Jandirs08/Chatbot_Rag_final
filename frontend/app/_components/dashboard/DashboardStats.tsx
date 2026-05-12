@@ -7,7 +7,6 @@ interface DashboardStatsProps {
   stats: {
     total_queries: number;
     total_users: number;
-    total_pdfs: number;
   };
   isLoading: boolean;
 }
@@ -38,7 +37,9 @@ function useCountUp(target: number, duration = 700) {
 }
 
 const fmt = (n: number) =>
-  n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(n);
+  n >= 1_000_000 ? (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M"
+  : n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, "") + "k"
+  : String(n);
 
 function StatItem({
   value,
@@ -90,9 +91,8 @@ function StatItem({
 
 export default function DashboardStats({ stats, isLoading }: DashboardStatsProps) {
   const items = [
-    { label: "Mensajes", value: stats.total_queries, delay: 0 },
-    { label: "Usuarios", value: stats.total_users, delay: 80 },
-    { label: "Documentos", value: stats.total_pdfs, delay: 160 },
+    { label: "Consultas totales", value: stats.total_queries, delay: 0 },
+    { label: "Usuarios únicos", value: stats.total_users, delay: 80 },
   ];
 
   return (

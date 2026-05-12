@@ -32,7 +32,14 @@ const GATING_HELP: Record<string, string> = {
 
 export function GatingBars({ items, total }: Props) {
   if (items.length === 0 || total === 0) {
-    return <p className="t-small">Sin eventos en la ventana actual.</p>;
+    return (
+      <div className="flex flex-col items-center gap-2.5 py-8" style={{ color: "var(--t-ink-mute)" }}>
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+          <path d="M3.5 9.5l3.5 3.5 7.5-7.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <p className="t-small">Sin consultas filtradas en esta ventana</p>
+      </div>
+    );
   }
 
   const max = Math.max(...items.map((i) => i.count), 1);

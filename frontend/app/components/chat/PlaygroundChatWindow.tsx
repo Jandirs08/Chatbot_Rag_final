@@ -10,19 +10,21 @@ interface PlaygroundChatWindowProps {
   titleText?: string;
   enableVerification?: boolean;
   onDebugData?: (data: DebugData | null | undefined) => void;
+  onLoadingChange?: (isLoading: boolean) => void;
   onNewChat?: () => void;
 }
 
 /**
  * Chat window for the admin playground.
  * Uses useDebugStream → /debug/chat (admin-only, never persists).
- * Passes debug data up via onDebugData callback.
+ * Passes debug data and loading state up via callbacks.
  */
 export function PlaygroundChatWindow({
   conversationId,
   titleText,
   enableVerification = false,
   onDebugData,
+  onLoadingChange,
   onNewChat,
 }: PlaygroundChatWindowProps) {
   const debugHook = useDebugStream(conversationId, { enableVerification });
@@ -30,6 +32,10 @@ export function PlaygroundChatWindow({
   useEffect(() => {
     onDebugData?.(debugHook.debugData ?? null);
   }, [debugHook.debugData, onDebugData]);
+
+  useEffect(() => {
+    onLoadingChange?.(debugHook.isLoading);
+  }, [debugHook.isLoading, onLoadingChange]);
 
   return (
     <ChatWindow

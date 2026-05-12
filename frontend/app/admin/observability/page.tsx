@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
-import { RefreshCw, AlertCircle, AlertTriangle } from "lucide-react";
+import { RefreshCw, AlertCircle, AlertTriangle, Timer } from "lucide-react";
 import { useRequireAdmin } from "@/app/hooks/useAuthGuard";
 import { useRingBuffer } from "@/app/hooks/useRingBuffer";
 import { API_URL } from "@/app/lib/config";
@@ -88,6 +88,8 @@ const PIPELINE_STAGES = [
 
 const THROUGHPUT_WINDOWS: ("1m" | "5m" | "15m" | "60m")[] = ["1m", "5m", "15m", "60m"];
 
+const GATING_SUCCESS_KEYS = new Set(["agentic_rag_enabled", "cheap_gate_pass"]);
+
 const GATING_LABELS: Record<string, string> = {
   agentic_rag_enabled: "Agentic RAG",
   small_talk: "Saludo / charla",
@@ -106,15 +108,19 @@ const GATING_LABELS: Record<string, string> = {
 
 const THRESHOLDS = {
   successRate:   { ok: 0.99, warn: 0.95 },
-  p95Total:      { ok: 5000, warn: 10000 },
-  p95FirstToken: { ok: 3000, warn: 6000 },
+  // Metric card coloring — calibrated for OpenAI GPT-4 with RAG context
+  p95Total:      { ok: 15000, warn: 25000 },   // 15s ok, 25s warn
+  p95FirstToken: { ok: 8000,  warn: 15000 },   // 8s ok, 15s warn
+  // Banner alert — outage level only (truly broken, not just slow)
+  p95TotalAlert:      { ok: 30000, warn: 50000 },
+  p95FirstTokenAlert: { ok: 20000, warn: 35000 },
   pipeline: {
     embedding_ms: { ok: 500,  warn: 1500 },
     dense_ms:     { ok: 500,  warn: 1500 },
     lexical_ms:   { ok: 500,  warn: 1500 },
     hydrate_ms:   { ok: 500,  warn: 1500 },
     rerank_ms:    { ok: 200,  warn: 500  },
-    llm_ms:       { ok: 4500, warn: 8000 },
+    llm_ms:       { ok: 8000, warn: 15000 },
   } as Record<string, { ok: number; warn: number }>,
 };
 
@@ -142,7 +148,8 @@ const fmtMs = (n: number | null | undefined) => {
   return n < 1000 ? `${Math.round(n)} ms` : `${(n / 1000).toFixed(n < 10000 ? 2 : 1)} s`;
 };
 const fmtPct = (n: number | null | undefined, d = 1) => (n == null ? "—" : `${(n * 100).toFixed(d)}%`);
-const fmtUsd = (n: number | null | undefined) => (n == null ? "—" : `$${n.toFixed(4)}`);
+const fmtUsd = (n: number | null | undefined) =>
+  n == null ? "—" : n < 0.0001 && n > 0 ? "<$0.0001" : `$${n.toFixed(4)}`;
 const fmtUptime = (s: number) => {
   const sec = Math.max(0, Math.floor(s));
   const h = Math.floor(sec / 3600);
@@ -169,7 +176,9 @@ function LoadingSkeleton() {
 export default function ObservabilityPage() {
   const { isAuthorized, isChecking } = useRequireAdmin();
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+
+  useEffect(() => { setLastRefresh(new Date()); }, []);
 
   const { data, isLoading, error, mutate, isValidating } = useSWR<ObservabilityData>(
     isAuthorized ? `${API_URL}/dashboard/observability` : null,
@@ -213,10 +222,13 @@ export default function ObservabilityPage() {
   });
 
   const { overall, severities } = useMemo(() => {
-    const successSev: Severity = t60?.chats === 0 ? "info" : evalSuccess(successRate60);
+    const successSev: Severity = !t60 || t60.chats < 20 ? "info" : evalSuccess(successRate60);
     const totalSev = evalLatency(totalP95, THRESHOLDS.p95Total);
     const ftSev = evalLatency(ftP95, THRESHOLDS.p95FirstToken);
-    return { severities: { successSev, totalSev, ftSev }, overall: aggregate(successSev, totalSev, ftSev) };
+    // Banner uses outage-level thresholds — normal OpenAI slowness doesn't trigger it
+    const totalAlertSev = evalLatency(totalP95, THRESHOLDS.p95TotalAlert);
+    const ftAlertSev = evalLatency(ftP95, THRESHOLDS.p95FirstTokenAlert);
+    return { severities: { successSev, totalSev, ftSev }, overall: aggregate(successSev, totalAlertSev, ftAlertSev) };
   }, [t60, successRate60, totalP95, ftP95]);
 
   const stages: WaterfallStage[] = useMemo(() => {
@@ -249,6 +261,18 @@ export default function ObservabilityPage() {
   }, [data]);
 
   const gatingTotal = gatingItems.reduce((acc, it) => acc + it.count, 0);
+
+  const { filteredGatingItems, filteredGatingTotal } = useMemo(() => {
+    const items = gatingItems.filter((item) => !GATING_SUCCESS_KEYS.has(item.key));
+    return { filteredGatingItems: items, filteredGatingTotal: items.reduce((acc, it) => acc + it.count, 0) };
+  }, [gatingItems]);
+
+  const cantAnswerCount = data
+    ? (data.gating_reasons?.no_candidates ?? 0) +
+      (data.gating_reasons?.no_parent_candidates ?? 0) +
+      (data.gating_reasons?.reranker_empty ?? 0) +
+      (data.gating_reasons?.low_relevance_score ?? 0)
+    : 0;
 
   if (isChecking || !isAuthorized) return null;
 
@@ -284,7 +308,7 @@ export default function ObservabilityPage() {
                   style={{ borderColor: "var(--t-surface-edge)", color: "var(--t-ink-mid)" }}
                 >
                   <RefreshCw className={`h-3 w-3 ${isValidating ? "animate-spin" : ""}`} />
-                  {fmtClock(lastRefresh)}
+                  {lastRefresh ? fmtClock(lastRefresh) : "—"}
                 </button>
               </div>
             </div>
@@ -325,47 +349,53 @@ export default function ObservabilityPage() {
             <div className="space-y-8">
 
               {/* ── KPIs Card ───────────────────────────────────────────────── */}
-              <section className="t-section-card" data-severity={severities.successSev}>
-                <div className="flex items-center gap-2 mb-6">
-                  <p className="t-section-title">Indicadores Clave</p>
+              <section
+                className="t-section-card sm:p-8"
+                data-severity={severities.successSev}
+              >
+                <div className="flex items-center gap-2 mb-8">
+                  <p className="t-heading">Indicadores Clave</p>
                   <HelpTooltip content="Métricas críticas que indican la salud operacional. Verde = dentro del objetivo. Amarillo = revisar. Rojo = acción inmediata." />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-8">
                   <TelemetryMetric
                     hero
                     label="Tasa de éxito (60 min)"
                     value={fmtPct(successRate60, 2)}
-                    sub={t60 ? `${fmtPct(t60.error_rate, 2)} con error` : undefined}
+                    sub={t60 && t60.chats >= 20 ? `${fmtPct(t60.error_rate, 2)} con error` : "pocos datos aún"}
                     severity={severities.successSev}
-                    samples={successBuf}
-                    tooltip="Porcentaje de chats completados sin error. Objetivo: >99%."
+                    tooltip="Porcentaje de chats completados sin error en la última hora. Se activa con 20+ chats."
                   />
                   <TelemetryMetric
                     hero
-                    label="Primer Token (p95)"
+                    label="Primer token (p95)"
                     value={fmtMs(ftP95)}
-                    sub={ftP95 != null ? "objetivo < 3 s" : undefined}
+                    sub="tiempo hasta primera palabra"
                     severity={severities.ftSev}
-                    samples={ftBuf}
-                    tooltip="Tiempo hasta que el LLM produce el primer token. Afecta la percepción de velocidad del usuario."
+                    tooltip="Cuánto tarda el LLM en producir la primera palabra. Con OpenAI puede superar 5s en horas pico — es normal."
                   />
                   <TelemetryMetric
                     hero
-                    label="Latencia Total (p95)"
+                    label="Latencia total (p95)"
                     value={fmtMs(totalP95)}
-                    sub={totalP95 != null ? "objetivo < 5 s" : undefined}
+                    sub="fin a fin de la respuesta"
                     severity={severities.totalSev}
-                    samples={totalBuf}
-                    tooltip="Tiempo completo desde consulta hasta respuesta final. SLA típico: <5s para 95% de requests."
+                    tooltip="Tiempo total desde que el usuario envía hasta que recibe la respuesta completa. Solo afecta el banner si hay errores reales."
+                  />
+                  <TelemetryMetric
+                    hero
+                    label="Sin respuesta RAG"
+                    value={fmtNum(cantAnswerCount)}
+                    sub={t60?.chats ? `${((cantAnswerCount / t60.chats) * 100).toFixed(0)}% del tráfico` : "consultas sin doc relevante"}
+                    severity={
+                      t60?.chats && t60.chats >= 10
+                        ? cantAnswerCount / t60.chats > 0.15 ? "warn" : cantAnswerCount > 0 ? "info" : "ok"
+                        : "info"
+                    }
+                    tooltip="Consultas donde el bot no encontró documentos con suficiente relevancia. Ocurre cuando: (1) no hay PDFs cargados, (2) el tema no está cubierto en los docs, (3) la pregunta es muy distinta al contenido. Si supera 15% del tráfico, revisar la base de conocimiento."
                   />
                 </div>
-
-                {t60 && (
-                  <div className="pt-4 mt-4 border-t" style={{ borderColor: "var(--t-surface-edge)" }}>
-                    <p className="t-small"><span className="font-semibold">Throughput actual:</span> {t60.chats_per_min.toFixed(1)} chats/min · {t60.chats.toLocaleString("es-PE")} en última hora</p>
-                  </div>
-                )}
               </section>
 
               {/* ── Servicios Externos Card ─────────────────────────────────── */}
@@ -438,13 +468,13 @@ export default function ObservabilityPage() {
                 )}
               </section>
 
-              {/* ── Throughput + Gating (2-col) ───────────────────────────── */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Throughput */}
-                <section className="t-section-card">
+              {/* ── Throughput + Gating (asymmetric: 2/5 + 3/5) ─────────── */}
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+                {/* Throughput — compact left */}
+                <section className="t-section-card lg:col-span-2">
                   <div className="flex items-center gap-2 mb-5">
                     <p className="t-section-title">Volumen de Tráfico</p>
-                    <HelpTooltip content="Chats procesados en diferentes ventanas temporales. Error rate muestra problemas operacionales." />
+                    <HelpTooltip content="Chats procesados en diferentes ventanas. Error rate muestra problemas operacionales." />
                   </div>
                   <div className="space-y-3">
                     {THROUGHPUT_WINDOWS.map((win) => {
@@ -453,12 +483,12 @@ export default function ObservabilityPage() {
                       const errPct = row.error_rate * 100;
                       const sev: Severity = errPct >= 5 ? "crit" : errPct > 0 ? "warn" : "ok";
                       return (
-                        <div key={win} className="flex flex-col gap-2 p-3 rounded-md" style={{ background: "var(--t-surface-deep)" }}>
+                        <div key={win} className="flex flex-col gap-1.5 p-3 rounded-md" style={{ background: "var(--t-surface-deep)" }}>
                           <div className="flex items-center justify-between">
                             <span className="t-label">Últimos {win}</span>
                             <span className="t-mono-sm">{row.chats.toLocaleString("es-PE")} chats</span>
                           </div>
-                          <div className="flex items-center justify-between text-xs">
+                          <div className="flex items-center justify-between">
                             <span className="t-mono-sm">{row.chats_per_min.toFixed(1)}/min</span>
                             <span className="t-mono-sm" data-severity={sev}>
                               Error: {errPct.toFixed(2)}%
@@ -470,76 +500,73 @@ export default function ObservabilityPage() {
                   </div>
                 </section>
 
-                {/* Gating */}
-                <section className="t-section-card">
+                {/* Gating — wider right */}
+                <section className="t-section-card lg:col-span-3">
                   <div className="flex items-center justify-between mb-5">
                     <div className="flex items-center gap-2">
-                      <p className="t-section-title">¿Por Qué se Filtraron?</p>
-                      <HelpTooltip content="Razones por las que una consulta no pasó por RAG completo. Útil para entender tráfico." />
+                      <p className="t-section-title">Diagnóstico de Consultas</p>
+                      <HelpTooltip content="Qué pasó con las consultas que no completaron el pipeline RAG. Excluye las que sí completaron búsqueda semántica completa." />
                     </div>
-                    {gatingTotal > 0 && (
-                      <span className="t-mono-sm">{gatingTotal} eventos</span>
+                    {filteredGatingTotal > 0 && (
+                      <span className="t-mono-sm">{filteredGatingTotal} eventos</span>
                     )}
                   </div>
-                  <GatingBars items={gatingItems} total={gatingTotal} />
+                  <GatingBars items={filteredGatingItems} total={filteredGatingTotal} />
                 </section>
               </div>
 
               {/* ── Economía de Tokens Card ────────────────────────────────── */}
               <section className="t-section-card">
-                <div className="flex items-center gap-2 mb-5">
-                  <p className="t-section-title">Economía de Tokens — Desde Arranque</p>
-                  <HelpTooltip content="Consumo acumulado de LLM tokens. Útil para estimar costos mensuales y tendencias de uso." />
+                <div className="flex items-center justify-between gap-2 mb-6">
+                  <div className="flex items-center gap-2">
+                    <p className="t-section-title">Tokens</p>
+                    <HelpTooltip content="Consumo acumulado de LLM tokens. Se reinicia con el servidor." />
+                  </div>
+                  <span className="t-mono-sm">se reinicia con el servidor</span>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-8 gap-y-6">
-                  <div className="flex flex-col gap-2">
-                    <span className="t-label">Costo Aproximado</span>
-                    <span className="t-display text-3xl font-bold">
+                <div className="flex flex-col sm:flex-row gap-6">
+                  {/* Cost — hero */}
+                  <div className="flex flex-col gap-1.5 sm:pr-6 sm:border-r" style={{ borderColor: "var(--t-surface-edge)" }}>
+                    <span className="t-label">Costo aproximado</span>
+                    <span
+                      style={{
+                        fontFamily: "var(--font-telemetry-mono, 'JetBrains Mono', monospace)",
+                        fontSize: "2.5rem",
+                        fontWeight: 500,
+                        letterSpacing: "-0.025em",
+                        lineHeight: 1,
+                        color: "var(--t-ink)",
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
                       {data.tokens.pending_token_callback ? "—" : fmtUsd(data.tokens.estimated_cost_usd)}
                     </span>
                     {data.tokens.pending_token_callback && (
                       <span className="t-small">esperando primer chat</span>
                     )}
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <span className="t-label">Tokens Entrada</span>
-                    <span className="t-mono-xl">{fmtNum(data.tokens.tokens_in)}</span>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <span className="t-label">Tokens Salida</span>
-                    <span className="t-mono-xl">{fmtNum(data.tokens.tokens_out)}</span>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <span className="t-label">Ratio Salida/Entrada</span>
-                    <span className="t-mono-xl">
-                      {data.tokens.tokens_in > 0
-                        ? (data.tokens.tokens_out / data.tokens.tokens_in).toFixed(2)
-                        : "—"}
-                    </span>
+                  {/* Token counts — supporting */}
+                  <div className="flex gap-8 items-end">
+                    <div className="flex flex-col gap-1.5">
+                      <span className="t-label">Tokens entrada</span>
+                      <span className="t-mono-xl">{fmtNum(data.tokens.tokens_in)}</span>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <span className="t-label">Tokens salida</span>
+                      <span className="t-mono-xl">{fmtNum(data.tokens.tokens_out)}</span>
+                    </div>
                   </div>
                 </div>
               </section>
 
               {/* ── Meta Footer ─────────────────────────────────────────────── */}
-              <footer className="pt-6 mt-2 border-t" style={{ borderColor: "var(--t-surface-edge)" }}>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-8 gap-y-3">
-                  <div className="flex flex-col gap-1">
-                    <span className="t-label">Worker PID</span>
-                    <span className="t-mono">{data.worker_pid}</span>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="t-label">Muestras</span>
-                    <span className="t-mono">{data.samples.in_window}/{data.samples.max}</span>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="t-label">Ventana TTL</span>
-                    <span className="t-mono">{Math.round(data.samples.ttl_seconds / 60)} min</span>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="t-label">Uptime</span>
-                    <span className="t-mono">{fmtUptime(data.uptime_seconds)}</span>
-                  </div>
-                </div>
+              <footer
+                className="pt-5 mt-2 border-t flex items-center gap-2.5"
+                style={{ borderColor: "var(--t-surface-edge)" }}
+              >
+                <Timer className="h-3 w-3 shrink-0" style={{ color: "var(--t-ink-mute)" }} />
+                <span className="t-label">Uptime</span>
+                <span className="t-mono">{fmtUptime(data.uptime_seconds)}</span>
               </footer>
 
             </div>

@@ -528,6 +528,28 @@
   }
 }
 
+/* ─── Playground scan animations ────────────────────────────────────────── */
+
+@keyframes scan-sweep {
+  0%   { transform: translateY(-100%); opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { transform: translateY(1400%); opacity: 0; }
+}
+.animate-scan-sweep {
+  animation: scan-sweep 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes stagger-in {
+  from { opacity: 0; transform: translate3d(0, 12px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+.animate-stagger-in {
+  animation: stagger-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform, opacity;
+}
+
 /* ─── Focus ──────────────────────────────────────────────────────────────── */
 
 *:focus-visible {

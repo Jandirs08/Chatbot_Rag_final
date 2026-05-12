@@ -109,7 +109,7 @@ export function UserEditDialog({
         <DialogHeader>
           <DialogTitle>Editar Usuario</DialogTitle>
         </DialogHeader>
-        <form method="post" onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="edit_email">Email</Label>
             <Input

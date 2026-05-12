@@ -22,7 +22,7 @@ interface Props {
  */
 export function TelemetryMetric({ label, value, sub, severity = "ok", samples, hero = false, tooltip }: Props) {
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2 min-w-0">
       <div className="flex items-center gap-1.5">
         <span className="t-label">{label}</span>
         {tooltip && <HelpTooltip content={tooltip} />}

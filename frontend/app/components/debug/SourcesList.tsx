@@ -10,12 +10,42 @@ import {
   TooltipTrigger,
 } from "@/app/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { Eye } from "lucide-react";
+import { Eye, Minus } from "lucide-react";
 import type { RetrievedDoc } from "./utils";
 
 interface SourcesListProps {
   docs: RetrievedDoc[];
   onOpenPdf: (url: string, page: number | null) => void;
+}
+
+function getScoreTone(score: number | undefined): {
+  badge: string;
+  bar: string;
+  label: string;
+} {
+  if (score === undefined)
+    return {
+      badge: "bg-muted text-muted-foreground border-border",
+      bar: "bg-muted-foreground/40",
+      label: "Sin score",
+    };
+  if (score > 0.7)
+    return {
+      badge: "bg-success/10 text-success border-success/25",
+      bar: "bg-success",
+      label: "High match",
+    };
+  if (score > 0.4)
+    return {
+      badge: "bg-amber/10 text-amber border-amber/25",
+      bar: "bg-amber",
+      label: "Medium match",
+    };
+  return {
+    badge: "bg-error/10 text-error border-error/25",
+    bar: "bg-error",
+    label: "Low match",
+  };
 }
 
 export function SourcesList({ docs, onOpenPdf }: SourcesListProps) {
@@ -25,7 +55,7 @@ export function SourcesList({ docs, onOpenPdf }: SourcesListProps) {
     <section>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="text-sm font-semibold text-foreground mb-1">
+          <div className="text-sm font-semibold text-primary mb-1">
             Fuentes
           </div>
           <div className="text-xs text-muted-foreground">
@@ -39,9 +69,10 @@ export function SourcesList({ docs, onOpenPdf }: SourcesListProps) {
           {docs.length} fragmentos
         </Badge>
       </div>
-      <div className="rounded-[24px] border border-border/70 bg-card p-4 text-[13px] leading-relaxed shadow-sm dark:bg-slate-900 dark:border-slate-800">
+      <div className="rounded-[24px] border border-border bg-card p-4 text-[13px] leading-relaxed shadow-sm">
         {docs.length === 0 ? (
-          <div className="inline-flex items-center rounded-xl border border-border bg-muted px-3 py-2 text-sm text-muted-foreground dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700">
+          <div className="inline-flex items-center gap-2 rounded-xl border border-warning/20 bg-warning/8 px-3 py-2 text-sm text-warning">
+            <Minus className="h-4 w-4 flex-shrink-0" />
             Salto de Búsqueda
           </div>
         ) : (
@@ -57,61 +88,34 @@ export function SourcesList({ docs, onOpenPdf }: SourcesListProps) {
               const pageNum =
                 typeof d.page_number === "number" ? d.page_number : null;
               const fileName = src ? String(src).split("/").pop() : undefined;
-              const scoreColorHex =
-                score !== undefined
-                  ? score > 0.7
-                    ? "#10b981"
-                    : score > 0.4
-                      ? "#f59e0b"
-                      : "#f43f5e"
-                  : "#94a3b8";
-              const confidenceLabel =
-                score === undefined
-                  ? "Sin score"
-                  : score > 0.7
-                    ? "High semantic match"
-                    : score > 0.4
-                      ? "Medium semantic match"
-                      : "Low semantic match";
-              const confidenceClass =
-                "bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700";
-              const scoreToneClass =
-                score === undefined
-                  ? "bg-slate-100 text-slate-700 border border-slate-200"
-                  : score > 0.7
-                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                    : score > 0.4
-                      ? "bg-amber-50 text-amber-700 border-amber-200"
-                      : "bg-rose-50 text-rose-700 border-rose-200";
+              const tone = getScoreTone(score);
+
               return (
                 <div
                   key={idx}
-                  className={cn(
-                    "overflow-hidden rounded-[20px] border border-border bg-background shadow-sm transition ease-out duration-200 hover:border-border/90 hover:shadow-md dark:bg-slate-900 dark:border-slate-800",
-                  )}
-                  style={{ borderLeftColor: scoreColorHex }}
+                  className="overflow-hidden rounded-[20px] border border-border bg-background transition ease-out duration-200 hover:border-primary/30 hover:shadow-sm"
                 >
                   <div className="flex items-center justify-between px-3 py-2">
                     <div className="text-sm font-medium text-foreground">
                       {fileName || `Fragmento #${idx + 1}`}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap justify-end">
                       {pageNum && pageNum > 0 && (
                         <Badge variant="outline" className="text-[10px]">
                           Pág. {pageNum}
                         </Badge>
                       )}
                       {typeof score === "number" && (
-                        <Badge className={cn("text-[10px]", scoreToneClass)}>
-                          Score {Math.round(score * 100) / 100}
+                        <Badge className={cn("text-[10px] border font-data", tone.badge)}>
+                          {Math.round(score * 100) / 100}
                         </Badge>
                       )}
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Badge
-                            className={cn("text-[10px]", confidenceClass)}
+                            className={cn("text-[10px] border", tone.badge)}
                           >
-                            {confidenceLabel}
+                            {tone.label}
                           </Badge>
                         </TooltipTrigger>
                         <TooltipContent className="text-xs">
@@ -152,6 +156,7 @@ export function SourcesList({ docs, onOpenPdf }: SourcesListProps) {
                       <Button
                         variant="outline"
                         size="sm"
+                        className="border-border text-muted-foreground hover:border-primary/30 hover:bg-primary/5 hover:text-primary transition-colors"
                         onClick={() =>
                           setExpanded((s) => ({
                             ...(s || {}),
@@ -168,16 +173,13 @@ export function SourcesList({ docs, onOpenPdf }: SourcesListProps) {
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <div className="flex items-center gap-2 mb-2">
-                            <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
+                            <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
                               <div
-                                className="h-full"
-                                style={{
-                                  width: `${Math.round(pct)}%`,
-                                  backgroundColor: scoreColorHex,
-                                }}
+                                className={cn("h-full transition-all duration-500", tone.bar)}
+                                style={{ width: `${Math.round(pct)}%` }}
                               />
                             </div>
-                            <span className="text-xs text-slate-500">
+                            <span className="font-data text-xs text-muted-foreground">
                               {Math.round(pct)}%
                             </span>
                           </div>
@@ -187,7 +189,7 @@ export function SourcesList({ docs, onOpenPdf }: SourcesListProps) {
                         </TooltipContent>
                       </Tooltip>
                     )}
-                    <div className="bg-slate-50 text-slate-500 rounded-md px-3 py-2 text-xs font-mono leading-relaxed">
+                    <div className="surface-inset font-mono text-muted-foreground rounded-md px-3 py-2 text-xs leading-relaxed">
                       {expanded?.[idx]
                         ? contentText
                         : contentText.length > 220

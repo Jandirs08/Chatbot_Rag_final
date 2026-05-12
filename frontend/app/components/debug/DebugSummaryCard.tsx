@@ -43,7 +43,6 @@ type StageMetric = {
   label: string;
   value: number | null;
   help: string;
-  accent: string;
 };
 
 function num(v: unknown): number | null {
@@ -68,7 +67,7 @@ function TimelineNode({
           className={cn(
             "relative flex items-center justify-center w-5 h-5 rounded-full",
             completed ? "bg-success" : active ? "bg-primary" : "bg-muted",
-            active && "ring-2 ring-primary/50 animate-pulse",
+            active && "ring-2 ring-primary/50 motion-safe:animate-pulse",
           )}
         >
           <div className="text-primary-foreground">{icon}</div>
@@ -206,7 +205,7 @@ function DebugPipelineTimeline({
         </div>
       </div>
       <div className="w-full">
-        <div className="flex mb-2 text-xs text-slate-800">
+        <div className="flex mb-2 text-xs text-foreground/70">
           <div
             style={{ width: `${Math.max(0, Math.min(100, rPct))}%` }}
             className="relative"
@@ -217,7 +216,7 @@ function DebugPipelineTimeline({
                 ragActuallySearched && (
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <span className="px-2 py-[2px] rounded bg-warning text-warning-foreground">
+                      <span className="px-2 py-[2px] rounded-full border border-warning/25 bg-warning/10 text-warning font-data text-[11px]">
                         RAG {fmtSVal(ragTime)}s
                       </span>
                     </TooltipTrigger>
@@ -235,7 +234,7 @@ function DebugPipelineTimeline({
             <div className="flex justify-center">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="px-2 py-[2px] rounded bg-info text-info-foreground">
+                  <span className="px-2 py-[2px] rounded-full border border-info/25 bg-info/10 text-info font-data text-[11px]">
                     LLM {fmtSVal(llmOnlyT > 0 ? llmOnlyT : llmTime)}s
                   </span>
                 </TooltipTrigger>
@@ -251,18 +250,18 @@ function DebugPipelineTimeline({
             />
           )}
         </div>
-        <div className="h-8 rounded-full bg-muted overflow-hidden flex">
+        <div className="h-7 rounded-full bg-muted overflow-hidden flex">
           <div
-            className="h-full bg-warning transition-all"
+            className="h-full bg-warning transition-all duration-500"
             style={{ width: `${Math.max(0, Math.min(100, rPct))}%` }}
           />
           <div
-            className="h-full bg-info transition-all"
+            className="h-full bg-info transition-all duration-500"
             style={{ width: `${Math.max(0, Math.min(100, lPct))}%` }}
           />
           {oPct > 0 && (
             <div
-              className="h-full bg-muted-foreground/30 transition-all"
+              className="h-full bg-muted-foreground/20 transition-all duration-500"
               style={{ width: `${Math.max(0, Math.min(100, oPct))}%` }}
             />
           )}
@@ -274,45 +273,50 @@ function DebugPipelineTimeline({
 
 function StageMetrics({ metrics }: { metrics: StageMetric[] }) {
   if (metrics.length === 0) return null;
+  const maxVal = Math.max(...metrics.map((m) => m.value ?? 0), 1);
 
   return (
-    <div className="rounded-[20px] border border-border/60 bg-surface/80 p-4 dark:bg-slate-900 dark:border-slate-800">
+    <div className="rounded-xl border border-border bg-card p-4">
       <div className="mb-3 flex items-center gap-2">
-        <Clock className="h-4 w-4 text-muted-foreground" />
-        <div>
-          <div className="text-xs font-semibold text-foreground">
-            Tiempos por etapa
-          </div>
-          <div className="text-[11px] text-muted-foreground">
-            Métricas internas del pipeline
-          </div>
-        </div>
+        <Clock className="h-3.5 w-3.5 text-primary/60" />
+        <span className="text-label text-muted-foreground">Tiempos por etapa</span>
       </div>
-      <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
-        {metrics.map((metric) => (
-          <Tooltip key={metric.key}>
-            <TooltipTrigger asChild>
-              <div
-                className={cn(
-                  "rounded-2xl border border-border/60 bg-card px-3 py-2.5 border-l-[3px] dark:bg-slate-950 dark:border-slate-800",
-                  metric.accent,
-                )}
-              >
-                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                  {metric.label}
+      <div className="space-y-2">
+        {metrics.map((metric) => {
+          const pct = ((metric.value ?? 0) / maxVal) * 100;
+          return (
+            <Tooltip key={metric.key}>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-3">
+                  <div className="w-[4.5rem] flex-shrink-0 text-label text-muted-foreground text-right truncate">
+                    {metric.label}
+                  </div>
+                  <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <div className="w-14 flex-shrink-0 font-data text-xs text-foreground text-right">
+                    {fmtMsVal(metric.value)}
+                  </div>
                 </div>
-                <div className="mt-1 text-sm font-semibold text-foreground">
-                  {fmtMsVal(metric.value)}
-                </div>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent className="text-xs">{metric.help}</TooltipContent>
-          </Tooltip>
-        ))}
+              </TooltipTrigger>
+              <TooltipContent className="text-xs">{metric.help}</TooltipContent>
+            </Tooltip>
+          );
+        })}
       </div>
     </div>
   );
 }
+
+const GATING_TONE_CLASSES: Record<string, string> = {
+  green: "bg-success/10 text-success border-success/25",
+  indigo: "bg-info/10 text-info border-info/25",
+  amber: "bg-amber/10 text-amber border-amber/25",
+  rose: "bg-error/10 text-error border-error/25",
+};
 
 export function DebugSummaryCard({ data, docs }: DebugSummaryCardProps) {
   const metrics = useMemo(
@@ -370,56 +374,48 @@ export function DebugSummaryCard({ data, docs }: DebugSummaryCardProps) {
           label: "History",
           value: historyMs,
           help: "Carga del historial en memoria/Mongo",
-          accent: "border-l-violet-400",
         },
         {
           key: "embedding_ms",
           label: "Embedding",
           value: embeddingMs,
           help: "Embedding de la consulta",
-          accent: "border-l-blue-400",
         },
         {
           key: "dense_ms",
           label: "Dense",
           value: denseMs,
           help: "Búsqueda vectorial en Qdrant",
-          accent: "border-l-blue-500",
         },
         {
           key: "lexical_ms",
           label: "Lexical",
           value: lexicalMs,
           help: "Búsqueda léxica/híbrida",
-          accent: "border-l-sky-400",
         },
         {
           key: "hydrate_ms",
           label: "Hydrate",
           value: hydrateMs,
           help: "Hidratación de parents/documentos",
-          accent: "border-l-cyan-400",
         },
         {
           key: "rerank_ms",
           label: "Rerank",
           value: rerankMs,
           help: "Reranking de candidatos",
-          accent: "border-l-purple-400",
         },
         {
           key: "llm_ms",
           label: "LLM",
           value: llmMs,
           help: "Inferencia del modelo de lenguaje",
-          accent: "border-l-emerald-400",
         },
         {
           key: "first_token_ms",
           label: "1st Token",
           value: firstTokenMs,
           help: "Tiempo hasta el primer chunk visible",
-          accent: "border-l-amber-400",
         },
       ].filter((item) => item.value !== null),
     [
@@ -441,13 +437,15 @@ export function DebugSummaryCard({ data, docs }: DebugSummaryCardProps) {
   const gatingReason = String(data.gating_reason || "");
   const decisionTone = GATING_TONE_MAP[gatingReason];
   const isRagOn = docs.length > 0 || embeddingMs !== null;
+  const inTokPct = Math.max(0, Math.min(100, ((inTok ?? 0) / Math.max(1, (inTok ?? 0) + (outTok ?? 0))) * 100));
+  const outTokPct = Math.max(0, Math.min(100, ((outTok ?? 0) / Math.max(1, (inTok ?? 0) + (outTok ?? 0))) * 100));
 
   return (
     <section>
-      <div className="rounded-[24px] border border-border/70 bg-card p-5 shadow-sm dark:bg-slate-900 dark:border-slate-800">
+      <div className="rounded-[24px] border border-border bg-card p-5 shadow-sm">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold text-foreground">
+            <div className="text-sm font-semibold text-primary">
               Resumen del flujo
             </div>
             <div className="text-xs text-muted-foreground">
@@ -457,7 +455,7 @@ export function DebugSummaryCard({ data, docs }: DebugSummaryCardProps) {
           {typeof totalTime === "number" && (
             <Badge
               variant="secondary"
-              className="rounded-full px-2.5 py-1 text-[10px] font-medium"
+              className="rounded-full px-2.5 py-1 text-[10px] font-medium font-data"
             >
               Total {fmtSVal(totalTime)}s
             </Badge>
@@ -472,7 +470,7 @@ export function DebugSummaryCard({ data, docs }: DebugSummaryCardProps) {
                   Respuesta Instantánea (Caché)
                 </div>
               </div>
-              <div className="text-xs text-success">{fmtSVal(totalTime)}s</div>
+              <div className="font-data text-xs text-success">{fmtSVal(totalTime)}s</div>
             </div>
           ) : (
             <DebugPipelineTimeline
@@ -489,9 +487,10 @@ export function DebugSummaryCard({ data, docs }: DebugSummaryCardProps) {
 
           <StageMetrics metrics={stageMetrics} />
 
-          <div className="grid grid-cols-1 gap-3 rounded-[20px] border border-border/60 bg-surface/80 p-4 md:grid-cols-3 dark:bg-slate-900 dark:border-slate-800">
+          <div className="grid grid-cols-1 gap-3 rounded-[20px] border border-border bg-muted/30 p-4 md:grid-cols-3">
+            {/* Motor */}
             <div className="flex flex-col gap-2">
-              <div className="text-xs font-semibold text-foreground">Motor</div>
+              <div className="text-label text-muted-foreground">Motor</div>
               <div className="flex flex-wrap items-center gap-3">
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -499,7 +498,7 @@ export function DebugSummaryCard({ data, docs }: DebugSummaryCardProps) {
                       <Info className="w-4 h-4 text-muted-foreground" />
                       <Badge
                         variant="outline"
-                        className="px-2 py-[3px] text-[11px] font-mono text-foreground bg-muted/50 border-border"
+                        className="px-2 py-[3px] text-[11px] font-data text-foreground bg-muted/50 border-border"
                       >
                         {modelName}
                       </Badge>
@@ -516,7 +515,7 @@ export function DebugSummaryCard({ data, docs }: DebugSummaryCardProps) {
                         <Thermometer className="w-4 h-4 text-muted-foreground" />
                         <Badge
                           variant="outline"
-                          className="px-2 py-[3px] text-[11px] font-mono text-foreground bg-muted/50 border-border"
+                          className="px-2 py-[3px] text-[11px] font-data text-foreground bg-muted/50 border-border"
                         >
                           T={data.model_params.temperature}
                         </Badge>
@@ -534,7 +533,7 @@ export function DebugSummaryCard({ data, docs }: DebugSummaryCardProps) {
                         <Hash className="w-4 h-4 text-muted-foreground" />
                         <Badge
                           variant="outline"
-                          className="px-2 py-[3px] text-[11px] font-mono text-foreground bg-muted/50 border-border"
+                          className="px-2 py-[3px] text-[11px] font-data text-foreground bg-muted/50 border-border"
                         >
                           max={data.model_params.max_tokens}
                         </Badge>
@@ -567,13 +566,13 @@ export function DebugSummaryCard({ data, docs }: DebugSummaryCardProps) {
                 </Tooltip>
               </div>
             </div>
+
+            {/* Tokens */}
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2">
-                <div className="text-xs font-semibold text-foreground">
-                  Consumo Tokens
-                </div>
+                <div className="text-label text-muted-foreground">Consumo Tokens</div>
                 {data.tokens_estimated !== false && (
-                  <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                  <span className="rounded-full bg-amber/10 border border-amber/25 px-1.5 py-0.5 text-[10px] font-medium text-amber">
                     ~estimado
                   </span>
                 )}
@@ -583,79 +582,55 @@ export function DebugSummaryCard({ data, docs }: DebugSummaryCardProps) {
                   <TooltipTrigger asChild>
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-muted-foreground">Input</span>
-                      <span className="font-mono text-slate-900">
-                        {fmtTokVal(inTok)}
-                      </span>
+                      <span className="font-data text-foreground">{fmtTokVal(inTok)}</span>
                     </div>
                   </TooltipTrigger>
                   <TooltipContent className="text-xs">
                     Cantidad de tokens procesados
                   </TooltipContent>
                 </Tooltip>
-                <div className="h-2 rounded-full bg-slate-100 overflow-hidden dark:bg-slate-800/70">
+                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                   <div
-                    className="h-full bg-emerald-400 transition-all"
-                    style={{
-                      width: `${Math.max(
-                        0,
-                        Math.min(
-                          100,
-                          ((inTok ?? 0) /
-                            Math.max(1, (inTok ?? 0) + (outTok ?? 0))) *
-                            100,
-                        ),
-                      )}%`,
-                    }}
+                    className="h-full bg-primary transition-all duration-500"
+                    style={{ width: `${inTokPct}%` }}
                   />
                 </div>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-muted-foreground">Output</span>
-                      <span className="font-mono text-slate-900">
-                        {fmtTokVal(outTok)}
-                      </span>
+                      <span className="font-data text-foreground">{fmtTokVal(outTok)}</span>
                     </div>
                   </TooltipTrigger>
                   <TooltipContent className="text-xs">
-                    Cantidad de tokens procesados
+                    Cantidad de tokens generados
                   </TooltipContent>
                 </Tooltip>
-                <div className="h-2 rounded-full bg-slate-100 overflow-hidden dark:bg-slate-800/70">
+                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                   <div
-                    className="h-full bg-blue-400 transition-all"
-                    style={{
-                      width: `${Math.max(
-                        0,
-                        Math.min(
-                          100,
-                          ((outTok ?? 0) /
-                            Math.max(1, (inTok ?? 0) + (outTok ?? 0))) *
-                            100,
-                        ),
-                      )}%`,
-                    }}
+                    className="h-full bg-success transition-all duration-500"
+                    style={{ width: `${outTokPct}%` }}
                   />
                 </div>
               </div>
             </div>
+
+            {/* Diagnóstico */}
             <div className="flex flex-col gap-2">
-              <div className="text-xs font-semibold text-foreground">
-                Diagnóstico
-              </div>
+              <div className="text-label text-muted-foreground">Diagnóstico</div>
               <div className="flex flex-wrap items-center gap-3">
                 <span className="inline-flex items-center gap-2">
                   {isRagOn ? (
-                    <Database className="w-4 h-4 text-blue-700" />
+                    <Database className="w-4 h-4 text-info" />
                   ) : (
-                    <Ban className="w-4 h-4 text-slate-600" />
+                    <Ban className="w-4 h-4 text-muted-foreground" />
                   )}
                   <Badge
                     className={cn(
                       "px-2 py-[3px] text-[11px]",
                       isRagOn
-                        ? "bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800"
-                        : "bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
+                        ? "bg-info/10 text-info border border-info/25"
+                        : "bg-muted text-muted-foreground border border-border",
                     )}
                   >
                     {isRagOn ? "RAG: ON" : "RAG: OFF"}
@@ -664,15 +639,7 @@ export function DebugSummaryCard({ data, docs }: DebugSummaryCardProps) {
                 <div
                   className={cn(
                     "inline-flex items-center gap-2 rounded-md px-2 py-[3px] border text-[11px]",
-                    decisionTone === "green"
-                      ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                      : decisionTone === "indigo"
-                        ? "bg-indigo-50 border-indigo-200 text-indigo-700"
-                        : decisionTone === "amber"
-                          ? "bg-amber-50 border-amber-200 text-amber-700"
-                          : decisionTone === "rose"
-                            ? "bg-rose-50 border-rose-200 text-rose-700"
-                            : "bg-slate-50 border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300",
+                    GATING_TONE_CLASSES[decisionTone] ?? "bg-muted text-muted-foreground border-border",
                   )}
                 >
                   <Shield className="w-3.5 h-3.5" />
@@ -681,7 +648,7 @@ export function DebugSummaryCard({ data, docs }: DebugSummaryCardProps) {
                   </span>
                 </div>
                 {data.context_truncated && (
-                  <span className="inline-flex items-center gap-1.5 rounded-md bg-rose-50 border border-rose-200 px-2 py-[3px] text-[11px] font-semibold text-rose-700 dark:bg-rose-900/20 dark:border-rose-800 dark:text-rose-400">
+                  <span className="inline-flex items-center gap-1.5 rounded-md bg-warning/10 border border-warning/25 px-2 py-[3px] text-[11px] font-semibold text-warning">
                     <span>⚠</span> Contexto truncado
                   </span>
                 )}

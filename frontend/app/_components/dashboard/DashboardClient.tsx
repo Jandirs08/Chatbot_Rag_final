@@ -34,7 +34,6 @@ export default function DashboardClient() {
   const stats = statsData ?? {
     total_queries: 0,
     total_users: 0,
-    total_pdfs: 0,
   };
   const isBotActive = botState?.is_active ?? true;
   const lastActivityIso = botState?.last_activity_iso ?? null;

@@ -190,6 +190,25 @@ async def get_inbox(
     )
 
 
+@router.get("/conversations/{conversation_id}", response_model=ConversationCard)
+@conditional_limit("60/minute")
+async def get_conversation_card(
+    conversation_id: str,
+    *,
+    request: Request,
+    response: Response = None,
+    _current_user=Depends(require_admin),
+):
+    repo = _get_conv_repo(request)
+    doc = await repo.get_by_conversation_id(conversation_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    mongodb_client = getattr(request.app.state, "mongodb_client", None) or get_mongodb_client()
+    last_msgs = await _last_user_messages_by_conversation(mongodb_client.db, [conversation_id])
+    msg_count = await mongodb_client.db.messages.count_documents({"conversation_id": conversation_id})
+    return _to_card(doc, message_count=msg_count, last_user_message=last_msgs.get(conversation_id))
+
+
 @router.get("/inbox/handoff-stats", response_model=HandoffStatsResponse)
 @conditional_limit("60/minute")
 async def get_handoff_stats(
@@ -428,6 +447,50 @@ async def capture_lead(
         "message_id": str(insert_result.inserted_id),
         "content": _LEAD_BOT_REPLY,
         "timestamp": timestamp.isoformat(),
+    }
+
+
+@router.get("/conversations/{conversation_id}/messages")
+@conditional_limit("60/minute")
+async def get_conversation_messages(
+    conversation_id: str,
+    *,
+    request: Request,
+    response: Response = None,
+    _current_user=Depends(require_admin),
+    limit: int = Query(100, ge=1, le=500),
+    before: Optional[datetime] = Query(None),
+):
+    """Return up to `limit` most-recent messages, optionally older than `before`.
+
+    Cursor pagination: pass the timestamp of the oldest visible message back
+    as `before` to load the previous page. Response order is ascending
+    (chronological) for direct display.
+    """
+    mongodb_client = getattr(request.app.state, "mongodb_client", None) or get_mongodb_client()
+    messages_coll = mongodb_client.db.messages
+    query: dict = {"conversation_id": conversation_id}
+    if before is not None:
+        if before.tzinfo is None:
+            before = before.replace(tzinfo=timezone.utc)
+        query["timestamp"] = {"$lt": before}
+
+    raw = (
+        await messages_coll
+        .find(query)
+        .sort("timestamp", -1)
+        .to_list(length=limit)
+    )
+    raw.reverse()
+    for msg in raw:
+        msg.pop("_id", None)
+    has_more = len(raw) == limit
+    next_before = raw[0]["timestamp"].isoformat() if has_more and raw else None
+    return {
+        "conversation_id": conversation_id,
+        "messages": raw,
+        "has_more": has_more,
+        "next_before": next_before,
     }
 
 

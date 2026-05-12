@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "@/app/lib/utils";
 import { Button } from "@/app/components/ui/button";
 import {
   DropdownMenu,
@@ -36,6 +37,13 @@ interface UserTableProps {
   onDelete: (user: UserListItem) => void;
 }
 
+function getInitials(u: UserListItem): string {
+  if (u.full_name?.trim()) {
+    return u.full_name.trim().split(/\s+/).map((n) => n[0]).slice(0, 2).join("").toUpperCase();
+  }
+  return u.username.slice(0, 2).toUpperCase();
+}
+
 export function UserTable({
   users,
   loading,
@@ -53,15 +61,21 @@ export function UserTable({
 }: UserTableProps) {
   if (loading) {
     return (
-      <div className="space-y-3">
-        <Skeleton className="h-6 w-48" />
+      <div className="rounded-lg border border-border overflow-hidden">
+        <div className="flex items-center gap-4 px-4 py-3 border-b bg-card">
+          {[48, 160, 128, 80, 72].map((w, i) => (
+            <Skeleton key={i} className="h-3 rounded" style={{ width: w }} />
+          ))}
+        </div>
         {[...Array(5)].map((_, i) => (
-          <div key={i} className="flex items-center justify-between">
-            <Skeleton className="h-5 w-40" />
-            <Skeleton className="h-5 w-32" />
-            <Skeleton className="h-5 w-28" />
-            <Skeleton className="h-5 w-20" />
-            <Skeleton className="h-8 w-24" />
+          <div key={i} className="flex items-center gap-4 px-4 py-3.5 border-b last:border-0 bg-card">
+            <Skeleton className="h-8 w-8 rounded-full flex-shrink-0" />
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-4 w-40 ml-auto" />
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-5 w-16 rounded-full" />
+            <Skeleton className="h-5 w-16 rounded-full" />
+            <Skeleton className="h-8 w-8 rounded" />
           </div>
         ))}
       </div>
@@ -79,91 +93,116 @@ export function UserTable({
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full text-sm">
-        <thead>
-          <tr className="text-left border-b">
-            <th className="py-2 text-muted-foreground font-medium">Usuario</th>
-            <th className="py-2 text-muted-foreground font-medium">Email</th>
-            <th className="py-2 text-muted-foreground font-medium">Nombre</th>
-            <th className="py-2 text-muted-foreground font-medium">Activo</th>
-            <th className="py-2 text-muted-foreground font-medium">Rol</th>
-            <th className="py-2 text-muted-foreground font-medium">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {users.map((u) => (
-            <tr key={u.id} className="border-b">
-              <td className="py-2 align-middle">{u.username}</td>
-              <td className="py-2 align-middle">{u.email}</td>
-              <td className="py-2 align-middle">{u.full_name || "-"}</td>
-              <td className="py-2 align-middle">
-                <div className="flex items-center gap-2">
-                  <Switch
-                    checked={pendingActiveById[u.id] ?? u.is_active}
-                    onCheckedChange={(checked) =>
-                      onToggleActive(u, Boolean(checked))
-                    }
-                    disabled={togglingIds.has(u.id)}
-                    aria-label={`Cambiar estado activo para ${u.username}`}
-                  />
-                  <span className="text-sm text-muted-foreground">
-                    {(pendingActiveById[u.id] ?? u.is_active)
-                      ? "Activo"
-                      : "Inactivo"}
-                  </span>
-                </div>
-              </td>
-              <td className="py-2 align-middle">
-                {u.is_admin ? "Administrador" : "Usuario"}
-              </td>
-              <td className="py-2 align-middle">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" aria-label="Acciones">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => onEdit(u)}>
-                      Editar
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => onResetPassword(u)}>
-                      Enviar reset password
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="text-error focus:text-error"
-                      onClick={() => onDelete(u)}
-                    >
-                      Eliminar
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </td>
+    <div className="rounded-lg border border-border overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead>
+            <tr className="bg-card border-b border-border">
+              <th scope="col" className="px-4 py-3 text-left text-label text-muted-foreground">
+                Usuario
+              </th>
+              <th scope="col" className="px-4 py-3 text-left text-label text-muted-foreground">
+                Email
+              </th>
+              <th scope="col" className="px-4 py-3 text-left text-label text-muted-foreground">
+                Nombre
+              </th>
+              <th scope="col" className="px-4 py-3 text-left text-label text-muted-foreground">
+                Rol
+              </th>
+              <th scope="col" className="px-4 py-3 text-left text-label text-muted-foreground">
+                Estado
+              </th>
+              <th scope="col" className="px-4 py-3 w-12" />
             </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="flex items-center justify-end gap-2 mt-4">
+          </thead>
+          <tbody className="divide-y divide-border">
+            {users.map((u) => {
+              const isActive = pendingActiveById[u.id] ?? u.is_active;
+              return (
+                <tr key={u.id} className="bg-card hover:bg-muted/40 transition-colors duration-150">
+                  <td className="px-4 py-3 align-middle">
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary flex-shrink-0 select-none">
+                        {getInitials(u)}
+                      </div>
+                      <span className="font-medium text-foreground">{u.username}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 align-middle text-muted-foreground">{u.email}</td>
+                  <td className="px-4 py-3 align-middle text-muted-foreground">{u.full_name || "—"}</td>
+                  <td className="px-4 py-3 align-middle">
+                    <span className={cn(
+                      "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border",
+                      u.is_admin
+                        ? "bg-primary/10 text-primary border-primary/25"
+                        : "bg-muted/60 text-muted-foreground border-border"
+                    )}>
+                      {u.is_admin ? "Admin" : "Usuario"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 align-middle">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={isActive}
+                        onCheckedChange={(checked) => onToggleActive(u, Boolean(checked))}
+                        disabled={togglingIds.has(u.id)}
+                        aria-label={`Cambiar estado activo para ${u.username}`}
+                      />
+                      <span className={cn(
+                        "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border",
+                        isActive
+                          ? "bg-success/10 text-success border-success/25"
+                          : "bg-muted/60 text-muted-foreground border-border"
+                      )}>
+                        {isActive ? "Activo" : "Inactivo"}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 align-middle">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" aria-label="Acciones">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => onEdit(u)}>Editar</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onResetPassword(u)}>
+                          Enviar reset password
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                          onClick={() => onDelete(u)}
+                        >
+                          Eliminar
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-border bg-card">
         <Button
           variant="outline"
           size="sm"
           disabled={skip === 0}
           onClick={() => onSkipChange(Math.max(0, skip - limit))}
-          className="dark:bg-card dark:text-foreground dark:border-border dark:hover:bg-muted"
         >
           Anterior
         </Button>
-        <span className="text-sm">
-          Página {Math.floor(skip / limit) + 1} de{" "}
-          {Math.max(1, Math.ceil(total / limit))}
+        <span className="text-sm text-muted-foreground font-data">
+          {Math.floor(skip / limit) + 1} / {Math.max(1, Math.ceil(total / limit))}
         </span>
         <Button
           variant="outline"
           size="sm"
           disabled={skip + limit >= total}
           onClick={() => onSkipChange(skip + limit)}
-          className="dark:bg-card dark:text-foreground dark:border-border dark:hover:bg-muted"
         >
           Siguiente
         </Button>
@@ -178,9 +217,9 @@ export function UserTable({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="10">10</SelectItem>
-            <SelectItem value="20">20</SelectItem>
-            <SelectItem value="50">50</SelectItem>
+            <SelectItem value="10">10 / pág</SelectItem>
+            <SelectItem value="20">20 / pág</SelectItem>
+            <SelectItem value="50">50 / pág</SelectItem>
           </SelectContent>
         </Select>
       </div>

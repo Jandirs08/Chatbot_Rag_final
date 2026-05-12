@@ -1,5 +1,6 @@
 "use client";
 
+import { Search } from "lucide-react";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
 import {
@@ -17,7 +18,6 @@ interface UserFiltersProps {
   onRoleChange: (value: string) => void;
   activeFilter: string;
   onActiveChange: (value: string) => void;
-  total: number;
 }
 
 export function UserFilters({
@@ -27,21 +27,24 @@ export function UserFilters({
   onRoleChange,
   activeFilter,
   onActiveChange,
-  total,
 }: UserFiltersProps) {
   return (
-    <div className="flex flex-wrap gap-4 items-end">
-      <div className="space-y-2 w-full md:w-64">
-        <Label htmlFor="search">Buscar</Label>
-        <Input
-          id="search"
-          value={search}
-          onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Email o usuario"
-        />
+    <div className="flex flex-wrap gap-4 items-end rounded-lg border border-border bg-card px-4 py-3">
+      <div className="space-y-1.5 w-full md:w-64">
+        <Label htmlFor="search" className="text-label text-muted-foreground">Buscar</Label>
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            id="search"
+            value={search}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Email o usuario"
+            className="pl-8"
+          />
+        </div>
       </div>
-      <div className="space-y-2 w-full md:w-56">
-        <Label htmlFor="filter_role">Rol</Label>
+      <div className="space-y-1.5 w-full md:w-44">
+        <Label htmlFor="filter_role" className="text-label text-muted-foreground">Rol</Label>
         <Select value={roleFilter} onValueChange={onRoleChange}>
           <SelectTrigger id="filter_role" className="w-full">
             <SelectValue placeholder="Rol" />
@@ -53,8 +56,8 @@ export function UserFilters({
           </SelectContent>
         </Select>
       </div>
-      <div className="space-y-2 w-full md:w-56">
-        <Label htmlFor="filter_active">Estado</Label>
+      <div className="space-y-1.5 w-full md:w-44">
+        <Label htmlFor="filter_active" className="text-label text-muted-foreground">Estado</Label>
         <Select value={activeFilter} onValueChange={onActiveChange}>
           <SelectTrigger id="filter_active" className="w-full">
             <SelectValue placeholder="Estado" />
@@ -65,9 +68,6 @@ export function UserFilters({
             <SelectItem value="inactive">Inactivo</SelectItem>
           </SelectContent>
         </Select>
-      </div>
-      <div className="ml-auto flex items-center gap-2">
-        <span className="text-sm text-muted-foreground">Total: {total}</span>
       </div>
     </div>
   );

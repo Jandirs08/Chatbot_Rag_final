@@ -57,14 +57,14 @@ const BrowserMockup = React.forwardRef<HTMLDivElement, BrowserMockupProps>(
                 </div>
 
                 <div
-                    className="w-full h-full overflow-y-auto"
+                    className="relative w-full h-full overflow-hidden"
                     style={{
                         backgroundImage: `radial-gradient(circle, hsl(var(--muted-foreground) / 0.1) 1px, transparent 1px)`,
                         backgroundSize: '20px 20px',
                         backgroundColor: 'hsl(var(--muted) / 0.3)'
                     }}
                 >
-                    <div className="relative min-h-full w-full p-8 pb-56">
+                    <div className="relative w-full h-full p-8">
                         {children}
                     </div>
                 </div>

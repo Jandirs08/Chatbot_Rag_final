@@ -146,7 +146,11 @@
       "Read(//mnt/c/Jandir2026/DesarrolloJandir/**)",
       "Bash(ls frontend/app/admin/settings/)",
       "PowerShell(cd \"C:\\\\Jandir2026\\\\DesarrolloJandir\\\\Chatbot_Rag_final\\\\frontend\"; $output = npx tsc --noEmit 2>&1; $exitCode = $LASTEXITCODE; if \\($output\\) { $output } else { \"No errors\" }; \"Exit code: $exitCode\")",
-      "Bash(echo \"exit=$?\")"
+      "Bash(echo \"exit=$?\")",
+      "PowerShell(cd \"C:\\\\Jandir2026\\\\DesarrolloJandir\\\\Chatbot_Rag_final\\\\frontend\\\\app\"; Get-ChildItem -Path \"widget\" -Recurse -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)",
+      "Bash(curl *)",
+      "PowerShell(python -m py_compile backend/api/routes/inbox/inbox_routes.py; if \\($?\\) { \"OK\" })"
     ]
   }
 }

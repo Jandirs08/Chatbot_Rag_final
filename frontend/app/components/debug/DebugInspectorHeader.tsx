@@ -33,7 +33,7 @@ export function DebugInspectorHeader({
     <div className="flex-none border-b border-border/60 bg-background/95 px-4 py-3 supports-[backdrop-filter]:bg-background/90">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="text-sm font-semibold text-foreground">
+          <div className="text-sm font-semibold text-primary">
             Monitor RAG
           </div>
           <Tooltip>

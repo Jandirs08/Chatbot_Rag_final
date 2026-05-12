@@ -94,7 +94,7 @@ export function UserCreateDialog({
         <DialogHeader>
           <DialogTitle>Crear Usuario</DialogTitle>
         </DialogHeader>
-        <form method="post" onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input

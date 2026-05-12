@@ -10,7 +10,7 @@ interface Props {
 
 export function HelpTooltip({ content, children }: Props) {
   return (
-    <Tooltip>
+    <Tooltip delayDuration={0}>
       <TooltipTrigger asChild>
         {children ?? <span className="t-help-icon" aria-label="Más información">?</span>}
       </TooltipTrigger>

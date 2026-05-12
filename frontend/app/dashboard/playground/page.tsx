@@ -10,7 +10,15 @@ import { Skeleton } from "@/app/components/ui/skeleton";
 import { useConversationId } from "@/app/hooks/useConversationId";
 import { useRequirePermission } from "@/app/hooks/useAuthGuard";
 import type { DebugData } from "@/app/components/debug/utils";
-import { FlaskConical, MessageSquareText, Radar, RotateCcw } from "lucide-react";
+import { cn } from "@/app/lib/utils";
+import {
+  Activity,
+  FlaskConical,
+  MessageSquareText,
+  RotateCcw,
+  ShieldCheck,
+  ShieldOff,
+} from "lucide-react";
 
 const DebugInspector = dynamic(
   () =>
@@ -34,6 +42,7 @@ export default function PlaygroundPage() {
   const [conversationId, resetConversationId] = useConversationId(PLAYGROUND_STORAGE_KEY);
   const [debugData, setDebugData] = React.useState<DebugData | null>(null);
   const [enableVerification, setEnableVerification] = React.useState(false);
+  const [isStreaming, setIsStreaming] = React.useState(false);
 
   const resetConversation = React.useCallback(() => {
     resetConversationId();
@@ -42,97 +51,104 @@ export default function PlaygroundPage() {
 
   if (isChecking || !isAuthorized) return null;
 
+  const sessionLabel = conversationId
+    ? conversationId.slice(0, 8) + "…"
+    : "iniciando";
+
+  const verificationBadgeClass = enableVerification
+    ? "bg-primary/10 text-primary border-primary/25"
+    : "bg-muted text-muted-foreground border-border";
+
   return (
-    <div className="flex h-[calc(100vh-4rem)] min-h-[680px] flex-col gap-3">
-      <section className="rounded-[26px] border border-border/60 bg-card px-5 py-4 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_18px_48px_rgba(15,23,42,0.08)]">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge
-                variant="secondary"
-                className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]"
-              >
-                Playground
-              </Badge>
-              <Badge
-                variant="outline"
-                className="rounded-full px-2.5 py-1 text-[10px] font-medium"
-              >
-                Admin only · Sin persistencia
-              </Badge>
-            </div>
-            <div>
-              <h1 className="text-[1.65rem] font-semibold tracking-tight text-foreground">
-                Debug Chat Playground
-              </h1>
-              <p className="m-0 max-w-2xl text-sm text-muted-foreground">
-                Chat real a la izquierda. Inspección RAG útil a la derecha.
-              </p>
-            </div>
+    <div className="flex h-[calc(100vh-4rem)] min-h-[680px] flex-col">
+
+      {/* ── Status strip ─────────────────────────────────────────────────── */}
+      <div className="flex flex-none items-center gap-0 border-b border-border/60 bg-card/90 px-5 py-2.5">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
+            <FlaskConical className="h-3.5 w-3.5 text-primary" />
           </div>
-          <div className="flex flex-col gap-2 md:flex-row md:items-center">
-            <div className="flex items-center gap-3 rounded-2xl border border-border/60 bg-surface px-3.5 py-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                <Radar className="h-4.5 w-4.5" />
-              </div>
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                  Auditoria
-                </div>
-                <div className="mt-0.5 text-sm font-medium text-foreground">
-                  Verificación activa
-                </div>
-              </div>
-              <Switch
-                checked={enableVerification}
-                onCheckedChange={(value) => setEnableVerification(Boolean(value))}
-              />
-            </div>
-            <div className="flex items-center gap-2 rounded-2xl border border-border/60 bg-surface px-3 py-2.5">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Sesion
-              </span>
-              <span className="font-mono text-[11px] text-foreground/70">
-                {conversationId ? `${conversationId.slice(0, 8)}...` : "Generando"}
-              </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 rounded-xl text-muted-foreground"
-                onClick={resetConversation}
-                aria-label="Reiniciar sesion"
-                title="Reiniciar sesion"
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-              </Button>
-            </div>
+          <span className="font-heading text-sm font-semibold tracking-tight text-foreground">
+            Playground
+          </span>
+          <span className="text-label text-muted-foreground hidden sm:inline">
+            · Admin only
+          </span>
+        </div>
+
+        <div className="mx-4 h-4 w-px bg-border/60" />
+
+        <div className="flex items-center gap-2">
+          <div
+            className={cn(
+              "h-1.5 w-1.5 rounded-full transition-colors duration-300",
+              isStreaming
+                ? "bg-amber motion-safe:animate-status-pulse-fast"
+                : "bg-success motion-safe:animate-status-pulse",
+            )}
+          />
+          <span className="text-label text-muted-foreground">Sesión</span>
+          <span className="font-data text-xs text-foreground/70">{sessionLabel}</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 rounded-md text-muted-foreground hover:text-foreground"
+            onClick={resetConversation}
+            aria-label="Nueva sesión"
+            title="Nueva sesión"
+          >
+            <RotateCcw className="h-3 w-3" />
+          </Button>
+        </div>
+
+        <div className="ml-auto flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            {enableVerification ? (
+              <ShieldCheck className="h-3.5 w-3.5 text-primary" />
+            ) : (
+              <ShieldOff className="h-3.5 w-3.5 text-muted-foreground" />
+            )}
+            <span className="text-label text-muted-foreground hidden md:inline">
+              Verificación RAG
+            </span>
+            <Switch
+              checked={enableVerification}
+              onCheckedChange={(v) => setEnableVerification(Boolean(v))}
+              aria-label="Activar verificación RAG"
+            />
           </div>
         </div>
-      </section>
-      <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(460px,1fr)_minmax(520px,0.98fr)]">
-        <section className="min-h-0 rounded-[26px] border border-border/60 bg-card p-3 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_18px_48px_rgba(15,23,42,0.08)]">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 px-1">
-            <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                <MessageSquareText className="h-4.5 w-4.5" />
+      </div>
+
+      {/* ── Main grid ────────────────────────────────────────────────────── */}
+      <div className="grid min-h-0 flex-1 gap-2 p-2 xl:grid-cols-[38fr_62fr]">
+
+        {/* Chat panel */}
+        <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-border/60 bg-card">
+          <div className="flex flex-none items-center justify-between border-b border-border/40 px-4 py-2">
+            <div className="flex items-center gap-2.5">
+              <div className="relative flex-shrink-0">
+                <MessageSquareText className="h-4 w-4 text-muted-foreground" />
+                <span
+                  className={cn(
+                    "absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full border border-card transition-colors duration-300",
+                    isStreaming ? "bg-amber" : "bg-success",
+                  )}
+                />
               </div>
-              <div>
-                <div className="text-sm font-semibold text-foreground">
-                  Chat de prueba
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  Misma experiencia base del canal `/chat`
-                </div>
-              </div>
+              <span className="font-heading text-sm font-semibold tracking-tight text-foreground">
+                Chat de prueba
+              </span>
             </div>
             <Badge
-              variant="outline"
-              className="rounded-full px-2.5 py-1 text-[10px] font-medium"
+              className="rounded-full px-2 py-0.5 text-[10px] font-medium bg-success/10 text-success border border-success/25"
             >
-              Debug live
+              <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-success motion-safe:animate-status-pulse" />
+              EN VIVO
             </Badge>
           </div>
-          <div className="h-[calc(100%-4rem)] min-h-0">
+
+          <div className="min-h-0 flex-1">
             {conversationId && (
               <PlaygroundChatWindow
                 key={conversationId}
@@ -140,29 +156,63 @@ export default function PlaygroundPage() {
                 titleText="Playground"
                 enableVerification={enableVerification}
                 onDebugData={(data) => setDebugData(data ?? null)}
+                onLoadingChange={setIsStreaming}
                 onNewChat={resetConversation}
               />
             )}
           </div>
         </section>
-        <section className="min-h-0 rounded-[26px] border border-border/60 bg-card p-3 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_18px_48px_rgba(15,23,42,0.08)]">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 px-1">
-            <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-success/10 text-success">
-                <FlaskConical className="h-4.5 w-4.5" />
+
+        {/* RAG Monitor panel */}
+        <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-border/60 bg-card">
+          <div className="flex flex-none items-center justify-between border-b border-border/40 px-4 py-2">
+            <div className="flex items-center gap-2.5">
+              <div
+                className={cn(
+                  "flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md transition-colors duration-300",
+                  debugData ? "bg-success/10" : isStreaming ? "bg-primary/10" : "bg-muted/60",
+                )}
+              >
+                {isStreaming && !debugData ? (
+                  <Activity
+                    className="h-3.5 w-3.5 text-primary motion-safe:animate-status-pulse"
+                  />
+                ) : (
+                  <FlaskConical
+                    className={cn(
+                      "h-3.5 w-3.5 transition-colors duration-300",
+                      debugData ? "text-success" : "text-muted-foreground",
+                    )}
+                  />
+                )}
               </div>
-              <div>
-                <div className="text-sm font-semibold text-foreground">
-                  Monitor RAG
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  Latencia, fuentes, prompt y verificacion en el mismo contexto
-                </div>
-              </div>
+              <span className="font-heading text-sm font-semibold tracking-tight text-foreground">
+                Monitor RAG
+              </span>
+              <span className="text-[11px] text-muted-foreground">
+                ·{" "}
+                {isStreaming && !debugData
+                  ? "Procesando señal…"
+                  : debugData
+                    ? "Latencia · fuentes · diagnóstico"
+                    : "Esperando señal"}
+              </span>
             </div>
+
+            {enableVerification && (
+              <Badge
+                className={cn(
+                  "rounded-full px-2 py-0.5 text-[10px] font-medium border",
+                  verificationBadgeClass,
+                )}
+              >
+                Verificación activa
+              </Badge>
+            )}
           </div>
-          <div className="h-[calc(100%-4rem)] min-h-0 overflow-hidden rounded-[22px] border border-border/50 bg-surface/70">
-            <DebugInspector data={debugData} />
+
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <DebugInspector data={debugData} isLoading={isStreaming} />
           </div>
         </section>
       </div>

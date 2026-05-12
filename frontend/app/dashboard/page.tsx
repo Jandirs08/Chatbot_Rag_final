@@ -145,8 +145,8 @@ function MetricRow({
       <TelemetryMetric
         label="PDFs en base"
         value={fmtNum(overview?.pdfs_ready ?? 0)}
-        sub="documentos listos"
-        severity="info"
+        sub={overview?.pdfs_ready === 0 ? "sin documentos cargados" : "documentos listos"}
+        severity={overview?.pdfs_ready === 0 ? "warn" : "info"}
       />
     </section>
   );
@@ -367,12 +367,14 @@ function LeadsTable({ isAuthorized }: { isAuthorized: boolean }) {
         <div className="space-y-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
       ) : error ? (
         <SectionError message="No se pudo cargar los leads." />
-      ) : items.length === 0 ? (
+      ) : items.length === 0 && (data?.total ?? 0) === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
           <Mail className="h-8 w-8" style={{ color: "var(--t-ink-mute)" }} />
           <p className="t-small">Sin leads capturados aún</p>
           <p className="t-mono-sm">Aparecerán cuando los usuarios dejen su email.</p>
         </div>
+      ) : items.length === 0 ? (
+        <SectionError message="Hay leads registrados pero no se pudieron cargar. Intenta actualizar." />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

@@ -160,6 +160,7 @@ from .routes.assets.assets_routes import router as assets_router
 from .routes.users.users_routes import router as users_router
 from .routes.inbox.inbox_routes import router as inbox_router
 from .routes.dashboard.dashboard_routes import router as dashboard_router
+from .routes.debug.debug_routes import router as debug_router
 from .auth import router as auth_router
 from .bot_state_repo import (
     read_is_active_from_redis,
@@ -795,6 +796,7 @@ def create_app() -> FastAPI:
     app.include_router(assets_router, prefix="/api/v1/assets", tags=["assets"])
     app.include_router(inbox_router, prefix="/api/v1", tags=["inbox"])
     app.include_router(dashboard_router, prefix="/api/v1/dashboard", tags=["dashboard"])
+    app.include_router(debug_router, prefix="/api/v1/debug", tags=["debug"])
 
     main_logger.debug("Routers registrados.")
     main_logger.debug("Aplicación FastAPI creada y configurada exitosamente.")

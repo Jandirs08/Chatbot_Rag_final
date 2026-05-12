@@ -207,17 +207,15 @@
 }
 
 [data-surface="telemetry"] .t-crit-banner {
-  background: color-mix(in oklab, hsl(var(--error)) 10%, hsl(var(--background)));
-  border: 1px solid color-mix(in oklab, hsl(var(--error)) 30%, transparent);
-  border-left: 4px solid var(--t-signal-deep);
+  background: color-mix(in oklab, hsl(var(--error)) 8%, hsl(var(--background)));
+  border: 1px solid color-mix(in oklab, hsl(var(--error)) 35%, transparent);
   border-radius: 0.5rem;
   padding: 1rem 1.25rem;
 }
 
 [data-surface="telemetry"] .t-warn-banner {
-  background: var(--t-signal-soft);
-  border: 1px solid color-mix(in oklab, hsl(var(--warning)) 30%, transparent);
-  border-left: 4px solid var(--t-signal);
+  background: color-mix(in oklab, hsl(var(--warning)) 8%, hsl(var(--background)));
+  border: 1px solid color-mix(in oklab, hsl(var(--warning)) 35%, transparent);
   border-radius: 0.5rem;
   padding: 1rem 1.25rem;
 }
