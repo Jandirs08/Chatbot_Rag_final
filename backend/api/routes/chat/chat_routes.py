@@ -4,10 +4,10 @@ import uuid
 import json
 import asyncio
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Request, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Query, Request, Depends, BackgroundTasks
 from fastapi.responses import StreamingResponse, JSONResponse, Response
 from io import BytesIO
-from datetime import datetime
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 import csv
 
@@ -15,6 +15,7 @@ import csv
 from api.schemas import (
     ChatRequest
 )
+from api.schemas.pagination import Page
 from utils.rate_limiter import conditional_limit
 from config import settings
 from auth.dependencies import get_current_active_user, get_optional_current_user
@@ -276,19 +277,30 @@ async def chat_stream_log(
         )
 
 
-@router.get("/history/{conversation_id}")
-async def get_history(conversation_id: str, request: Request, _: Optional[User] = Depends(get_optional_current_user)):
-    """Devuelve el historial de mensajes para una conversación.
+_HISTORY_DEFAULT_LIMIT = 500
+_HISTORY_MAX_LIMIT = 2000
 
-    - Lee de la colección 'messages'.
-    - Ordena por timestamp ascendente.
-    - Devuelve únicamente: { role, content, timestamp, source (opcional) } por elemento.
-    - Sin metadatos adicionales.
+
+@router.get("/history/{conversation_id}")
+async def get_history(
+    conversation_id: str,
+    request: Request,
+    limit: int = Query(_HISTORY_DEFAULT_LIMIT, ge=1, le=_HISTORY_MAX_LIMIT),
+    _: Optional[User] = Depends(get_optional_current_user),
+):
+    """Devuelve historial de mensajes (más recientes primero, devueltos en orden ASC).
+
+    - Devuelve hasta `limit` mensajes (default 500, max 2000).
+    - Headers: `X-Total-Messages` (total real), `X-Truncated` (1 si total > limit).
+    - Sin paginación cursor todavía; el cliente debería paginar cuando supere el cap.
     """
     try:
         chat_manager = request.app.state.chat_manager
         db = chat_manager.db
 
+        total = await db.messages.count_documents({"conversation_id": conversation_id})
+
+        # Recent-first fetch then reverse so UI keeps ASC ordering.
         cursor = db.messages.find({
             "conversation_id": conversation_id
         }, {
@@ -297,11 +309,11 @@ async def get_history(conversation_id: str, request: Request, _: Optional[User] 
             "content": 1,
             "timestamp": 1,
             "source": 1,
-        }).sort([("timestamp", 1), ("_id", 1)])
+        }).sort([("timestamp", -1), ("_id", -1)]).limit(limit)
 
-        docs = await cursor.to_list(length=None)
+        docs = await cursor.to_list(length=limit)
+        docs.reverse()
 
-        # Normalizar timestamp a ISO 8601 para compatibilidad JSON
         history = []
         for d in docs:
             ts = d.get("timestamp")
@@ -323,9 +335,20 @@ async def get_history(conversation_id: str, request: Request, _: Optional[User] 
         except Exception:
             pass
 
+        truncated = "1" if total > limit else "0"
+        if total > limit:
+            logger.warning(
+                "[get_history] conv=%s truncated: total=%s limit=%s",
+                conversation_id, total, limit,
+            )
         return JSONResponse(
             content=history,
-            headers={"X-Conversation-Mode": mode_value, "Access-Control-Expose-Headers": "X-Conversation-Mode"},
+            headers={
+                "X-Conversation-Mode": mode_value,
+                "X-Total-Messages": str(total),
+                "X-Truncated": truncated,
+                "Access-Control-Expose-Headers": "X-Conversation-Mode, X-Total-Messages, X-Truncated",
+            },
         )
     except Exception as e:
         logger.error(f"Error al obtener historial de {conversation_id}: {str(e)}", exc_info=True)
@@ -509,11 +532,15 @@ async def get_stats(
         
         # Obtener total de consultas (mensajes)
         total_queries = await db.messages.count_documents({})
-        
-        # Obtener usuarios únicos (basado en conversation_id)
-        unique_users = await db.messages.distinct("conversation_id")
-        total_users = len(unique_users)
-        
+
+        # Cardinalidad de conversation_id vía aggregation (no carga IDs en memoria)
+        users_pipeline = [
+            {"$group": {"_id": "$conversation_id"}},
+            {"$count": "n"},
+        ]
+        users_result = await db.messages.aggregate(users_pipeline).to_list(length=1)
+        total_users = int(users_result[0]["n"]) if users_result else 0
+
         # Obtener total de PDFs del RAG
         pdfs = await pdf_file_manager.list_pdfs()
         total_pdfs = len(pdfs)
@@ -610,15 +637,38 @@ async def get_stats_history(
 
 
 @router.get("/conversations")
-async def list_recent_conversations(request: Request, limit: int = 50, skip: int = 0, current_user=Depends(require_view_debug)):
+async def list_recent_conversations(
+    request: Request,
+    limit: int = Query(50, ge=1, le=500),
+    skip: int = Query(0, ge=0, le=1_000_000),
+    search: Optional[str] = Query(None, max_length=200),
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None),
+    hide_trivial: bool = Query(False),
+    current_user=Depends(require_view_debug),
+):
     try:
         chat_manager = request.app.state.chat_manager
         db = chat_manager.db
-        data = await db.list_recent_conversations(limit=limit, skip=skip)
-        
+
+        # Ensure tz-aware UTC for Mongo comparison against stored timestamps
+        if start_date is not None and start_date.tzinfo is None:
+            start_date = start_date.replace(tzinfo=timezone.utc)
+        if end_date is not None and end_date.tzinfo is None:
+            end_date = end_date.replace(tzinfo=timezone.utc)
+
+        data = await db.list_recent_conversations(
+            limit=limit,
+            skip=skip,
+            search=search,
+            start_date=start_date,
+            end_date=end_date,
+            hide_trivial=hide_trivial,
+        )
+
         items_db = data.get("items", [])
         total = data.get("total", 0)
-        
+
         items_processed = []
         for r in items_db:
             txt = str(r.get("last_message") or "").strip()
@@ -631,10 +681,12 @@ async def list_recent_conversations(request: Request, limit: int = 50, skip: int
                 "total_messages": int(r.get("total_messages") or 0),
                 "updated_at": ts.isoformat() if hasattr(ts, "isoformat") else ts,
             })
-        return JSONResponse(content={
-            "items": items_processed,
-            "total": total
-        })
+        return Page[dict].build(
+            items=items_processed,
+            total=total,
+            limit=limit,
+            skip=skip,
+        )
     except Exception as e:
         logger.error(f"Error al listar conversaciones: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error al listar conversaciones")

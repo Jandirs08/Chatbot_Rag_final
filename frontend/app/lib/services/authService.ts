@@ -384,6 +384,30 @@ export async function authenticatedJsonFetcher<T = unknown>(
   return response.json();
 }
 
+export type HistoryFetchResult = {
+  items: unknown[];
+  total: number;
+  truncated: boolean;
+};
+
+export async function authenticatedHistoryFetcher(
+  url: string,
+): Promise<HistoryFetchResult> {
+  const response = await authenticatedFetch(url, { method: "GET" });
+  if (!response.ok) {
+    throw new Error("Error fetching chat history");
+  }
+  const items = await response.json();
+  const totalHeader = response.headers.get("X-Total-Messages");
+  const truncatedHeader = response.headers.get("X-Truncated");
+  const total = totalHeader ? Number(totalHeader) : Array.isArray(items) ? items.length : 0;
+  return {
+    items: Array.isArray(items) ? items : [],
+    total: Number.isFinite(total) ? total : 0,
+    truncated: truncatedHeader === "1",
+  };
+}
+
 export const authenticatedUpload = async (
   url: string,
   options: RequestInit = {},

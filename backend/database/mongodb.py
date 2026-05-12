@@ -77,40 +77,20 @@ class MongodbClient:
 
 
     async def add_message(self, conversation_id: str, role: str, content: str, source: Optional[str] = None) -> str:
-        """Add a message to the conversation history. Returns message_id.
-
-        Also bumps the parent conversation's `last_message_at` (inbox sort key)
-        and increments `message_count` (denormalized counter), so the inbox
-        reflects real activity without aggregating over `messages`.
-        """
+        """Add a message to the conversation history. Returns message_id."""
         message_id = str(uuid.uuid4())
-        ts = datetime.now(timezone.utc)
         doc = {
             "message_id": message_id,
             "conversation_id": conversation_id,
             "role": role,
             "content": content,
             "source": source or "embed-default",
-            "timestamp": ts,
+            "timestamp": datetime.now(timezone.utc),
         }
         for attempt in range(1, 3):
             try:
                 await self.messages.insert_one(doc)
                 logger.debug(f"Mensaje agregado a la conversación {conversation_id}")
-                # Bump conversation activity counters. Best-effort: failure here
-                # must not lose the inserted message.
-                # $max guards against out-of-order updates under concurrent
-                # message inserts: an older ts can never overwrite a newer one.
-                try:
-                    await self.db["conversations"].update_one(
-                        {"conversation_id": conversation_id},
-                        {"$max": {"last_message_at": ts}, "$inc": {"message_count": 1}},
-                    )
-                except Exception as exc:
-                    logger.warning(
-                        "Failed to bump conversation counters for conv=%s: %s",
-                        conversation_id, exc,
-                    )
                 return message_id
             except Exception as e:
                 if attempt == 2:
@@ -157,10 +137,48 @@ class MongodbClient:
             # No relanzamos para no bloquear el arranque; se puede reintentar luego
 
     
-    async def list_recent_conversations(self, limit: int = 50, skip: int = 0) -> dict:
+    async def list_recent_conversations(
+        self,
+        limit: int = 50,
+        skip: int = 0,
+        search: str | None = None,
+        start_date=None,
+        end_date=None,
+        hide_trivial: bool = False,
+    ) -> dict:
         try:
-            pipeline = [
-                {"$sort": {"timestamp": -1}},
+            from re import escape as _re_escape
+
+            # Pre-group: filter `messages` by timestamp so $sort+$group only see
+            # docs in range. Cuts work AND lets index `timestamp_idx` participate.
+            pre_match: dict = {}
+            if start_date is not None or end_date is not None:
+                date_range: dict = {}
+                if start_date is not None:
+                    date_range["$gte"] = start_date
+                if end_date is not None:
+                    date_range["$lte"] = end_date
+                pre_match["timestamp"] = date_range
+
+            # Post-group: filters that depend on aggregated fields.
+            post_match: dict = {}
+            if hide_trivial:
+                post_match["total_messages"] = {"$gt": 2}
+            if search:
+                stripped = search.strip()
+                # Length floor avoids 1-char regex full-collection scans.
+                if len(stripped) >= 2:
+                    pattern = _re_escape(stripped)
+                    post_match["$or"] = [
+                        {"_id": {"$regex": pattern, "$options": "i"}},
+                        {"last_message": {"$regex": pattern, "$options": "i"}},
+                    ]
+
+            pipeline: list = []
+            if pre_match:
+                pipeline.append({"$match": pre_match})
+            pipeline.extend([
+                {"$sort": {"timestamp": -1, "_id": -1}},
                 {
                     "$group": {
                         "_id": "$conversation_id",
@@ -169,6 +187,10 @@ class MongodbClient:
                         "total_messages": {"$sum": 1},
                     }
                 },
+            ])
+            if post_match:
+                pipeline.append({"$match": post_match})
+            pipeline.append(
                 {
                     "$facet": {
                         "metadata": [{"$count": "total"}],
@@ -182,24 +204,24 @@ class MongodbClient:
                                     "total_messages": 1,
                                 }
                             },
-                            {"$sort": {"updated_at": -1}},
+                            {"$sort": {"updated_at": -1, "conversation_id": -1}},
                             {"$skip": int(max(0, skip))},
                             {"$limit": int(max(1, limit))},
-                        ]
+                        ],
                     }
                 }
-            ]
+            )
             cursor = self.messages.aggregate(pipeline)
             result_list = await cursor.to_list(length=1)
-            
+
             if not result_list:
                 return {"items": [], "total": 0}
-                
+
             result = result_list[0]
             items = result.get("data", [])
             metadata = result.get("metadata", [])
             total = metadata[0]["total"] if metadata else 0
-            
+
             return {"items": items, "total": total}
         except Exception as e:
             logger.error(f"Error listando conversaciones recientes: {str(e)}", exc_info=True)

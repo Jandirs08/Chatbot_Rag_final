@@ -11,11 +11,23 @@ export type InboxFetchParams = {
   only_unseen?: boolean;
 };
 
-export type InboxTabCounts = {
-  todos: number;
-  pendientes: number;
-  mias: number;
-  bot: number;
+export type InboxCounts = {
+  tabs: Record<string, number>;
+  categories: Record<string, number>;
+  unseen: number;
+};
+
+export type InboxMetrics = {
+  avg_lead_score: number | null;
+  scored_count: number;
+  with_lead: number;
+  pending_avg_min: number | null;
+  pending_max_min: number | null;
+  mine_stale_count: number;
+  mine_oldest_stale_min: number | null;
+  bot_unclassified: number;
+  bot_top_product: string | null;
+  bot_top_product_count: number;
 };
 
 export type InboxListResponse = {
@@ -25,6 +37,8 @@ export type InboxListResponse = {
   limit: number;
   total_pages: number;
   has_next: boolean;
+  counts: InboxCounts;
+  metrics: InboxMetrics;
 };
 
 export class RateLimitError extends Error {
@@ -98,15 +112,6 @@ export function buildMessagesUrl(
 
 export function buildConversationUrl(conversationId: string): string {
   return `${API_URL}/conversations/${conversationId}`;
-}
-
-export function buildInboxCountsUrl(opts?: { channel?: string; datos?: string }): string {
-  const url = new URL(`${API_URL}/conversations/inbox/counts`);
-  if (opts?.channel && opts.channel !== "todos")
-    url.searchParams.set("channel", opts.channel);
-  if (opts?.datos && opts.datos !== "todos")
-    url.searchParams.set("datos", opts.datos);
-  return url.toString();
 }
 
 export async function inboxJsonFetcher<T = unknown>(url: string): Promise<T> {

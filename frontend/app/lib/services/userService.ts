@@ -33,8 +33,10 @@ export interface ListUsersParams {
 export interface PaginatedUsersResponse {
   items: UserListItem[];
   total: number;
-  skip: number;
+  page: number;
   limit: number;
+  total_pages: number;
+  has_next: boolean;
 }
 
 export const userService = {

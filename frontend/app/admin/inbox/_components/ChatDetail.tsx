@@ -21,6 +21,7 @@ import {
 
 interface ChatDetailProps {
   chatId: string | null;
+  truncated?: boolean;
   selectedConversation?: ConversationItem;
   messages: HistoryItem[];
   loading: boolean;
@@ -29,6 +30,7 @@ interface ChatDetailProps {
 
 export function ChatDetail({
   chatId,
+  truncated = false,
   selectedConversation,
   messages,
   loading,
@@ -138,6 +140,11 @@ export function ChatDetail({
           </div>
         ) : (
           <div className="mx-auto max-w-4xl space-y-5">
+            {truncated && (
+              <div className="rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-[12px] text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200">
+                Historial extenso: solo se muestran los mensajes más recientes.
+              </div>
+            )}
             {messages.map((m, idx) => {
               const isUser = m.role === "user";
               const stableKey = getMessageKey(m, idx);

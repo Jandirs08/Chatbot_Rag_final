@@ -188,18 +188,9 @@ function InboxContent() {
 
   const conversations = listData?.items ?? EMPTY_LIST;
 
-  // Tab counts (chip badges) come from a small dedicated endpoint so they
+  // Tab counts (chip badges) come embedded in the inbox response so they
   // reflect the WHOLE inbox, not just the currently visible page.
-  const { data: tabCountsData } = useSWR<inboxService.InboxTabCounts>(
-    isAuthorized
-      ? inboxService.buildInboxCountsUrl({
-          channel: activeChannel,
-          datos: activeDatos,
-        })
-      : null,
-    inboxJsonFetcher,
-    { refreshInterval: 10000, dedupingInterval: 3000 },
-  );
+  const tabCountsData = listData?.counts?.tabs;
 
   const handlePrevPage = useCallback(() => {
     setPage((p) => Math.max(1, p - 1));

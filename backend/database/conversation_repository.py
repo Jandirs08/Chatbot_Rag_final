@@ -10,10 +10,6 @@ logger = logging.getLogger(__name__)
 
 HANDOFF_REASONS = ("user_request", "low_confidence", "out_of_scope")
 
-# How far back the inbox looks for "recent activity". Conversations older than
-# this fall out of the inbox view (still queryable directly by id).
-_INBOX_WINDOW_DAYS = 30
-
 _INBOX_PROJECTION = {
     "_id": 0,
     "conversation_id": 1, "channel": 1, "external_id": 1,
@@ -21,7 +17,6 @@ _INBOX_PROJECTION = {
     "category": 1, "urgency": 1, "ai_summary": 1,
     "ai_summary_at": 1, "ai_summary_at_msg_count": 1,
     "assigned_agent_id": 1, "pending_since": 1, "updated_at": 1,
-    "last_message_at": 1, "message_count": 1,
     "lead_name": 1, "lead_email": 1, "lead_captured_at": 1,
     "lead_score": 1, "purchase_intent": 1, "product_interests": 1,
     "recommended_action": 1, "confidence": 1, "viewed_at": 1,
@@ -34,49 +29,59 @@ class ConversationRepository:
         self.collection_name = "conversations"
 
     async def ensure_indexes(self) -> None:
-        """Create the indexes the inbox actually queries.
-
-        Note: this only CREATES — dropping legacy indexes (mode_pending_since,
-        handoff_at_desc, mode_updated_at_idx, mode_category_score_updated_idx,
-        lead_email_mode_idx, stage_updated_idx) must be done by an operator
-        once the new sort key (last_message_at) is in use everywhere.
-        """
         try:
             coll = self.mongodb_client.db[self.collection_name]
-            # Primary lookup key — every mutation filters by this.
+            # Primary lookup key — every mutation filters by this
             await coll.create_index(
                 "conversation_id",
                 unique=True,
                 name="conversation_id_unique",
             )
-            # Webhook upsert path: (channel, external_id).
+            await coll.create_index(
+                [("mode", ASCENDING), ("pending_since", ASCENDING)],
+                name="mode_pending_since",
+            )
             await coll.create_index(
                 [("channel", ASCENDING), ("external_id", ASCENDING)],
                 unique=True,
                 name="channel_external_id_unique",
             )
-            # "Mis activas" tab + ownership filter.
             await coll.create_index(
                 [("assigned_agent_id", ASCENDING), ("mode", ASCENDING)],
                 name="agent_mode",
             )
-            # Handoff stats aggregation (handoff_at filter).
             await coll.create_index(
                 [("handoff_at", DESCENDING)],
                 name="handoff_at_desc",
             )
-            # Sort key for inbox listings (real "last activity" timestamp).
+            # Covers auto_complete_idle: {stage, updated_at < cutoff}
             await coll.create_index(
-                [("last_message_at", DESCENDING)],
-                name="last_message_at_desc",
+                [("stage", ASCENDING), ("updated_at", ASCENDING)],
+                name="stage_updated_idx",
             )
-            # Active inbox hot path: stage + last_message_at sort.
+            # Covers list_inbox_conversations: {mode: $in, updated_at: $gte}
             await coll.create_index(
-                [("stage", ASCENDING), ("last_message_at", DESCENDING)],
-                name="stage_last_message_idx",
+                [("mode", ASCENDING), ("updated_at", DESCENDING)],
+                name="mode_updated_at_idx",
+            )
+            # Covers list_leads: {lead_email: $ne, mode: bot}
+            await coll.create_index(
+                [("lead_email", ASCENDING), ("mode", ASCENDING)],
+                sparse=True,
+                name="lead_email_mode_idx",
+            )
+            # Covers complex inbox filters: {mode, category, lead_score, updated_at}
+            await coll.create_index(
+                [("mode", ASCENDING), ("category", ASCENDING), ("lead_score", ASCENDING), ("updated_at", DESCENDING)],
+                name="mode_category_score_updated_idx",
+            )
+            # Covers inbox filtered by channel (web|whatsapp) within a mode bucket
+            await coll.create_index(
+                [("mode", ASCENDING), ("channel", ASCENDING), ("updated_at", DESCENDING)],
+                name="mode_channel_updated_idx",
             )
         except Exception as e:
-            logger.exception("Error ensuring conversations indexes: %s", e)
+            logger.error(f"Error ensuring conversations indexes: {e}")
 
     async def get_or_create(self, channel: str, external_id: str, conversation_id: str) -> dict:
         coll = self.mongodb_client.db[self.collection_name]
@@ -204,215 +209,310 @@ class ConversationRepository:
             return_document=ReturnDocument.AFTER,
         )
 
-    async def atomic_release_owned(self, conversation_id: str, agent_id: str) -> Optional[dict]:
-        """Release back to bot only if caller owns the human takeover."""
-        coll = self.mongodb_client.db[self.collection_name]
-        now = datetime.now(timezone.utc)
-        return await coll.find_one_and_update(
-            {
-                "conversation_id": conversation_id,
-                "mode": "human",
-                "assigned_agent_id": agent_id,
-            },
-            {"$set": {"mode": "bot", "assigned_agent_id": None, "pending_since": None, "updated_at": now}},
-            return_document=ReturnDocument.AFTER,
-        )
-
-    async def atomic_set_stage(
-        self, conversation_id: str, target_stage: str
-    ) -> Optional[dict]:
-        """Atomically flip stage. Returns updated doc, or None if already at target stage / unknown id."""
-        if target_stage not in ("active", "completed"):
-            return None
-        coll = self.mongodb_client.db[self.collection_name]
-        now = datetime.now(timezone.utc)
-        fields: dict = {"stage": target_stage, "updated_at": now}
-        fields["completed_at"] = now if target_stage == "completed" else None
-        return await coll.find_one_and_update(
-            {"conversation_id": conversation_id, "stage": {"$ne": target_stage}},
-            {"$set": fields},
-            return_document=ReturnDocument.AFTER,
-        )
-
-    async def atomic_capture_lead(
-        self, conversation_id: str, lead_name: str, lead_email: str
-    ) -> Optional[dict]:
-        """Set lead only if not already captured for this conversation."""
-        coll = self.mongodb_client.db[self.collection_name]
-        now = datetime.now(timezone.utc)
-        return await coll.find_one_and_update(
-            {"conversation_id": conversation_id, "lead_email": {"$in": [None, ""]}},
-            {"$set": {"lead_name": lead_name, "lead_email": lead_email, "lead_captured_at": now, "updated_at": now}},
-            return_document=ReturnDocument.AFTER,
-        )
-
-    async def record_message_inserted(
-        self, conversation_id: str, ts: Optional[datetime] = None
-    ) -> None:
-        """Bump last_message_at (sort key) AND increment message_count.
-
-        Must be called by every site that inserts into the `messages` collection
-        so the inbox reflects real chat activity and the denormalized count stays
-        in sync. Forgetting to call this is the most common source of inbox drift.
-
-        Uses $max on last_message_at so concurrent inserts can never push the
-        sort key backwards (older message arriving late after a newer one).
-        Failures are logged at ERROR (not raised) so a transient counter glitch
-        does not cascade into losing the message itself, but is visible in logs.
-        """
-        coll = self.mongodb_client.db[self.collection_name]
-        now = ts or datetime.now(timezone.utc)
-        try:
-            await coll.update_one(
-                {"conversation_id": conversation_id},
-                {
-                    "$max": {"last_message_at": now},
-                    "$inc": {"message_count": 1},
-                },
-            )
-        except Exception as exc:
-            logger.error(
-                "record_message_inserted failed for conv=%s: %s",
-                conversation_id, exc, exc_info=True,
-            )
-
     async def mark_viewed(self, conversation_id: str, agent_id: str) -> None:
-        """Mark conversation as viewed by an agent.
-
-        Does NOT bump updated_at — viewing should not affect inbox sort
-        (sort key is last_message_at, but we keep updated_at honest too).
-        """
         coll = self.mongodb_client.db[self.collection_name]
         now = datetime.now(timezone.utc)
         await coll.update_one(
             {"conversation_id": conversation_id},
-            {"$set": {"viewed_at": now, "viewed_by": agent_id}},
+            {"$set": {"viewed_at": now, "viewed_by": agent_id, "updated_at": now}},
         )
 
     async def find_by_lead_email(self, email: str) -> Optional[dict]:
         coll = self.mongodb_client.db[self.collection_name]
         return await coll.find_one({"lead_email": email})
 
+    async def set_lead(self, conversation_id: str, lead_name: str, lead_email: str) -> None:
+        coll = self.mongodb_client.db[self.collection_name]
+        now = datetime.now(timezone.utc)
+        await coll.update_one(
+            {"conversation_id": conversation_id},
+            {"$set": {"lead_name": lead_name, "lead_email": lead_email, "lead_captured_at": now, "updated_at": now}},
+        )
+
+    async def list_leads(self) -> list:
+        coll = self.mongodb_client.db[self.collection_name]
+        docs = (
+            await coll.find({"lead_email": {"$ne": None}, "mode": "bot"})
+            .sort([("updated_at", DESCENDING), ("_id", DESCENDING)])
+            .to_list(length=200)
+        )
+        return docs
+
+    # No-match sentinel: $expr always-false, so no docs leak when caller forgets agent_id.
+    _NO_MATCH = {"$expr": {"$eq": [1, 0]}}
+
+    def _tab_mode_filter(self, tab: str, agent_id: Optional[str]) -> dict:
+        """Mode/assignment delta for a tab. Empty dict for 'todos' (use base mode set)."""
+        if tab == "pendientes":
+            return {"mode": "pending"}
+        if tab == "mias":
+            # Without an agent context, "mías" is meaningless — return no-match so
+            # we never accidentally show every human/paused conv to an unidentified caller.
+            if not agent_id:
+                return dict(self._NO_MATCH)
+            return {"mode": {"$in": ["human", "paused"]}, "assigned_agent_id": agent_id}
+        if tab == "otras":
+            m = {"mode": {"$in": ["human", "paused"]}}
+            if agent_id:
+                m["$or"] = [
+                    {"assigned_agent_id": None},
+                    {"assigned_agent_id": {"$exists": False}},
+                    {"assigned_agent_id": {"$ne": agent_id}},
+                ]
+            else:
+                m["$or"] = [
+                    {"assigned_agent_id": None},
+                    {"assigned_agent_id": {"$exists": False}},
+                ]
+            return m
+        if tab == "bot":
+            return {"mode": "bot"}
+        return {}
+
+    def _build_inbox_query(
+        self,
+        days: int,
+        tab: str,
+        channel: Optional[str],
+        has_lead: Optional[bool],
+        only_unseen: bool,
+        category: Optional[str],
+        min_score: Optional[int],
+        agent_id: Optional[str],
+    ) -> dict:
+        since = datetime.now(timezone.utc) - timedelta(days=max(1, int(days)))
+        query: dict = {"updated_at": {"$gte": since}}
+        and_clauses: list[dict] = []
+
+        tab_filter = self._tab_mode_filter(tab, agent_id)
+        if tab_filter:
+            query.update(tab_filter)
+        else:
+            query["mode"] = {"$in": ["bot", "human", "pending", "paused"]}
+
+        if channel:
+            query["channel"] = channel
+        if has_lead is True:
+            query["lead_email"] = {"$ne": None}
+        elif has_lead is False:
+            and_clauses.append(
+                {"$or": [{"lead_email": None}, {"lead_email": {"$exists": False}}]}
+            )
+        if only_unseen:
+            and_clauses.append(
+                {"$or": [{"viewed_at": None}, {"viewed_at": {"$exists": False}}]}
+            )
+        if category is not None:
+            query["category"] = category
+        if min_score is not None:
+            query["lead_score"] = {"$gte": min_score}
+        if and_clauses:
+            query["$and"] = and_clauses
+        return query
+
     async def list_inbox_conversations(
         self,
+        days: int = 30,
         limit: int = 50,
         skip: int = 0,
-        tab: str | None = None,
-        agent_id: str | None = None,
-        channel: str | None = None,
-        has_lead: bool | None = None,
+        category: str | None = None,
+        min_score: int | None = None,
+        tab: str = "todos",
+        channel: Optional[str] = None,
+        has_lead: Optional[bool] = None,
         only_unseen: bool = False,
+        agent_id: Optional[str] = None,
     ) -> tuple[list, int]:
         coll = self.mongodb_client.db[self.collection_name]
-        since = datetime.now(timezone.utc) - timedelta(days=_INBOX_WINDOW_DAYS)
-        # Only conversations with at least one real message are shown in the inbox.
-        # `last_message_at` is set by record_message_inserted on every message
-        # insert; empty conversations (chat widget opened, never typed) are
-        # filtered out.
-        query: dict = {
-            "mode": {"$in": ["bot", "human", "pending"]},
-            "last_message_at": {"$gte": since},
-        }
-
-        # Tab filter (mutually exclusive with $in above — overrides mode set)
-        if tab == "pendientes":
-            query["mode"] = "pending"
-        elif tab == "mias":
-            query["mode"] = "human"
-            if agent_id:
-                query["assigned_agent_id"] = agent_id
-        elif tab == "bot":
-            query["mode"] = "bot"
-
-        # Channel filter
-        if channel and channel != "todos":
-            query["channel"] = channel
-
-        # Lead-captured filter
-        if has_lead is True:
-            query["lead_email"] = {"$nin": [None, ""]}
-        elif has_lead is False:
-            query["lead_email"] = {"$in": [None, ""]}
-
-        # Only-unseen: conversation has new user activity since last view.
-        # A doc is "unseen" if viewed_at is missing OR strictly older than last_message_at.
-        if only_unseen:
-            query["$expr"] = {
-                "$or": [
-                    {"$eq": [{"$ifNull": ["$viewed_at", None]}, None]},
-                    {"$lt": [
-                        {"$ifNull": ["$viewed_at", datetime(1970, 1, 1, tzinfo=timezone.utc)]},
-                        {"$ifNull": ["$last_message_at", "$updated_at"]},
-                    ]},
-                ]
-            }
-
+        query = self._build_inbox_query(
+            days, tab, channel, has_lead, only_unseen, category, min_score, agent_id
+        )
         total = await coll.count_documents(query)
-        # Sort by last_message_at (preferred) falling back to updated_at via $ifNull
-        # is expensive in find(); rely on index on last_message_at and accept that
-        # rows missing the field sort low (Mongo treats missing as null = lowest).
         docs = (
-            await coll
-            .find(query, _INBOX_PROJECTION)
-            .sort([("last_message_at", -1), ("updated_at", -1)])
+            await coll.find(query, _INBOX_PROJECTION)
+            .sort([("updated_at", DESCENDING), ("_id", DESCENDING)])
             .skip(skip)
             .limit(limit)
             .to_list(length=limit)
         )
         return docs, total
 
-    async def inbox_tab_counts(
+    async def inbox_overview(
         self,
-        channel: str | None = None,
-        has_lead: bool | None = None,
-        agent_id: str | None = None,
+        days: int,
+        tab: str,
+        channel: Optional[str],
+        has_lead: Optional[bool],
+        min_score: Optional[int],
+        agent_id: Optional[str],
     ) -> dict:
-        """Return {todos, pendientes, mias, bot} counts for inbox tab chips."""
+        """Single $facet aggregation: tabs counts + categories + unseen + metrics.
+
+        Filters applied to base: channel + has_lead + min_score (mode = all).
+        `only_unseen` is intentionally ignored here so chips/tiles show absolute
+        distribution regardless of the "Solo no vistos" toggle. The toggle still
+        scopes the actual list (`list_inbox_conversations`).
+
+        - tabs.{todos,pendientes,mias,otras,bot}: per-mode counts
+        - categories: kanban grouping for the active tab
+        - unseen: count of unseen across the base set (badge value)
+        - metrics: avg/with_lead/pending wait/mine stale/bot stats over base
+        """
         coll = self.mongodb_client.db[self.collection_name]
-        since = datetime.now(timezone.utc) - timedelta(days=_INBOX_WINDOW_DAYS)
-        # Same "had at least one message" filter as list_inbox_conversations.
-        base: dict = {"last_message_at": {"$gte": since}}
-        if channel:
-            base["channel"] = channel
-        if has_lead is True:
-            base["lead_email"] = {"$nin": [None, ""]}
-        elif has_lead is False:
-            base["lead_email"] = {"$in": [None, ""]}
 
-        todos_query = {**base, "mode": {"$in": ["bot", "human", "pending"]}}
-        pendientes_query = {**base, "mode": "pending"}
-        mias_query = {**base, "mode": "human"}
-        if agent_id:
-            mias_query["assigned_agent_id"] = agent_id
-        bot_query = {**base, "mode": "bot"}
-
-        import asyncio as _asyncio
-        todos, pendientes, mias, bot = await _asyncio.gather(
-            coll.count_documents(todos_query),
-            coll.count_documents(pendientes_query),
-            coll.count_documents(mias_query),
-            coll.count_documents(bot_query),
+        base = self._build_inbox_query(
+            days, "todos", channel, has_lead, False, None, min_score, None
         )
-        return {"todos": todos, "pendientes": pendientes, "mias": mias, "bot": bot}
+        cat_tab_match = self._tab_mode_filter(tab, agent_id)
+        mine_match = self._tab_mode_filter("mias", agent_id)
+        otras_match = self._tab_mode_filter("otras", agent_id)
+
+        now = datetime.now(timezone.utc)
+        stale_cutoff = now - timedelta(minutes=5)
+
+        categories_pipeline = []
+        if cat_tab_match:
+            categories_pipeline.append({"$match": cat_tab_match})
+        categories_pipeline.append({
+            "$group": {
+                "_id": {
+                    "$cond": [
+                        {"$eq": ["$stage", "completed"]},
+                        "__completed__",
+                        {"$ifNull": ["$category", "__null__"]},
+                    ]
+                },
+                "count": {"$sum": 1},
+            }
+        })
+
+        facet: dict = {
+            "tabs_todos": [{"$count": "n"}],
+            "tabs_pendientes": [{"$match": {"mode": "pending"}}, {"$count": "n"}],
+            "tabs_mias": [{"$match": mine_match}, {"$count": "n"}],
+            "tabs_otras": [{"$match": otras_match}, {"$count": "n"}],
+            "tabs_bot": [{"$match": {"mode": "bot"}}, {"$count": "n"}],
+            "categories": categories_pipeline,
+            "unseen": [
+                {"$match": {"$or": [{"viewed_at": None}, {"viewed_at": {"$exists": False}}]}},
+                {"$count": "n"},
+            ],
+            "lead_score_stats": [
+                {"$match": {"lead_score": {"$ne": None}}},
+                {"$group": {"_id": None, "avg": {"$avg": "$lead_score"}, "count": {"$sum": 1}}},
+            ],
+            "with_lead": [
+                {"$match": {"lead_email": {"$ne": None}}},
+                {"$count": "n"},
+            ],
+            "pending_wait": [
+                {"$match": {"mode": "pending", "pending_since": {"$ne": None}}},
+                {"$project": {
+                    "wait_min": {"$divide": [
+                        {"$subtract": [now, "$pending_since"]},
+                        60000,
+                    ]}
+                }},
+                {"$group": {"_id": None, "avg": {"$avg": "$wait_min"}, "max": {"$max": "$wait_min"}}},
+            ],
+            "mine_stale": [
+                {"$match": {**mine_match, "updated_at": {"$lt": stale_cutoff}}},
+                {"$group": {"_id": None, "count": {"$sum": 1}, "oldest": {"$min": "$updated_at"}}},
+            ],
+            "bot_unclassified": [
+                {"$match": {"mode": "bot", "category": None}},
+                {"$count": "n"},
+            ],
+            "bot_top_product": [
+                # $type:"array" prevents $unwind from crashing on null values.
+                {"$match": {"mode": "bot", "product_interests": {"$type": "array", "$ne": []}}},
+                {"$unwind": "$product_interests"},
+                {"$group": {"_id": "$product_interests", "count": {"$sum": 1}}},
+                {"$sort": {"count": -1, "_id": 1}},
+                {"$limit": 1},
+            ],
+        }
+
+        pipeline = [{"$match": base}, {"$facet": facet}]
+        result = await coll.aggregate(pipeline).to_list(length=1)
+        first = result[0] if result else {}
+
+        def _facet_n(key: str) -> int:
+            arr = first.get(key) or []
+            return int(arr[0].get("n", 0)) if arr else 0
+
+        def _first_doc(key: str) -> dict:
+            arr = first.get(key) or []
+            return arr[0] if arr else {}
+
+        def _round_int(v) -> Optional[int]:
+            return int(round(v)) if v is not None else None
+
+        tabs = {
+            "todos": _facet_n("tabs_todos"),
+            "pendientes": _facet_n("tabs_pendientes"),
+            "mias": _facet_n("tabs_mias"),
+            "otras": _facet_n("tabs_otras"),
+            "bot": _facet_n("tabs_bot"),
+        }
+
+        categories: dict[str, int] = {}
+        for row in first.get("categories", []) or []:
+            categories[row["_id"]] = int(row.get("count", 0))
+
+        score = _first_doc("lead_score_stats")
+        pending = _first_doc("pending_wait")
+        stale = _first_doc("mine_stale")
+        top_product = _first_doc("bot_top_product")
+
+        oldest_min: Optional[int] = None
+        oldest_at = stale.get("oldest")
+        if oldest_at is not None:
+            if oldest_at.tzinfo is None:
+                oldest_at = oldest_at.replace(tzinfo=timezone.utc)
+            oldest_min = int((now - oldest_at).total_seconds() // 60)
+
+        metrics = {
+            "avg_lead_score": _round_int(score.get("avg")),
+            "scored_count": int(score.get("count") or 0),
+            "with_lead": _facet_n("with_lead"),
+            "pending_avg_min": _round_int(pending.get("avg")),
+            "pending_max_min": _round_int(pending.get("max")),
+            "mine_stale_count": int(stale.get("count") or 0),
+            "mine_oldest_stale_min": oldest_min,
+            "bot_unclassified": _facet_n("bot_unclassified"),
+            "bot_top_product": top_product.get("_id"),
+            "bot_top_product_count": int(top_product.get("count") or 0),
+        }
+
+        return {
+            "tabs": tabs,
+            "categories": categories,
+            "unseen": _facet_n("unseen"),
+            "metrics": metrics,
+        }
+
+    async def set_stage(self, conversation_id: str, stage: str) -> None:
+        if stage not in ("active", "completed"):
+            return
+        coll = self.mongodb_client.db[self.collection_name]
+        now = datetime.now(timezone.utc)
+        fields: dict = {"stage": stage, "updated_at": now}
+        if stage == "completed":
+            fields["completed_at"] = now
+        else:
+            fields["completed_at"] = None
+        await coll.update_one(
+            {"conversation_id": conversation_id},
+            {"$set": fields},
+        )
 
     async def auto_complete_idle(self, days: int = 7) -> int:
-        """Close stage of conversations idle for `days` days.
-
-        Excludes human-taken conversations (an agent owns them) and uses
-        last_message_at when present so the sweep reflects real chat idleness.
-        """
         coll = self.mongodb_client.db[self.collection_name]
         now = datetime.now(timezone.utc)
         cutoff = now - timedelta(days=max(1, int(days)))
         result = await coll.update_many(
-            {
-                "stage": "active",
-                "mode": {"$nin": ["human", "pending"]},
-                "$or": [
-                    {"last_message_at": {"$lt": cutoff}},
-                    {"last_message_at": {"$exists": False}, "updated_at": {"$lt": cutoff}},
-                ],
-            },
+            {"stage": "active", "updated_at": {"$lt": cutoff}},
             {"$set": {"stage": "completed", "completed_at": now}},
         )
         return int(result.modified_count or 0)

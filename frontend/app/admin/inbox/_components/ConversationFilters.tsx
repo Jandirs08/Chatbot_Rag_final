@@ -128,7 +128,7 @@ export function ConversationFilters({
                   onChange((f) => ({ ...f, hideTrivial: !!v }))
                 }
               />
-              <span>Ocultar conversaciones cortas/vacías</span>
+              <span>Ocultar con ≤2 mensajes totales</span>
             </label>
           </div>
           <div className="pt-2">

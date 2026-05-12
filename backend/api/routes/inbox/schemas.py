@@ -1,7 +1,17 @@
 from datetime import datetime
+from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel
+
+from api.schemas.pagination import Page
+
+
+class ConversationCategory(str, Enum):
+    informacion = "informacion"
+    comercial = "comercial"
+    soporte = "soporte"
+    sin_valor = "sin_valor"
 
 
 class ConversationCard(BaseModel):
@@ -35,24 +45,31 @@ class ConversationCard(BaseModel):
 
 
 class AgentMessageRequest(BaseModel):
-    content: str = Field(..., min_length=1, max_length=4000)
-
-    @field_validator("content")
-    @classmethod
-    def _strip_and_non_empty(cls, v: str) -> str:
-        stripped = v.strip()
-        if not stripped:
-            raise ValueError("content must not be blank")
-        return stripped
+    content: str
 
 
-class InboxResponse(BaseModel):
-    items: list[ConversationCard]
-    total: int
-    page: int = 1
-    limit: int = 50
-    total_pages: int = 1
-    has_next: bool = False
+class InboxCounts(BaseModel):
+    tabs: dict[str, int]
+    categories: dict[str, int]
+    unseen: int
+
+
+class InboxMetrics(BaseModel):
+    avg_lead_score: Optional[int] = None
+    scored_count: int = 0
+    with_lead: int = 0
+    pending_avg_min: Optional[int] = None
+    pending_max_min: Optional[int] = None
+    mine_stale_count: int = 0
+    mine_oldest_stale_min: Optional[int] = None
+    bot_unclassified: int = 0
+    bot_top_product: Optional[str] = None
+    bot_top_product_count: int = 0
+
+
+class InboxResponse(Page[ConversationCard]):
+    counts: InboxCounts
+    metrics: InboxMetrics
 
 
 class HandoffStatsResponse(BaseModel):
@@ -61,10 +78,3 @@ class HandoffStatsResponse(BaseModel):
     out_of_scope: int
     total: int
     period_days: int
-
-
-class InboxTabCountsResponse(BaseModel):
-    todos: int
-    pendientes: int
-    mias: int
-    bot: int

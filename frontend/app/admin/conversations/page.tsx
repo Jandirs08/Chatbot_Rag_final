@@ -1,11 +1,15 @@
 "use client";
 
-import React, { Suspense, useMemo, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useRequireAdmin } from "@/app/hooks/useAuthGuard";
 import { API_URL } from "@/app/lib/config";
-import { authenticatedJsonFetcher } from "@/app/lib/services/authService";
+import {
+  authenticatedJsonFetcher,
+  authenticatedHistoryFetcher,
+  type HistoryFetchResult,
+} from "@/app/lib/services/authService";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -16,10 +20,44 @@ import {
   EMPTY_CONVERSATIONS,
   EMPTY_HISTORY,
   type ConversationItem,
-  type ConversationResponse,
   type FilterConfig,
   type HistoryItem,
 } from "../inbox/_components/utils";
+
+type ConversationPage = {
+  items: ConversationItem[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+  has_next: boolean;
+};
+
+function buildConversationsUrl(args: {
+  limit: number;
+  skip: number;
+  search: string;
+  startDate: string;
+  endDate: string;
+  hideTrivial: boolean;
+}): string {
+  const url = new URL(`${API_URL}/chat/conversations`);
+  url.searchParams.set("limit", String(args.limit));
+  url.searchParams.set("skip", String(args.skip));
+  if (args.search.trim()) url.searchParams.set("search", args.search.trim());
+  if (args.startDate) {
+    const [y, m, d] = args.startDate.split("-");
+    const iso = new Date(Number(y), Number(m) - 1, Number(d), 0, 0, 0, 0).toISOString();
+    url.searchParams.set("start_date", iso);
+  }
+  if (args.endDate) {
+    const [y, m, d] = args.endDate.split("-");
+    const iso = new Date(Number(y), Number(m) - 1, Number(d), 23, 59, 59, 999).toISOString();
+    url.searchParams.set("end_date", iso);
+  }
+  if (args.hideTrivial) url.searchParams.set("hide_trivial", "true");
+  return url.toString();
+}
 
 function ConversationsContent() {
   const { isAuthorized } = useRequireAdmin();
@@ -28,7 +66,7 @@ function ConversationsContent() {
 
   const chatIdFromUrl = searchParams.get("chatId");
   const hasChat = Boolean(chatIdFromUrl);
-  const [filterConfig, setFilterConfig] = useState<FilterConfig>({
+  const [filterConfig, setFilterConfigState] = useState<FilterConfig>({
     search: "",
     startDate: "",
     endDate: "",
@@ -39,13 +77,32 @@ function ConversationsContent() {
   const LIMIT = 50;
   const skip = (page - 1) * LIMIT;
 
+  const setFilterConfig = useCallback(
+    (
+      next:
+        | FilterConfig
+        | ((prev: FilterConfig) => FilterConfig),
+    ) => {
+      setPage(1);
+      setFilterConfigState(next);
+    },
+    [],
+  );
+
   const {
     data: conversationData,
     isLoading: loadingList,
     mutate: refreshList,
-  } = useSWR<ConversationResponse>(
+  } = useSWR<ConversationPage>(
     isAuthorized
-      ? `${API_URL}/chat/conversations?limit=${LIMIT}&skip=${skip}`
+      ? buildConversationsUrl({
+          limit: LIMIT,
+          skip,
+          search: filterConfig.search,
+          startDate: filterConfig.startDate,
+          endDate: filterConfig.endDate,
+          hideTrivial: filterConfig.hideTrivial,
+        })
       : null,
     authenticatedJsonFetcher,
     { refreshInterval: 10000, revalidateOnFocus: true },
@@ -53,51 +110,27 @@ function ConversationsContent() {
 
   const conversations = conversationData?.items ?? EMPTY_CONVERSATIONS;
   const totalConversations = conversationData?.total || 0;
-  const totalPages = Math.max(1, Math.ceil(totalConversations / LIMIT));
+  const totalPages = conversationData?.total_pages ?? 1;
 
-  const { data: messages = EMPTY_HISTORY, isLoading: loadingHistory } = useSWR<
-    HistoryItem[]
-  >(
+  // Sync local page when server clamps (e.g., filter shrinks result set).
+  useEffect(() => {
+    if (conversationData && conversationData.page < page) {
+      setPage(conversationData.page);
+    }
+  }, [conversationData, page]);
+
+  const { data: historyData, isLoading: loadingHistory } = useSWR<HistoryFetchResult>(
     isAuthorized && chatIdFromUrl
       ? `${API_URL}/chat/history/${chatIdFromUrl}`
       : null,
-    authenticatedJsonFetcher,
+    authenticatedHistoryFetcher,
     { refreshInterval: 5000, revalidateOnFocus: false },
   );
+  const messages = (historyData?.items as HistoryItem[]) ?? EMPTY_HISTORY;
+  const historyTruncated = historyData?.truncated ?? false;
 
-  const filteredConversations = useMemo(() => {
-    const list = conversations || [];
-    const text = filterConfig.search.trim().toLowerCase();
-    const toStart = (s: string) => {
-      const [y, m, d] = s.split("-");
-      return new Date(Number(y), Number(m) - 1, Number(d), 0, 0, 0, 0);
-    };
-    const toEnd = (s: string) => {
-      const [y, m, d] = s.split("-");
-      return new Date(Number(y), Number(m) - 1, Number(d), 23, 59, 59, 999);
-    };
-    const start = filterConfig.startDate ? toStart(filterConfig.startDate) : null;
-    const end = filterConfig.endDate ? toEnd(filterConfig.endDate) : null;
-
-    return [...list]
-      .sort(
-        (left, right) =>
-          new Date(right.updated_at).getTime() -
-          new Date(left.updated_at).getTime(),
-      )
-      .filter((c) => {
-        const updated = new Date(c.updated_at);
-        if (start && updated < start) return false;
-        if (end && updated > end) return false;
-        if (filterConfig.hideTrivial && !(c.total_messages > 2)) return false;
-        if (text) {
-          const hay =
-            `${c.conversation_id} ${c.last_message_preview}`.toLowerCase();
-          if (!hay.includes(text)) return false;
-        }
-        return true;
-      });
-  }, [conversations, filterConfig]);
+  // Server already filters/sorts; consume items as-is.
+  const filteredConversations = conversations;
 
   const selectedConversation = useMemo(
     () =>
@@ -196,6 +229,7 @@ function ConversationsContent() {
             messages={messages}
             loading={loadingHistory}
             onClearSelection={clearSelectedChat}
+            truncated={historyTruncated}
           />
         </div>
       </div>

@@ -16,6 +16,7 @@ from auth.password_handler import hash_password
 from auth.permissions import require_manage_users
 from models.user import User
 from utils.audit import audit
+from api.schemas.pagination import Page
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["users"])
@@ -55,13 +56,6 @@ class UserResponse(BaseModel):
         )
 
 
-class PaginatedUsersResponse(BaseModel):
-    items: List[UserResponse]
-    total: int
-    skip: int
-    limit: int
-
-
 class UpdateUserRequest(BaseModel):
     email: EmailStr | None = None
     full_name: str | None = None
@@ -70,7 +64,7 @@ class UpdateUserRequest(BaseModel):
     password: str | None = None
 
 
-@router.get("/users", response_model=PaginatedUsersResponse)
+@router.get("/users", response_model=Page[UserResponse])
 async def list_users(
     _: User = Depends(require_manage_users),
     user_repository: UserRepository = Depends(get_user_repository),
@@ -97,7 +91,7 @@ async def list_users(
 
     users_collection = user_repository.mongodb_client.db[user_repository.collection_name]
     total = await users_collection.count_documents(query)
-    cursor = users_collection.find(query).skip(skip).limit(limit)
+    cursor = users_collection.find(query).sort([("_id", -1)]).skip(skip).limit(limit)
 
     users: List[User] = []
     async for doc in cursor:
@@ -107,11 +101,11 @@ async def list_users(
             logger.warning(f"Documento de usuario inválido omitido: {ve}")
             continue
 
-    return PaginatedUsersResponse(
+    return Page[UserResponse].build(
         items=[UserResponse.from_model(u) for u in users],
         total=total,
-        skip=skip,
         limit=limit,
+        skip=skip,
     )
 
 

@@ -33,6 +33,7 @@ from .rag import (
     ReindexPDFResponse,
 )
 from .health import HealthResponse
+from .pagination import Page
 
 __all__ = [
     # Base
@@ -66,5 +67,8 @@ __all__ = [
     "ReindexPDFResponse",
     
     # Health
-    "HealthResponse"
+    "HealthResponse",
+
+    # Pagination
+    "Page",
 ]
