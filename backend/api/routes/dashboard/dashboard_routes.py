@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from auth.dependencies import require_admin
 from cache.manager import cache
 from database.mongodb import get_mongodb_client
+from database.retrieval_log_repository import GAP_REASONS, REASON_META
 from utils.logging_utils import get_logger
 from utils.metrics_collector import get_metrics_collector
 
@@ -20,6 +21,10 @@ _TZ = ZoneInfo("America/Lima")
 _TTL_OVERVIEW = 120
 _TTL_LEADS = 300
 _TTL_PEAK_HOURS = 3600
+_TTL_GAPS = 60
+
+_GAP_WINDOWS_DAYS = {"24h": 1, "7d": 7, "30d": 30}
+_GAP_MAX_LIMIT = 500
 
 
 def _get_db(request: Request):
@@ -58,6 +63,37 @@ class HourBucket(BaseModel):
 class PeakHoursResponse(BaseModel):
     items: List[HourBucket]
     timezone: str = "America/Lima"
+
+
+class KnowledgeGapItem(BaseModel):
+    query: str
+    gating_reason: str
+    top_score: Optional[float] = None
+    chunk_count: int
+    conversation_id: str
+    logged_at: datetime
+
+
+class GapReasonCount(BaseModel):
+    reason: str
+    count: int
+
+
+class KnowledgeGapsResponse(BaseModel):
+    window: str
+    total: int
+    by_reason: List[GapReasonCount]
+    items: List[KnowledgeGapItem]
+
+
+class GapReasonMeta(BaseModel):
+    reason: str
+    label: str
+    severity: str
+
+
+class GapReasonsResponse(BaseModel):
+    items: List[GapReasonMeta]
 
 
 @router.get("/overview", response_model=OverviewResponse)
@@ -199,6 +235,111 @@ async def get_peak_hours(request: Request, _=Depends(require_admin)):
     except Exception:
         logger.exception("Error in dashboard peak-hours")
         raise HTTPException(status_code=500, detail="Error al obtener distribucion horaria")
+
+
+@router.get("/gap-reasons", response_model=GapReasonsResponse)
+async def get_gap_reasons(_=Depends(require_admin)):
+    """Reason metadata (label + severity) for knowledge-gaps UI.
+
+    Single source of truth lives in REASON_META (backend). Frontend fetches
+    this to render chips without hardcoding labels — adding a new reason on
+    the backend automatically surfaces it in the UI on next page load.
+    """
+    items = [
+        GapReasonMeta(reason=r, label=meta["label"], severity=meta["severity"])
+        for r, meta in REASON_META.items()
+    ]
+    return GapReasonsResponse(items=items)
+
+
+@router.get("/knowledge-gaps", response_model=KnowledgeGapsResponse)
+async def get_knowledge_gaps(
+    request: Request,
+    window: str = "7d",
+    reason: Optional[str] = None,
+    limit: int = 100,
+    _=Depends(require_admin),
+):
+    """Queries that hit the corpus but didn't find an answer.
+
+    Reads `retrieval_logs` filtered by gating_reason ∈ GAP_REASONS.
+    Used by /admin/observability "Vacíos de conocimiento" tab.
+    """
+    days = _GAP_WINDOWS_DAYS.get(window)
+    if days is None:
+        raise HTTPException(status_code=400, detail=f"window inválido. Usa: {list(_GAP_WINDOWS_DAYS)}")
+
+    limit = max(1, min(limit, _GAP_MAX_LIMIT))
+
+    if reason is not None and reason not in GAP_REASONS:
+        raise HTTPException(status_code=400, detail=f"reason inválido. Usa: {sorted(GAP_REASONS)}")
+
+    cache_key = f"dashboard:knowledge_gaps:{window}:{reason or 'all'}:{limit}"
+    cached = await cache.aget(cache_key)
+    if cached is not None:
+        return KnowledgeGapsResponse.model_validate(cached)
+
+    try:
+        db = _get_db(request)
+        since_utc = datetime.now(timezone.utc) - timedelta(days=days)
+        reason_filter = {"$in": list(GAP_REASONS)} if reason is None else reason
+        match = {"logged_at": {"$gte": since_utc}, "gating_reason": reason_filter}
+
+        items_cursor = db.retrieval_logs.find(
+            match,
+            {
+                "_id": 0,
+                "query": 1,
+                "gating_reason": 1,
+                "chunks": 1,
+                "chunk_count": 1,
+                "conversation_id": 1,
+                "logged_at": 1,
+            },
+        ).sort("logged_at", -1).limit(limit)
+
+        by_reason_pipeline = [
+            {"$match": match},
+            {"$group": {"_id": "$gating_reason", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}},
+        ]
+
+        docs, by_reason_raw, total = await asyncio.gather(
+            items_cursor.to_list(length=limit),
+            db.retrieval_logs.aggregate(by_reason_pipeline).to_list(length=None),
+            db.retrieval_logs.count_documents(match),
+        )
+
+        items: List[KnowledgeGapItem] = []
+        for d in docs:
+            chunks = d.get("chunks") or []
+            scores = [c.get("score") for c in chunks if isinstance(c.get("score"), (int, float))]
+            top_score = max(scores) if scores else None
+            items.append(KnowledgeGapItem(
+                query=d.get("query", ""),
+                gating_reason=d.get("gating_reason", "unknown"),
+                top_score=top_score,
+                chunk_count=int(d.get("chunk_count") or 0),
+                conversation_id=d.get("conversation_id", ""),
+                logged_at=d.get("logged_at"),
+            ))
+
+        by_reason = [GapReasonCount(reason=r["_id"], count=r["count"]) for r in by_reason_raw if r.get("_id")]
+
+        result = KnowledgeGapsResponse(
+            window=window,
+            total=total,
+            by_reason=by_reason,
+            items=items,
+        )
+        await cache.aset(cache_key, result.model_dump(mode="json"), ttl=_TTL_GAPS)
+        return result
+
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error in dashboard knowledge-gaps")
+        raise HTTPException(status_code=500, detail="Error al obtener vacíos de conocimiento")
 
 
 @router.get("/observability")

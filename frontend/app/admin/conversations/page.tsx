@@ -10,10 +10,11 @@ import {
   authenticatedHistoryFetcher,
   type HistoryFetchResult,
 } from "@/app/lib/services/authService";
-import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
+import { Skeleton } from "@/app/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, MessagesSquare, Inbox } from "lucide-react";
+import { FadeIn, PulseDot, TickNumber } from "@/app/_components/motion";
 import { ChatDetail } from "../inbox/_components/ChatDetail";
 import { ConversationList } from "../inbox/_components/ConversationList";
 import {
@@ -158,79 +159,128 @@ function ConversationsContent() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] min-h-[640px] flex-col overflow-hidden rounded-[28px] border border-border/60 bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04),0_18px_48px_rgba(15,23,42,0.08)]">
-      <div className="border-b border-border/60 bg-card/95 px-6 py-4 supports-[backdrop-filter]:bg-card/85">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-wrap items-center gap-2 [&_h1]:hidden [&_p]:hidden">
-            <div className="flex items-center gap-2">
-              <Badge
-                variant="secondary"
-                className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]"
-              >
-                Buzón
-              </Badge>
-              <span className="text-sm font-medium text-foreground">
-                {totalConversations} conversaciones
-              </span>
-            </div>
+    <FadeIn className="-m-8 p-6 md:p-10 lg:p-12">
+      <div className="mx-auto max-w-[1400px]">
+
+        {/* ── Compact hero strip ───────────────────────────────────── */}
+        <header className="relative overflow-hidden rounded-2xl border border-border/60 bg-card px-6 py-5 md:px-8 md:py-6 mb-6">
+          <div
+            aria-hidden="true"
+            className="absolute -top-16 -right-12 w-64 h-64 opacity-30 animate-orb-float pointer-events-none"
+          >
+            <img src="/assets/decor/glow-orb-teal.svg" alt="" className="w-full h-full" />
           </div>
-          <div className="flex items-center gap-2">
-            <div className="inline-flex items-center gap-2 rounded-full border border-success/25 bg-success/10 px-3 py-1.5 text-xs font-medium text-success">
-              <span className="h-2 w-2 rounded-full bg-current animate-pulse" />
-              En vivo
+          <div
+            aria-hidden="true"
+            className="absolute -bottom-20 right-32 w-48 h-48 opacity-22 animate-orb-float pointer-events-none"
+            style={{ animationDelay: "-9s" }}
+          >
+            <img src="/assets/decor/glow-orb-violet.svg" alt="" className="w-full h-full" loading="lazy" />
+          </div>
+          <div aria-hidden="true" className="absolute inset-0 bg-grid opacity-25 pointer-events-none" />
+
+          <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div className="flex items-center gap-2.5 mb-2.5">
+                <span className="h-px w-6 bg-primary/40" />
+                <span className="text-[10px] uppercase tracking-[0.18em] font-heading text-muted-foreground">
+                  Buzón unificado · humano + bot
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <MessagesSquare className="h-7 w-7 text-primary" />
+                <h1 className="text-3xl md:text-4xl font-heading font-bold tracking-tighter leading-none">
+                  <span className="gradient-hero-display">Conversaciones</span>
+                </h1>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 mt-3 text-xs">
+                <span className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-success/10 border border-success/25">
+                  <PulseDot color="success" size={6} />
+                  <span className="font-mono uppercase tracking-wider text-success text-[10px]">en vivo</span>
+                </span>
+                <span className="inline-flex items-center gap-1.5 font-mono text-muted-foreground tabular-nums">
+                  <Inbox className="h-3 w-3 text-amber" />
+                  <TickNumber value={totalConversations} />
+                  <span className="text-muted-foreground/70">conversaciones</span>
+                </span>
+                <span className="font-mono text-muted-foreground/70 text-[11px]">
+                  auto-refresh · 10s
+                </span>
+              </div>
             </div>
+
             <Button
               variant="outline"
               size="sm"
               onClick={() => refreshList()}
-              className="h-9 rounded-xl border-border/60 px-3"
+              className="h-9 self-start rounded-lg border-border/60 hover:border-primary/40 hover:bg-primary/[0.04] transition-all duration-200 ease-out-expo"
             >
               <RefreshCw
-                className={cn("mr-2 h-4 w-4", loadingList && "animate-spin")}
+                className={cn("mr-2 h-3.5 w-3.5", loadingList && "animate-spin text-primary")}
               />
-              Actualizar
+              <span className="font-mono text-xs">actualizar</span>
             </Button>
+          </div>
+        </header>
+
+        {/* ── Split view ───────────────────────────────────────────── */}
+        <div className="flex h-[calc(100vh-12rem)] min-h-[640px] flex-col overflow-hidden rounded-2xl border border-border/60 bg-card">
+          <div className="flex flex-1 min-h-0 overflow-hidden">
+            <div
+              className={cn(
+                hasChat ? "hidden md:flex" : "flex",
+                "w-full md:w-[400px] flex-none border-r border-border/60 flex flex-col min-h-0 bg-surface",
+              )}
+            >
+              <ConversationList
+                conversations={conversations}
+                filtered={filteredConversations}
+                totalConversations={totalConversations}
+                filterConfig={filterConfig}
+                setFilterConfig={setFilterConfig}
+                loading={loadingList}
+                onRefresh={() => refreshList()}
+                selectedId={chatIdFromUrl}
+                onSelect={handleSelectChat}
+                page={page}
+                totalPages={totalPages}
+                onPrevPage={() => setPage((p) => Math.max(1, p - 1))}
+                onNextPage={() => setPage((p) => Math.min(totalPages, p + 1))}
+              />
+            </div>
+
+            <div
+              className={cn(
+                hasChat ? "flex w-full" : "hidden md:flex",
+                "flex-1 flex flex-col min-h-0 bg-card",
+              )}
+            >
+              <ChatDetail
+                chatId={chatIdFromUrl}
+                selectedConversation={selectedConversation}
+                messages={messages}
+                loading={loadingHistory}
+                onClearSelection={clearSelectedChat}
+                truncated={historyTruncated}
+              />
+            </div>
           </div>
         </div>
       </div>
-      <div className="flex flex-1 min-h-0 overflow-hidden">
-        <div
-          className={cn(
-            hasChat ? "hidden md:flex" : "flex",
-            "w-full md:w-[400px] flex-none border-r border-border/60 flex flex-col min-h-0 bg-surface",
-          )}
-        >
-          <ConversationList
-            conversations={conversations}
-            filtered={filteredConversations}
-            totalConversations={totalConversations}
-            filterConfig={filterConfig}
-            setFilterConfig={setFilterConfig}
-            loading={loadingList}
-            onRefresh={() => refreshList()}
-            selectedId={chatIdFromUrl}
-            onSelect={handleSelectChat}
-            page={page}
-            totalPages={totalPages}
-            onPrevPage={() => setPage((p) => Math.max(1, p - 1))}
-            onNextPage={() => setPage((p) => Math.min(totalPages, p + 1))}
-          />
-        </div>
+    </FadeIn>
+  );
+}
 
-        <div
-          className={cn(
-            hasChat ? "flex w-full" : "hidden md:flex",
-            "flex-1 flex flex-col min-h-0 bg-card",
-          )}
-        >
-          <ChatDetail
-            chatId={chatIdFromUrl}
-            selectedConversation={selectedConversation}
-            messages={messages}
-            loading={loadingHistory}
-            onClearSelection={clearSelectedChat}
-            truncated={historyTruncated}
-          />
+function ConversationsLoading() {
+  return (
+    <div className="-m-8 p-6 md:p-10 lg:p-12">
+      <div className="mx-auto max-w-[1400px] space-y-6">
+        <Skeleton className="h-28 w-full rounded-2xl" />
+        <div className="flex h-[calc(100vh-12rem)] min-h-[640px] gap-0 rounded-2xl border border-border/60 overflow-hidden">
+          <Skeleton className="h-full w-[400px] rounded-none border-r border-border/60" />
+          <Skeleton className="h-full flex-1 rounded-none" />
         </div>
       </div>
     </div>
@@ -239,13 +289,7 @@ function ConversationsContent() {
 
 export default function AdminConversationsPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex h-full items-center justify-center">
-          Cargando conversaciones...
-        </div>
-      }
-    >
+    <Suspense fallback={<ConversationsLoading />}>
       <ConversationsContent />
     </Suspense>
   );

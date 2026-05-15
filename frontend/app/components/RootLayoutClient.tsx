@@ -51,9 +51,13 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
 
   return (
     <div
-      className="flex h-screen w-full overflow-hidden"
+      className="relative flex h-screen w-full overflow-hidden"
       style={{ background: "hsl(var(--surface))" }}
     >
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 z-0 bg-noise"
+      />
       {shouldShowSidebar && <AppSidebar />}
 
       <div className="flex flex-1 flex-col overflow-hidden">

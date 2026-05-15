@@ -19,7 +19,10 @@ import {
   type InboxListResponse,
 } from "@/app/lib/services/inboxService";
 import { Button } from "@/app/components/ui/button";
+import { Skeleton } from "@/app/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { Inbox as InboxIcon } from "lucide-react";
+import { FadeIn, PulseDot, TickNumber } from "@/app/_components/motion";
 import {
   DndContext,
   DragOverlay,
@@ -571,34 +574,60 @@ function InboxContent() {
   if (!isAuthorized) return null;
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] min-h-[640px] flex-col overflow-hidden rounded-2xl border border-border/60 bg-card shadow-md">
-        {/* ── Top bar ── */}
-        <div className="flex-none border-b border-border/60 bg-card px-6 py-4">
-          <div className="flex items-start justify-between gap-4">
+    <FadeIn className="flex h-[calc(100vh-4rem)] min-h-[640px] flex-col overflow-hidden rounded-2xl border border-border/60 bg-card">
+        {/* ── Top bar (hero strip) ── */}
+        <div className="flex-none border-b border-border/60 bg-card px-6 py-5 relative overflow-hidden">
+          <div
+            aria-hidden="true"
+            className="absolute -top-16 -right-8 w-56 h-56 opacity-25 animate-orb-float pointer-events-none"
+          >
+            <img src="/assets/decor/glow-orb-magenta.svg" alt="" className="w-full h-full" loading="lazy" />
+          </div>
+          <div
+            aria-hidden="true"
+            className="absolute -bottom-20 left-32 w-48 h-48 opacity-22 animate-orb-float pointer-events-none"
+            style={{ animationDelay: "-9s" }}
+          >
+            <img src="/assets/decor/glow-orb-cyan.svg" alt="" className="w-full h-full" loading="lazy" />
+          </div>
+          <div aria-hidden="true" className="absolute inset-0 bg-grid opacity-25 pointer-events-none" />
+
+          <div className="relative flex items-start justify-between gap-4">
             <div>
-              <h1 className="font-heading text-xl font-bold leading-tight tracking-tight text-foreground">
-                Inbox
-              </h1>
+              <div className="flex items-center gap-2.5 mb-2">
+                <span className="font-mono text-[10px] text-primary/70 tabular-nums">04 / 09</span>
+                <span className="h-px w-6 bg-primary/40" />
+                <span className="text-[10px] uppercase tracking-[0.18em] font-heading text-muted-foreground">
+                  Buzón operativo · drag &amp; drop
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <InboxIcon className="h-7 w-7 text-amber" />
+                <h1 className="text-3xl md:text-4xl font-heading font-bold tracking-tighter leading-none">
+                  <span className="gradient-hero-display">Inbox</span>
+                </h1>
+              </div>
               <p
-                className="mt-0.5 text-[12px] text-muted-foreground"
+                className="mt-2.5 inline-flex items-center gap-1.5 text-[12px] text-muted-foreground"
                 aria-live="polite"
                 aria-atomic="true"
               >
                 <span className="font-mono font-semibold tabular-nums text-foreground">
-                  {visibleCardCount}
-                </span>{" "}
-                {visibleCardCount === 1
-                  ? "conversación visible"
-                  : "conversaciones visibles"}
+                  <TickNumber value={visibleCardCount} />
+                </span>
+                <span>
+                  {visibleCardCount === 1
+                    ? "conversación visible"
+                    : "conversaciones visibles"}
+                </span>
               </p>
             </div>
             <div className="flex flex-none items-center gap-2">
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-success/25 bg-success/10 px-3 py-1.5 text-[11px] font-semibold text-success">
-                <span
-                  aria-hidden="true"
-                  className="h-1.5 w-1.5 animate-pulse rounded-full bg-success"
-                />
-                En vivo
+              <div className="inline-flex items-center gap-2 rounded-full border border-accent-cyan/30 bg-accent-cyan/10 px-2.5 py-1">
+                <PulseDot color="cyan" size={6} />
+                <span className="text-[10px] font-mono uppercase tracking-wider text-accent-cyan">
+                  en vivo · 5s
+                </span>
               </div>
             </div>
           </div>
@@ -804,19 +833,40 @@ function InboxContent() {
             </div>
           </div>
         )}
+    </FadeIn>
+  );
+}
+
+function InboxLoading() {
+  return (
+    <div className="flex h-[calc(100vh-4rem)] min-h-[640px] flex-col overflow-hidden rounded-2xl border border-border/60 bg-card">
+      <div className="flex-none border-b border-border/60 p-6 space-y-4">
+        <div className="flex items-start justify-between">
+          <div className="space-y-2">
+            <Skeleton className="h-3 w-40 rounded" />
+            <Skeleton className="h-9 w-32 rounded" />
+            <Skeleton className="h-3 w-48 rounded" />
+          </div>
+          <Skeleton className="h-7 w-20 rounded-full" />
+        </div>
+        <Skeleton className="h-10 w-full rounded-lg" />
+      </div>
+      <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-3 p-4 bg-muted/30">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="space-y-2">
+            <Skeleton className="h-6 w-3/4 rounded" />
+            <Skeleton className="h-24 w-full rounded-xl" />
+            <Skeleton className="h-24 w-full rounded-xl" />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
 export default function AdminInboxPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex h-full items-center justify-center">
-          <span className="text-sm text-muted-foreground">Cargando inbox…</span>
-        </div>
-      }
-    >
+    <Suspense fallback={<InboxLoading />}>
       <InboxContent />
     </Suspense>
   );

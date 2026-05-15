@@ -2,171 +2,236 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
-import { RefreshCw, AlertCircle, AlertTriangle, Timer } from "lucide-react";
+import {
+  Timer,
+  RefreshCw,
+  Activity,
+  Database,
+  Workflow,
+  BarChart3,
+  Filter,
+  Coins,
+  HelpCircle,
+  Zap,
+} from "lucide-react";
 import { useRequireAdmin } from "@/app/hooks/useAuthGuard";
 import { useRingBuffer } from "@/app/hooks/useRingBuffer";
 import { API_URL } from "@/app/lib/config";
 import { authenticatedJsonFetcher } from "@/app/lib/services/authService";
-import { Switch } from "@/app/components/ui/switch";
 import { Skeleton } from "@/app/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/app/components/ui/tabs";
 import { TooltipProvider } from "@/app/components/ui/tooltip";
+import { Switch } from "@/app/components/ui/switch";
 import {
   HealthLabel,
-  HelpTooltip,
-  PipelineWaterfall,
-  ServiceTile,
-  TelemetryMetric,
-  GatingBars,
-  Sparkline,
   type Severity,
   type WaterfallStage,
   type GatingItem,
 } from "@/app/_components/telemetry";
+import { FadeIn, PulseDot, TickNumber } from "@/app/_components/motion";
+import {
+  PIPELINE_STAGES,
+  GATING_SUCCESS_KEYS,
+  GATING_LABELS,
+  THRESHOLDS,
+  REFRESH_MS,
+  evalSuccess,
+  evalLatency,
+  aggregate,
+  fmtUptime,
+  fmtClock,
+  type ObservabilityData,
+  type HealthReadyData,
+  type SystemStatusData,
+} from "./_utils";
+import { AlertBanner } from "./_components/AlertBanner";
+import { KPISection } from "./_components/KPISection";
+import { ServicesSection } from "./_components/ServicesSection";
+import { PipelineSection } from "./_components/PipelineSection";
+import { ThroughputSection } from "./_components/ThroughputSection";
+import { GatingSection } from "./_components/GatingSection";
+import { TokensSection } from "./_components/TokensSection";
+import { KnowledgeGapsTab } from "./_components/KnowledgeGapsTab";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Hero ─────────────────────────────────────────────────────────────────────
 
-interface LatencyBucket {
-  count: number;
-  p50: number | null;
-  p95: number | null;
-  p99: number | null;
-  avg: number | null;
-}
-
-interface ThroughputBucket {
-  chats: number;
-  chats_per_min: number;
-  error_rate: number;
-}
-
-interface ObservabilityData {
-  ts: number;
-  worker_pid: number;
-  uptime_seconds: number;
-  samples: { in_window: number; max: number; ttl_seconds: number };
-  totals: {
-    chats: number; success: number; error: number;
-    rag_chats: number; rag_usage_rate: number; rate_limit_hits: number;
+function HeroZone({
+  overall,
+  autoRefresh,
+  setAutoRefresh,
+  isValidating,
+  lastRefresh,
+  onRefresh,
+  uptimeSeconds,
+}: {
+  overall: Severity;
+  autoRefresh: boolean;
+  setAutoRefresh: (v: boolean) => void;
+  isValidating: boolean;
+  lastRefresh: Date | null;
+  onRefresh: () => void;
+  uptimeSeconds?: number;
+}) {
+  const severityMap: Record<Severity, { color: string; bg: string; border: string; label: string }> = {
+    ok:    { color: "text-success", bg: "bg-success/10",  border: "border-success/30",  label: "saludable" },
+    info:  { color: "text-accent-cyan", bg: "bg-accent-cyan/10", border: "border-accent-cyan/30", label: "observando" },
+    warn:  { color: "text-warning", bg: "bg-warning/10",  border: "border-warning/30",  label: "atención" },
+    crit:  { color: "text-error",   bg: "bg-error/10",    border: "border-error/30",    label: "crítico" },
   };
-  tokens: {
-    tokens_in: number; tokens_out: number;
-    pending_token_callback: boolean; estimated_cost_usd?: number;
-  };
-  latency_ms: Record<string, LatencyBucket>;
-  throughput: Record<"1m" | "5m" | "15m" | "60m", ThroughputBucket>;
-  gating_reasons: Record<string, number>;
+  const sev = severityMap[overall] ?? severityMap.info;
+  const pulseColor: "success" | "cyan" | "warning" | "error" =
+    overall === "ok" ? "success" :
+    overall === "warn" ? "warning" :
+    overall === "crit" ? "error" :
+    "cyan";
+
+  return (
+    <section className="relative overflow-hidden rounded-3xl border border-border/60 bg-card px-8 py-12 md:px-12 md:py-14 mb-10">
+      <div
+        aria-hidden="true"
+        className="absolute -top-24 -right-24 w-[440px] h-[440px] opacity-50 animate-orb-float pointer-events-none"
+      >
+        <img src="/assets/decor/glow-orb-cyan.svg" alt="" className="w-full h-full" />
+      </div>
+      <div
+        aria-hidden="true"
+        className="absolute -bottom-32 -left-20 w-[460px] h-[460px] opacity-35 animate-orb-float pointer-events-none"
+        style={{ animationDelay: "-9s" }}
+      >
+        <img src="/assets/decor/glow-orb-violet.svg" alt="" className="w-full h-full" />
+      </div>
+      <div
+        aria-hidden="true"
+        className="absolute right-12 top-1/2 -translate-y-1/2 w-40 opacity-30 text-accent-violet pointer-events-none hidden lg:block"
+      >
+        <img src="/assets/decor/embedding-cloud.svg" alt="" className="w-full" loading="lazy" />
+      </div>
+      <div
+        aria-hidden="true"
+        className="absolute left-16 bottom-10 w-28 opacity-25 text-accent-cyan pointer-events-none hidden md:block"
+      >
+        <img src="/assets/decor/pulse-wave.svg" alt="" className="w-full" loading="lazy" />
+      </div>
+      <div aria-hidden="true" className="absolute inset-0 bg-grid opacity-30 pointer-events-none" />
+
+      <div className="relative flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+        <div>
+          <div className="flex items-center gap-2.5 mb-4">
+            <span className="font-mono text-[11px] text-primary/70 tabular-nums">01 / 06</span>
+            <span className="h-px w-8 bg-primary/40" />
+            <span className="text-[10px] uppercase tracking-[0.18em] font-heading text-muted-foreground">
+              Telemetría · backend
+            </span>
+          </div>
+
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-heading font-bold tracking-tighter leading-[1.02] mb-3">
+            <span className="gradient-hero-display">Estado del sistema</span>
+          </h1>
+
+          <p className="text-base md:text-lg text-muted-foreground max-w-2xl">
+            Métricas en vivo del backend RAG. Inferencia, datos, pipeline.
+          </p>
+
+          <div className="flex flex-wrap items-center gap-3 mt-5">
+            <div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full ${sev.bg} border ${sev.border}`}>
+              <PulseDot color={pulseColor} size={6} />
+              <span className={`text-[11px] font-mono uppercase tracking-wider ${sev.color}`}>
+                {sev.label}
+              </span>
+            </div>
+            <HealthLabel severity={overall} />
+            {uptimeSeconds != null && (
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-mono text-muted-foreground tabular-nums">
+                <Timer className="h-3 w-3 text-accent-violet" />
+                uptime {fmtUptime(uptimeSeconds)}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-col items-stretch md:items-end gap-3 self-start">
+          <label className="inline-flex items-center gap-2.5 px-3 py-1.5 rounded-lg border border-border bg-background/40 backdrop-blur-sm cursor-pointer">
+            <Switch
+              checked={autoRefresh}
+              onCheckedChange={setAutoRefresh}
+              className="h-4 w-8 [&>span]:h-3 [&>span]:w-3 [&>span[data-state=checked]]:translate-x-4"
+            />
+            <span className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
+              auto · 30s
+            </span>
+          </label>
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={isValidating}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-border bg-background/40 backdrop-blur-sm text-xs font-mono text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/[0.04] transition-all duration-200 ease-out-expo disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isValidating ? "animate-spin text-primary" : ""}`} />
+            {lastRefresh ? fmtClock(lastRefresh) : "--:--"}
+          </button>
+        </div>
+      </div>
+    </section>
+  );
 }
 
-interface DependencyStatus {
-  status: "connected" | "degraded" | "disconnected";
-  latency_ms?: number; message?: string;
-  backend?: string; collection?: string; points_count?: number;
+// ─── Section header ───────────────────────────────────────────────────────────
+
+function SectionHeader({
+  index,
+  total,
+  title,
+  icon: Icon,
+  iconColor = "text-primary",
+}: {
+  index: string;
+  total: string;
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  iconColor?: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 mb-5 mt-2">
+      <span className="font-mono text-[11px] text-primary/70 tabular-nums">{index} / {total}</span>
+      <span className={`${iconColor} flex-shrink-0`}>
+        <Icon className="h-4 w-4" />
+      </span>
+      <h2 className="text-xs uppercase tracking-[0.16em] font-heading text-muted-foreground whitespace-nowrap">
+        {title}
+      </h2>
+      <span className="h-px flex-1 bg-gradient-to-r from-border via-border to-transparent" />
+    </div>
+  );
 }
 
-interface HealthReadyData {
-  status: "healthy" | "degraded" | "unhealthy";
-  mongodb: DependencyStatus; redis: DependencyStatus; qdrant: DependencyStatus;
-}
-
-interface SystemStatusData {
-  status: "ok" | "degraded" | "critical";
-  version: string; uptime_seconds: number;
-  rag_available: boolean; cache_backend: string; cache_degraded: boolean;
-  qdrant_circuit_breaker: { state: string; failures: number; is_open: boolean };
-}
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const PIPELINE_STAGES = [
-  { key: "embedding_ms", label: "Vectorización",   short: "Embed"   },
-  { key: "dense_ms",     label: "Búsqueda densa",  short: "Dense"   },
-  { key: "lexical_ms",   label: "Búsqueda léxica", short: "Lexical" },
-  { key: "hydrate_ms",   label: "Hidratación",     short: "Hydrate" },
-  { key: "rerank_ms",    label: "Re-ranking",      short: "Rerank"  },
-  { key: "llm_ms",       label: "Modelo LLM",      short: "LLM"     },
-];
-
-const THROUGHPUT_WINDOWS: ("1m" | "5m" | "15m" | "60m")[] = ["1m", "5m", "15m", "60m"];
-
-const GATING_SUCCESS_KEYS = new Set(["agentic_rag_enabled", "cheap_gate_pass"]);
-
-const GATING_LABELS: Record<string, string> = {
-  agentic_rag_enabled: "Agentic RAG",
-  small_talk: "Saludo / charla",
-  empty_query: "Consulta vacía",
-  punctuation_only: "Solo puntuación",
-  too_short: "Muy corta",
-  cheap_gate_pass: "Pasó filtro inicial",
-  embedding_failed: "Falló vectorización",
-  retrieval_backend_unavailable: "Backend caído",
-  no_candidates: "Sin candidatos",
-  no_parent_candidates: "Sin docs padre",
-  reranker_empty: "Reranker vacío",
-  low_relevance_score: "Relevancia baja",
-  lexical_only: "Solo léxico",
-};
-
-const THRESHOLDS = {
-  successRate:   { ok: 0.99, warn: 0.95 },
-  // Metric card coloring — calibrated for OpenAI GPT-4 with RAG context
-  p95Total:      { ok: 15000, warn: 25000 },   // 15s ok, 25s warn
-  p95FirstToken: { ok: 8000,  warn: 15000 },   // 8s ok, 15s warn
-  // Banner alert — outage level only (truly broken, not just slow)
-  p95TotalAlert:      { ok: 30000, warn: 50000 },
-  p95FirstTokenAlert: { ok: 20000, warn: 35000 },
-  pipeline: {
-    embedding_ms: { ok: 500,  warn: 1500 },
-    dense_ms:     { ok: 500,  warn: 1500 },
-    lexical_ms:   { ok: 500,  warn: 1500 },
-    hydrate_ms:   { ok: 500,  warn: 1500 },
-    rerank_ms:    { ok: 200,  warn: 500  },
-    llm_ms:       { ok: 8000, warn: 15000 },
-  } as Record<string, { ok: number; warn: number }>,
-};
-
-const REFRESH_MS = 30000;
-
-// ─── Severity helpers ─────────────────────────────────────────────────────────
-
-const evalSuccess = (r: number | null): Severity =>
-  r == null ? "info" : r >= THRESHOLDS.successRate.ok ? "ok" : r >= THRESHOLDS.successRate.warn ? "warn" : "crit";
-
-const evalLatency = (ms: number | null, t: { ok: number; warn: number }): Severity =>
-  ms == null ? "info" : ms <= t.ok ? "ok" : ms <= t.warn ? "warn" : "crit";
-
-const aggregate = (...s: Severity[]): Severity =>
-  s.includes("crit") ? "crit" : s.includes("warn") ? "warn" : s.every((x) => x === "info") ? "info" : "ok";
-
-const depSeverity = (s: DependencyStatus | undefined): Severity =>
-  !s ? "info" : s.status === "connected" ? "ok" : s.status === "degraded" ? "warn" : "crit";
-
-// ─── Formatters ───────────────────────────────────────────────────────────────
-
-const fmtNum = (n: number | null | undefined) => (n == null ? "—" : Math.round(n).toLocaleString("es-PE"));
-const fmtMs = (n: number | null | undefined) => {
-  if (n == null) return "—";
-  return n < 1000 ? `${Math.round(n)} ms` : `${(n / 1000).toFixed(n < 10000 ? 2 : 1)} s`;
-};
-const fmtPct = (n: number | null | undefined, d = 1) => (n == null ? "—" : `${(n * 100).toFixed(d)}%`);
-const fmtUsd = (n: number | null | undefined) =>
-  n == null ? "—" : n < 0.0001 && n > 0 ? "<$0.0001" : `$${n.toFixed(4)}`;
-const fmtUptime = (s: number) => {
-  const sec = Math.max(0, Math.floor(s));
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  return h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${sec % 60}s` : `${sec}s`;
-};
-const fmtClock = (d: Date) =>
-  d.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-
-// ─── Skeleton ─────────────────────────────────────────────────────────────────
+// ─── Loading skeleton ─────────────────────────────────────────────────────────
 
 function LoadingSkeleton() {
   return (
-    <div className="space-y-12">
-      <Skeleton className="h-24 w-full max-w-md" />
-      <Skeleton className="h-20 w-full" />
-      <Skeleton className="h-48 w-full" />
+    <div className="space-y-10">
+      <div className="space-y-5">
+        <Skeleton className="h-4 w-48 rounded" />
+        <Skeleton className="h-36 w-full rounded-2xl" />
+      </div>
+      <div className="space-y-5">
+        <Skeleton className="h-4 w-56 rounded" />
+        <Skeleton className="h-28 w-full rounded-2xl" />
+      </div>
+      <div className="space-y-5">
+        <Skeleton className="h-4 w-44 rounded" />
+        <Skeleton className="h-48 w-full rounded-2xl" />
+      </div>
+      <div className="space-y-5">
+        <Skeleton className="h-4 w-52 rounded" />
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+          <Skeleton className="h-44 w-full rounded-2xl lg:col-span-3" />
+          <Skeleton className="h-44 w-full rounded-2xl lg:col-span-2" />
+        </div>
+      </div>
+      <div className="space-y-5">
+        <Skeleton className="h-4 w-40 rounded" />
+        <Skeleton className="h-32 w-full rounded-2xl" />
+      </div>
     </div>
   );
 }
@@ -197,35 +262,25 @@ export default function ObservabilityPage() {
     { refreshInterval: 15000 },
   );
 
-  const handleRefresh = useCallback(() => mutate(), [mutate]);
+  const handleRefresh = useCallback(() => { mutate(); }, [mutate]);
 
-  // Telemetry buffers — push current snapshot each tick
   const t60 = data?.throughput?.["60m"];
   const successRate60 = t60 && t60.chats > 0 ? 1 - t60.error_rate : null;
   const totalP95 = data?.latency_ms?.total_ms?.p95 ?? null;
+  const totalP50 = data?.latency_ms?.total_ms?.p50 ?? null;
   const ftP95 = data?.latency_ms?.first_token_ms?.p95 ?? null;
 
-  const successBuf = useRingBuffer(successRate60 != null ? successRate60 * 100 : null, {
-    capacity: 60, storageKey: "success60",
-  });
-  const chatsPerMinBuf = useRingBuffer(t60?.chats_per_min ?? null, {
-    capacity: 60, storageKey: "chats_per_min",
-  });
-  const ftBuf = useRingBuffer(ftP95, { capacity: 60, storageKey: "ft_p95" });
-  const totalBuf = useRingBuffer(totalP95, { capacity: 60, storageKey: "total_p95" });
-
-  const mongoLatBuf = useRingBuffer(healthData?.mongodb?.latency_ms ?? null, {
-    capacity: 60, storageKey: "mongo_lat",
-  });
-  const qdrantLatBuf = useRingBuffer(healthData?.qdrant?.latency_ms ?? null, {
-    capacity: 60, storageKey: "qdrant_lat",
-  });
+  useRingBuffer(successRate60 != null ? successRate60 * 100 : null, { capacity: 60, storageKey: "success60" });
+  useRingBuffer(t60?.chats_per_min ?? null, { capacity: 60, storageKey: "chats_per_min" });
+  useRingBuffer(ftP95, { capacity: 60, storageKey: "ft_p95" });
+  useRingBuffer(totalP95, { capacity: 60, storageKey: "total_p95" });
+  const mongoLatBuf = useRingBuffer(healthData?.mongodb?.latency_ms ?? null, { capacity: 60, storageKey: "mongo_lat" });
+  const qdrantLatBuf = useRingBuffer(healthData?.qdrant?.latency_ms ?? null, { capacity: 60, storageKey: "qdrant_lat" });
 
   const { overall, severities } = useMemo(() => {
     const successSev: Severity = !t60 || t60.chats < 20 ? "info" : evalSuccess(successRate60);
     const totalSev = evalLatency(totalP95, THRESHOLDS.p95Total);
     const ftSev = evalLatency(ftP95, THRESHOLDS.p95FirstToken);
-    // Banner uses outage-level thresholds — normal OpenAI slowness doesn't trigger it
     const totalAlertSev = evalLatency(totalP95, THRESHOLDS.p95TotalAlert);
     const ftAlertSev = evalLatency(ftP95, THRESHOLDS.p95FirstTokenAlert);
     return { severities: { successSev, totalSev, ftSev }, overall: aggregate(successSev, totalAlertSev, ftAlertSev) };
@@ -251,326 +306,135 @@ export default function ObservabilityPage() {
       .filter(Boolean) as WaterfallStage[];
   }, [data]);
 
-  const gatingItems: GatingItem[] = useMemo(() => {
-    if (!data) return [];
-    return Object.entries(data.gating_reasons || {}).map(([key, count]) => ({
+  const { filteredGatingItems, filteredGatingTotal, cantAnswerCount } = useMemo(() => {
+    if (!data) return { filteredGatingItems: [] as GatingItem[], filteredGatingTotal: 0, cantAnswerCount: 0 };
+    const allItems: GatingItem[] = Object.entries(data.gating_reasons || {}).map(([key, count]) => ({
       key,
       label: GATING_LABELS[key] ?? key,
       count,
     }));
-  }, [data]);
-
-  const gatingTotal = gatingItems.reduce((acc, it) => acc + it.count, 0);
-
-  const { filteredGatingItems, filteredGatingTotal } = useMemo(() => {
-    const items = gatingItems.filter((item) => !GATING_SUCCESS_KEYS.has(item.key));
-    return { filteredGatingItems: items, filteredGatingTotal: items.reduce((acc, it) => acc + it.count, 0) };
-  }, [gatingItems]);
-
-  const cantAnswerCount = data
-    ? (data.gating_reasons?.no_candidates ?? 0) +
+    const items = allItems.filter((item) => !GATING_SUCCESS_KEYS.has(item.key));
+    const cant =
+      (data.gating_reasons?.no_candidates ?? 0) +
       (data.gating_reasons?.no_parent_candidates ?? 0) +
       (data.gating_reasons?.reranker_empty ?? 0) +
-      (data.gating_reasons?.low_relevance_score ?? 0)
-    : 0;
+      (data.gating_reasons?.low_relevance_score ?? 0);
+    return {
+      filteredGatingItems: items,
+      filteredGatingTotal: items.reduce((acc, it) => acc + it.count, 0),
+      cantAnswerCount: cant,
+    };
+  }, [data]);
 
   if (isChecking || !isAuthorized) return null;
 
   return (
     <TooltipProvider>
-      <div data-surface="telemetry" className="min-h-full -m-6 p-8 md:p-12 lg:p-14">
-        <div className="mx-auto max-w-[1100px]">
+      <div className="min-h-full -m-8 p-6 md:p-10 lg:p-14">
+        <div className="mx-auto max-w-[1200px]">
 
-          {/* ── Header ──────────────────────────────────────────────────────── */}
-          <header className="flex items-start justify-between gap-8 pb-8 mb-8 border-b" style={{ borderColor: "var(--t-surface-edge)" }}>
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <span className="text-xs font-mono uppercase tracking-wide" style={{ color: "var(--t-ink-soft)" }}>Sistema</span>
-                <HealthLabel severity={overall} />
-              </div>
-              <h1 className="t-title text-4xl font-bold mb-3">Estado del sistema</h1>
-              <p className="t-body max-w-2xl">
-                Métricas en vivo del backend. Actualiza cada 30 segundos.
-              </p>
-            </div>
+          <FadeIn>
+            <HeroZone
+              overall={overall}
+              autoRefresh={autoRefresh}
+              setAutoRefresh={setAutoRefresh}
+              isValidating={isValidating}
+              lastRefresh={lastRefresh}
+              onRefresh={handleRefresh}
+              uptimeSeconds={data?.uptime_seconds}
+            />
+          </FadeIn>
 
-            <div className="flex flex-col items-end gap-4">
-              <div className="flex items-center gap-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <Switch checked={autoRefresh} onCheckedChange={setAutoRefresh} className="h-4 w-8 [&>span]:h-3 [&>span]:w-3 [&>span[data-state=checked]]:translate-x-4" />
-                  <span className="t-label">Auto-actualizar</span>
-                </label>
-                <button
-                  type="button"
-                  onClick={handleRefresh}
-                  disabled={isValidating}
-                  className="t-mono-sm inline-flex items-center gap-1.5 px-3 py-1.5 rounded-sm border transition-colors hover:bg-[var(--t-surface)]"
-                  style={{ borderColor: "var(--t-surface-edge)", color: "var(--t-ink-mid)" }}
+          <AlertBanner overall={overall} error={error} hasData={!!data} />
+
+          <FadeIn delay={0.08}>
+            <Tabs defaultValue="metrics" className="w-full">
+              <TabsList className="mb-8 bg-card border border-border rounded-xl p-1 h-auto">
+                <TabsTrigger
+                  value="metrics"
+                  className="inline-flex items-center gap-2 px-4 py-2 text-xs font-heading uppercase tracking-wider data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-glow-primary rounded-lg transition-all"
                 >
-                  <RefreshCw className={`h-3 w-3 ${isValidating ? "animate-spin" : ""}`} />
-                  {lastRefresh ? fmtClock(lastRefresh) : "—"}
-                </button>
-              </div>
-            </div>
-          </header>
+                  <Activity className="h-3.5 w-3.5" />
+                  Métricas
+                </TabsTrigger>
+                <TabsTrigger
+                  value="gaps"
+                  className="inline-flex items-center gap-2 px-4 py-2 text-xs font-heading uppercase tracking-wider data-[state=active]:bg-accent-violet/10 data-[state=active]:text-accent-violet data-[state=active]:shadow-glow-violet rounded-lg transition-all"
+                >
+                  <HelpCircle className="h-3.5 w-3.5" />
+                  Vacíos de conocimiento
+                </TabsTrigger>
+              </TabsList>
 
-          {/* ── Critical/Warning Alert Banner ────────────────────────────── */}
-          {overall === 'crit' && (
-            <div className="t-crit-banner flex items-start gap-3 mb-8">
-              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" style={{ color: "var(--t-signal-deep)" }} />
-              <div>
-                <p className="t-section-title" style={{ color: "var(--t-signal-deep)" }}>Sistema en estado crítico</p>
-                <p className="t-small mt-1">Revisa la sección de Servicios Externos y los Indicadores Clave para identificar el problema.</p>
-              </div>
-            </div>
-          )}
-          {overall === 'warn' && (
-            <div className="t-warn-banner flex items-start gap-3 mb-8">
-              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" style={{ color: "var(--t-signal)" }} />
-              <div>
-                <p className="t-section-title" style={{ color: "var(--t-signal)" }}>Atención requerida</p>
-                <p className="t-small mt-1">Una o más métricas están fuera de sus objetivos normales.</p>
-              </div>
-            </div>
-          )}
+              <TabsContent value="metrics">
+                {isLoading && !data ? (
+                  <LoadingSkeleton />
+                ) : data ? (
+                  <div className="space-y-10">
+                    <section>
+                      <SectionHeader index="02" total="06" title="Indicadores clave" icon={Zap} iconColor="text-accent-cyan" />
+                      <KPISection
+                        t60={t60}
+                        successRate60={successRate60}
+                        ftP95={ftP95}
+                        totalP95={totalP95}
+                        cantAnswerCount={cantAnswerCount}
+                        severities={severities}
+                      />
+                    </section>
 
-          {error && !data && (
-            <div className="flex items-center gap-3 mb-12 px-4 py-3 rounded-sm" style={{ background: "var(--t-signal-soft)", color: "var(--t-signal-deep)" }}>
-              <AlertCircle className="h-4 w-4" />
-              <span className="t-small" style={{ color: "var(--t-signal-deep)" }}>
-                No se pudo cargar las métricas. Verifica tu conexión.
-              </span>
-            </div>
-          )}
+                    <section>
+                      <SectionHeader index="03" total="06" title="Servicios + datos" icon={Database} iconColor="text-accent-violet" />
+                      <ServicesSection
+                        healthData={healthData}
+                        statusData={statusData}
+                        mongoLatBuf={mongoLatBuf}
+                        qdrantLatBuf={qdrantLatBuf}
+                      />
+                    </section>
 
-          {isLoading && !data ? (
-            <LoadingSkeleton />
-          ) : data ? (
-            <div className="space-y-8">
+                    <section>
+                      <SectionHeader index="04" total="06" title="Pipeline RAG" icon={Workflow} iconColor="text-primary" />
+                      <PipelineSection stages={stages} totalP50={totalP50} totalP95={totalP95} />
+                    </section>
 
-              {/* ── KPIs Card ───────────────────────────────────────────────── */}
-              <section
-                className="t-section-card sm:p-8"
-                data-severity={severities.successSev}
-              >
-                <div className="flex items-center gap-2 mb-8">
-                  <p className="t-heading">Indicadores Clave</p>
-                  <HelpTooltip content="Métricas críticas que indican la salud operacional. Verde = dentro del objetivo. Amarillo = revisar. Rojo = acción inmediata." />
-                </div>
+                    <section>
+                      <SectionHeader index="05" total="06" title="Throughput + gating" icon={BarChart3} iconColor="text-accent-cyan" />
+                      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                        <ThroughputSection throughput={data.throughput} />
+                        <GatingSection items={filteredGatingItems} total={filteredGatingTotal} />
+                      </div>
+                    </section>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-8">
-                  <TelemetryMetric
-                    hero
-                    label="Tasa de éxito (60 min)"
-                    value={fmtPct(successRate60, 2)}
-                    sub={t60 && t60.chats >= 20 ? `${fmtPct(t60.error_rate, 2)} con error` : "pocos datos aún"}
-                    severity={severities.successSev}
-                    tooltip="Porcentaje de chats completados sin error en la última hora. Se activa con 20+ chats."
-                  />
-                  <TelemetryMetric
-                    hero
-                    label="Primer token (p95)"
-                    value={fmtMs(ftP95)}
-                    sub="tiempo hasta primera palabra"
-                    severity={severities.ftSev}
-                    tooltip="Cuánto tarda el LLM en producir la primera palabra. Con OpenAI puede superar 5s en horas pico — es normal."
-                  />
-                  <TelemetryMetric
-                    hero
-                    label="Latencia total (p95)"
-                    value={fmtMs(totalP95)}
-                    sub="fin a fin de la respuesta"
-                    severity={severities.totalSev}
-                    tooltip="Tiempo total desde que el usuario envía hasta que recibe la respuesta completa. Solo afecta el banner si hay errores reales."
-                  />
-                  <TelemetryMetric
-                    hero
-                    label="Sin respuesta RAG"
-                    value={fmtNum(cantAnswerCount)}
-                    sub={t60?.chats ? `${((cantAnswerCount / t60.chats) * 100).toFixed(0)}% del tráfico` : "consultas sin doc relevante"}
-                    severity={
-                      t60?.chats && t60.chats >= 10
-                        ? cantAnswerCount / t60.chats > 0.15 ? "warn" : cantAnswerCount > 0 ? "info" : "ok"
-                        : "info"
-                    }
-                    tooltip="Consultas donde el bot no encontró documentos con suficiente relevancia. Ocurre cuando: (1) no hay PDFs cargados, (2) el tema no está cubierto en los docs, (3) la pregunta es muy distinta al contenido. Si supera 15% del tráfico, revisar la base de conocimiento."
-                  />
-                </div>
-              </section>
+                    <section>
+                      <SectionHeader index="06" total="06" title="Consumo LLM" icon={Coins} iconColor="text-accent-violet" />
+                      <TokensSection tokens={data.tokens} />
+                    </section>
 
-              {/* ── Servicios Externos Card ─────────────────────────────────── */}
-              <section className="t-section-card">
-                <div className="flex items-center gap-2 mb-5">
-                  <p className="t-section-title">Servicios Externos — Estado Actual</p>
-                  <HelpTooltip content="Dependencias críticas que el backend necesita para funcionar. Si alguno cae (rojo), afecta al chat." />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  <ServiceTile
-                    name="MongoDB"
-                    variant="db"
-                    severity={depSeverity(healthData?.mongodb)}
-                    primary={healthData?.mongodb?.latency_ms != null ? `${healthData.mongodb.latency_ms} ms` : "—"}
-                    secondary={healthData?.mongodb?.status}
-                    samples={mongoLatBuf}
-                    tooltip="Base de datos principal. Si cae, usuarios no pueden guardar conversaciones."
-                  />
-                  <ServiceTile
-                    name="Redis"
-                    variant="cache"
-                    severity={depSeverity(healthData?.redis)}
-                    primary={healthData?.redis?.backend ?? healthData?.redis?.status ?? "—"}
-                    secondary={depSeverity(healthData?.redis) === "warn" ? "fallback memoria" : undefined}
-                    tooltip="Cache en memoria. Si falla, fallback a memoria del sistema."
-                  />
-                  <ServiceTile
-                    name="Qdrant"
-                    variant="vector"
-                    severity={depSeverity(healthData?.qdrant)}
-                    primary={healthData?.qdrant?.latency_ms != null ? `${healthData.qdrant.latency_ms} ms` : "—"}
-                    secondary={
-                      statusData?.qdrant_circuit_breaker
-                        ? `CB ${statusData.qdrant_circuit_breaker.state}`
-                        : healthData?.qdrant?.points_count != null
-                        ? `${healthData.qdrant.points_count.toLocaleString("es-PE")} vectores`
-                        : undefined
-                    }
-                    samples={qdrantLatBuf}
-                    tooltip="Motor de búsqueda vectorial. Si cae, no hay búsqueda semántica."
-                  />
-                  <ServiceTile
-                    name="RAG Engine"
-                    variant="engine"
-                    severity={statusData?.rag_available ? "ok" : statusData ? "warn" : "info"}
-                    primary={statusData ? (statusData.rag_available ? "disponible" : "no disponible") : "—"}
-                    secondary={statusData ? `v${statusData.version}` : undefined}
-                    tooltip="Motor de recuperación aumentada por generación. Orquesta búsqueda + LLM."
-                  />
-                </div>
-              </section>
-
-              {/* ── Pipeline RAG Card ───────────────────────────────────────── */}
-              <section className="t-section-card">
-                <div className="flex items-center justify-between mb-5">
-                  <div className="flex items-center gap-2">
-                    <p className="t-section-title">Pipeline RAG — Tiempo por Etapa</p>
-                    <HelpTooltip content="Cuánto tarda cada fase del pipeline. p50 = mediana, p95 = el 95% más lento. Identifica cuellos de botella." />
+                    <footer className="pt-6 mt-4 flex items-center gap-3 border-t border-border/40">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent-violet/10 border border-accent-violet/25">
+                        <Timer className="h-3 w-3 text-accent-violet" />
+                        <span className="text-[10px] font-mono uppercase tracking-wider text-accent-violet">Uptime</span>
+                      </div>
+                      <span className="font-mono text-sm text-foreground tabular-nums">
+                        {data.uptime_seconds != null ? (
+                          <TickNumber value={data.uptime_seconds} suffix="s" />
+                        ) : "s/d"}
+                      </span>
+                      <span className="text-xs text-muted-foreground font-mono">
+                        ≈ {fmtUptime(data.uptime_seconds) || "s/d"}
+                      </span>
+                    </footer>
                   </div>
-                  {data.latency_ms.total_ms?.p50 != null && (
-                    <span className="t-mono-sm">
-                      p50 {fmtMs(data.latency_ms.total_ms.p50)} · p95 {fmtMs(totalP95)}
-                    </span>
-                  )}
-                </div>
-                {stages.length === 0 ? (
-                  <p className="t-small">Sin muestras en la ventana actual.</p>
-                ) : (
-                  <PipelineWaterfall stages={stages} total={data.latency_ms.total_ms?.p50 ?? null} />
-                )}
-              </section>
+                ) : null}
+              </TabsContent>
 
-              {/* ── Throughput + Gating (asymmetric: 2/5 + 3/5) ─────────── */}
-              <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-                {/* Throughput — compact left */}
-                <section className="t-section-card lg:col-span-2">
-                  <div className="flex items-center gap-2 mb-5">
-                    <p className="t-section-title">Volumen de Tráfico</p>
-                    <HelpTooltip content="Chats procesados en diferentes ventanas. Error rate muestra problemas operacionales." />
-                  </div>
-                  <div className="space-y-3">
-                    {THROUGHPUT_WINDOWS.map((win) => {
-                      const row = data.throughput[win];
-                      if (!row) return null;
-                      const errPct = row.error_rate * 100;
-                      const sev: Severity = errPct >= 5 ? "crit" : errPct > 0 ? "warn" : "ok";
-                      return (
-                        <div key={win} className="flex flex-col gap-1.5 p-3 rounded-md" style={{ background: "var(--t-surface-deep)" }}>
-                          <div className="flex items-center justify-between">
-                            <span className="t-label">Últimos {win}</span>
-                            <span className="t-mono-sm">{row.chats.toLocaleString("es-PE")} chats</span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="t-mono-sm">{row.chats_per_min.toFixed(1)}/min</span>
-                            <span className="t-mono-sm" data-severity={sev}>
-                              Error: {errPct.toFixed(2)}%
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
+              <TabsContent value="gaps">
+                <KnowledgeGapsTab isAuthorized={isAuthorized} />
+              </TabsContent>
+            </Tabs>
+          </FadeIn>
 
-                {/* Gating — wider right */}
-                <section className="t-section-card lg:col-span-3">
-                  <div className="flex items-center justify-between mb-5">
-                    <div className="flex items-center gap-2">
-                      <p className="t-section-title">Diagnóstico de Consultas</p>
-                      <HelpTooltip content="Qué pasó con las consultas que no completaron el pipeline RAG. Excluye las que sí completaron búsqueda semántica completa." />
-                    </div>
-                    {filteredGatingTotal > 0 && (
-                      <span className="t-mono-sm">{filteredGatingTotal} eventos</span>
-                    )}
-                  </div>
-                  <GatingBars items={filteredGatingItems} total={filteredGatingTotal} />
-                </section>
-              </div>
-
-              {/* ── Economía de Tokens Card ────────────────────────────────── */}
-              <section className="t-section-card">
-                <div className="flex items-center justify-between gap-2 mb-6">
-                  <div className="flex items-center gap-2">
-                    <p className="t-section-title">Tokens</p>
-                    <HelpTooltip content="Consumo acumulado de LLM tokens. Se reinicia con el servidor." />
-                  </div>
-                  <span className="t-mono-sm">se reinicia con el servidor</span>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-6">
-                  {/* Cost — hero */}
-                  <div className="flex flex-col gap-1.5 sm:pr-6 sm:border-r" style={{ borderColor: "var(--t-surface-edge)" }}>
-                    <span className="t-label">Costo aproximado</span>
-                    <span
-                      style={{
-                        fontFamily: "var(--font-telemetry-mono, 'JetBrains Mono', monospace)",
-                        fontSize: "2.5rem",
-                        fontWeight: 500,
-                        letterSpacing: "-0.025em",
-                        lineHeight: 1,
-                        color: "var(--t-ink)",
-                        fontVariantNumeric: "tabular-nums",
-                      }}
-                    >
-                      {data.tokens.pending_token_callback ? "—" : fmtUsd(data.tokens.estimated_cost_usd)}
-                    </span>
-                    {data.tokens.pending_token_callback && (
-                      <span className="t-small">esperando primer chat</span>
-                    )}
-                  </div>
-                  {/* Token counts — supporting */}
-                  <div className="flex gap-8 items-end">
-                    <div className="flex flex-col gap-1.5">
-                      <span className="t-label">Tokens entrada</span>
-                      <span className="t-mono-xl">{fmtNum(data.tokens.tokens_in)}</span>
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <span className="t-label">Tokens salida</span>
-                      <span className="t-mono-xl">{fmtNum(data.tokens.tokens_out)}</span>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              {/* ── Meta Footer ─────────────────────────────────────────────── */}
-              <footer
-                className="pt-5 mt-2 border-t flex items-center gap-2.5"
-                style={{ borderColor: "var(--t-surface-edge)" }}
-              >
-                <Timer className="h-3 w-3 shrink-0" style={{ color: "var(--t-ink-mute)" }} />
-                <span className="t-label">Uptime</span>
-                <span className="t-mono">{fmtUptime(data.uptime_seconds)}</span>
-              </footer>
-
-            </div>
-          ) : null}
         </div>
       </div>
     </TooltipProvider>

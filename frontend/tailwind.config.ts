@@ -54,6 +54,18 @@ const config: Config = {
           DEFAULT: "hsl(var(--amber))",
           foreground: "hsl(var(--amber-foreground))",
         },
+        "accent-violet": {
+          DEFAULT: "hsl(var(--accent-violet))",
+          foreground: "hsl(var(--accent-violet-foreground))",
+        },
+        "accent-cyan": {
+          DEFAULT: "hsl(var(--accent-cyan))",
+          foreground: "hsl(var(--accent-cyan-foreground))",
+        },
+        "accent-magenta": {
+          DEFAULT: "hsl(var(--accent-magenta))",
+          foreground: "hsl(var(--accent-magenta-foreground))",
+        },
         muted: {
           DEFAULT: "hsl(var(--muted))",
           foreground: "hsl(var(--muted-foreground))",
@@ -95,6 +107,21 @@ const config: Config = {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
         "gradient-conic":
           "conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))",
+      },
+      transitionTimingFunction: {
+        "out-expo": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "out-back": "cubic-bezier(0.34, 1.56, 0.64, 1)",
+        "in-out-circ": "cubic-bezier(0.85, 0, 0.15, 1)",
+      },
+      transitionDuration: {
+        "320": "320ms",
+        "560": "560ms",
+      },
+      boxShadow: {
+        "glow-primary": "var(--shadow-glow-primary)",
+        "glow-violet": "var(--shadow-glow-violet)",
+        "glow-cyan": "var(--shadow-glow-cyan)",
+        "glow-magenta": "var(--shadow-glow-magenta)",
       },
     },
   },

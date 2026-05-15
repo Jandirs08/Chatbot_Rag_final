@@ -150,7 +150,32 @@
       "PowerShell(cd \"C:\\\\Jandir2026\\\\DesarrolloJandir\\\\Chatbot_Rag_final\\\\frontend\\\\app\"; Get-ChildItem -Path \"widget\" -Recurse -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)",
       "Bash(curl *)",
-      "PowerShell(python -m py_compile backend/api/routes/inbox/inbox_routes.py; if \\($?\\) { \"OK\" })"
+      "PowerShell(python -m py_compile backend/api/routes/inbox/inbox_routes.py; if \\($?\\) { \"OK\" })",
+      "Bash(tee /tmp/tsc.log)",
+      "Bash(npx eslint *)",
+      "Bash(xargs -I {} echo {})",
+      "Bash(PYTHONIOENCODING=utf-8 python -c ' *)",
+      "Bash(grep -E \"SIMILARITY_THRESHOLD|RAG_GATING|ENABLE_LLM_RERANKER|RAG_RERANKER_MODEL_NAME\" .env)",
+      "Bash(grep -E \"SIMILARITY_THRESHOLD|RAG_GATING|ENABLE_LLM_RERANKER\" docker-compose*.yml backend/.env)",
+      "WebFetch(domain:www.equilibra.pe)",
+      "WebFetch(domain:equilibra.pe)",
+      "Bash(echo \"TS EXIT=$?\")",
+      "Bash(echo \"ESLINT EXIT=$?\")",
+      "Bash(echo \"TS=$?\")",
+      "Bash(echo \"ESLINT=$?\")",
+      "Read(//c/Jandir2026/DesarrolloJandir/**)",
+      "Read(//c/Jandir2026/**)",
+      "Bash(powershell *)",
+      "Bash(docker version *)",
+      "Bash(mkdir -p frontend/certs)",
+      "Bash(awk '/-----BEGIN CERTIFICATE-----/,/-----END CERTIFICATE-----/' _chain.pem)",
+      "Bash(csplit -z -f cert- -b '%02d.pem' - '/-----BEGIN CERTIFICATE-----/' '{*}')",
+      "PowerShell(Get-ChildItem Cert:\\\\LocalMachine\\\\Root, Cert:\\\\CurrentUser\\\\Root, Cert:\\\\LocalMachine\\\\CA, Cert:\\\\CurrentUser\\\\CA, Cert:\\\\LocalMachine\\\\AuthRoot | Where-Object { $_.Subject -match \"Fortinet|FG200\" } | Select-Object Subject, Thumbprint, PSParentPath | Format-List)",
+      "PowerShell(Out-Null *)",
+      "PowerShell(npm config *)",
+      "Bash(certutil -store -enterprise Root)",
+      "Bash(certutil -store Root)",
+      "Bash(certutil -store CA)"
     ]
   }
 }

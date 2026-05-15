@@ -44,6 +44,7 @@
     "clsx": "^2.1.1",
     "critters": "^0.0.20",
     "emojisplosion": "^2.6.1",
+    "framer-motion": "^12.38.0",
     "jose": "^6.2.2",
     "langsmith": "^0.1.10",
     "lucide-react": "^0.513.0",

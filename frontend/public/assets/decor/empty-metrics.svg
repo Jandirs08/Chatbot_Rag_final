@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 160" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <line x1="20" y1="130" x2="180" y2="130" opacity="0.4"/>
+  <line x1="20" y1="20"  x2="20"  y2="130" opacity="0.4"/>
+  <path d="M30 110 L60 90 L90 100 L120 60 L150 75 L175 40" opacity="0.85"/>
+  <g fill="currentColor">
+    <circle cx="60" cy="90" r="2.5"/>
+    <circle cx="90" cy="100" r="2.5"/>
+    <circle cx="120" cy="60" r="3"/>
+    <circle cx="150" cy="75" r="2.5"/>
+  </g>
+  <g opacity="0.35" stroke-dasharray="2 3">
+    <line x1="30" y1="125" x2="30" y2="110"/>
+    <line x1="60" y1="125" x2="60" y2="90"/>
+    <line x1="90" y1="125" x2="90" y2="100"/>
+    <line x1="120" y1="125" x2="120" y2="60"/>
+    <line x1="150" y1="125" x2="150" y2="75"/>
+    <line x1="175" y1="125" x2="175" y2="40"/>
+  </g>
+</svg>

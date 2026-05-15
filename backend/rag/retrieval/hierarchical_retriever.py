@@ -251,6 +251,23 @@ class HierarchicalRetriever(RAGRetriever):
         else:
             query_embedding = await self._embed_query_async(normalized_query)
 
+        # Out-of-scope gate: same semantics as the base retriever path. Fires
+        # only when we have a valid embedding to compare. Fail-open on errors.
+        if query_embedding is not None:
+            try:
+                import numpy as _np
+                from ..corpus_centroid import get_centroid, is_out_of_scope
+                q_arr = _np.asarray(query_embedding, dtype=_np.float32)
+                centroid = await get_centroid(self.vector_store)
+                if is_out_of_scope(q_arr, centroid):
+                    self._last_gating_reason = "out_of_scope"
+                    logger.info(
+                        "[RAG][POST] acceptance=rejected reason=out_of_scope docs=0",
+                    )
+                    return []
+            except Exception as exc:
+                logger.warning("out_of_scope check skipped: %s", exc, exc_info=True)
+
         async def _timed_dense_search():
             dense_started_at = time.perf_counter()
             try:

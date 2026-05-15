@@ -693,7 +693,14 @@ async def list_recent_conversations(
 
 @router.delete("/history")
 async def clear_history(request: Request, current_user=Depends(require_view_debug)):
-    """Borra todo el historial de conversaciones (colección 'messages'). Requiere admin."""
+    """Borra historial de conversaciones + diagnóstico de retrieval.
+
+    Limpia tres colecciones para que "borrar historial" sea exhaustivo:
+      - messages: mensajes user/assistant
+      - chat_profiles: perfiles de memoria por conversación
+      - retrieval_logs: huellas de búsqueda que alimentan el tab de vacíos
+        (sin esto, gaps históricos quedan visibles tras una limpieza).
+    """
     try:
         chat_manager = request.app.state.chat_manager
         db = chat_manager.db
@@ -701,9 +708,20 @@ async def clear_history(request: Request, current_user=Depends(require_view_debu
         memory = chat_manager.bot.memory
         if hasattr(memory, "profiles_col"):
             await memory.profiles_col.delete_many({})
+
+        retrieval_deleted = 0
+        try:
+            mongo_db = db.db if hasattr(db, "db") else None
+            if mongo_db is not None:
+                res = await mongo_db.retrieval_logs.delete_many({})
+                retrieval_deleted = int(getattr(res, "deleted_count", 0) or 0)
+        except Exception as exc:
+            logger.warning("No se pudieron borrar retrieval_logs (no fatal): %s", exc)
+
         return JSONResponse(content={
             "status": "success",
             "deleted_count": int(deleted_count),
+            "retrieval_logs_deleted": retrieval_deleted,
             "message": "Historial eliminado correctamente"
         })
     except Exception as e:

@@ -184,6 +184,21 @@ async def generate_response(
                 get_metrics_collector().record_chat(sample)
             except Exception as exc:
                 logger.debug("metrics record failed (generate_response): %s", exc, exc_info=True)
+
+            # Phantom-gap detection: eager RAG ran but the answer declared
+            # data absence despite chunks being injected. Helper dedupes
+            # against retrieval-side gating reasons.
+            if response_content and req_ctx.rag_time:
+                try:
+                    from chat.grounding import maybe_log_phantom_gap
+                    maybe_log_phantom_gap(
+                        conversation_id=conversation_id,
+                        user_query=input_text,
+                        response_text=response_content,
+                        req_ctx=req_ctx,
+                    )
+                except Exception as exc:
+                    logger.debug("grounding check failed (non-fatal): %s", exc)
         await locks.release(
             conversation_id,
             conversation_lock,

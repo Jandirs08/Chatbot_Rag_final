@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { logger } from "@/app/lib/logger";
 import { toast } from "sonner";
 import { botService } from "@/app/lib/services/botService";
+import { fmtRelative } from "@/app/lib/format";
 import {
   useBotState,
   useDashboardStats,
@@ -40,27 +41,12 @@ export default function DashboardClient() {
   const isLoading = isToggling || isBotStateLoading || isStatsLoading;
 
   useEffect(() => {
-    const fmt = (iso?: string | null) => {
-      if (!iso) return "-";
-      const d = new Date(iso);
-      if (isNaN(d.getTime())) return "-";
-      const now = Date.now();
-      const diffMs = Math.max(0, now - d.getTime());
-      const sec = Math.floor(diffMs / 1000);
-      if (sec < 60) return "Hace segundos";
-      const min = Math.floor(sec / 60);
-      if (min < 60) return `Hace ${min} min`;
-      const hr = Math.floor(min / 60);
-      if (hr < 24) return `Hace ${hr} h`;
-      const day = Math.floor(hr / 24);
-      return `Hace ${day} d`;
-    };
-    setRelativeLastActivity(fmt(lastActivityIso));
-    const id = setInterval(() => setRelativeLastActivity(fmt(lastActivityIso)), 60000);
+    setRelativeLastActivity(fmtRelative(lastActivityIso));
+    const id = setInterval(() => setRelativeLastActivity(fmtRelative(lastActivityIso)), 60000);
     return () => clearInterval(id);
   }, [lastActivityIso]);
 
-  const handleBotToggle = async (_checked: boolean) => {
+  const handleBotToggle = async () => {
     try {
       setIsToggling(true);
       const state = await botService.toggleState();

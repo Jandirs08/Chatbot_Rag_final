@@ -21,7 +21,7 @@ from .chain import ChainManager
 from .tools import ToolDefinition
 from .request_context import get_request_context
 from rag.retrieval import RAGRetriever, RetrievalBackendUnavailableError
-from database.retrieval_log_repository import RetrievalLogRepository
+from database.retrieval_log_repository import GAP_REASONS, schedule_log_retrieval
 
 
 class Bot:
@@ -180,24 +180,31 @@ class Bot:
                 
                 req_ctx.gating_reason = getattr(self.rag_retriever, "_last_gating_reason", None)
                 self.logger.debug(f"RAG gating (from retriever): reason={req_ctx.gating_reason}")
-                
+                req_ctx.rag_time = time.perf_counter() - t_start
+
                 if not docs:
-                    req_ctx.rag_time = time.perf_counter() - t_start
+                    # Knowledge gap: query attempted but no docs. Log so admins can see
+                    # what users ask that the corpus doesn't cover.
+                    if req_ctx.gating_reason in GAP_REASONS:
+                        schedule_log_retrieval(
+                            conversation_id=x.get("conversation_id", ""),
+                            query=query,
+                            docs=[],
+                            latency_ms=req_ctx.rag_time * 1000,
+                            gating_reason=req_ctx.gating_reason,
+                        )
                     return fallback_ctx
 
                 req_ctx.retrieved_docs = docs
                 ctx = self.rag_retriever.format_context_from_documents(docs)
                 req_ctx.context = ctx if (isinstance(ctx, str) and ctx.strip()) else fallback_ctx
-                req_ctx.rag_time = time.perf_counter() - t_start
 
-                asyncio.create_task(
-                    RetrievalLogRepository().log_retrieval(
-                        conversation_id=x.get("conversation_id", ""),
-                        query=query,
-                        docs=docs,
-                        latency_ms=req_ctx.rag_time * 1000,
-                        gating_reason=req_ctx.gating_reason,
-                    )
+                schedule_log_retrieval(
+                    conversation_id=x.get("conversation_id", ""),
+                    query=query,
+                    docs=docs,
+                    latency_ms=req_ctx.rag_time * 1000,
+                    gating_reason=req_ctx.gating_reason,
                 )
                 return req_ctx.context
 
@@ -308,15 +315,27 @@ class Bot:
         prompt_value = await self._message_pipeline.ainvoke(inp)
         return prompt_value.to_messages()
 
-    async def astream_messages(self, messages: list) -> AsyncGenerator[Any, None]:
-        """Stream raw model chunks for an explicit message list (bypasses prompt)."""
+    async def astream_messages(
+        self,
+        messages: list,
+        tool_choice: Optional[Any] = None,
+    ) -> AsyncGenerator[Any, None]:
+        """Stream raw model chunks for an explicit message list (bypasses prompt).
+
+        `tool_choice` (optional) forces a specific tool call for this stream only,
+        bypassing the model's "auto" decision. Used by the agentic gate to ensure
+        retrieval happens for non-greeting user inputs.
+        """
         if getattr(self.settings, "mock_mode", False):
             await asyncio.sleep(0.5)
             yield AIMessageChunk(content="[MOCK] ")
             await asyncio.sleep(0.5)
             yield AIMessageChunk(content="Respuesta simulada para load test.")
             return
-        async for part in self.chain_manager.bound_model.astream(messages):
+        model = self.chain_manager.bound_model
+        if tool_choice is not None:
+            model = model.bind(tool_choice=tool_choice)
+        async for part in model.astream(messages):
             yield part
 
     async def astream_messages_no_tools(self, messages: list) -> AsyncGenerator[Any, None]:

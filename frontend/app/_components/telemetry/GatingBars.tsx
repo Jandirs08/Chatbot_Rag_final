@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import { HelpTooltip } from "./HelpTooltip";
 
 export interface GatingItem {
@@ -31,6 +31,11 @@ const GATING_HELP: Record<string, string> = {
 };
 
 export function GatingBars({ items, total }: Props) {
+  const { max, sorted } = useMemo(() => ({
+    max: Math.max(...items.map((i) => i.count), 1),
+    sorted: [...items].sort((a, b) => b.count - a.count),
+  }), [items]);
+
   if (items.length === 0 || total === 0) {
     return (
       <div className="flex flex-col items-center gap-2.5 py-8" style={{ color: "var(--t-ink-mute)" }}>
@@ -41,9 +46,6 @@ export function GatingBars({ items, total }: Props) {
       </div>
     );
   }
-
-  const max = Math.max(...items.map((i) => i.count), 1);
-  const sorted = [...items].sort((a, b) => b.count - a.count);
 
   return (
     <div className="space-y-2">

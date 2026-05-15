@@ -152,13 +152,6 @@
   padding: 1rem 1.125rem;
 }
 
-[data-surface="telemetry"] .t-tile-deep {
-  background: var(--t-surface-deep);
-  border: 1px solid var(--t-surface-edge);
-  border-radius: 0.5rem;
-  padding: 1.125rem 1.25rem;
-}
-
 [data-surface="telemetry"] .t-tile[data-severity="warn"] {
   border-color: var(--t-signal);
 }
@@ -252,10 +245,110 @@
   color: var(--t-ink);
 }
 
+/* ─── Knowledge gaps (segmented control + paginated list) ───────────────── */
+
+[data-surface="telemetry"] .t-bucket-marker {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+[data-surface="telemetry"] .t-bucket-nav {
+  scrollbar-width: thin;
+}
+
+[data-surface="telemetry"] .t-bucket-tab {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+[data-surface="telemetry"] .t-bucket-tab:hover {
+  color: var(--t-ink);
+}
+
+[data-surface="telemetry"] .t-bucket-tab:focus-visible {
+  outline: 2px solid var(--t-data);
+  outline-offset: -4px;
+  border-radius: 4px;
+}
+
+/* Bucket pill — colored filter chips */
+
+[data-surface="telemetry"] .t-bucket-pill {
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* Inactive pill: lift the tint on hover (faint → soft). The brightness
+   trick was invisible on tinted-low backgrounds. */
+[data-surface="telemetry"] .t-bucket-pill[data-active="false"]:hover {
+  background: var(--t-pill-hover-bg, var(--t-surface-deep)) !important;
+}
+
+/* Active pill: small specular lift on hover, no fill change. */
+[data-surface="telemetry"] .t-bucket-pill[data-active="true"]:hover {
+  filter: brightness(1.08);
+}
+
+[data-surface="telemetry"] .t-bucket-pill:focus-visible {
+  outline: 2px solid var(--t-data);
+  outline-offset: 2px;
+}
+
+/* Search input — soft glow on focus */
+
+[data-surface="telemetry"] .t-search:focus-within {
+  border-color: var(--t-data);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--t-data) 18%, transparent);
+}
+
+/* Row container divider — single source */
+
+[data-surface="telemetry"] .t-gap-list > li + li {
+  border-top: 1px solid color-mix(in oklab, var(--t-surface-edge) 70%, transparent);
+}
+
+/* Window selector — pill group */
+
+[data-surface="telemetry"] .t-window-group button {
+  white-space: nowrap;
+}
+
+[data-surface="telemetry"] .t-gap-row {
+  text-decoration: none;
+  position: relative;
+}
+
+[data-surface="telemetry"] .t-gap-row:hover {
+  background: color-mix(in oklab, var(--t-surface-deep) 70%, transparent);
+}
+
+[data-surface="telemetry"] .t-gap-row:focus-visible {
+  outline: 2px solid var(--t-data);
+  outline-offset: -2px;
+}
+
+@keyframes t-skeleton-shimmer {
+  0%   { opacity: 0.55; }
+  50%  { opacity: 0.85; }
+  100% { opacity: 0.55; }
+}
+
+[data-surface="telemetry"] .t-skeleton {
+  animation: t-skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
 /* ─── Reduced motion ─────────────────────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
   [data-surface="telemetry"] .t-glyph[data-severity="crit"] { animation: none; }
   [data-surface="telemetry"] .t-data-enter { animation: none; }
   [data-surface="telemetry"] .t-num-fade { animation: none; }
+  [data-surface="telemetry"] .t-spark-path { transition: none; }
+  [data-surface="telemetry"] .t-skeleton { animation: none; opacity: 0.7; }
+  [data-surface="telemetry"] .t-gap-row { transition: none; }
 }

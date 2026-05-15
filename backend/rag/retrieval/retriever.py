@@ -8,6 +8,7 @@ import re
 import statistics
 import time
 from collections import deque
+from contextvars import ContextVar
 from dataclasses import dataclass
 from functools import wraps
 from typing import Any, Dict, List, Optional, Tuple
@@ -20,6 +21,7 @@ from config import settings
 from core.request_context import get_request_context
 
 from ..vector_store.vector_store import VectorStore, VectorStoreUnavailableError
+from ..corpus_centroid import get_centroid, is_out_of_scope
 from .gating import CheapGateDecision, cheap_gate
 
 logger = logging.getLogger(__name__)
@@ -168,6 +170,16 @@ class PerformanceMetrics:
             self.metrics[key].clear()
 
 
+# Per-coroutine gating reason. The retriever is a singleton; without
+# ContextVar isolation, concurrent requests would overwrite each other's
+# value via the (legacy) instance attribute, leaking cross-request state
+# into the dashboard's knowledge-gaps log. ContextVar makes the value
+# automatically scoped to the asyncio Task that owns the retrieve call.
+_gating_reason_var: ContextVar[Optional[str]] = ContextVar(
+    "retriever_gating_reason", default=None,
+)
+
+
 class RAGRetriever:
     _TOP_DOCS_LOG_N = 5
     _PREVIEW_CHARS = 180
@@ -183,7 +195,16 @@ class RAGRetriever:
         self.embedding_manager = embedding_manager
         self.cache_enabled = cache_enabled
         self.performance_metrics = PerformanceMetrics()
-        self._last_gating_reason: Optional[str] = None
+        # _last_gating_reason is now a per-coroutine property backed by
+        # ContextVar (see below). No instance state needed.
+
+    @property
+    def _last_gating_reason(self) -> Optional[str]:
+        return _gating_reason_var.get()
+
+    @_last_gating_reason.setter
+    def _last_gating_reason(self, value: Optional[str]) -> None:
+        _gating_reason_var.set(value)
 
         logger.debug(
             "RAGRetriever initialized with normalize -> cheap gate -> cache -> single embedding -> retrieval"
@@ -641,6 +662,28 @@ class RAGRetriever:
             )
             return []
         logger.info("[RAG][EMBEDDING] success dim=%s q='%s'", int(query_embedding.size), safe_query)
+
+        # Out-of-scope gate: if query embedding is far from the corpus
+        # centroid, this question is unrelated to the indexed content
+        # (e.g. "iPhone price" on an agronomy bot). Skip retrieval — it
+        # would just return weakly-related noise. Tagged separately from
+        # in-domain gaps so the dashboard can show them as "noise" rather
+        # than actionable content holes. Fail-open on any error.
+        try:
+            centroid = await get_centroid(self.vector_store)
+            if is_out_of_scope(query_embedding, centroid):
+                self._last_gating_reason = "out_of_scope"
+                logger.info(
+                    "[RAG][POST] acceptance=rejected reason=out_of_scope docs=0 q='%s'",
+                    safe_query,
+                )
+                logger.info("[RAG][RESULT] used_context=no reason=out_of_scope q='%s'", safe_query)
+                return []
+        except Exception as exc:
+            # Fail-open: if centroid check breaks, fall through to normal
+            # retrieval rather than block the user. Logged at warning so
+            # the issue is visible (debug would silently swallow bugs).
+            logger.warning("out_of_scope check skipped: %s", exc, exc_info=True)
 
         try:
             vector_start = time.perf_counter()

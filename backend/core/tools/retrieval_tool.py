@@ -14,6 +14,7 @@ from typing import Any, Optional
 
 from cache.manager import cache as _cache
 from core.request_context import get_request_context
+from database.retrieval_log_repository import GAP_REASONS, schedule_log_retrieval
 from rag.corpus_state import get_corpus_cache_version
 from .base import ToolContext, ToolDefinition, ToolResult
 
@@ -287,7 +288,37 @@ async def _handler(args: dict, ctx: ToolContext) -> ToolResult:
             elapsed = time.perf_counter() - rag_start
             req_ctx.rag_time = (req_ctx.rag_time or 0.0) + elapsed
         except Exception:
+            elapsed = time.perf_counter() - rag_start
+
+    # Persist retrieval log so the dashboard can show knowledge gaps.
+    # In the agentic path the LLM decides when to call this tool; without
+    # logging here, those queries are invisible to admins.
+    try:
+        tool_gating_reason = getattr(retriever, "_last_gating_reason", None)
+        # Stash on req_ctx so the post-response grounding check (in the agentic
+        # handler's finally block) can include the actual candidate chunks in
+        # its phantom-gap log entry — without them, admins can't see which
+        # chunks "looked relevant" but failed to answer the user.
+        try:
+            req_ctx2 = get_request_context()
+            req_ctx2.gating_reason = tool_gating_reason
+            if docs:
+                # Multi-tool-call turns: accumulate so we capture every retrieval
+                # attempt the LLM made for the same user question.
+                existing = list(getattr(req_ctx2, "retrieved_docs", None) or [])
+                req_ctx2.retrieved_docs = existing + list(docs)
+        except Exception:
             pass
+        if docs or tool_gating_reason in GAP_REASONS:
+            schedule_log_retrieval(
+                conversation_id=ctx.conversation_id,
+                query=expanded_query,
+                docs=docs or [],
+                latency_ms=elapsed * 1000,
+                gating_reason=tool_gating_reason,
+            )
+    except Exception as exc:
+        logger.debug("[RetrievalTool] retrieval log skipped: %s", exc)
 
     formatted = retriever.format_context_from_documents(docs) if docs else (
         "No se encontró información relevante para esa consulta en el corpus."

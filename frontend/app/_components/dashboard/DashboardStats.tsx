@@ -2,6 +2,7 @@
 
 import React from "react";
 import { cn } from "@/lib/utils";
+import { fmtCompact } from "@/app/lib/format";
 
 interface DashboardStatsProps {
   stats: {
@@ -35,11 +36,6 @@ function useCountUp(target: number, duration = 700) {
 
   return val;
 }
-
-const fmt = (n: number) =>
-  n >= 1_000_000 ? (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M"
-  : n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, "") + "k"
-  : String(n);
 
 function StatItem({
   value,
@@ -79,7 +75,7 @@ function StatItem({
           "text-3xl font-semibold font-heading tabular-nums text-foreground leading-none",
           flashing && "animate-num-flash"
         )}>
-          {fmt(animated)}
+          {fmtCompact(animated)}
         </p>
       )}
       <p className="mt-1.5 text-[11px] font-heading font-medium uppercase tracking-[0.08em] text-muted-foreground/50">

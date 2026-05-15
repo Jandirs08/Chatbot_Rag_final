@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Optional
 import asyncio
+import re
 import time
 
 from fastapi import HTTPException
@@ -10,6 +11,7 @@ from config import settings
 from common.constants import USER_ROLE
 from core.request_context import new_request_context
 from core.tools import ToolContext
+from core.tools.retrieval_tool import SEARCH_TOOL_NAME
 from langchain_core.messages import AIMessage, ToolMessage
 
 from chat.debug import log_stream_timing_summary
@@ -19,6 +21,58 @@ from chat.tool_dispatch import DispatchEvent, consume_stream
 logger = get_logger(__name__)
 
 MAX_TOOL_ITERS = 3
+
+# Peruvian Spanish greeting / ack / meta-question patterns. Full-match anchored,
+# case-insensitive. If matched → tool_choice="auto" (let model decide).
+# Otherwise → force search_documents so agent can't skip retrieval for legit
+# domain questions just because they're phrased informally.
+_NO_SEARCH_RE = re.compile(
+    r"^\s*(?:"
+    r"hola+|holi+|holap|buen[oa]s?(?:\s+(?:d[ií]as?|tardes?|noches?))?|"
+    r"qu[eé]\s+tal|qu[eé]\s+hubo|qu[eé]\s+onda|c[oó]mo\s+est[aá]s?|c[oó]mo\s+va|"
+    r"todo\s+bien|hi|hello|hey|"
+    r"adi[oó]s|chao|chau|bye|nos\s+vemos|hasta\s+luego|hasta\s+pronto|me\s+voy|"
+    r"gracias|muchas?\s+gracias|mil\s+gracias|thanks|thank\s+you|"
+    r"ok|okay|okey|ya|listo|perfecto|entendido|entiendo|comprendo|"
+    r"genial|excelente|bacán|chevere|chévere|de\s+una|s[ií]|sip|no|nop|nope|"
+    r"dale|va|claro|claro\s+que\s+s[ií]|por\s+supuesto|"
+    r"no\s+entend[ií]|no\s+entiendo|no\s+capto|repite|rep[ií]telo|"
+    r"resume|res[uú]melo|m[aá]s\s+corto|m[aá]s\s+simple|expl[ií]ca(?:lo)?\s+m[aá]s\s+simple|"
+    r"qui[eé]n\s+eres|qu[eé]\s+eres|qu[eé]\s+haces|qu[eé]\s+puedes\s+hacer|"
+    r"c[oó]mo\s+funcionas|para\s+qu[eé]\s+sirves"
+    r")\s*[.!?¿¡…]*\s*$",
+    re.IGNORECASE,
+)
+
+_MIN_FORCE_CHARS = 3
+
+
+def _should_force_search(text: Optional[str]) -> bool:
+    """True when user input should bypass tool_choice='auto'."""
+    if not text:
+        return False
+    stripped = text.strip()
+    if len(stripped) < _MIN_FORCE_CHARS:
+        return False
+    return _NO_SEARCH_RE.match(stripped) is None
+
+
+def _search_tool_choice() -> dict:
+    """Fresh dict per call — defends against any downstream in-place mutation."""
+    return {"type": "function", "function": {"name": SEARCH_TOOL_NAME}}
+
+
+def _bot_has_search_tool(bot) -> bool:
+    """True when search_documents is actually bound to the model.
+
+    If bind_tools failed at startup (chain.py logs a warning but continues),
+    forcing tool_choice would trigger an OpenAI 400. Guard against that.
+    """
+    try:
+        tools = getattr(bot.chain_manager, "tools", None) or []
+        return any(getattr(t, "name", None) == SEARCH_TOOL_NAME for t in tools)
+    except Exception:
+        return False
 
 _REACT_STREAM_IDLE_TIMEOUT = float(getattr(settings, "react_stream_idle_timeout_seconds", 30.0))
 
@@ -182,13 +236,23 @@ async def stream_with_tools(
                 f"budget_exceeded_pre_loop chars={initial_chars} cap={_MAX_TURN_CHARS}"
             )
 
+        force_search_first = _should_force_search(input_text) and _bot_has_search_tool(bot)
+        if force_search_first:
+            logger.debug(
+                "[Agentic] forcing search_documents tool_choice for first iter conv=%s",
+                conversation_id,
+            )
+
         if not forced_final:
             for iteration in range(MAX_TOOL_ITERS):
                 try:
                     tokens_in_accum += _messages_total_tokens(messages)
                 except Exception as exc:
                     logger.debug("token estimation failed (loop iter): %s", exc)
-                raw_stream = bot.astream_messages(messages)
+                # Force tool_choice only on first iter. Subsequent iters have
+                # ToolMessage results in `messages`, model must compose freely.
+                tool_choice = _search_tool_choice() if (iteration == 0 and force_search_first) else None
+                raw_stream = bot.astream_messages(messages, tool_choice=tool_choice)
                 continuation: Optional[DispatchEvent] = None
                 stream_ended = False
 
@@ -373,6 +437,21 @@ async def stream_with_tools(
                     get_metrics_collector().record_chat(sample)
                 except Exception as exc:
                     logger.debug("metrics record failed: %s", exc, exc_info=True)
+
+                # Phantom-gap detection: retrieval ran but the assistant
+                # declared data absence. Helper handles dedupe (skip if
+                # retrieval already logged its own gap) and forensic chunks.
+                if tool_calls_count > 0 and text_accum:
+                    try:
+                        from chat.grounding import maybe_log_phantom_gap
+                        maybe_log_phantom_gap(
+                            conversation_id=conversation_id,
+                            user_query=input_text,
+                            response_text=text_accum,
+                            req_ctx=req_ctx,
+                        )
+                    except Exception as exc:
+                        logger.debug("grounding check failed (non-fatal): %s", exc)
             except Exception as exc:
                 logger.debug("stream_with_tools finally block failed: %s", exc, exc_info=True)
         await locks.release(
