@@ -61,7 +61,10 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
       {shouldShowSidebar && <AppSidebar />}
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <main className="h-full flex-1 overflow-y-auto overflow-x-hidden text-foreground">
+        <main
+          id="main-content"
+          className="h-full flex-1 overflow-y-auto overflow-x-hidden text-foreground"
+        >
           {shouldShowSidebar && (
             <div className="fixed left-4 top-4 z-40 md:hidden">
               <SidebarTrigger />

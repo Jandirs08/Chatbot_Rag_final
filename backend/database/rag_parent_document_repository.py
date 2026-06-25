@@ -71,6 +71,17 @@ class RAGParentDocumentRepository:
         docs = await cursor.to_list(length=10_000)
         return [ParentDocument(**doc) for doc in docs]
 
+    async def get_by_doc_id_meta(self, doc_id: str) -> list[dict]:
+        """Return parent documents for a doc_id without the large `content` field."""
+        _META_PROJECTION = {
+            "_id": 0, "content": 0,
+        }
+        cursor = self.collection.find({"doc_id": doc_id}, _META_PROJECTION).sort("parent_index", 1)
+        return await cursor.to_list(length=10_000)
+
+    async def get_doc_ids_by_source(self, source: str) -> list[str]:
+        return await self.collection.distinct("doc_id", {"source": source})
+
     async def get_by_parent_ids(self, parent_ids: Sequence[str]) -> list[ParentDocument]:
         if not parent_ids:
             return []

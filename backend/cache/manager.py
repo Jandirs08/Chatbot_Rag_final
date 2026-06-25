@@ -143,8 +143,8 @@ class CacheManager:
         try:
             if hasattr(self.backend, "increment"):
                 return int(self.backend.increment(key, delta=delta, initial=initial))
-        except Exception:
-            pass
+        except Exception as exc:
+            _logger.warning("Cache native increment failed, using non-atomic fallback | key=%s | err=%s", key, exc)
 
         current = self.get(key)
         try:

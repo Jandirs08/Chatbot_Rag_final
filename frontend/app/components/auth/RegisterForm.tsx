@@ -6,7 +6,14 @@ import { logger } from "@/app/lib/logger";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/app/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/app/components/ui/card";
 import { Alert, AlertDescription } from "@/app/components/ui/alert";
 import { Loader2, Eye, EyeOff, CheckCircle } from "lucide-react";
 import { authService, type RegisterData } from "@/app/lib/services/authService";
@@ -20,7 +27,10 @@ interface RegisterFormData extends RegisterData {
   confirmPassword: string;
 }
 
-export function RegisterForm({ onSuccess, redirectTo = "/auth/login" }: RegisterFormProps) {
+export function RegisterForm({
+  onSuccess,
+  redirectTo = "/auth/login",
+}: RegisterFormProps) {
   const router = useRouter();
   const [formData, setFormData] = useState<RegisterFormData>({
     username: "",
@@ -37,7 +47,7 @@ export function RegisterForm({ onSuccess, redirectTo = "/auth/login" }: Register
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
@@ -85,7 +95,7 @@ export function RegisterForm({ onSuccess, redirectTo = "/auth/login" }: Register
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validar formulario
     const validationError = validateForm();
     if (validationError) {
@@ -100,17 +110,17 @@ export function RegisterForm({ onSuccess, redirectTo = "/auth/login" }: Register
     try {
       // Preparar datos para el registro (sin confirmPassword)
       const { confirmPassword, ...registerData } = formData;
-      
+
       // Si full_name está vacío, no lo enviamos
       if (!registerData.full_name?.trim()) {
         delete registerData.full_name;
       }
 
       await authService.register(registerData);
-      
+
       // Registro exitoso
       setSuccess("¡Cuenta creada exitosamente! Redirigiendo al login...");
-      
+
       setTimeout(() => {
         if (onSuccess) {
           onSuccess();
@@ -118,7 +128,6 @@ export function RegisterForm({ onSuccess, redirectTo = "/auth/login" }: Register
           router.push(redirectTo);
         }
       }, 2000);
-      
     } catch (err) {
       logger.error("Error en registro:", err);
       setError(err instanceof Error ? err.message : "Error en el registro");
@@ -145,7 +154,7 @@ export function RegisterForm({ onSuccess, redirectTo = "/auth/login" }: Register
           Completa el formulario para crear tu cuenta de administrador
         </CardDescription>
       </CardHeader>
-      
+
       <form method="post" onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
           <div role="alert" aria-live="polite" aria-atomic="true">
@@ -164,7 +173,7 @@ export function RegisterForm({ onSuccess, redirectTo = "/auth/login" }: Register
               </Alert>
             )}
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="username">Nombre de Usuario *</Label>
             <Input
@@ -179,7 +188,7 @@ export function RegisterForm({ onSuccess, redirectTo = "/auth/login" }: Register
               autoComplete="username"
             />
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="email">Email *</Label>
             <Input
@@ -194,7 +203,7 @@ export function RegisterForm({ onSuccess, redirectTo = "/auth/login" }: Register
               autoComplete="email"
             />
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="full_name">Nombre Completo (Opcional)</Label>
             <Input
@@ -208,7 +217,7 @@ export function RegisterForm({ onSuccess, redirectTo = "/auth/login" }: Register
               autoComplete="name"
             />
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="password">Contraseña *</Label>
             <div className="relative">
@@ -237,10 +246,13 @@ export function RegisterForm({ onSuccess, redirectTo = "/auth/login" }: Register
                 ) : (
                   <Eye className="h-4 w-4" />
                 )}
+                <span className="sr-only">
+                  {showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                </span>
               </Button>
             </div>
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="confirmPassword">Confirmar Contraseña *</Label>
             <div className="relative">
@@ -269,15 +281,20 @@ export function RegisterForm({ onSuccess, redirectTo = "/auth/login" }: Register
                 ) : (
                   <Eye className="h-4 w-4" />
                 )}
+                <span className="sr-only">
+                  {showConfirmPassword
+                    ? "Ocultar contraseña de confirmación"
+                    : "Mostrar contraseña de confirmación"}
+                </span>
               </Button>
             </div>
           </div>
         </CardContent>
-        
+
         <CardFooter className="flex flex-col space-y-4">
-          <Button 
-            type="submit" 
-            className="w-full" 
+          <Button
+            type="submit"
+            className="w-full"
             disabled={isLoading || !!success}
           >
             {isLoading ? (
@@ -291,7 +308,7 @@ export function RegisterForm({ onSuccess, redirectTo = "/auth/login" }: Register
               "Crear Cuenta"
             )}
           </Button>
-          
+
           <div className="text-sm text-center text-muted-foreground">
             <p>
               ¿Ya tienes una cuenta?{" "}

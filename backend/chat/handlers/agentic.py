@@ -71,7 +71,8 @@ def _bot_has_search_tool(bot) -> bool:
     try:
         tools = getattr(bot.chain_manager, "tools", None) or []
         return any(getattr(t, "name", None) == SEARCH_TOOL_NAME for t in tools)
-    except Exception:
+    except Exception as exc:
+        logger.warning("_bot_has_search_tool check failed, defaulting to False: %s", exc)
         return False
 
 _REACT_STREAM_IDLE_TIMEOUT = float(getattr(settings, "react_stream_idle_timeout_seconds", 30.0))
@@ -140,7 +141,8 @@ async def _collect_prior_user_msgs(memory, conversation_id: str, limit: int = 2)
         return []
     try:
         hist = await memory.get_history(conversation_id)
-    except Exception:
+    except Exception as exc:
+        logger.warning("_collect_prior_user_msgs failed for conv=%s: %s", conversation_id, exc)
         return []
     if not isinstance(hist, list):
         return []
@@ -364,9 +366,12 @@ async def stream_with_tools(
         if tool_fired:
             try:
                 await db.add_message(conversation_id, USER_ROLE, input_text, source)
+                if text_accum:
+                    from common.constants import ASSISTANT_ROLE
+                    await db.add_message(conversation_id, ASSISTANT_ROLE, text_accum, source)
             except Exception as exc:
                 logger.error(
-                    "Could not persist user message on tool_terminal conv=%s: %s",
+                    "Could not persist messages on tool_terminal conv=%s: %s",
                     conversation_id, exc,
                 )
         elif text_accum:

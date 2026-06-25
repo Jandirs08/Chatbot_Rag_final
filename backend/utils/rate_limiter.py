@@ -52,7 +52,7 @@ limiter = Limiter(
 
 
 def conditional_limit(value: str):
-    if not bool(getattr(settings, "enable_rate_limiting", True)):
+    if not bool(getattr(settings, "enable_rate_limiting", True)) or not value:
         def decorator(func):
             return func
         return decorator

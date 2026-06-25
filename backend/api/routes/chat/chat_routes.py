@@ -101,14 +101,6 @@ async def chat_stream_log(
         if not input_text:
             raise HTTPException(status_code=400, detail="El mensaje no puede estar vacío")
         
-        # Protección: límite de caracteres para evitar abuso de tokens
-        max_length = getattr(settings, "max_message_length", 2000)
-        if len(input_text) > max_length:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Mensaje muy largo. Máximo {max_length} caracteres."
-            )
-        
         logger.info(f"[CHAT] Request: '{input_text[:50]}...' conv={conversation_id}")
 
         # HandOff guard
@@ -286,7 +278,7 @@ async def get_history(
     conversation_id: str,
     request: Request,
     limit: int = Query(_HISTORY_DEFAULT_LIMIT, ge=1, le=_HISTORY_MAX_LIMIT),
-    _: Optional[User] = Depends(get_optional_current_user),
+    current_user: Optional[User] = Depends(get_optional_current_user),
 ):
     """Devuelve historial de mensajes (más recientes primero, devueltos en orden ASC).
 
@@ -322,7 +314,7 @@ async def get_history(
                 "role": d.get("role"),
                 "content": d.get("content"),
                 "timestamp": ts.isoformat() if hasattr(ts, "isoformat") else ts,
-                "source": d.get("source")
+                "source": d.get("source") if current_user else None
             })
 
         mode_value = "bot"
@@ -488,15 +480,17 @@ async def export_conversations(
     format: str = 'xlsx',
     sep: str = 'comma',
     pretty: bool = False,
-    _: User = Depends(get_current_active_user),
+    limit: int = Query(default=10_000, ge=1, le=50_000),
+    _: User = Depends(require_view_debug),
 ):
     """Exporta conversaciones en XLSX (por defecto), CSV o JSON."""
     try:
         chat_manager = request.app.state.chat_manager
         db = chat_manager.db
 
+        logger.warning("[export] Fetching up to %d messages", limit)
         cursor = db.messages.find({}).sort([("conversation_id", 1), ("timestamp", 1)])
-        messages = await cursor.to_list(length=None)
+        messages = await cursor.to_list(length=limit)
 
         current_time = datetime.now(ZoneInfo("America/Lima")).strftime('%Y%m%d_%H%M%S')
         

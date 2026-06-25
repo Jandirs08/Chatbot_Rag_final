@@ -67,11 +67,12 @@ export function ConversationDialog({
     [toast],
   );
 
-  const { data: conversation, error, isLoading, mutate } = useConversationSWR(
-    conversationId,
-    fallbackData,
-    handleRateLimited,
-  );
+  const {
+    data: conversation,
+    error,
+    isLoading,
+    mutate,
+  } = useConversationSWR(conversationId, fallbackData, handleRateLimited);
 
   const handleConversationUpdate = useCallback(
     (updated: InboxConversation) => {
@@ -85,8 +86,7 @@ export function ConversationDialog({
     [mutate, onConversationUpdate],
   );
 
-  const notFound =
-    error instanceof Error && /HTTP 404/.test(error.message);
+  const notFound = error instanceof Error && /HTTP 404/.test(error.message);
 
   return (
     <DialogPrimitive.Root
@@ -110,6 +110,12 @@ export function ConversationDialog({
             // Avoid auto-focusing the textarea (would pop up mobile keyboards).
             // Radix focuses the content root by default; that's fine for SR users.
             e.preventDefault();
+          }}
+          onCloseAutoFocus={(e) => {
+            // Allow Radix's default behaviour: return focus to whichever element
+            // had focus immediately before the dialog opened (the kanban card /
+            // trigger button). Do NOT call e.preventDefault() here.
+            // WCAG 2.4.3 Focus Order — SC 3.2.1 On Focus.
           }}
           className={cn(
             "fixed z-50 flex flex-col overflow-hidden bg-background shadow-2xl",
@@ -142,7 +148,10 @@ export function ConversationDialog({
           {isLoading && !conversation ? (
             <div className="flex h-full items-center justify-center">
               <span className="inline-flex items-center gap-2 text-[12px] text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                <Loader2
+                  className="h-3.5 w-3.5 animate-spin"
+                  aria-hidden="true"
+                />
                 Cargando conversación…
               </span>
               <DialogPrimitive.Title className="sr-only">

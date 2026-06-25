@@ -193,7 +193,8 @@ class HierarchicalRetriever(RAGRetriever):
             cached = _cache.get(cache_key)
             if isinstance(cached, str) and cached.strip():
                 hyp_text = cached
-        except Exception:
+        except Exception as exc:
+            logger.debug("HyDE cache get failed, regenerating: %s", exc)
             hyp_text = None
 
         if hyp_text is None:
@@ -354,13 +355,13 @@ class HierarchicalRetriever(RAGRetriever):
         gating_threshold = float(getattr(settings, "rag_gating_similarity_threshold", 0.0))
         if gating_threshold > 0:
             top_score = max(
-                (float(c.dense_score) for c in reranked),
+                (float(c.rerank_score) for c in reranked),
                 default=0.0,
             )
             if top_score < gating_threshold:
                 self._last_gating_reason = "low_relevance_score"
                 logger.debug(
-                    "Gating: top dense_score=%.3f < threshold=%.3f — descartando contexto",
+                    "Gating: top rerank_score=%.3f < threshold=%.3f — descartando contexto",
                     top_score, gating_threshold,
                 )
                 return []
@@ -471,11 +472,15 @@ class HierarchicalRetriever(RAGRetriever):
     ) -> list[LexicalSearchHit]:
         if self.lexical_repository is None or not getattr(settings, "enable_hybrid_search", True):
             return []
-        return await self.lexical_repository.search(
-            query,
-            limit=limit,
-            filter_criteria=filter_criteria,
-        )
+        try:
+            return await self.lexical_repository.search(
+                query,
+                limit=limit,
+                filter_criteria=filter_criteria,
+            )
+        except Exception as exc:
+            logger.warning("_lexical_search failed, returning empty: %s", exc, exc_info=True)
+            return []
 
     def _fuse_child_hits(
         self,

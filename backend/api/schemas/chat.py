@@ -7,7 +7,7 @@ from .base import BaseResponse
 
 class ChatRequest(BaseModel):
     """Chat request model."""
-    input: str = Field(..., description="User message")
+    input: str = Field(..., description="User message", max_length=2000)
     conversation_id: Optional[str] = Field(default=None, description="Conversation ID, a new one will be generated if not provided")
     source: Optional[str] = Field(default=None, description="Optional source/origin identifier for the conversation, e.g., 'embed-default'")
     debug_mode: bool = Field(default=False, description="Enable debug mode to include internal metadata")

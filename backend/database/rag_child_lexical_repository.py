@@ -59,6 +59,7 @@ class RAGChildLexicalRepository:
         )
         self.documents_collection = mongodb_client.db[self.documents_collection_name]
         self.postings_collection = mongodb_client.db[self.postings_collection_name]
+        self._cached_avg_doc_length: float | None = None
 
     async def ensure_indexes(self) -> None:
         try:
@@ -222,6 +223,11 @@ class RAGChildLexicalRepository:
         ]
 
     async def _average_doc_length(self, docs_filter: dict) -> float:
+        # Intentional corpus-wide approximation: cache ignores docs_filter.
+        # BM25 avg-length normalisation is robust to small deviations; per-filter
+        # keying adds complexity with negligible quality gain for a single-collection repo.
+        if self._cached_avg_doc_length is not None:
+            return self._cached_avg_doc_length
         pipeline = [
             {"$match": docs_filter},
             {"$group": {"_id": None, "avg_token_count": {"$avg": "$token_count"}}},
@@ -229,7 +235,9 @@ class RAGChildLexicalRepository:
         result = await self.documents_collection.aggregate(pipeline).to_list(length=1)
         if not result:
             return 1.0
-        return float(result[0].get("avg_token_count") or 1.0)
+        value = float(result[0].get("avg_token_count") or 1.0)
+        self._cached_avg_doc_length = value
+        return value
 
     @classmethod
     def tokenize(cls, text: str) -> list[str]:

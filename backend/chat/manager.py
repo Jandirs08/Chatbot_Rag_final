@@ -176,7 +176,8 @@ class ChatManager:
             try:
                 if bool(getattr(settings, "enable_cache", True)):
                     cached_response = await cache.aget(cache_key)
-            except Exception:
+            except Exception as exc:
+                logger.warning("Cache get failed for conv=%s: %s", conversation_id, exc)
                 cached_response = None
 
             if cached_response is not None:
@@ -187,8 +188,10 @@ class ChatManager:
                 )
                 yield final_text
                 if not debug_mode:
-                    await self._persist_messages_safely(conversation_id, input_text, final_text, source)
-                    await self.bot.add_to_memory(human=input_text, ai=final_text, conversation_id=conversation_id)
+                    await asyncio.gather(
+                        self._persist_messages_safely(conversation_id, input_text, final_text, source),
+                        self.bot.add_to_memory(human=input_text, ai=final_text, conversation_id=conversation_id),
+                    )
                     req_ctx.debug_info = None
                 else:
                     req_ctx.debug_info = await self._debug_builder.build(
@@ -240,14 +243,16 @@ class ChatManager:
                 raise
 
             if not debug_mode:
-                await self._persist_messages_safely(conversation_id, input_text, final_text, source)
-                await self.bot.add_to_memory(human=input_text, ai=final_text, conversation_id=conversation_id)
+                await asyncio.gather(
+                    self._persist_messages_safely(conversation_id, input_text, final_text, source),
+                    self.bot.add_to_memory(human=input_text, ai=final_text, conversation_id=conversation_id),
+                )
 
             try:
                 if bool(getattr(settings, "enable_cache", True)):
                     await cache.aset(cache_key, final_text, cache.ttl)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Cache set failed for conv=%s: %s", conversation_id, exc)
             if debug_mode:
                 t_llm_end = time.perf_counter()
                 req_ctx.set_stage_timing_ms("llm_ms", (t_llm_end - t_llm_start) * 1000)
@@ -256,7 +261,8 @@ class ChatManager:
                     if enable_verification:
                         ctx = req_ctx.context or ""
                         verification = await self._verifier.verify(input_text, ctx, final_text)
-                except Exception:
+                except Exception as exc:
+                    logger.warning("Verification failed for conv=%s: %s", conversation_id, exc, exc_info=True)
                     verification = None
                 req_ctx.debug_info = await self._debug_builder.build(
                     conversation_id=conversation_id,

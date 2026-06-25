@@ -27,6 +27,7 @@ export default function ChatPage() {
 
   // Cargar historial inicial cuando tengamos conversationId
   React.useEffect(() => {
+    const controller = new AbortController();
     const loadHistory = async () => {
       if (!conversationId) return;
       try {
@@ -36,6 +37,7 @@ export default function ChatPage() {
             method: "GET",
             headers: { Accept: "application/json" },
             credentials: "include",
+            signal: controller.signal,
           },
         );
         logger.log("history fetch status", { status: resp.status, conversation_id: conversationId });
@@ -58,11 +60,14 @@ export default function ChatPage() {
         logger.log("history length", { length: normalized.length, conversation_id: conversationId });
         setInitialMessages(normalized);
       } catch (_e) {
-        setInitialMessages([]);
-        logger.error("history fetch error", { conversation_id: conversationId });
+        if ((_e as { name?: string }).name !== "AbortError") {
+          setInitialMessages([]);
+          logger.error("history fetch error", { conversation_id: conversationId });
+        }
       }
     };
     loadHistory();
+    return () => controller.abort();
   }, [conversationId]);
 
   return (

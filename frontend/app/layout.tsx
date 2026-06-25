@@ -1,6 +1,11 @@
 import "./globals.css";
 import type { Metadata } from "next";
-import { Inter, Space_Grotesk, DM_Mono, JetBrains_Mono } from "next/font/google";
+import {
+  Inter,
+  Space_Grotesk,
+  DM_Mono,
+  JetBrains_Mono,
+} from "next/font/google";
 import { RootLayoutClient } from "./components/RootLayoutClient";
 import { SWRProvider } from "./components/SWRProvider";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -47,7 +52,15 @@ export default async function RootLayout({
 
   return (
     <html lang="es" className="h-full">
-      <body className={`${inter.variable} ${spaceGrotesk.variable} ${dmMono.variable} ${jetbrainsMono.variable} font-sans h-full`}>
+      <body
+        className={`${inter.variable} ${spaceGrotesk.variable} ${dmMono.variable} ${jetbrainsMono.variable} font-sans h-full`}
+      >
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-white focus:text-black focus:rounded"
+        >
+          Saltar al contenido principal
+        </a>
         <SWRProvider>
           <AuthProvider initialSession={initialSession}>
             <RootLayoutClient>{children}</RootLayoutClient>

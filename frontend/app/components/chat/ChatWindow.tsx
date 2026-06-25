@@ -18,7 +18,10 @@ import {
   AlertDialogTrigger,
 } from "@/app/components/ui/alert-dialog";
 import { ArrowDown, ArrowUp, MessageCircle, Trash } from "lucide-react";
-import { useChatStream, type UseChatStreamReturn } from "@/app/hooks/useChatStream";
+import {
+  useChatStream,
+  type UseChatStreamReturn,
+} from "@/app/hooks/useChatStream";
 import { usePublicBotConfig } from "@/app/hooks/usePublicBotConfig";
 import { botService } from "@/app/lib/services/botService";
 import { TokenManager } from "@/app/lib/services/authService";
@@ -27,7 +30,10 @@ import { cn } from "@/lib/utils";
 
 const TIMESTAMP_GROUP_MS = 5 * 60 * 1000;
 
-function isGroupedWith(a?: { role?: string; createdAt?: Date }, b?: { role?: string; createdAt?: Date }) {
+function isGroupedWith(
+  a?: { role?: string; createdAt?: Date },
+  b?: { role?: string; createdAt?: Date },
+) {
   if (!a || !b) return false;
   if (a.role !== b.role) return false;
   // Sin timestamps reales no agrupamos — evita esconder avatar/timestamp por
@@ -74,14 +80,23 @@ export function ChatWindow(props: {
     variant = "default",
     isLoadingHistory = false,
   } = props;
-  const { botName, isThemeLight, inputPlaceholder, starters, cfg } = usePublicBotConfig();
+  const { botName, isThemeLight, inputPlaceholder, starters, cfg } =
+    usePublicBotConfig();
   const [isBotActive, setIsBotActive] = React.useState(true);
   const [logoUrl, setLogoUrl] = React.useState<string | undefined>(undefined);
   const isPlayground = variant === "playground";
 
   const internalHook = useChatStream(conversationId, initialMessages);
-  const { messages, isLoading, sendMessage, clearMessages, cancelStream, convMode, showLeadForm, submitLead } =
-    chatHook ?? internalHook;
+  const {
+    messages,
+    isLoading,
+    sendMessage,
+    clearMessages,
+    cancelStream,
+    convMode,
+    showLeadForm,
+    submitLead,
+  } = chatHook ?? internalHook;
 
   // Tracks the count of messages already present on first paint (history)
   // so we can skip the slide-up animation for those — only NEW messages
@@ -108,7 +123,8 @@ export function ChatWindow(props: {
 
   const handleContainerScroll = React.useCallback(() => {
     if (!messageContainerRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } = messageContainerRef.current;
+    const { scrollTop, scrollHeight, clientHeight } =
+      messageContainerRef.current;
     const near = scrollHeight - scrollTop - clientHeight < 120;
     isNearBottomRef.current = near;
     setShowJumpToBottom(!near);
@@ -149,7 +165,7 @@ export function ChatWindow(props: {
           const state = await botService.getState();
           setIsBotActive(state.is_active);
         }
-      } catch (_e) { }
+      } catch (_e) {}
     })();
   }, []);
 
@@ -195,7 +211,13 @@ export function ChatWindow(props: {
           : "animate-slide-in rounded-2xl bg-surface shadow-2xl",
       )}
     >
-      <div className={cn(isPlayground ? "border-b border-border/60 bg-brand" : "shadow-md bg-brand relative overflow-hidden border-b border-black/[0.06]")}>
+      <div
+        className={cn(
+          isPlayground
+            ? "border-b border-border/60 bg-brand"
+            : "shadow-md bg-brand relative overflow-hidden border-b border-black/[0.06]",
+        )}
+      >
         {!isPlayground && (
           <div
             className="pointer-events-none absolute inset-0 opacity-[0.08]"
@@ -206,7 +228,12 @@ export function ChatWindow(props: {
             aria-hidden="true"
           />
         )}
-        <div className={cn("relative z-10 mx-auto w-full max-w-3xl px-6 py-4", isPlayground && "px-4 py-3")}>
+        <div
+          className={cn(
+            "relative z-10 mx-auto w-full max-w-3xl px-6 py-4",
+            isPlayground && "px-4 py-3",
+          )}
+        >
           <div className="flex items-center gap-3">
             <div
               className={cn(
@@ -233,7 +260,14 @@ export function ChatWindow(props: {
                 {titleText}
               </div>
               <div className="flex items-center gap-2">
-                <h1 className={cn("text-white truncate", isPlayground ? "text-base font-semibold" : "text-xl font-semibold tracking-tight")}>
+                <h1
+                  className={cn(
+                    "text-white truncate",
+                    isPlayground
+                      ? "text-base font-semibold"
+                      : "text-xl font-semibold tracking-tight",
+                  )}
+                >
                   {botName ?? "Asistente"}
                 </h1>
                 {isBotActive && (
@@ -262,7 +296,10 @@ export function ChatWindow(props: {
                   <div className="text-xs font-semibold">En pausa</div>
                 </div>
               )}
-              <AlertDialog open={confirmClearOpen} onOpenChange={setConfirmClearOpen}>
+              <AlertDialog
+                open={confirmClearOpen}
+                onOpenChange={setConfirmClearOpen}
+              >
                 <AlertDialogTrigger asChild>
                   <button
                     aria-label="Limpiar chat"
@@ -281,7 +318,8 @@ export function ChatWindow(props: {
                   <AlertDialogHeader>
                     <AlertDialogTitle>¿Limpiar conversación?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Se borrarán todos los mensajes de este hilo. Esta acción no se puede deshacer.
+                      Se borrarán todos los mensajes de este hilo. Esta acción
+                      no se puede deshacer.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -303,7 +341,9 @@ export function ChatWindow(props: {
       <div
         className={cn(
           "flex flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-contain",
-          isPlayground ? "bg-surface/80 px-3 py-3" : "bg-surface px-4 pt-5 pb-3 sm:px-5",
+          isPlayground
+            ? "bg-surface/80 px-3 py-3"
+            : "bg-surface px-4 pt-5 pb-3 sm:px-5",
         )}
         ref={messageContainerRef}
         onScroll={handleContainerScroll}
@@ -311,86 +351,100 @@ export function ChatWindow(props: {
         aria-relevant="additions text"
       >
         <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col">
-        {messages.length === 0 && isLoadingHistory ? (
-          <div className="flex h-full flex-col gap-4 px-1 py-2" aria-hidden="true">
-            <div className="flex items-end gap-2">
-              <div className="h-7 w-7 shrink-0 rounded-full skeleton-shimmer" />
-              <div className="h-10 w-2/3 rounded-2xl rounded-bl-md skeleton-shimmer" />
+          {messages.length === 0 && isLoadingHistory ? (
+            <div
+              className="flex h-full flex-col gap-4 px-1 py-2"
+              aria-hidden="true"
+            >
+              <div className="flex items-end gap-2">
+                <div className="h-7 w-7 shrink-0 rounded-full skeleton-shimmer" />
+                <div className="h-10 w-2/3 rounded-2xl rounded-bl-md skeleton-shimmer" />
+              </div>
+              <div className="flex justify-end">
+                <div className="h-10 w-1/2 rounded-2xl rounded-br-md skeleton-shimmer" />
+              </div>
+              <div className="flex items-end gap-2">
+                <div className="h-7 w-7 shrink-0 rounded-full skeleton-shimmer" />
+                <div className="h-16 w-3/4 rounded-2xl rounded-bl-md skeleton-shimmer" />
+              </div>
             </div>
-            <div className="flex justify-end">
-              <div className="h-10 w-1/2 rounded-2xl rounded-br-md skeleton-shimmer" />
-            </div>
-            <div className="flex items-end gap-2">
-              <div className="h-7 w-7 shrink-0 rounded-full skeleton-shimmer" />
-              <div className="h-16 w-3/4 rounded-2xl rounded-bl-md skeleton-shimmer" />
-            </div>
-          </div>
-        ) : messages.length === 0 ? (
-          <EmptyState onSubmit={handleSendMessage} variant={variant} botName={botName} starters={starters} logoUrl={logoUrl} />
-        ) : (
-          messages.map((message, i) => {
-            const isUser = message.role === "user";
-            const prev = messages[i - 1];
-            const next = messages[i + 1];
-            const groupedWithPrev = isGroupedWith(message, prev);
-            const groupedWithNext = isGroupedWith(message, next);
-            const showTimestamp = !groupedWithNext;
-            const showAvatar = !groupedWithNext;
-            const isLast = i === messages.length - 1;
-            // Skip entry animation for: history items already present at mount,
-            // and the streaming assistant message replacing the typing indicator
-            // (avoid double-pop when typing indicator fades into bubble).
-            const isStreamingAssistant = isLast && isLoading && !isUser;
-            const animateEntry =
-              i >= initialCountRef.current && !isStreamingAssistant;
-            return (
+          ) : messages.length === 0 ? (
+            <EmptyState
+              onSubmit={handleSendMessage}
+              variant={variant}
+              botName={botName}
+              starters={starters}
+              logoUrl={logoUrl}
+            />
+          ) : (
+            messages.map((message, i) => {
+              const isUser = message.role === "user";
+              const prev = messages[i - 1];
+              const next = messages[i + 1];
+              const groupedWithPrev = isGroupedWith(message, prev);
+              const groupedWithNext = isGroupedWith(message, next);
+              const showTimestamp = !groupedWithNext;
+              const showAvatar = !groupedWithNext;
+              const isLast = i === messages.length - 1;
+              // Skip entry animation for: history items already present at mount,
+              // and the streaming assistant message replacing the typing indicator
+              // (avoid double-pop when typing indicator fades into bubble).
+              const isStreamingAssistant = isLast && isLoading && !isUser;
+              const animateEntry =
+                i >= initialCountRef.current && !isStreamingAssistant;
+              return (
+                <div
+                  key={message.id}
+                  className={cn(
+                    "flex",
+                    isUser ? "justify-end" : "justify-start",
+                    i === 0 ? "" : groupedWithPrev ? "mt-1.5" : "mt-5",
+                  )}
+                >
+                  <ChatMessageBubble
+                    message={message}
+                    isMostRecent={isLast}
+                    messageCompleted={!isLoading || !isLast}
+                    botName={botName}
+                    showTimestamp={showTimestamp}
+                    showAvatar={showAvatar}
+                    logoUrl={logoUrl}
+                    animateEntry={animateEntry}
+                  />
+                </div>
+              );
+            })
+          )}
+          {(() => {
+            const last = messages[messages.length - 1];
+            const lastIsAssistantWithContent =
+              !!last &&
+              last.role === "assistant" &&
+              typeof last.content === "string" &&
+              last.content.length > 0;
+            const showTyping = isLoading && !lastIsAssistantWithContent;
+            return showTyping ? (
               <div
-                key={message.id}
                 className={cn(
-                  "flex",
-                  isUser ? "justify-end" : "justify-start",
-                  i === 0 ? "" : groupedWithPrev ? "mt-1.5" : "mt-5",
+                  "flex justify-start",
+                  messages.length > 0 && "mt-5",
                 )}
               >
-                <ChatMessageBubble
-                  message={message}
-                  isMostRecent={isLast}
-                  messageCompleted={!isLoading || !isLast}
-                  botName={botName}
-                  showTimestamp={showTimestamp}
-                  showAvatar={showAvatar}
-                  logoUrl={logoUrl}
-                  animateEntry={animateEntry}
-                />
+                <TypingIndicator logoUrl={logoUrl} />
               </div>
-            );
-          })
-        )}
-        {(() => {
-          const last = messages[messages.length - 1];
-          const lastIsAssistantWithContent =
-            !!last &&
-            last.role === "assistant" &&
-            typeof last.content === "string" &&
-            last.content.length > 0;
-          const showTyping = isLoading && !lastIsAssistantWithContent;
-          return showTyping ? (
-            <div className={cn("flex justify-start", messages.length > 0 && "mt-5")}>
-              <TypingIndicator logoUrl={logoUrl} />
-            </div>
-          ) : null;
-        })()}
+            ) : null;
+          })()}
 
-        {showJumpToBottom && messages.length > 0 && (
-          <button
-            type="button"
-            onClick={() => scrollToBottom(false)}
-            aria-label="Ir al final"
-            className="sticky bottom-2 ml-auto flex h-9 w-9 items-center justify-center rounded-full bg-surface-elevated text-foreground ring-1 ring-black/[0.08] shadow-[0_4px_12px_-4px_rgb(0_0_0_/_0.18)] transition-all hover:scale-[1.06] hover:shadow-[0_6px_16px_-4px_rgb(0_0_0_/_0.25)] active:scale-95 animate-fadeIn"
-          >
-            <ArrowDown className="h-4 w-4" />
-          </button>
-        )}
+          {showJumpToBottom && messages.length > 0 && (
+            <button
+              type="button"
+              onClick={() => scrollToBottom(false)}
+              aria-label="Ir al final"
+              className="sticky bottom-2 ml-auto flex h-9 w-9 items-center justify-center rounded-full bg-surface-elevated text-foreground ring-1 ring-black/[0.08] shadow-[0_4px_12px_-4px_rgb(0_0_0_/_0.18)] transition-all hover:scale-[1.06] hover:shadow-[0_6px_16px_-4px_rgb(0_0_0_/_0.25)] active:scale-95 animate-fadeIn"
+            >
+              <ArrowDown className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -401,7 +455,10 @@ export function ChatWindow(props: {
           className="border-t border-success/20 bg-success/8 px-4 py-2 text-[12px] font-medium text-success"
         >
           <div className="mx-auto flex w-full max-w-3xl items-center justify-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-success animate-pulse" aria-hidden="true" />
+            <span
+              className="h-2 w-2 rounded-full bg-success animate-pulse"
+              aria-hidden="true"
+            />
             Conectado con un asesor
           </div>
         </div>
@@ -416,55 +473,62 @@ export function ChatWindow(props: {
           className="border-t border-border bg-muted/40 px-4 py-3"
         >
           <div className="mx-auto w-full max-w-3xl">
-          <p id="lead-form-title" className="mb-2 text-[12px] font-medium text-foreground">
-            Deja tus datos para que un asesor te contacte
-          </p>
-          <div className="flex flex-col gap-2">
-            <label htmlFor="lead-name" className="sr-only">Nombre</label>
-            <input
-              id="lead-name"
-              ref={leadNameRef}
-              type="text"
-              autoComplete="name"
-              value={leadName}
-              onChange={(e) => setLeadName(e.target.value)}
-              placeholder="Tu nombre"
-              className="rounded-lg border border-border bg-surface-elevated px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground/70 focus:border-ring/50 focus:outline-none focus:ring-2 focus:ring-ring/20"
-            />
-            <label htmlFor="lead-email" className="sr-only">Correo electrónico</label>
-            <input
-              id="lead-email"
-              type="email"
-              autoComplete="email"
-              inputMode="email"
-              aria-invalid={!!leadError}
-              aria-describedby={leadError ? "lead-email-error" : undefined}
-              value={leadEmail}
-              onChange={(e) => {
-                setLeadEmail(e.target.value);
-                if (leadError) setLeadError(null);
-              }}
-              placeholder="Tu correo electrónico"
-              className="rounded-lg border border-border bg-surface-elevated px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground/70 focus:border-ring/50 focus:outline-none focus:ring-2 focus:ring-ring/20"
-            />
-            {leadError && (
-              <p
-                id="lead-email-error"
-                role="alert"
-                aria-live="polite"
-                className="text-[12px] font-medium text-destructive"
-              >
-                {leadError}
-              </p>
-            )}
-            <button
-              type="submit"
-              disabled={leadSubmitting || !isLeadFormValid}
-              className="rounded-lg bg-brand px-3 py-2 text-[13px] font-medium text-brand-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+            <p
+              id="lead-form-title"
+              className="mb-2 text-[12px] font-medium text-foreground"
             >
-              {leadSubmitting ? "Enviando…" : "Enviar"}
-            </button>
-          </div>
+              Deja tus datos para que un asesor te contacte
+            </p>
+            <div className="flex flex-col gap-2">
+              <label htmlFor="lead-name" className="sr-only">
+                Nombre
+              </label>
+              <input
+                id="lead-name"
+                ref={leadNameRef}
+                type="text"
+                autoComplete="name"
+                value={leadName}
+                onChange={(e) => setLeadName(e.target.value)}
+                placeholder="Tu nombre"
+                className="rounded-lg border border-border bg-surface-elevated px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground/70 focus:border-ring/50 focus:outline-none focus:ring-2 focus:ring-ring/20"
+              />
+              <label htmlFor="lead-email" className="sr-only">
+                Correo electrónico
+              </label>
+              <input
+                id="lead-email"
+                type="email"
+                autoComplete="email"
+                inputMode="email"
+                aria-invalid={!!leadError}
+                aria-describedby={leadError ? "lead-email-error" : undefined}
+                value={leadEmail}
+                onChange={(e) => {
+                  setLeadEmail(e.target.value);
+                  if (leadError) setLeadError(null);
+                }}
+                placeholder="Tu correo electrónico"
+                className="rounded-lg border border-border bg-surface-elevated px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground/70 focus:border-ring/50 focus:outline-none focus:ring-2 focus:ring-ring/20"
+              />
+              {leadError && (
+                <p
+                  id="lead-email-error"
+                  role="alert"
+                  aria-live="polite"
+                  className="text-[12px] font-medium text-destructive"
+                >
+                  {leadError}
+                </p>
+              )}
+              <button
+                type="submit"
+                disabled={leadSubmitting || !isLeadFormValid}
+                className="rounded-lg bg-brand px-3 py-2 text-[13px] font-medium text-brand-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                {leadSubmitting ? "Enviando…" : "Enviar"}
+              </button>
+            </div>
           </div>
         </form>
       )}
@@ -494,6 +558,7 @@ export function ChatWindow(props: {
               }
             }}
             placeholder={placeholder ?? inputPlaceholder}
+            aria-label="Escribe un mensaje"
             className={cn(
               "flex-1 min-h-[44px] resize-none border-0 bg-transparent px-1 py-2 text-[15px] leading-[1.5] text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-0",
               isPlayground && "flex-1",
@@ -508,9 +573,7 @@ export function ChatWindow(props: {
             aria-label="Enviar mensaje"
             className={cn(
               "shrink-0 bg-brand text-brand-foreground shadow-[0_3px_10px_-3px_hsl(var(--primary)/0.45)] transition-all hover:shadow-[0_5px_16px_-4px_hsl(var(--primary)/0.55)] hover:scale-[1.05] active:scale-95 focus-visible:ring-2 focus-visible:ring-brand/50 focus-visible:ring-offset-2 disabled:opacity-40 disabled:hover:scale-100 disabled:shadow-sm",
-              isPlayground
-                ? "h-11 w-11 rounded-2xl"
-                : "h-10 w-10 rounded-xl",
+              isPlayground ? "h-11 w-11 rounded-2xl" : "h-10 w-10 rounded-xl",
             )}
           >
             <ArrowUp className="h-5 w-5" />

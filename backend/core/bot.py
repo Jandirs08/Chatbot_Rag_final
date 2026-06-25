@@ -1,6 +1,7 @@
 from typing import Optional, Dict, Any, AsyncGenerator, Sequence
 import time
 import asyncio
+import uuid
 from operator import itemgetter
 
 from langchain_core.runnables import RunnableLambda, RunnableMap, Runnable
@@ -55,7 +56,8 @@ class Bot:
                     else str(self.settings.redis_url)
                 )
                 has_redis_url = bool(raw_url.strip())
-            except Exception:
+            except Exception as exc:
+                self.logger.warning("[Bot] Failed to read redis_url secret: %s", exc)
                 has_redis_url = False
 
         default_cache_type = cache or (
@@ -218,7 +220,8 @@ class Bot:
                 req_ctx.context = fallback_ctx
                 return fallback_ctx
             except Exception as e:
-                self.logger.warning(f"Context RAG failed: {e}")
+                self.logger.warning("Context RAG failed: %s", e, exc_info=True)
+                req_ctx.gating_reason = "unexpected_error"
                 try:
                     req_ctx.rag_time = time.perf_counter() - t_start
                 except Exception:
@@ -254,9 +257,14 @@ class Bot:
         try:
             return mem_cls(**final_params)
         except Exception:
+            self.logger.error(
+                "Failed to initialize memory class %s; falling back to BaseChatbotMemory",
+                mem_cls.__name__,
+                exc_info=True,
+            )
             return BaseChatbotMemory(
                 settings=self.settings,
-                session_id="fallback_session",
+                session_id=str(uuid.uuid4()),
                 window_size=self.settings.memory_window_size
             )
 

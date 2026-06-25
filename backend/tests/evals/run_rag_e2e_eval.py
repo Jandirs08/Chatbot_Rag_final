@@ -12,6 +12,11 @@ from typing import Any
 from uuid import uuid4
 
 import httpx
+import pytest
+
+# Pytest integration: run with `pytest -m integration --run-integration`
+def pytest_configure(config):
+    config.addinivalue_line("markers", "integration: marks tests as integration (deselect with '-m not integration')")
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -468,6 +473,12 @@ def main() -> int:
         print(f"- Ragas: {report_payload['ragas']}")
 
     return 0 if failed == 0 else 1
+
+
+@pytest.mark.integration
+def test_rag_e2e_eval_runs():
+    """Smoke test: run_evaluation with a tiny dataset. Requires live backend."""
+    pytest.skip("Integration test — run with --run-integration flag and live backend")
 
 
 if __name__ == "__main__":

@@ -5,6 +5,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useReducer,
   type ReactNode,
 } from "react";
@@ -414,7 +415,7 @@ export function AuthProvider({
     };
   }, [checkAuthStatus, pathname, state.isAuthenticated]);
 
-  const login = async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     try {
       dispatch({ type: "AUTH_START" });
 
@@ -432,7 +433,7 @@ export function AuthProvider({
       dispatch({ type: "AUTH_FAILURE", payload: getLoginErrorMessage(error) });
       throw error;
     }
-  };
+  }, []);
 
   const logout = useCallback(async () => {
     try {
@@ -449,18 +450,18 @@ export function AuthProvider({
     }
   }, [cache, globalMutate]);
 
-  const clearError = () => {
+  const clearError = useCallback(() => {
     dispatch({ type: "CLEAR_ERROR" });
-  };
+  }, []);
 
-  const contextValue: AuthContextType = {
+  const contextValue = useMemo<AuthContextType>(() => ({
     ...state,
     login,
     logout,
     refreshAuth,
     clearError,
     checkAuthStatus,
-  };
+  }), [state, login, logout, refreshAuth, clearError, checkAuthStatus]);
 
   return (
     <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>

@@ -331,7 +331,8 @@ class RAGRetriever:
                         metadata=dict(item.get("metadata") or {}),
                     )
                 )
-            except Exception:
+            except Exception as exc:
+                logger.warning("_deserialize_documents: skipping malformed entry: %s", exc)
                 continue
         return documents
 
@@ -425,8 +426,8 @@ class RAGRetriever:
     def invalidate_rag_cache(self) -> None:
         try:
             cache.invalidate_prefix(RETRIEVAL_CACHE_PREFIX)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("invalidate_rag_cache failed: %s", exc, exc_info=True)
 
     def _vector_similarity_threshold(self) -> float:
         try:
@@ -451,7 +452,8 @@ class RAGRetriever:
                 return None
             embedding = await asyncio.to_thread(self.embedding_manager.embed_query, text)
             return self._clean_vector(embedding)
-        except Exception:
+        except Exception as exc:
+            logger.warning("[RAG][EMBEDDING] embed_query failed: %s", exc, exc_info=True)
             return None
         finally:
             try:
@@ -787,6 +789,7 @@ class RAGRetriever:
             logger.info("[RAG][POST] acceptance=rejected reason=unexpected_error docs=0 q='%s'", safe_query)
             logger.info("[RAG][RESULT] used_context=no reason=unexpected_error q='%s'", safe_query)
             logger.error("Error retrieve_documents: %s", exc, exc_info=True)
+            self._last_gating_reason = "unexpected_error"
             return []
 
     async def retrieve_with_trace(
@@ -826,8 +829,8 @@ class RAGRetriever:
                 "timings": self.performance_metrics.get_statistics(),
             }
         except Exception as exc:
-            logger.error("Error retrieve_with_trace: %s", exc)
-            return {"query": query, "k": k, "retrieved": [], "context": None, "timings": {}}
+            logger.error("Error retrieve_with_trace: %s", exc, exc_info=True)
+            return {"query": query, "k": k, "retrieved": [], "context": None, "timings": {}, "error": str(exc)}
 
     async def _semantic_reranking(
         self,
@@ -865,7 +868,7 @@ class RAGRetriever:
 
             return [doc for doc, _ in sorted(scored_docs, key=lambda item: item[1], reverse=True)]
         except Exception as exc:
-            logger.error("Error in semantic reranking: %s", exc)
+            logger.error("Error in semantic reranking: %s", exc, exc_info=True)
             return docs
 
     async def _apply_mmr(
