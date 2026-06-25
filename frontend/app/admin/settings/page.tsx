@@ -279,7 +279,7 @@ export default function AdminSettingsPage() {
           </div>
         </div>
 
-        <nav className="relative flex-1 overflow-y-auto p-3 space-y-1">
+        <nav role="tablist" aria-label="Secciones de configuración" className="relative flex-1 overflow-y-auto p-3 space-y-1">
           {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
             const isActive = activeTab === id;
             const isDirty =
@@ -289,6 +289,8 @@ export default function AdminSettingsPage() {
               <button
                 key={id}
                 type="button"
+                role="tab"
+                aria-selected={isActive}
                 onClick={() => handleTabChange(id)}
                 className={`group w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ease-out-expo text-left ${
                   isActive
@@ -301,8 +303,9 @@ export default function AdminSettingsPage() {
                 {isDirty && (
                   <span
                     className="w-1.5 h-1.5 rounded-full bg-amber flex-shrink-0"
-                    title="Cambios sin guardar"
+                    aria-hidden="true"
                   />
+                  <span className="sr-only">Cambios sin guardar</span>
                 )}
               </button>
             );

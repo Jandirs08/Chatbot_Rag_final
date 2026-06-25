@@ -23,11 +23,15 @@ function BotAvatar({ logoUrl }: { logoUrl?: string }) {
     return (
       <div
         className="relative flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand ring-1 ring-black/5 shadow-[0_2px_6px_-2px_rgb(0_0_0_/_0.15)]"
-        style={{ width: AVATAR_SIZE, height: AVATAR_SIZE, minWidth: AVATAR_SIZE }}
+        style={{
+          width: AVATAR_SIZE,
+          height: AVATAR_SIZE,
+          minWidth: AVATAR_SIZE,
+        }}
       >
         <Image
           src={logoUrl}
-          alt="bot"
+          alt=""
           width={AVATAR_SIZE}
           height={AVATAR_SIZE}
           className="h-full w-full object-cover"
@@ -41,7 +45,13 @@ function BotAvatar({ logoUrl }: { logoUrl?: string }) {
       className="flex shrink-0 items-center justify-center rounded-full bg-brand ring-1 ring-black/5 shadow-[0_2px_6px_-2px_rgb(0_0_0_/_0.15)]"
       style={{ width: AVATAR_SIZE, height: AVATAR_SIZE, minWidth: AVATAR_SIZE }}
     >
-      <svg viewBox="0 0 24 24" fill="white" width="14" height="14" aria-hidden="true">
+      <svg
+        viewBox="0 0 24 24"
+        fill="white"
+        width="14"
+        height="14"
+        aria-hidden="true"
+      >
         <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7H3a7 7 0 0 1 7-7h1V5.73A2 2 0 0 1 12 2zM7.5 14a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm9 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm-9 5a5 5 0 0 0 9 0H7.5z" />
       </svg>
     </div>
@@ -70,7 +80,11 @@ function AvatarSpacer() {
   );
 }
 
-export const TypingIndicator = React.memo(function TypingIndicator({ logoUrl }: { logoUrl?: string }) {
+export const TypingIndicator = React.memo(function TypingIndicator({
+  logoUrl,
+}: {
+  logoUrl?: string;
+}) {
   return (
     <div className="flex items-start gap-2 animate-bubble-in">
       <BotAvatar logoUrl={logoUrl} />
@@ -129,7 +143,8 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble(props: {
         shouldAnimate && "animate-bubble-in",
       )}
     >
-      {!isUser && (showAvatar ? <BotAvatar logoUrl={logoUrl} /> : <AvatarSpacer />)}
+      {!isUser &&
+        (showAvatar ? <BotAvatar logoUrl={logoUrl} /> : <AvatarSpacer />)}
 
       <div
         className={cn(

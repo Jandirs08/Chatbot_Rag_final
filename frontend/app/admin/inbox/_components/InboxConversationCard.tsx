@@ -174,6 +174,7 @@ function InboxConversationCardImpl({
         onClick={() => onSelect(conversation_id)}
         aria-current={isActive ? "true" : undefined}
         aria-label={`${name}${isSeen ? "" : " — mensaje nuevo"}`}
+        aria-busy={isMutating}
         className={cn(
           "group relative w-full overflow-hidden rounded-xl border text-left",
           "transition-[transform,box-shadow,border-color,background-color,opacity] duration-150 ease-out",

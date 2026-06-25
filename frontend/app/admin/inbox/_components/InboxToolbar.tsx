@@ -425,7 +425,7 @@ interface ExtraOptionProps {
 
 function ExtraOption({ checked, onCheckedChange, label, hint }: ExtraOptionProps) {
   return (
-    <label
+    <div
       className={cn(
         "flex cursor-pointer items-start gap-3 rounded-md px-2 py-2",
         "transition-colors duration-150",
@@ -435,15 +435,16 @@ function ExtraOption({ checked, onCheckedChange, label, hint }: ExtraOptionProps
       <Checkbox
         checked={checked}
         onCheckedChange={(v) => onCheckedChange(v === true)}
+        aria-label={label}
         className="mt-0.5"
       />
-      <div className="min-w-0 flex-1 leading-tight">
+      <div aria-hidden="true" className="min-w-0 flex-1 leading-tight">
         <div className="font-heading text-[12.5px] font-semibold text-foreground">
           {label}
         </div>
         <div className="mt-0.5 text-[11px] text-muted-foreground">{hint}</div>
       </div>
-    </label>
+    </div>
   );
 }
 

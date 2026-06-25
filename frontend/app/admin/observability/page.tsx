@@ -150,24 +150,26 @@ function HeroZone({
         </div>
 
         <div className="flex flex-col items-stretch md:items-end gap-3 self-start">
-          <label className="inline-flex items-center gap-2.5 px-3 py-1.5 rounded-lg border border-border bg-background/40 backdrop-blur-sm cursor-pointer">
+          <div className="inline-flex items-center gap-2.5 px-3 py-1.5 rounded-lg border border-border bg-background/40 backdrop-blur-sm cursor-pointer">
             <Switch
               checked={autoRefresh}
               onCheckedChange={setAutoRefresh}
+              aria-label="Auto-refresh cada 30 segundos"
               className="h-4 w-8 [&>span]:h-3 [&>span]:w-3 [&>span[data-state=checked]]:translate-x-4"
             />
-            <span className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
+            <span aria-hidden="true" className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
               auto · 30s
             </span>
-          </label>
+          </div>
           <button
             type="button"
             onClick={onRefresh}
             disabled={isValidating}
+            aria-label={`Actualizar datos${lastRefresh ? `, última actualización ${fmtClock(lastRefresh)}` : ""}`}
             className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-border bg-background/40 backdrop-blur-sm text-xs font-mono text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/[0.04] transition-all duration-200 ease-out-expo disabled:opacity-50"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${isValidating ? "animate-spin text-primary" : ""}`} />
-            {lastRefresh ? fmtClock(lastRefresh) : "--:--"}
+            <RefreshCw className={`h-3.5 w-3.5 ${isValidating ? "animate-spin text-primary" : ""}`} aria-hidden="true" />
+            <span aria-hidden="true">{lastRefresh ? fmtClock(lastRefresh) : "--:--"}</span>
           </button>
         </div>
       </div>

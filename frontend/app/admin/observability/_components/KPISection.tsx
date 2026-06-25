@@ -17,7 +17,7 @@ export function KPISection({ t60, successRate60, ftP95, totalP95, cantAnswerCoun
   return (
     <section className="t-section-card sm:p-8" data-severity={severities.successSev}>
       <div className="flex items-center gap-2 mb-8">
-        <p className="t-heading">Indicadores Clave</p>
+        <h3 className="t-heading">Indicadores Clave</h3>
         <HelpTooltip content="Métricas críticas que indican la salud operacional. Verde = dentro del objetivo. Amarillo = revisar. Rojo = acción inmediata." />
       </div>
 

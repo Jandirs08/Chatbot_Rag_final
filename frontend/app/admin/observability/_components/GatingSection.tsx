@@ -12,7 +12,7 @@ export function GatingSection({ items, total }: Props) {
     <section className="t-section-card lg:col-span-3">
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
-          <p className="t-section-title">Diagnóstico de Consultas</p>
+          <h3 className="t-section-title">Diagnóstico de Consultas</h3>
           <HelpTooltip content="Qué pasó con las consultas que no completaron el pipeline RAG. Excluye las que sí completaron búsqueda semántica completa." />
         </div>
         {total > 0 && <span className="t-mono-sm">{total} eventos</span>}

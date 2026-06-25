@@ -102,7 +102,15 @@
 | ✅ MobileColumnTabs roles | `role="tablist"` + `role="tab"` + `aria-selected` + `aria-label` en contenedor |
 | ✅ Date inputs labels | `aria-label` con formato en ambos inputs de `ConversationFilters.tsx` |
 | ✅ SSE live region | `aria-busy` + sr-only "Escribiendo…" en `ChatMessageBubble.tsx`; `aria-relevant="additions modifications text"` en `ChatWindow.tsx` |
-| ⏭️ Resto (8 items) | Diferidos a sprint a11y dedicado |
+| ✅ A11Y-H4 | Switch/Checkbox en `<label>` → `<div>` + `aria-label` directo al control | `InboxToolbar.tsx`, `observability/page.tsx` |
+| ✅ A11Y-H5 | Avatar `alt="bot"` → `alt=""` (decorativo) | `ChatMessageBubble.tsx` |
+| ✅ A11Y-H6 | Settings sidebar → `role="tablist"` + `role="tab"` + `aria-selected` | `settings/page.tsx` |
+| ✅ A11Y-H7 | Indicador "cambios sin guardar" → `aria-hidden` dot + `sr-only` texto | `settings/page.tsx` |
+| ✅ A11Y-H10 | Botón refresh → `aria-label` con hora + `aria-hidden` en contenido visual | `observability/page.tsx` |
+| ✅ A11Y-H11 | `<p className="t-heading/t-section-title">` → `<h3>` | `KPISection.tsx`, `GatingSection.tsx` |
+| ✅ A11Y-H12 | `isMutating` → `aria-busy` en card button | `InboxConversationCard.tsx` |
+| ⏭️ A11Y-C3 | per-field errors en RegisterForm — requiere refactor form state | diferido |
+| ⏭️ Medios (5) | aria-haspopup incorrecto, avatar "VT", reduced-motion, live region AnalyzingPlaceholder, aria-current+selected redundantes | diferido |
 
 **Performance:**
 | Issue | Fix | Estado |
