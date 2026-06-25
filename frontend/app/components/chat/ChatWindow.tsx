@@ -348,7 +348,7 @@ export function ChatWindow(props: {
         ref={messageContainerRef}
         onScroll={handleContainerScroll}
         aria-live="polite"
-        aria-relevant="additions text"
+        aria-relevant="additions modifications text"
       >
         <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col">
           {messages.length === 0 && isLoadingHistory ? (

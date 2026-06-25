@@ -17,6 +17,8 @@ function MobileColumnTabsImpl({
 }: MobileColumnTabsProps) {
   return (
     <div
+      role="tablist"
+      aria-label="Columnas del kanban"
       className="flex gap-1.5 overflow-x-auto pb-0.5 md:hidden"
       style={{ scrollbarWidth: "none" }}
     >
@@ -27,11 +29,17 @@ function MobileColumnTabsImpl({
           <button
             key={key}
             type="button"
+            role="tab"
+            aria-selected={isActive}
             onClick={() => onChange(key)}
             className={cn(
               "flex flex-none items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 font-heading text-[11px] font-semibold transition-all duration-150",
               isActive
-                ? cn(col.headerBg, col.headerText, "border-transparent shadow-sm")
+                ? cn(
+                    col.headerBg,
+                    col.headerText,
+                    "border-transparent shadow-sm",
+                  )
                 : "border-border/50 bg-background text-muted-foreground hover:bg-muted",
             )}
           >

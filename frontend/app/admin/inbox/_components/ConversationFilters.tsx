@@ -101,6 +101,7 @@ export function ConversationFilters({
             <div className="flex-1">
               <Input
                 type="date"
+                aria-label="Fecha de inicio (AAAA-MM-DD)"
                 value={config.startDate}
                 onChange={(e) =>
                   onChange((f) => ({ ...f, startDate: e.target.value }))
@@ -111,6 +112,7 @@ export function ConversationFilters({
             <div className="flex-1">
               <Input
                 type="date"
+                aria-label="Fecha de fin (AAAA-MM-DD)"
                 value={config.endDate}
                 onChange={(e) =>
                   onChange((f) => ({ ...f, endDate: e.target.value }))

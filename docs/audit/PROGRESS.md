@@ -99,9 +99,9 @@
 |-------|--------|
 | ✅ Skip link | `layout.tsx` + `id="main-content"` en `RootLayoutClient.tsx` |
 | ✅ ConversationDialog focus | `onCloseAutoFocus` explícito en `DialogPrimitive.Content` |
-| ⏭️ MobileColumnTabs roles | Pendiente |
-| ⏭️ Date inputs labels | Pendiente |
-| ⏭️ SSE live region | Pendiente |
+| ✅ MobileColumnTabs roles | `role="tablist"` + `role="tab"` + `aria-selected` + `aria-label` en contenedor |
+| ✅ Date inputs labels | `aria-label` con formato en ambos inputs de `ConversationFilters.tsx` |
+| ✅ SSE live region | `aria-busy` + sr-only "Escribiendo…" en `ChatMessageBubble.tsx`; `aria-relevant="additions modifications text"` en `ChatWindow.tsx` |
 | ⏭️ Resto (8 items) | Diferidos a sprint a11y dedicado |
 
 **Performance:**

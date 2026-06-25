@@ -146,7 +146,13 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble(props: {
             </p>
           </div>
         ) : (
-          <div className="rounded-2xl rounded-bl-md bg-surface-elevated px-4 py-3 ring-1 ring-black/[0.06] shadow-[0_1px_3px_0_rgb(0_0_0_/_0.04)] transition-shadow hover:shadow-[0_2px_8px_-2px_rgb(0_0_0_/_0.08)]">
+          <div
+            className="rounded-2xl rounded-bl-md bg-surface-elevated px-4 py-3 ring-1 ring-black/[0.06] shadow-[0_1px_3px_0_rgb(0_0_0_/_0.04)] transition-shadow hover:shadow-[0_2px_8px_-2px_rgb(0_0_0_/_0.08)]"
+            aria-busy={showStreamingCaret}
+          >
+            {showStreamingCaret && (
+              <span className="sr-only">Escribiendo…</span>
+            )}
             <div
               className={cn(
                 "text-[15px] leading-[1.6] text-foreground",
