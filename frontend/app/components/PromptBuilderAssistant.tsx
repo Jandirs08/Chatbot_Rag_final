@@ -28,6 +28,14 @@ const SECTOR_PLACEHOLDERS: Record<string, string> = {
   "Finanzas": "Asesoría financiera para personas naturales: inversiones, seguros y planificación fiscal",
 };
 
+const PHASES = [
+  "Analizando tu negocio…",
+  "Definiendo el tono y la voz…",
+  "Escribiendo las instrucciones…",
+  "Refinando los detalles…",
+  "Últimos toques…",
+];
+
 const TONES: { id: Tone; label: string; desc: string; color: string }[] = [
   { id: "formal",   label: "Formal",   desc: "Usted · Preciso",      color: "#4f35cc" },
   { id: "cercano",  label: "Cercano",  desc: "Tú · Natural",         color: "#17a96a" },
@@ -70,14 +78,6 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
   const [phaseIdx, setPhaseIdx] = useState(0);
   const isGeneratingRef = useRef(false);
   const phaseTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const PHASES = [
-    "Analizando tu negocio…",
-    "Definiendo el tono y la voz…",
-    "Escribiendo las instrucciones…",
-    "Refinando los detalles…",
-    "Últimos toques…",
-  ];
 
   const effectiveSector = sector === "Otro" ? customSector.trim() : sector;
   const canGenerate = !!effectiveSector && description.trim().length >= 10 && !loading && !fieldsReadOnly;
@@ -142,7 +142,7 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
     }
   };
 
-  const showResult = (hasGenerated || !!prompt) && mode === "ai" && !loading;
+  const showResult = hasGenerated && mode === "ai" && !loading;
 
   return (
     <div className="space-y-5">

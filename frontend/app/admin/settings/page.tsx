@@ -407,7 +407,8 @@ export default function AdminSettingsPage() {
             handleSave={handleSave}
           />
         )}
-        {activeTab === "brain" && (
+        {/* Keep brain tab mounted to preserve AI form state across tab switches */}
+        <div className={activeTab === "brain" ? "contents" : "hidden"}>
           <SettingsBrainTab
             uiExtra={uiExtra}
             setUiExtra={setUiExtra}
@@ -422,7 +423,7 @@ export default function AdminSettingsPage() {
             errorBrain={errorBrain}
             brainIsDirty={brainIsDirty}
           />
-        )}
+        </div>
         {activeTab === "system" && <SettingsSystemTab isLoading={isLoading} />}
       </main>
 
