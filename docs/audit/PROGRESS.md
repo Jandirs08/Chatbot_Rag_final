@@ -3,8 +3,45 @@
 **Audit completo:** 2026-06-25  
 **Agentes usados:** 11 (fastapi, mle×2, react, security, database, silent-failure-hunter, python, a11y, performance, pr-test-analyzer)  
 **Issues totales:** 116 (16 críticos, 39 altos, 43 medios, 18 bajos)  
-**RAG Power Score:** 72/100 — Advanced RAG Tier  
+**Issues resueltos:** 69/116 (59%) — actualizado 2026-06-26  
+**RAG Power Score:** ~75/100 (era 72 — +3 eval/slice, CI gate implementado)  
 **Informe completo:** `../RAG_AUDIT_2026-06-25.md`
+
+---
+
+## Puntuación actual por área
+
+| Área | Score original | Score actual | Cambio |
+|------|--------------|-------------|--------|
+| Seguridad | 4/10 | 6/10 | +2 (H2 PDF, H4 CORS, M3 métodos) |
+| RAG Pipeline | 6/10 | 8.5/10 | +2.5 (C1-C3, H1-H7, HyDE español, orden reranker) |
+| FastAPI Backend | 6/10 | 8/10 | +2 (async Redis, limits, tool persist) |
+| MongoDB / Database | 5/10 | 6/10 | +1 (full scan cache, proyección) |
+| Python Code Quality | 6.5/10 | 7/10 | +0.5 (SHA-256, no .pop()) |
+| Frontend React | 7/10 | 8.5/10 | +1.5 (boundaries, perf, AbortController) |
+| Accessibility | 4/10 | 8.5/10 | +4.5 (Sprint A11Y completo + P3) |
+| Performance | 6.5/10 | 7.5/10 | +1 (asyncio.gather, radix imports) |
+| Tests/Coverage | 4/10 | 6.5/10 | +2.5 (auth tests, CI, frontend Vitest) |
+| **RAG como sistema** | **72/100** | **~75/100** | +3 (slice eval, CI gate) |
+| **Global del proyecto** | **5.6/10** | **~7.5/10** | Desbloqueado para staging |
+
+## Issues por severidad — estado actual
+
+| Severidad | Total | Resueltos | Pendientes |
+|-----------|-------|-----------|-----------|
+| CRÍTICO | 16 | 14 | 2 (SEC-C1/C2 — manual) |
+| ALTO | 39 | 26 | 13 |
+| MEDIO | 43 | 25 | 18 |
+| BAJO | 18 | 4 | 14 |
+| **Total** | **116** | **69** | **47** |
+
+## Para llegar a ~85-90 RAG (de 75 actual)
+
+| Mejora | Puntos | Estado |
+|--------|--------|--------|
+| Faithfulness guard (LLM-as-judge en runtime) | +5 | Pendiente — mayor win usuario |
+| Multi-query expansion | +5 | DEFERIDO por usuario |
+| Restantes altos (PY-H2/H3, DB-H1, PERF-H1/H2) | — | Deferidos (ver notas) |
 
 ---
 
@@ -182,19 +219,55 @@
 
 ---
 
+### ✅ P3 — A11Y Medios + Eval/CI (DONE 2026-06-26)
+
+**A11Y Medios:**
+| Issue | Fix | Estado |
+|-------|-----|--------|
+| ✅ A11Y-M-live | `AnalyzingPlaceholder`: `role="status"` + `aria-label="Analizando conversación"` | `SummaryCard.tsx:19` |
+| ✅ A11Y-M-motion | `globals.css`: bloque `prefers-reduced-motion` expandido a 12 clases (skeleton-shimmer, bubble-in, fade, slide, status-pulse, halo-ring, orb-float, pulse-glow, typing-indicator) | `globals.css:488-508` |
+| ⏭️ A11Y-M-haspopup | `aria-haspopup` valor incorrecto | cosmético — diferir |
+| ⏭️ A11Y-M-current | `aria-current` + `aria-selected` redundantes | cosmético — diferir |
+
+**Eval/CI (P4):**
+| Issue | Fix | Estado |
+|-------|-----|--------|
+| ✅ EVAL-gate | `--min-pass-rate` + `--min-faithfulness` CLI args — exit 2 si bajo threshold | `run_rag_e2e_eval.py:71-73` |
+| ✅ EVAL-slice | `by_category` breakdown en summary JSON + print por categoría | `run_rag_e2e_eval.py:423-434` |
+
+**FE-M7 (B7 uncommitted — commiteado ahora):**
+| Issue | Fix | Estado |
+|-------|-----|--------|
+| ✅ FE-M7 | `document.hidden` guard en SWR polling — `useChatStream.ts:109` | `useChatStream.ts` |
+
+---
+
+## Issues diferidos — DECISIÓN FINAL
+
+| Issue | Razón diferir indefinidamente |
+|-------|------------------------------|
+| **PY-H2** `_build_pipeline` 119L nesting=5 | Corazón del pipeline RAG. Sin tests para agentic/tool calls/WhatsApp = refactor ciego. Tocar solo DESPUÉS de escribir tests de integración para esas ramas. |
+| **PY-H3** `generate_streaming_response` 134L nesting=6 | Igual que PY-H2. Misma condición. |
+| **DB-H1** BM25 50K postings | Decisión arquitectural (Atlas Search vs custom). No urgente en <10K docs. |
+| **PERF-H1/H2** framer-motion + dnd-kit lazy | Evaluar uso real primero. Bundle penalty existe pero no bloquea. |
+| **aria-haspopup, aria-current** | Cosméticos. Solo impactan screen readers en edge cases de navegación. |
+
+---
+
 ## Decisiones pendientes del usuario
 
 | # | Decisión | Estado |
 |---|---------|--------|
-| 1 | SEC-C1/C2: Rotar credenciales .env + nuevo JWT_SECRET | ⏳ Manual |
+| 1 | SEC-C1/C2: Rotar credenciales .env + nuevo JWT_SECRET | ⏳ Manual — BLOQUEANTE para producción |
 | 2 | DB-C2: Twilio plaintext — Fernet encryption o mover a .env | ⏳ Decidir |
-| 3 | PY-C1 nota: hash_content_for_dedup ahora SHA-256 — re-ingestar PDFs o revertir a MD5 para dedup | ✅ Usuario dijo: staging, no importa |
+| 3 | PY-C1: hash_content_for_dedup ahora SHA-256 — re-ingestar PDFs o dejar | ✅ Staging, no importa |
+| 4 | Multi-query expansion | ⏳ Deferido por usuario ("aun en dudas") |
 
 ---
 
 ## Notas de sesión
 
 - Credential rotation: usuario decidió dejar para después (staging)
-- `hash_text_md5` renombrado internamente a SHA-256 pero mantiene nombre por backward compat — candidato a renombrar en cleanup
-- `get_doc_ids_by_source` añadido a `rag_parent_document_repository.py` (método nuevo para RAG-C1)
-- Reviewer encontró `dependencies.py:59` sin `await` — corregido en la misma sesión
+- `hash_text_md5` mantiene nombre pero usa SHA-256 internamente — candidato a renombrar en cleanup
+- `get_doc_ids_by_source` añadido a `rag_parent_document_repository.py` (RAG-C1)
+- PY-H2/H3: NO tocar hasta tener tests de integración para agentic handler, tool calls, WhatsApp adapter
