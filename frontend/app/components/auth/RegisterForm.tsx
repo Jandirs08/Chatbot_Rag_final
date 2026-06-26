@@ -41,6 +41,7 @@ export function RegisterForm({
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [success, setSuccess] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -51,57 +52,52 @@ export function RegisterForm({
       ...prev,
       [name]: value,
     }));
-    // Limpiar mensajes cuando el usuario empiece a escribir
+    if (fieldErrors[name]) {
+      setFieldErrors((prev) => { const next = { ...prev }; delete next[name]; return next; });
+    }
     if (error) setError(null);
     if (success) setSuccess(null);
   };
 
-  const validateForm = (): string | null => {
-    // Validar username
+  const validateForm = (): Record<string, string> => {
+    const errors: Record<string, string> = {};
+
     if (!formData.username.trim()) {
-      return "El nombre de usuario es requerido";
-    }
-    if (formData.username.length < 3) {
-      return "El nombre de usuario debe tener al menos 3 caracteres";
-    }
-    if (formData.username.length > 50) {
-      return "El nombre de usuario no puede tener más de 50 caracteres";
+      errors.username = "El nombre de usuario es requerido";
+    } else if (formData.username.length < 3) {
+      errors.username = "El nombre de usuario debe tener al menos 3 caracteres";
+    } else if (formData.username.length > 50) {
+      errors.username = "El nombre de usuario no puede tener más de 50 caracteres";
     }
 
-    // Validar email
     if (!formData.email.trim()) {
-      return "El email es requerido";
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
-      return "Por favor ingresa un email válido";
+      errors.email = "El email es requerido";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errors.email = "Por favor ingresa un email válido";
     }
 
-    // Validar contraseña
     if (!formData.password) {
-      return "La contraseña es requerida";
-    }
-    if (formData.password.length < 6) {
-      return "La contraseña debe tener al menos 6 caracteres";
-    }
-
-    // Validar confirmación de contraseña
-    if (formData.password !== formData.confirmPassword) {
-      return "Las contraseñas no coinciden";
+      errors.password = "La contraseña es requerida";
+    } else if (formData.password.length < 6) {
+      errors.password = "La contraseña debe tener al menos 6 caracteres";
     }
 
-    return null;
+    if (formData.password && formData.password !== formData.confirmPassword) {
+      errors.confirmPassword = "Las contraseñas no coinciden";
+    }
+
+    return errors;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validar formulario
-    const validationError = validateForm();
-    if (validationError) {
-      setError(validationError);
+    const validationErrors = validateForm();
+    if (Object.keys(validationErrors).length > 0) {
+      setFieldErrors(validationErrors);
       return;
     }
+    setFieldErrors({});
 
     setIsLoading(true);
     setError(null);
@@ -186,7 +182,12 @@ export function RegisterForm({
               disabled={isLoading}
               required
               autoComplete="username"
+              aria-invalid={!!fieldErrors.username}
+              aria-describedby={fieldErrors.username ? "username-error" : undefined}
             />
+            {fieldErrors.username && (
+              <p id="username-error" className="text-sm text-destructive">{fieldErrors.username}</p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -201,7 +202,12 @@ export function RegisterForm({
               disabled={isLoading}
               required
               autoComplete="email"
+              aria-invalid={!!fieldErrors.email}
+              aria-describedby={fieldErrors.email ? "email-error" : undefined}
             />
+            {fieldErrors.email && (
+              <p id="email-error" className="text-sm text-destructive">{fieldErrors.email}</p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -232,6 +238,8 @@ export function RegisterForm({
                 required
                 autoComplete="new-password"
                 className="pr-10"
+                aria-invalid={!!fieldErrors.password}
+                aria-describedby={fieldErrors.password ? "password-error" : undefined}
               />
               <Button
                 type="button"
@@ -251,6 +259,9 @@ export function RegisterForm({
                 </span>
               </Button>
             </div>
+            {fieldErrors.password && (
+              <p id="password-error" className="text-sm text-destructive">{fieldErrors.password}</p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -267,6 +278,8 @@ export function RegisterForm({
                 required
                 autoComplete="new-password"
                 className="pr-10"
+                aria-invalid={!!fieldErrors.confirmPassword}
+                aria-describedby={fieldErrors.confirmPassword ? "confirmPassword-error" : undefined}
               />
               <Button
                 type="button"
@@ -288,6 +301,9 @@ export function RegisterForm({
                 </span>
               </Button>
             </div>
+            {fieldErrors.confirmPassword && (
+              <p id="confirmPassword-error" className="text-sm text-destructive">{fieldErrors.confirmPassword}</p>
+            )}
           </div>
         </CardContent>
 
