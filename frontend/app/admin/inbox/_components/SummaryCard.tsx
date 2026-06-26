@@ -16,7 +16,7 @@ import {
 
 export function AnalyzingPlaceholder() {
   return (
-    <div className="space-y-3">
+    <div role="status" aria-label="Analizando conversación" className="space-y-3">
       <div className="flex items-center gap-2 text-[12px] font-medium text-primary/80">
         <Sparkles className="h-3.5 w-3.5 animate-pulse motion-reduce:animate-none" />
         <span>Analizando conversación</span>

@@ -70,6 +70,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--with-ragas", action="store_true", help="Ejecuta una segunda evaluacion semantica con Ragas.")
     parser.add_argument("--ragas-model", default=os.getenv("RAGAS_EVAL_MODEL", "gpt-4o-mini"), help="Modelo evaluador para Ragas.")
     parser.add_argument("--ragas-embedding-model", default=os.getenv("RAGAS_EMBEDDING_MODEL", "text-embedding-3-small"), help="Modelo de embeddings para Ragas.")
+    parser.add_argument("--min-pass-rate", type=float, default=0.0, help="Pass rate minima requerida (0-100). Si el resultado es menor, el script termina con exit code 2.")
+    parser.add_argument("--min-faithfulness", type=float, default=0.0, help="Faithfulness minima de Ragas requerida (0-1). Solo se verifica si --with-ragas esta activo.")
     return parser
 
 
@@ -416,6 +418,21 @@ def main() -> int:
 
     passed = sum(1 for item in outcomes if item.passed)
     failed = len(outcomes) - passed
+    pass_rate = round((passed / len(outcomes)) * 100, 2) if outcomes else 0.0
+
+    by_category: dict[str, dict[str, int | float]] = {}
+    for outcome in outcomes:
+        cat = outcome.category or "unknown"
+        bucket = by_category.setdefault(cat, {"total": 0, "passed": 0, "failed": 0})
+        bucket["total"] += 1
+        if outcome.passed:
+            bucket["passed"] += 1
+        else:
+            bucket["failed"] += 1
+    for bucket in by_category.values():
+        total = int(bucket["total"])
+        bucket["pass_rate"] = round((int(bucket["passed"]) / total) * 100, 2) if total else 0.0
+
     report_payload = {
         "base_url": args.base_url,
         "dataset": str(args.dataset),
@@ -424,7 +441,8 @@ def main() -> int:
             "total": len(outcomes),
             "passed": passed,
             "failed": failed,
-            "pass_rate": round((passed / len(outcomes)) * 100, 2) if outcomes else 0.0,
+            "pass_rate": pass_rate,
+            "by_category": by_category,
         },
         "preflight": {
             "clear_before": clear_before_payload,
@@ -467,11 +485,29 @@ def main() -> int:
     print(f"- Total: {len(outcomes)}")
     print(f"- Pass: {passed}")
     print(f"- Fail: {failed}")
-    print(f"- Pass rate: {report_payload['summary']['pass_rate']}%")
+    print(f"- Pass rate: {pass_rate}%")
+    if by_category:
+        print("- Por categoria:")
+        for cat, stats in sorted(by_category.items()):
+            print(f"    {cat}: {stats['passed']}/{stats['total']} ({stats['pass_rate']}%)")
     print(f"- Reporte: {report_path}")
     if "ragas" in report_payload:
         print(f"- Ragas: {report_payload['ragas']}")
 
+    gate_failed = False
+    if args.min_pass_rate > 0.0 and pass_rate < args.min_pass_rate:
+        print(f"[GATE FAIL] Pass rate {pass_rate}% < minimo {args.min_pass_rate}%")
+        gate_failed = True
+    if args.min_faithfulness > 0.0 and args.with_ragas:
+        ragas_section = report_payload.get("ragas", {})
+        if ragas_section.get("status") == "success":
+            faithfulness = (ragas_section.get("summary") or {}).get("faithfulness")
+            if faithfulness is not None and faithfulness < args.min_faithfulness:
+                print(f"[GATE FAIL] Faithfulness {faithfulness:.3f} < minimo {args.min_faithfulness}")
+                gate_failed = True
+
+    if gate_failed:
+        return 2
     return 0 if failed == 0 else 1
 
 

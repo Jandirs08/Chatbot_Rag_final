@@ -31,10 +31,7 @@ export interface UseChatStreamReturn {
   debugData?: DebugData | null;
   convMode: string | null;
   showLeadForm: boolean;
-  sendMessage: (
-    message: string,
-    opts?: SendMessageOptions,
-  ) => Promise<void>;
+  sendMessage: (message: string, opts?: SendMessageOptions) => Promise<void>;
   clearMessages: () => void;
   cancelStream: () => void;
   submitLead: (name: string, email: string) => Promise<void>;
@@ -51,7 +48,9 @@ export function useChatStream(
 ): UseChatStreamReturn {
   const [messages, setMessages] = useState<Message[]>(initialMessages ?? []);
   const [isLoading, setIsLoading] = useState(false);
-  const [debugData, setDebugData] = useState<DebugData | null | undefined>(undefined);
+  const [debugData, setDebugData] = useState<DebugData | null | undefined>(
+    undefined,
+  );
   const [convMode, setConvMode] = useState<string | null>(null);
   const [showLeadForm, setShowLeadForm] = useState(false);
 
@@ -73,7 +72,9 @@ export function useChatStream(
 
   // Stable ref so sendMessage closure doesn't stale when endpoint changes.
   const endpointRef = useRef(options?.endpoint ?? "/chat/");
-  useEffect(() => { endpointRef.current = options?.endpoint ?? "/chat/"; }, [options?.endpoint]);
+  useEffect(() => {
+    endpointRef.current = options?.endpoint ?? "/chat/";
+  }, [options?.endpoint]);
 
   // ---- Sync initialMessages ----
   useEffect(() => {
@@ -341,7 +342,9 @@ export function useChatStream(
               }
             } else if (msg.event === "mode") {
               try {
-                const modePayload = JSON.parse(msg.data ?? "{}") as { mode: string };
+                const modePayload = JSON.parse(msg.data ?? "{}") as {
+                  mode: string;
+                };
                 if (mountedRef.current) setConvMode(modePayload.mode);
               } catch (e) {
                 logger.warn("No se pudo parsear mode event", e);
@@ -389,54 +392,61 @@ export function useChatStream(
   // -----------------------------------------------------------------------
   // submitLead – POSTs name/email to capture-lead endpoint.
   // -----------------------------------------------------------------------
-  const submitLead = useCallback(async (name: string, email: string) => {
-    const appendBotMessage = (id: string, content: string, timestamp?: string) => {
-      if (!mountedRef.current) return;
-      setMessages((prev) => {
-        if (prev.some((p) => p.id === id)) return prev;
-        return [
-          ...prev,
-          {
-            id,
-            content,
-            role: "assistant" as const,
-            createdAt: timestamp ? new Date(timestamp) : new Date(),
-          },
-        ];
-      });
-    };
-
-    const fallbackContent =
-      "No pudimos recibir tus datos. Intenta nuevamente o escríbenos por WhatsApp.";
-
-    try {
-      const res = await fetch(
-        `${API_URL}/conversations/${conversationId}/capture-lead`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ lead_name: name, lead_email: email }),
-        },
-      );
-      if (mountedRef.current) setShowLeadForm(false);
-      if (!res.ok) {
-        appendBotMessage(generateId(), fallbackContent);
-        return;
-      }
-      const data = (await res.json()) as {
-        status?: string;
-        message_id?: string;
-        content?: string;
-        timestamp?: string;
+  const submitLead = useCallback(
+    async (name: string, email: string) => {
+      const appendBotMessage = (
+        id: string,
+        content: string,
+        timestamp?: string,
+      ) => {
+        if (!mountedRef.current) return;
+        setMessages((prev) => {
+          if (prev.some((p) => p.id === id)) return prev;
+          return [
+            ...prev,
+            {
+              id,
+              content,
+              role: "assistant" as const,
+              createdAt: timestamp ? new Date(timestamp) : new Date(),
+            },
+          ];
+        });
       };
-      if (data?.content && data?.message_id) {
-        appendBotMessage(data.message_id, data.content, data.timestamp);
+
+      const fallbackContent =
+        "No pudimos recibir tus datos. Intenta nuevamente o escríbenos por WhatsApp.";
+
+      try {
+        const res = await fetch(
+          `${API_URL}/conversations/${conversationId}/capture-lead`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ lead_name: name, lead_email: email }),
+          },
+        );
+        if (mountedRef.current) setShowLeadForm(false);
+        if (!res.ok) {
+          appendBotMessage(generateId(), fallbackContent);
+          return;
+        }
+        const data = (await res.json()) as {
+          status?: string;
+          message_id?: string;
+          content?: string;
+          timestamp?: string;
+        };
+        if (data?.content && data?.message_id) {
+          appendBotMessage(data.message_id, data.content, data.timestamp);
+        }
+      } catch {
+        if (mountedRef.current) setShowLeadForm(false);
+        appendBotMessage(generateId(), fallbackContent);
       }
-    } catch {
-      if (mountedRef.current) setShowLeadForm(false);
-      appendBotMessage(generateId(), fallbackContent);
-    }
-  }, [conversationId]);
+    },
+    [conversationId],
+  );
 
   // -----------------------------------------------------------------------
   // clearMessages – cancels any active stream, then wipes history.

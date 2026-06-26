@@ -487,6 +487,27 @@
 
 @media (prefers-reduced-motion: reduce) {
   .aleph-watermark { animation: none; opacity: 0.03; }
+
+  .skeleton-shimmer { animation: none; opacity: 0.7; }
+
+  .animate-bubble-in,
+  .animate-fadeIn,
+  .animate-fade-in,
+  .animate-slide-in,
+  .animate-count-reveal,
+  .animate-num-flash,
+  .animate-line-grow { animation: none; }
+
+  .animate-status-pulse,
+  .animate-status-pulse-fast { animation: none; }
+
+  .animate-halo-green,
+  .animate-halo-red { animation: none; box-shadow: none; }
+
+  .animate-orb-float,
+  .animate-pulse-glow { animation: none; }
+
+  .typing-indicator span { animation: none; opacity: 0.6; }
 }
 
 /* ─── Typing indicator ───────────────────────────────────────────────────── */
