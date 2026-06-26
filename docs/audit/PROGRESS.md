@@ -109,8 +109,9 @@
 | ✅ A11Y-H10 | Botón refresh → `aria-label` con hora + `aria-hidden` en contenido visual | `observability/page.tsx` |
 | ✅ A11Y-H11 | `<p className="t-heading/t-section-title">` → `<h3>` | `KPISection.tsx`, `GatingSection.tsx` |
 | ✅ A11Y-H12 | `isMutating` → `aria-busy` en card button | `InboxConversationCard.tsx` |
-| ⏭️ A11Y-C3 | per-field errors en RegisterForm — requiere refactor form state | diferido |
-| ⏭️ Medios (5) | aria-haspopup incorrecto, avatar "VT", reduced-motion, live region AnalyzingPlaceholder, aria-current+selected redundantes | diferido |
+| ✅ A11Y-C3 | per-field `aria-invalid` + `aria-describedby` + `fieldErrors` state | `RegisterForm.tsx` (commit 9db41c4) |
+| ✅ Medio VT | Avatar "VT" texto envuelto en `aria-hidden="true"` span | `ChatDetail.tsx` |
+| ⏭️ Medios (4) | aria-haspopup, reduced-motion (4 componentes), live region AnalyzingPlaceholder, aria-current+selected redundantes | pendiente |
 
 **Performance:**
 | Issue | Fix | Estado |
@@ -128,7 +129,7 @@
 | ✅ FE-H2 | `AbortController` en history fetch + AbortError guard | `chat/page.tsx` |
 | ✅ FE-M1 | `contextValue` → `useMemo` | `AuthContext.tsx` |
 | ✅ FE-M2 | `login` + `clearError` → `useCallback` | `AuthContext.tsx` |
-| ⏭️ FE-M5 | `ConversationWorkspace.tsx` refactor (1124 líneas) | Diferido |
+| ✅ FE-M5 | `ConversationWorkspace.tsx` → 414L + 5 módulos extraídos (commit b629f9a) | done |
 | ⏭️ FE-M6 | Virtualización KanbanColumn | Diferido |
 
 ---
@@ -141,7 +142,43 @@
 | ✅ TEST-C2 | `test_chat_routes.py` — 4 tests: 422, 503, history 200, export 401 | creado |
 | ✅ TEST-C3 | CI → `pytest --cov=. --cov-report=term-missing --cov-fail-under=65` | `.github/workflows/backend-tests.yml` |
 | ✅ TEST-C4 | `run_rag_e2e_eval.py` → `@pytest.mark.integration` wrapper + `pytest_configure` | `tests/evals/` |
-| ⏭️ TEST-C5 | Frontend Playwright/Vitest — diferido (setup grande) | Pendiente |
+| ✅ TEST-C5 | Vitest + Playwright setup, 30 unit tests inbox-utils, register-validation, e2e auth | `frontend/__tests__/`, `frontend/e2e/` (commit 0cd0a1d) |
+
+---
+
+### ✅ B7 — RAG Pipeline + Security + Code Quality + Frontend (DONE 2026-06-26)
+
+**RAG Pipeline:**
+| Issue | Fix | Estado |
+|-------|-----|--------|
+| ✅ RAG-H1 | HyDE prompt cambiado a español: `"Escribe un párrafo breve..."` | `hierarchical_retriever.py:206` |
+| ✅ RAG-H5 | Log falso `"RAGRetriever initialized"` en setter → `"gating_reason set to %r"` | `retriever.py:209` |
+| ✅ RAG-H6 | OpenAI reranker `timeout=None` fallback → `30.0` segundos default | `reranker.py:56` |
+| ✅ RAG-H7 | `format_context_from_documents` preserva orden de ranking (ya no agrupa por tipo) | `retriever.py:931-974` |
+
+**Security:**
+| Issue | Fix | Estado |
+|-------|-----|--------|
+| ✅ SEC-H2 | PDF upload: magic bytes `%PDF` check antes de save | `pdf_routes.py` |
+| ✅ SEC-H4 | CORS `allow_methods/allow_headers` de `["*"]` → listas explícitas | `app.py:710-711` |
+
+**Python Quality:**
+| Issue | Fix | Estado |
+|-------|-----|--------|
+| ✅ PY-H1 | `_get_model` usa `.get()` + dict copy en vez de `.pop()` (no muta caller) | `chain.py:170` |
+
+**Frontend:**
+| Issue | Fix | Estado |
+|-------|-----|--------|
+| ✅ FE-H5 | `botService.getState()` flotante → `cancelled` flag + cleanup | `settings/page.tsx:150` |
+| ✅ FE-M7 | Polling SWR: `if (document.hidden) return` — skip cuando tab oculto | `useChatStream.ts:109` |
+
+**Infraestructura:**
+| Issue | Fix | Estado |
+|-------|-----|--------|
+| ✅ INFRA | Stale `.claude/worktrees/*` eliminados (rompían `git status` tras mover proyecto) | `.claude/worktrees/` |
+| ✅ INFRA | `hooksPath` en `.git/config` actualizado al path correcto | `.git/config` |
+| ✅ INFRA | B1+B2 commiteados correctamente (estaban en working tree sin commit) | commit `6963bd0` |
 
 ---
 
