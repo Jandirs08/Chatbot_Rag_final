@@ -406,6 +406,11 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
             </button>
           )}
 
+          {/* Screen reader generation status */}
+          <div aria-live="polite" aria-atomic="true" className="sr-only">
+            {loading ? "Generando personalidad, por favor espera." : hasGenerated ? "Personalidad generada. Revisa el resultado." : ""}
+          </div>
+
           {/* AI working indicator */}
           {loading && (
             <div className="rounded-xl overflow-hidden border border-border bg-muted/40">
@@ -416,18 +421,6 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
                   style={{ width: "60%", backgroundSize: "200% 100%" }}
                 />
               </div>
-              <style>{`
-                @keyframes shimmer {
-                  0%   { transform: translateX(-100%); }
-                  100% { transform: translateX(260%); }
-                }
-                @keyframes fadeSwap {
-                  0%   { opacity: 0; transform: translateY(4px); }
-                  15%  { opacity: 1; transform: translateY(0); }
-                  85%  { opacity: 1; transform: translateY(0); }
-                  100% { opacity: 0; transform: translateY(-4px); }
-                }
-              `}</style>
 
               <div className="px-5 py-5 space-y-4">
                 {/* Three-dot pulse */}
@@ -508,13 +501,14 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
                   rows={14}
                   maxLength={3000}
                   disabled={fieldsReadOnly}
+                  aria-describedby="ai-prompt-count"
                   className="resize-none border-0 focus-visible:ring-0 text-[13px] leading-relaxed p-4 font-mono text-foreground bg-transparent"
                 />
                 <div className="flex justify-between items-center px-4 pb-3 border-t border-border">
                   <span className="text-[11px] text-muted-foreground">
                     Ajusta el texto si es necesario antes de guardar
                   </span>
-                  <span className={`text-[11px] font-mono ${prompt.length > 2700 ? "text-destructive" : "text-muted-foreground"}`}>
+                  <span id="ai-prompt-count" className={`text-[11px] font-mono ${prompt.length > 2700 ? "text-destructive" : "text-muted-foreground"}`}>
                     {prompt.length} / 3000
                   </span>
                 </div>
@@ -540,12 +534,13 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
             rows={14}
             maxLength={3000}
             disabled={fieldsReadOnly}
+            aria-describedby="manual-prompt-count"
             placeholder="Escribe las instrucciones de personalidad: tono, restricciones, flujos especiales..."
             className={`resize-none text-[13px] leading-relaxed font-mono bg-card ${INPUT_CLS}`}
           />
           <div className="flex justify-between items-center">
             <span className="text-[11px] text-muted-foreground">Edición directa</span>
-            <span className={`text-[11px] font-mono ${prompt.length > 2700 ? "text-destructive" : "text-muted-foreground"}`}>
+            <span id="manual-prompt-count" className={`text-[11px] font-mono ${prompt.length > 2700 ? "text-destructive" : "text-muted-foreground"}`}>
               {prompt.length} / 3000
             </span>
           </div>
