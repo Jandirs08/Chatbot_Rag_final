@@ -9,7 +9,10 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",
