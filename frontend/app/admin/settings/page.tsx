@@ -107,7 +107,6 @@ export default function AdminSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [temperature, setTemperature] = useState<number>(0.7);
   const [uiExtra, setUiExtra] = useState<string>("");
-  const [fieldsLocked, setFieldsLocked] = useState<boolean>(true);
   const [appearanceLocked, setAppearanceLocked] = useState<boolean>(true);
   const [baselineUiExtra, setBaselineUiExtra] = useState<string>("");
   const [baselineTemperature, setBaselineTemperature] = useState<number>(0.7);
@@ -214,7 +213,6 @@ export default function AdminSettingsPage() {
       setBaselineUiExtra(sanitizeUiExtra(updated.ui_prompt_extra));
       setBaselineTemperature(updated.temperature ?? temperature);
       mutate();
-      setFieldsLocked(true);
       toast.success("Configuración guardada. Cambios aplicados al bot.");
     } catch (e: unknown) {
       const msg =
@@ -224,6 +222,11 @@ export default function AdminSettingsPage() {
     } finally {
       setSavingBrain(false);
     }
+  };
+
+  const handleDiscardChanges = () => {
+    setUiExtra(baselineUiExtra);
+    setTemperature(baselineTemperature);
   };
 
   const [resetConfirmOpen, setResetConfirmOpen] = useState<boolean>(false);
@@ -414,10 +417,9 @@ export default function AdminSettingsPage() {
             setUiExtra={setUiExtra}
             temperature={temperature}
             setTemperature={setTemperature}
-            fieldsLocked={fieldsLocked}
-            setFieldsLocked={setFieldsLocked}
             handleBrainSave={handleBrainSave}
             handleBrainReset={handleBrainReset}
+            handleDiscardChanges={handleDiscardChanges}
             isLoading={isLoading}
             savingBrain={savingBrain}
             errorBrain={errorBrain}

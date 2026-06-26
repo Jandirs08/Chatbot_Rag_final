@@ -6,10 +6,9 @@ interface SettingsBrainTabProps {
   setUiExtra: (val: string) => void;
   temperature: number;
   setTemperature: (val: number) => void;
-  fieldsLocked: boolean;
-  setFieldsLocked: (val: boolean) => void;
   handleBrainSave: () => void;
   handleBrainReset: () => void;
+  handleDiscardChanges: () => void;
   isLoading: boolean;
   savingBrain: boolean;
   errorBrain: string | null;
@@ -21,10 +20,9 @@ export function SettingsBrainTab({
   setUiExtra,
   temperature,
   setTemperature,
-  fieldsLocked,
-  setFieldsLocked,
   handleBrainSave,
   handleBrainReset,
+  handleDiscardChanges,
   isLoading,
   savingBrain,
   errorBrain,
@@ -33,14 +31,13 @@ export function SettingsBrainTab({
   return (
     <div className="h-full overflow-hidden">
       <BotConfiguration
-        fieldsReadOnly={fieldsLocked}
-        onToggleEditFields={() => setFieldsLocked(!fieldsLocked)}
         prompt={uiExtra}
         onPromptChange={(val) => setUiExtra(val)}
         temperature={temperature}
         onTemperatureChange={setTemperature}
         onSave={handleBrainSave}
         onReset={handleBrainReset}
+        onDiscardChanges={handleDiscardChanges}
         isLoading={isLoading || savingBrain}
         error={errorBrain || undefined}
         canSave={brainIsDirty}
