@@ -112,7 +112,16 @@ class HierarchicalIngestionService:
             ]
             if self.lexical_repository is not None:
                 delete_tasks.append(self.lexical_repository.delete_by_source(result.source))
-            await asyncio.gather(*delete_tasks)
+            _delete_store_names = ["parent_repository", "vector_store"] + (
+                ["lexical_repository"] if self.lexical_repository is not None else []
+            )
+            delete_results = await asyncio.gather(*delete_tasks, return_exceptions=True)
+            delete_errors = [(i, r) for i, r in enumerate(delete_results) if isinstance(r, BaseException)]
+            if delete_errors:
+                for i, err in delete_errors:
+                    logger.error("Delete failed for %s during replace: %s", _delete_store_names[i], err)
+                failed = [_delete_store_names[i] for i, _ in delete_errors]
+                raise RuntimeError(f"Delete failed for {failed}; aborting ingestion to avoid inconsistent state")
 
         child_documents = [self._child_to_langchain_document(child) for child in result.children]
 
@@ -128,7 +137,16 @@ class HierarchicalIngestionService:
         ]
         if self.lexical_repository is not None:
             store_tasks.append(self.lexical_repository.upsert_children(result.children))
-        await asyncio.gather(*store_tasks)
+        _store_names = ["parent_repository", "vector_store"] + (
+            ["lexical_repository"] if self.lexical_repository is not None else []
+        )
+        store_results = await asyncio.gather(*store_tasks, return_exceptions=True)
+        store_errors = [(i, r) for i, r in enumerate(store_results) if isinstance(r, BaseException)]
+        if store_errors:
+            for i, err in store_errors:
+                logger.error("Store failed for %s: %s", _store_names[i], err)
+            failed = [_store_names[i] for i, _ in store_errors]
+            raise RuntimeError(f"Store failed for {failed}")
 
         # Bump doc timestamp so retrieval cache for this doc_id is invalidated
         try:
@@ -150,13 +168,23 @@ class HierarchicalIngestionService:
         }
 
     async def delete_by_source(self, source: str) -> None:
+        doc_ids = await self.parent_repository.get_doc_ids_by_source(source)
         tasks: list = [
             self.parent_repository.delete_by_source(source),
             self.vector_store.delete_documents(filter={"source": source}),
         ]
         if self.lexical_repository is not None:
             tasks.append(self.lexical_repository.delete_by_source(source))
-        await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        errors = [r for r in results if isinstance(r, BaseException)]
+        if errors:
+            logger.error("delete_by_source: %d store(s) failed: %s", len(errors), errors)
+            raise RuntimeError(f"delete_by_source partial failure: {errors}")
+        for doc_id in doc_ids:
+            try:
+                cache.set(f"rag:ts:{doc_id}", str(time.time()))
+            except Exception:
+                pass
 
     async def _build_doc_id(self, pdf_path: Path) -> str:
         sha256 = hashlib.sha256()

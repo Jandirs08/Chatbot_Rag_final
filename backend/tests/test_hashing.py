@@ -43,13 +43,13 @@ class TestHashTextMD5:
         """Texto vacío no causa error."""
         result = hash_text_md5("")
         assert isinstance(result, str)
-        assert len(result) == 32  # MD5 hex = 32 chars
+        assert len(result) == 64  # SHA-256 hex = 64 chars
 
     def test_texto_none(self):
         """None se trata como string vacío."""
         result = hash_text_md5(None)
         assert isinstance(result, str)
-        assert len(result) == 32
+        assert len(result) == 64
 
 
 class TestHashTextSHA256:

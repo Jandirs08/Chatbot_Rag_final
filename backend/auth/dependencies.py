@@ -56,7 +56,7 @@ class AuthDependencies:
             payload = verify_token(token, token_type="access")
 
             jti = payload.get("jti")
-            if self.token_blacklist and jti and self.token_blacklist.is_blacklisted(jti):
+            if self.token_blacklist and jti and await self.token_blacklist.is_blacklisted(jti):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Token has been revoked",

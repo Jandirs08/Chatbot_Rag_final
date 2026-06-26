@@ -22,22 +22,22 @@ class TokenBlacklist:
     def _rotation_key(self, jti: str) -> str:
         return f"{self._ROTATION_PREFIX}{jti}"
 
-    def is_blacklisted(self, jti: str) -> bool:
+    async def is_blacklisted(self, jti: str) -> bool:
         try:
-            return bool(self._r.exists(self._key(jti)))
+            return bool(await self._r.exists(self._key(jti)))
         except Exception as e:
             logger.error("Blacklist check error: %s", e)
             return False  # fail open — don't lock users out on Redis blip
 
-    def blacklist(self, jti: str, exp: int) -> None:
+    async def blacklist(self, jti: str, exp: int) -> None:
         """Blacklist jti until its natural expiry (exp is Unix timestamp)."""
         try:
             ttl = max(1, exp - int(datetime.now(timezone.utc).timestamp()))
-            self._r.setex(self._key(jti), ttl, b"1")
+            await self._r.setex(self._key(jti), ttl, b"1")
         except Exception as e:
             logger.error("Blacklist set error: %s", e)
 
-    def store_rotation_result(self, old_jti: str, result: dict) -> None:
+    async def store_rotation_result(self, old_jti: str, result: dict) -> None:
         """Cache the rotation result for old_jti for a short grace window.
 
         Handles the browser-cancel race: if the browser cancels the response
@@ -45,7 +45,7 @@ class TokenBlacklist:
         (now-blacklisted) RT gets the same new tokens instead of a 401.
         """
         try:
-            self._r.setex(
+            await self._r.setex(
                 self._rotation_key(old_jti),
                 _ROTATION_GRACE_SECONDS,
                 json.dumps(result).encode(),
@@ -53,10 +53,10 @@ class TokenBlacklist:
         except Exception as e:
             logger.error("Rotation result store error: %s", e)
 
-    def get_rotation_result(self, jti: str) -> Optional[dict]:
+    async def get_rotation_result(self, jti: str) -> Optional[dict]:
         """Return cached rotation result if within grace window, else None."""
         try:
-            raw = self._r.get(self._rotation_key(jti))
+            raw = await self._r.get(self._rotation_key(jti))
             if raw is None:
                 return None
             return json.loads(raw.decode())
@@ -65,12 +65,12 @@ class TokenBlacklist:
             return None
 
 
-def build_token_blacklist(redis_url: str) -> Optional[TokenBlacklist]:
+async def build_token_blacklist(redis_url: str) -> Optional[TokenBlacklist]:
     """Create a TokenBlacklist from a Redis URL. Returns None if Redis unavailable."""
     try:
-        import redis
-        client = redis.Redis.from_url(redis_url, decode_responses=False)
-        client.ping()
+        from redis import asyncio as aioredis
+        client = aioredis.Redis.from_url(redis_url, decode_responses=False)
+        await client.ping()
         return TokenBlacklist(client)
     except Exception as e:
         logger.warning("TokenBlacklist unavailable: %s", e)

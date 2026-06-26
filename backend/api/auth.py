@@ -253,8 +253,8 @@ async def refresh_access_token(
         # Grace window: if the browser cancelled the response before receiving
         # new cookies, the same (now-blacklisted) RT arrives again. Return the
         # cached result instead of failing so the browser finally gets the cookies.
-        if token_blacklist and jti and token_blacklist.is_blacklisted(jti):
-            grace = token_blacklist.get_rotation_result(jti)
+        if token_blacklist and jti and await token_blacklist.is_blacklisted(jti):
+            grace = await token_blacklist.get_rotation_result(jti)
             if grace:
                 logger.info("Returning cached rotation for jti=%s (grace window)", jti)
                 return TokenResponse(**grace)
@@ -299,8 +299,8 @@ async def refresh_access_token(
         # result for the grace window (handles browser-cancel race condition).
         if token_blacklist and jti:
             exp = payload.get("exp", 0)
-            token_blacklist.blacklist(jti, int(exp))
-            token_blacklist.store_rotation_result(jti, {
+            await token_blacklist.blacklist(jti, int(exp))
+            await token_blacklist.store_rotation_result(jti, {
                 "access_token": access_token,
                 "refresh_token": new_refresh_token,
                 "token_type": "bearer",
@@ -388,7 +388,7 @@ async def logout(
                 jti = payload.get("jti")
                 exp = payload.get("exp", 0)
                 if jti:
-                    token_blacklist.blacklist(jti, int(exp))
+                    await token_blacklist.blacklist(jti, int(exp))
             except Exception as exc:
                 # Logout no debe fallar por error de revocación; logueamos a DEBUG
                 # para diagnóstico sin afectar UX.
@@ -401,7 +401,7 @@ async def logout(
                 jti = payload.get("jti")
                 exp = payload.get("exp", 0)
                 if jti:
-                    token_blacklist.blacklist(jti, int(exp))
+                    await token_blacklist.blacklist(jti, int(exp))
             except Exception as exc:
                 logger.debug("Refresh token revocation skipped on logout: %s", exc)
 
@@ -462,7 +462,7 @@ async def reset_password(
         if not user_id:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
         # Reject already-used reset tokens
-        if token_blacklist and jti and token_blacklist.is_blacklisted(jti):
+        if token_blacklist and jti and await token_blacklist.is_blacklisted(jti):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token already used")
         user = await user_repository.get_user_by_id(user_id)
         if not user or not user.is_active:
@@ -473,7 +473,7 @@ async def reset_password(
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update password")
         # Consume the reset token so it cannot be reused
         if token_blacklist and jti:
-            token_blacklist.blacklist(jti, int(exp))
+            await token_blacklist.blacklist(jti, int(exp))
         audit("password_reset_completed", str(user.id))
         return {"status": "ok"}
     except TokenExpiredError:

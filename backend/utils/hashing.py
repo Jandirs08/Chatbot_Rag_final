@@ -3,20 +3,23 @@ import hashlib
 
 
 def hash_text_md5(text: str, normalize: bool = True) -> str:
-    """Genera hash MD5 de un texto.
-    
+    """Genera hash SHA-256 de un texto (nombre mantenido por compatibilidad).
+
+    Anteriormente usaba MD5; migrado a SHA-256 para evitar colisiones
+    en deduplicación de contenido.
+
     Args:
         text: Texto a hashear
         normalize: Si True, normaliza el texto (lowercase, strip, colapsa espacios)
-    
+
     Returns:
-        Hash MD5 hexadecimal
+        Hash SHA-256 hexadecimal
     """
     if normalize:
         normalized = " ".join((text or "").lower().strip().split())
     else:
         normalized = text or ""
-    return hashlib.md5(normalized.encode("utf-8")).hexdigest()
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
 def hash_text_sha256(text: str, normalize: bool = False) -> str:
@@ -38,15 +41,15 @@ def hash_text_sha256(text: str, normalize: bool = False) -> str:
 
 def hash_content_for_dedup(text: str) -> str:
     """Hash específico para deduplicación de contenido.
-    
-    Usa MD5 con normalización completa (lowercase, strip, colapsa espacios).
+
+    Usa SHA-256 con normalización completa (lowercase, strip, colapsa espacios).
     Optimizado para comparar contenido semánticamente equivalente.
-    
+
     Args:
         text: Contenido a hashear
-    
+
     Returns:
-        Hash MD5 hexadecimal
+        Hash SHA-256 hexadecimal
     """
     return hash_text_md5(text, normalize=True)
 
