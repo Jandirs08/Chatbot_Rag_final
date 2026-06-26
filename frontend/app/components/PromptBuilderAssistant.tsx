@@ -188,10 +188,10 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
         <div className="space-y-6">
 
           {/* 1. Sector */}
-          <div role="group" aria-labelledby="sector-label">
+          <div role="group" aria-labelledby="sector-label" aria-required="true">
             <span id="sector-label" className={LABEL_CLS}>
               ¿En qué rubro está tu negocio?{" "}
-              <span className="text-destructive font-bold">*</span>
+              <span className="text-destructive font-bold" aria-hidden="true">*</span>
             </span>
             <div className="flex flex-wrap gap-2">
               {SECTORS.map((s) => (
@@ -200,6 +200,7 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
                   key={s}
                   onClick={() => { setSector(s); if (s !== "Otro") setCustomSector(""); }}
                   disabled={fieldsReadOnly || loading}
+                  aria-pressed={sector === s}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-150 disabled:opacity-40 border ${
                     sector === s
                       ? "bg-primary text-primary-foreground border-primary shadow-sm"
@@ -272,6 +273,7 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
                   key={t.id}
                   onClick={() => setTone(t.id)}
                   disabled={fieldsReadOnly || loading}
+                  aria-pressed={tone === t.id}
                   className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-lg text-left transition-all duration-150 disabled:opacity-40 border"
                   style={
                     tone === t.id
@@ -280,6 +282,7 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
                   }
                 >
                   <span
+                    aria-hidden="true"
                     className={`w-2 h-2 rounded-full mt-1 shrink-0 ${tone !== t.id ? "bg-muted-foreground/30" : ""}`}
                     style={{ background: tone === t.id ? t.color : undefined }}
                   />

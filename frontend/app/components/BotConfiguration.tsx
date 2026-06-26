@@ -48,12 +48,14 @@ export function BotConfiguration({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {error && (
-            <span className="flex items-center gap-1.5 text-xs text-error">
-              <AlertCircle className="w-3.5 h-3.5" />
-              {error}
-            </span>
-          )}
+          <div aria-live="polite" aria-atomic="true">
+            {error && (
+              <span className="flex items-center gap-1.5 text-xs text-error">
+                <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />
+                {error}
+              </span>
+            )}
+          </div>
           <Button
             variant="ghost"
             size="icon"
@@ -129,9 +131,11 @@ export function BotConfiguration({
             <RotateCcw className="w-4 h-4 mr-2" />
             Restablecer
           </Button>
-          {canSave && (
-            <span className="text-xs text-warning ml-auto">Cambios sin guardar</span>
-          )}
+          <div aria-live="polite" aria-atomic="true" className="ml-auto">
+            {canSave && (
+              <span className="text-xs text-warning">Cambios sin guardar</span>
+            )}
+          </div>
         </div>
       </div>
     </div>
