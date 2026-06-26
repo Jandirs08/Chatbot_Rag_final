@@ -4,6 +4,8 @@ const nextConfig = {
     optimizeCss: true,
     optimizePackageImports: [
       "lucide-react",
+      "framer-motion",
+      "@dnd-kit/core",
       "@radix-ui/react-icons",
       "@radix-ui/react-accordion",
       "@radix-ui/react-aspect-ratio",
