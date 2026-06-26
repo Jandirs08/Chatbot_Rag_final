@@ -3,8 +3,9 @@
 **Audit completo:** 2026-06-25  
 **Agentes usados:** 11 (fastapi, mle×2, react, security, database, silent-failure-hunter, python, a11y, performance, pr-test-analyzer)  
 **Issues totales:** 116 (16 críticos, 39 altos, 43 medios, 18 bajos)  
-**Issues resueltos:** 69/116 (59%) — actualizado 2026-06-26  
+**Issues resueltos:** 74/116 (64%) — actualizado 2026-06-26 sesión final  
 **RAG Power Score:** ~75/100 (era 72 — +3 eval/slice, CI gate implementado)  
+**Estado:** ✅ AUDIT CERRADO — pendientes son deferidos intencionales o manuales  
 **Informe completo:** `../RAG_AUDIT_2026-06-25.md`
 
 ---
@@ -13,35 +14,36 @@
 
 | Área | Score original | Score actual | Cambio |
 |------|--------------|-------------|--------|
-| Seguridad | 4/10 | 6/10 | +2 (H2 PDF, H4 CORS, M3 métodos) |
+| Seguridad | 4/10 | 6.5/10 | +2.5 (H2 PDF, H4 CORS, M3 métodos, SEC-H1 rate limits) |
 | RAG Pipeline | 6/10 | 8.5/10 | +2.5 (C1-C3, H1-H7, HyDE español, orden reranker) |
-| FastAPI Backend | 6/10 | 8/10 | +2 (async Redis, limits, tool persist) |
+| FastAPI Backend | 6/10 | 8.5/10 | +2.5 (async Redis, limits, tool persist, API-M3 logging) |
 | MongoDB / Database | 5/10 | 6/10 | +1 (full scan cache, proyección) |
 | Python Code Quality | 6.5/10 | 7/10 | +0.5 (SHA-256, no .pop()) |
-| Frontend React | 7/10 | 8.5/10 | +1.5 (boundaries, perf, AbortController) |
+| Frontend React | 7/10 | 9/10 | +2 (boundaries, perf, AbortController, FE-H3 urgency, FE-M4 keys) |
 | Accessibility | 4/10 | 8.5/10 | +4.5 (Sprint A11Y completo + P3) |
-| Performance | 6.5/10 | 7.5/10 | +1 (asyncio.gather, radix imports) |
+| Performance | 6.5/10 | 8/10 | +1.5 (asyncio.gather, radix imports, framer+dnd chunks) |
 | Tests/Coverage | 4/10 | 6.5/10 | +2.5 (auth tests, CI, frontend Vitest) |
 | **RAG como sistema** | **72/100** | **~75/100** | +3 (slice eval, CI gate) |
-| **Global del proyecto** | **5.6/10** | **~7.5/10** | Desbloqueado para staging |
+| **Global del proyecto** | **5.6/10** | **~7.8/10** | ✅ Listo para staging |
 
-## Issues por severidad — estado actual
+## Issues por severidad — estado final
 
-| Severidad | Total | Resueltos | Pendientes |
-|-----------|-------|-----------|-----------|
-| CRÍTICO | 16 | 14 | 2 (SEC-C1/C2 — manual) |
-| ALTO | 39 | 26 | 13 |
-| MEDIO | 43 | 25 | 18 |
-| BAJO | 18 | 4 | 14 |
-| **Total** | **116** | **69** | **47** |
+| Severidad | Total | Resueltos | Pendientes (deferidos/manuales) |
+|-----------|-------|-----------|--------------------------------|
+| CRÍTICO | 16 | 14 | 2 (SEC-C1/C2 — rotar credenciales, manual) |
+| ALTO | 39 | 31 | 8 (PY-H2/H3 sin tests, DB-H1 Atlas, PERF-H1/H2 diferidos, FE-H3 ✅, otros) |
+| MEDIO | 43 | 25 | 18 (DB medios, API-M2, FE-M3/M6, RAG medios) |
+| BAJO | 18 | 4 | 14 (docs OpenAPI público, widget postMessage, etc.) |
+| **Total** | **116** | **74** | **42** |
 
-## Para llegar a ~85-90 RAG (de 75 actual)
+## Para llegar a ~85-90 RAG (si se decide en el futuro)
 
-| Mejora | Puntos | Estado |
-|--------|--------|--------|
-| Faithfulness guard (LLM-as-judge en runtime) | +5 | Pendiente — mayor win usuario |
+| Mejora | Puntos | Decisión |
+|--------|--------|---------|
+| Faithfulness guard | +5 | DEFERIDO — no aplica claro al caso de uso actual |
 | Multi-query expansion | +5 | DEFERIDO por usuario |
-| Restantes altos (PY-H2/H3, DB-H1, PERF-H1/H2) | — | Deferidos (ver notas) |
+| PY-H2/H3 refactor | — | DEFERIDO — requiere tests de integración previos |
+| DB-H1 BM25 cap | — | DEFERIDO — decisión arquitectural (Atlas Search) |
 
 ---
 
