@@ -106,6 +106,10 @@ async def upload_pdf(
                     detail=f"Archivo excede el tamaño maximo permitido de {request.app.state.settings.max_file_size_mb}MB",
                 )
         await file.seek(0)
+        magic = await file.read(4)
+        if magic != b"%PDF":
+            raise HTTPException(status_code=415, detail="El archivo no es un PDF válido")
+        await file.seek(0)
 
         file_path = await pdf_file_manager.save_pdf(file)
         audit("document_uploaded", _uploader_id, filename=file_path.name, ip=request.client.host if request.client else None)

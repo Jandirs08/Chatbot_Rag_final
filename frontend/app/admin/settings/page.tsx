@@ -147,10 +147,12 @@ export default function AdminSettingsPage() {
     setUiExtra(sanitizeUiExtra(data.ui_prompt_extra));
     setBaselineUiExtra(sanitizeUiExtra(data.ui_prompt_extra));
     setBaselineTemperature(typeof data.temperature === "number" ? data.temperature : 0.7);
+    let cancelled = false;
     botService
       .getState()
-      .then((st) => setIsBotActive(!!st.is_active))
-      .catch(() => setIsBotActive(false));
+      .then((st) => { if (!cancelled) setIsBotActive(!!st.is_active); })
+      .catch(() => { if (!cancelled) setIsBotActive(false); });
+    return () => { cancelled = true; };
   }, [data]);
 
   const handleSave = async () => {

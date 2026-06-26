@@ -53,7 +53,7 @@ class OpenAIParentReranker(BaseParentReranker):
         timeout_seconds: float | None = None,
     ) -> None:
         api_key = settings.openai_api_key.get_secret_value() if settings.openai_api_key is not None else None
-        self.client = AsyncOpenAI(api_key=api_key, timeout=timeout_seconds or settings.rag_reranker_timeout_seconds)
+        self.client = AsyncOpenAI(api_key=api_key, timeout=timeout_seconds or settings.rag_reranker_timeout_seconds or 30.0)
         self.model_name = model_name or settings.rag_reranker_model_name or settings.base_model_name
 
     async def rerank(self, *, query: str, candidates: Sequence[ParentCandidate], limit: int) -> list[ParentCandidate]:

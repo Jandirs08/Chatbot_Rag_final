@@ -167,8 +167,8 @@ class ChainManager:
             model_type = ModelTypes[self.settings.model_type.upper()]
 
         model_cls = MODEL_TO_CLASS[model_type]
-        model_name = parameters.pop("model_name", self.settings.base_model_name)
-        return model_cls(model_name=model_name, **parameters)
+        model_name = parameters.get("model_name", self.settings.base_model_name)
+        return model_cls(model_name=model_name, **{k: v for k, v in parameters.items() if k != "model_name"})
 
     @property
     def runnable_chain(self):

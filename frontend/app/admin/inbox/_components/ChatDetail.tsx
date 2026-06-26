@@ -81,7 +81,7 @@ export function ChatDetail({
             aria-label={humanizeId(chatId)}
             role="img"
           >
-            VT
+            <span aria-hidden="true">VT</span>
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-foreground">
@@ -90,7 +90,8 @@ export function ChatDetail({
                 variant="secondary"
                 className="h-5 rounded-full px-2 text-[10px] font-medium"
               >
-                {selectedConversation?.total_messages ?? messages.length} mensajes
+                {selectedConversation?.total_messages ?? messages.length}{" "}
+                mensajes
               </Badge>
               <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] font-mono text-muted-foreground">
                 {chatId.slice(0, 8)}...
@@ -103,7 +104,8 @@ export function ChatDetail({
               </span>
               {selectedConversation?.updated_at && (
                 <span>
-                  Actualizado {fmtConversationMeta(selectedConversation.updated_at)}
+                  Actualizado{" "}
+                  {fmtConversationMeta(selectedConversation.updated_at)}
                 </span>
               )}
             </div>
@@ -150,11 +152,14 @@ export function ChatDetail({
             {messages.map((m, idx) => {
               const isUser = m.role === "user";
               const stableKey = getMessageKey(m, idx);
-              const bubbleRole = (m.role === "agent" ? "assistant" : m.role) as BubbleMessage["role"];
+              const bubbleRole = (
+                m.role === "agent" ? "assistant" : m.role
+              ) as BubbleMessage["role"];
               const bubbleData: BubbleMessage = {
                 id: stableKey,
                 role: bubbleRole,
-                content: m.role === "agent" ? `[Agente] ${m.content}` : m.content,
+                content:
+                  m.role === "agent" ? `[Agente] ${m.content}` : m.content,
                 createdAt: m.timestamp ? new Date(m.timestamp) : undefined,
               };
 

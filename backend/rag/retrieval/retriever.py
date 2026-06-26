@@ -205,10 +205,7 @@ class RAGRetriever:
     @_last_gating_reason.setter
     def _last_gating_reason(self, value: Optional[str]) -> None:
         _gating_reason_var.set(value)
-
-        logger.debug(
-            "RAGRetriever initialized with normalize -> cheap gate -> cache -> single embedding -> retrieval"
-        )
+        logger.debug("gating_reason set to %r", value)
 
     def _normalize_query(self, query: str | None) -> str:
         return " ".join(str(query or "").split())
@@ -932,18 +929,10 @@ class RAGRetriever:
         if not documents:
             return NO_CONTEXT_MESSAGE
 
-        grouped = self._group_documents_by_type(documents)
-        known_types = ["header", "paragraph", "numbered_list", "bullet_list", "text"]
-
-        # Counter for deterministic per-document ids in the rendered context.
-        # The numeric label `--- DOC N ---` gives the model a clear boundary
-        # between retrieved fragments so adjacent entities cannot bleed into
-        # each other when reasoning about attributes. Skipped when only one
-        # document is retrieved (the marker would be noise without siblings).
-        counter = {"value": 0}
+        # Preserve reranking order — grouping by type would destroy relevance ranking.
         emit_doc_marker = len(documents) > 1
 
-        def _format_chunk(doc: Document) -> str:
+        def _format_chunk(idx: int, doc: Document) -> str:
             content = sanitize_doc_content(doc.page_content.strip())
             source = sanitize_metadata_field(doc.metadata.get("source") or "")
             page_number = doc.metadata.get("page_number")
@@ -952,10 +941,9 @@ class RAGRetriever:
                 source_parts.append(source)
             if page_number is not None and str(page_number).strip():
                 source_parts.append(f"pagina {sanitize_metadata_field(page_number)}")
-            counter["value"] += 1
             header_lines: list[str] = []
             if emit_doc_marker:
-                header_lines.append(f"--- DOC {counter['value']} ---")
+                header_lines.append(f"--- DOC {idx} ---")
             if source_parts:
                 header_lines.append(f"[Fuente: {', '.join(source_parts)}]")
             if header_lines:
@@ -963,14 +951,10 @@ class RAGRetriever:
             return content
 
         parts = ["Informacion relevante encontrada:"]
-        for chunk_type in known_types:
-            if chunk_type in grouped:
-                parts.extend(_format_chunk(doc) for doc in grouped[chunk_type])
-                parts.append("")
-        for chunk_type, docs in grouped.items():
-            if chunk_type not in known_types:
-                parts.extend(_format_chunk(doc) for doc in docs)
-                parts.append("")
+        for i, doc in enumerate(documents, start=1):
+            chunk = _format_chunk(i, doc)
+            if chunk:
+                parts.append(chunk)
         return "\n\n".join(filter(None, parts))
 
     def _group_documents_by_type(self, documents: List[Document]) -> Dict[str, List[Document]]:

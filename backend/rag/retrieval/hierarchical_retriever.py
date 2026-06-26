@@ -203,7 +203,7 @@ class HierarchicalRetriever(RAGRetriever):
                 hyde_max_tokens = int(getattr(settings, "hyde_max_tokens", 150))
                 llm = ChatOpenAI(model_name=hyde_model, max_tokens=hyde_max_tokens, temperature=0)
                 response = await llm.ainvoke(
-                    f"Write a short, factual paragraph that directly answers: {query}"
+                    f"Escribe un párrafo breve y factual que responda directamente: {query}"
                 )
                 hyp_text = response.content if hasattr(response, "content") else str(response)
                 if not hyp_text or not hyp_text.strip():

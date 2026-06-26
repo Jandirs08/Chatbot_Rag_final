@@ -107,6 +107,7 @@ export function useChatStream(
     let cancelled = false;
 
     const poll = async () => {
+      if (document.hidden) return;
       try {
         const res = await fetch(`${API_URL}/chat/history/${conversationId}`);
         if (!res.ok || !mountedRef.current || cancelled) return;

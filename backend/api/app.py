@@ -476,7 +476,7 @@ async def _init_auth(app: FastAPI, s) -> None:
             redis_url_str = str(redis_url_raw)
 
         if redis_url_str:
-            app.state.token_blacklist = build_token_blacklist(redis_url_str)
+            app.state.token_blacklist = await build_token_blacklist(redis_url_str)
         else:
             app.state.token_blacklist = None
 
@@ -707,8 +707,8 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=allow_origins_list,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With"],
         expose_headers=["Content-Disposition", "X-RateLimit-Limit", "X-RateLimit-Remaining", "Retry-After"],
         max_age=settings.cors_max_age,
     )
