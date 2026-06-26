@@ -60,6 +60,15 @@ interface Props {
   fieldsReadOnly: boolean;
 }
 
+function isValidHttpUrl(val: string): boolean {
+  try {
+    const { protocol } = new URL(val);
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly }: Props) {
   const [mode, setMode] = useState<"ai" | "manual">(prompt ? "manual" : "ai");
 
@@ -71,6 +80,7 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
   const [restrictions, setRestrictions] = useState("");
   const [specialFlow, setSpecialFlow] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
+  const [websiteUrlError, setWebsiteUrlError] = useState<string | null>(null);
   const [showExtras, setShowExtras] = useState(false);
   const [loading, setLoading] = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
@@ -78,14 +88,26 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
   const [phaseIdx, setPhaseIdx] = useState(0);
   const isGeneratingRef = useRef(false);
   const phaseTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const effectiveSector = sector === "Otro" ? customSector.trim() : sector;
-  const canGenerate = !!effectiveSector && description.trim().length >= 10 && !loading && !fieldsReadOnly;
+  const descTrimLen = description.trim().length;
+  const canGenerate = !!effectiveSector && descTrimLen >= 10 && !loading && !fieldsReadOnly && !websiteUrlError;
 
   const descPlaceholder =
     sector && sector !== "Otro"
       ? `Ej: ${SECTOR_PLACEHOLDERS[sector] ?? "Describe brevemente qué ofreces y a quién"}`
       : "Describe brevemente qué ofreces y a quién va dirigido";
+
+  const handleWebsiteUrlBlur = () => {
+    if (!websiteUrl.trim()) {
+      setWebsiteUrlError(null);
+      return;
+    }
+    setWebsiteUrlError(
+      isValidHttpUrl(websiteUrl.trim()) ? null : "URL inválida. Usa https://tuempresa.com"
+    );
+  };
 
   const generate = async () => {
     if (!canGenerate || isGeneratingRef.current) return;
@@ -117,28 +139,21 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
   };
 
   useEffect(() => {
-    return () => { if (phaseTimerRef.current) clearInterval(phaseTimerRef.current); };
+    return () => {
+      if (phaseTimerRef.current) clearInterval(phaseTimerRef.current);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
   }, []);
 
   const handleCopy = async () => {
     if (!prompt) return;
     try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(prompt);
-      } else {
-        const el = document.createElement("textarea");
-        el.value = prompt;
-        el.style.position = "fixed";
-        el.style.opacity = "0";
-        document.body.appendChild(el);
-        el.select();
-        document.execCommand("copy");
-        document.body.removeChild(el);
-      }
+      await navigator.clipboard.writeText(prompt);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error("Selecciona el texto manualmente para copiarlo.");
+      toast.error("No se pudo copiar. Selecciona el texto manualmente.");
     }
   };
 
@@ -148,19 +163,22 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
     <div className="space-y-5">
 
       {/* Mode toggle */}
-      <div className="inline-flex items-center rounded-full p-1 gap-0.5 bg-primary/10">
+      <div className="inline-flex items-center rounded-full p-1 gap-0.5 bg-primary/10" role="group" aria-label="Modo de edición">
         {(["ai", "manual"] as const).map((m) => (
           <button
             type="button"
             key={m}
             onClick={() => setMode(m)}
-            className={`px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-all duration-150 ${
+            disabled={fieldsReadOnly}
+            aria-pressed={mode === m}
+            className={`px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-all duration-150 disabled:opacity-40 ${
               mode === m
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "text-muted-foreground"
             }`}
           >
-            {m === "ai" ? "🧠 Asistente IA" : "✏️ Manual"}
+            <span aria-hidden="true">{m === "ai" ? "🧠" : "✏️"}</span>
+            {m === "ai" ? " Asistente IA" : " Manual"}
           </button>
         ))}
       </div>
@@ -206,16 +224,23 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
 
           {/* 2. Description */}
           <div>
-            <label htmlFor="pb-description" className={LABEL_CLS}>
-              ¿Qué ofrece tu negocio?{" "}
-              <span className="text-destructive font-bold">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label htmlFor="pb-description" className={`${LABEL_CLS} mb-0`}>
+                ¿Qué ofrece tu negocio?{" "}
+                <span className="text-destructive font-bold" aria-hidden="true">*</span>
+              </label>
+              <span className={`text-[11px] font-mono ${descTrimLen >= 10 ? "text-success" : "text-muted-foreground"}`}>
+                {descTrimLen}/10 mín
+              </span>
+            </div>
             <Textarea
               id="pb-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder={descPlaceholder}
               rows={2}
+              required
+              aria-required="true"
               disabled={fieldsReadOnly || loading}
               className={`resize-none bg-card ${INPUT_CLS}`}
             />
@@ -325,15 +350,22 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
                   <Input
                     id="pb-website"
                     value={websiteUrl}
-                    onChange={(e) => setWebsiteUrl(e.target.value)}
+                    onChange={(e) => { setWebsiteUrl(e.target.value); setWebsiteUrlError(null); }}
+                    onBlur={handleWebsiteUrlBlur}
                     placeholder="https://tuempresa.com"
                     type="url"
                     disabled={fieldsReadOnly || loading}
-                    className={`${INPUT_CLS} bg-card`}
+                    aria-invalid={!!websiteUrlError}
+                    aria-describedby={websiteUrlError ? "pb-website-error" : "pb-website-hint"}
+                    className={`${INPUT_CLS} bg-card ${websiteUrlError ? "border-destructive" : ""}`}
                   />
-                  <p className="mt-1.5 text-[11px] text-muted-foreground">
-                    Solo se consulta el sitio que indiques. No se siguen otros enlaces.
-                  </p>
+                  {websiteUrlError ? (
+                    <p id="pb-website-error" className="mt-1.5 text-[11px] text-destructive">{websiteUrlError}</p>
+                  ) : (
+                    <p id="pb-website-hint" className="mt-1.5 text-[11px] text-muted-foreground">
+                      Solo se consulta el sitio que indiques. No se siguen otros enlaces.
+                    </p>
+                  )}
                 </div>
               </div>
             )}
