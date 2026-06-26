@@ -46,6 +46,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "critters": "^0.0.20",
+    "diff-match-patch": "^1.0.5",
     "emojisplosion": "^2.6.1",
     "framer-motion": "^12.38.0",
     "jose": "^6.2.2",
@@ -63,6 +64,7 @@
     "tailwind-merge": "^3.3.0"
   },
   "devDependencies": {
+    "@types/diff-match-patch": "^1.0.36",
     "@types/node": "24.10.1",
     "@types/react": "18.2.57",
     "@types/react-dom": "18.2.19",

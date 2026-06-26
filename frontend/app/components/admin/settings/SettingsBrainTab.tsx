@@ -3,6 +3,7 @@ import { BotConfiguration } from "@/app/components/BotConfiguration";
 
 interface SettingsBrainTabProps {
   uiExtra: string;
+  baselineUiExtra: string;
   setUiExtra: (val: string) => void;
   temperature: number;
   setTemperature: (val: number) => void;
@@ -17,6 +18,7 @@ interface SettingsBrainTabProps {
 
 export function SettingsBrainTab({
   uiExtra,
+  baselineUiExtra,
   setUiExtra,
   temperature,
   setTemperature,
@@ -32,6 +34,7 @@ export function SettingsBrainTab({
     <div className="h-full overflow-hidden">
       <BotConfiguration
         prompt={uiExtra}
+        baselinePrompt={baselineUiExtra}
         onPromptChange={(val) => setUiExtra(val)}
         temperature={temperature}
         onTemperatureChange={setTemperature}

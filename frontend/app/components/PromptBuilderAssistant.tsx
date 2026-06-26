@@ -28,6 +28,41 @@ const SECTOR_PLACEHOLDERS: Record<string, string> = {
   "Finanzas": "Asesoría financiera para personas naturales: inversiones, seguros y planificación fiscal",
 };
 
+const AI_FORM_PRESETS = [
+  {
+    label: "Soporte al cliente",
+    sector: "Servicios profesionales",
+    tone: "cercano" as Tone,
+    description: "Brindamos soporte técnico y atención al cliente para productos de software",
+    audience: "Usuarios con dudas técnicas o incidencias",
+    restrictions: "No comprometerse con fechas de resolución",
+  },
+  {
+    label: "E-commerce",
+    sector: "E-commerce",
+    tone: "cercano" as Tone,
+    description: "Tienda online con catálogo de productos, envíos y devoluciones",
+    audience: "Compradores online buscando productos y seguimiento de pedidos",
+    restrictions: "No confirmar stock en tiempo real",
+  },
+  {
+    label: "Educación",
+    sector: "Educación",
+    tone: "empatico" as Tone,
+    description: "Plataforma de cursos online con tutorías y contenido on-demand",
+    audience: "Estudiantes adultos que buscan aprender nuevas habilidades",
+    restrictions: "No prometer resultados de aprendizaje garantizados",
+  },
+  {
+    label: "B2B formal",
+    sector: "Tecnología",
+    tone: "formal" as Tone,
+    description: "Soluciones de software empresarial para optimización de procesos",
+    audience: "Gerentes y directores de empresa buscando soluciones tecnológicas",
+    restrictions: "No revelar precios sin pasar por el equipo comercial",
+  },
+] as const;
+
 const PHASES = [
   "Analizando tu negocio…",
   "Definiendo el tono y la voz…",
@@ -186,6 +221,32 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
       {/* ── AI MODE ─────────────────────────────────────────────────────────── */}
       {mode === "ai" && (
         <div className="space-y-6">
+
+          {/* Quick presets */}
+          <div>
+            <span className={LABEL_CLS}>Aplicar preset rápido</span>
+            <div className="flex flex-wrap gap-2">
+              {AI_FORM_PRESETS.map((p) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  disabled={fieldsReadOnly || loading}
+                  onClick={() => {
+                    setSector(p.sector);
+                    setCustomSector("");
+                    setTone(p.tone);
+                    setDescription(p.description);
+                    setAudience(p.audience);
+                    setRestrictions(p.restrictions);
+                    setShowExtras(true);
+                  }}
+                  className="px-3 py-1.5 rounded-md text-xs font-medium border border-dashed border-border bg-muted/40 text-muted-foreground hover:border-primary/50 hover:text-foreground hover:bg-muted transition-all disabled:opacity-40"
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {/* 1. Sector */}
           <div role="group" aria-labelledby="sector-label" aria-required="true">

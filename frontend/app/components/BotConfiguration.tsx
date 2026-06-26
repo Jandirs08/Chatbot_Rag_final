@@ -1,12 +1,15 @@
-import React from "react";
+import React, { useState, useCallback } from "react";
+import { diff_match_patch } from "diff-match-patch";
 import { Button } from "@/app/components/ui/button";
 import { Label } from "@/app/components/ui/label";
 import { Slider } from "@/app/components/ui/slider";
-import { Save, RotateCcw, AlertCircle, Thermometer } from "lucide-react";
+import { Save, RotateCcw, AlertCircle, Thermometer, GitCompareArrows, Download, Upload } from "lucide-react";
 import { PromptBuilderAssistant } from "@/app/components/PromptBuilderAssistant";
+import { toast } from "sonner";
 
 export interface BotConfigurationProps {
   prompt: string;
+  baselinePrompt?: string;
   onPromptChange: (value: string) => void;
   temperature: number;
   onTemperatureChange: (value: number) => void;
@@ -39,8 +42,24 @@ function tempDescriptor(t: number) {
   return "Alta variabilidad. Riesgo elevado de respuestas inventadas (alucinaciones).";
 }
 
+function PromptDiff({ baseline, current }: { baseline: string; current: string }) {
+  const dmp = new diff_match_patch();
+  const diffs = dmp.diff_main(baseline, current);
+  dmp.diff_cleanupSemantic(diffs);
+  return (
+    <pre className="text-[12px] leading-relaxed font-mono whitespace-pre-wrap break-words p-4 bg-background/60 rounded-lg border border-border max-h-64 overflow-y-auto">
+      {diffs.map(([op, text], i) => {
+        if (op === 0) return <span key={i}>{text}</span>;
+        if (op === 1) return <mark key={i} className="bg-green-500/20 text-green-700 dark:text-green-400 rounded-sm">{text}</mark>;
+        return <del key={i} className="bg-red-500/15 text-red-600 dark:text-red-400 rounded-sm line-through">{text}</del>;
+      })}
+    </pre>
+  );
+}
+
 export function BotConfiguration({
   prompt,
+  baselinePrompt,
   onPromptChange,
   temperature,
   onTemperatureChange,
@@ -52,6 +71,40 @@ export function BotConfiguration({
   canSave,
   canReset,
 }: BotConfigurationProps) {
+  const [showDiff, setShowDiff] = useState(false);
+
+  const handleExport = useCallback(() => {
+    const data = JSON.stringify({ prompt, temperature }, null, 2);
+    const url = URL.createObjectURL(new Blob([data], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "bot-personality.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [prompt, temperature]);
+
+  const handleImport = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const parsed = JSON.parse(ev.target?.result as string);
+        if (typeof parsed.prompt !== "string" || typeof parsed.temperature !== "number") {
+          toast.error("Archivo inválido: debe contener prompt (string) y temperature (number).");
+          return;
+        }
+        onPromptChange(parsed.prompt);
+        onTemperatureChange(Math.min(1, Math.max(0, parsed.temperature)));
+        toast.success("Personalidad importada. Revisa y guarda los cambios.");
+      } catch {
+        toast.error("No se pudo leer el archivo JSON.");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  }, [onPromptChange, onTemperatureChange]);
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -74,35 +127,58 @@ export function BotConfiguration({
 
       {/* Dirty-state banner */}
       {canSave && (
-        <div className="flex-shrink-0 flex items-center justify-between gap-3 px-6 py-2.5 bg-amber/8 border-b border-amber/20">
-          <div aria-live="polite" aria-atomic="true" className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400 font-medium">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" aria-hidden="true" />
-            Cambios sin guardar
-          </div>
-          <div className="flex items-center gap-2">
-            {onDiscardChanges && (
+        <div className="flex-shrink-0 border-b border-amber/20 bg-amber/8">
+          <div className="flex items-center justify-between gap-3 px-6 py-2.5">
+            <div aria-live="polite" aria-atomic="true" className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400 font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" aria-hidden="true" />
+              Cambios sin guardar
+            </div>
+            <div className="flex items-center gap-2">
+              {baselinePrompt !== undefined && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowDiff((v) => !v)}
+                  className="h-7 text-xs font-mono text-muted-foreground hover:text-foreground gap-1.5"
+                >
+                  <GitCompareArrows className="w-3 h-3" aria-hidden="true" />
+                  {showDiff ? "Ocultar diff" : "Ver cambios"}
+                </Button>
+              )}
+              {onDiscardChanges && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={onDiscardChanges}
+                  disabled={!!isLoading}
+                  className="h-7 text-xs font-mono text-muted-foreground hover:text-foreground"
+                >
+                  Descartar
+                </Button>
+              )}
               <Button
                 type="button"
-                variant="ghost"
+                onClick={onSave}
                 size="sm"
-                onClick={onDiscardChanges}
+                className="h-7 text-xs gradient-primary hover:opacity-90"
                 disabled={!!isLoading}
-                className="h-7 text-xs font-mono text-muted-foreground hover:text-foreground"
               >
-                Descartar
+                <Save className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
+                {isLoading ? "Guardando…" : "Guardar"}
               </Button>
-            )}
-            <Button
-              type="button"
-              onClick={onSave}
-              size="sm"
-              className="h-7 text-xs gradient-primary hover:opacity-90"
-              disabled={!!isLoading}
-            >
-              <Save className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
-              {isLoading ? "Guardando…" : "Guardar"}
-            </Button>
+            </div>
           </div>
+          {showDiff && baselinePrompt !== undefined && (
+            <div className="px-6 pb-4">
+              <p className="text-[11px] text-muted-foreground mb-2 font-mono">
+                <mark className="bg-green-500/20 text-green-700 dark:text-green-400 rounded-sm px-1">verde</mark> = añadido &nbsp;
+                <del className="bg-red-500/15 text-red-600 dark:text-red-400 rounded-sm px-1">rojo</del> = eliminado
+              </p>
+              <PromptDiff baseline={baselinePrompt} current={prompt} />
+            </div>
+          )}
         </div>
       )}
 
@@ -184,7 +260,7 @@ export function BotConfiguration({
         </div>
       </div>
 
-      {/* Footer — always show reset, save only when no dirty banner */}
+      {/* Footer */}
       <div className="flex-shrink-0 border-t border-border bg-card/80 backdrop-blur-sm px-6 py-4">
         <div className="flex items-center gap-3">
           {!canSave && (
@@ -208,6 +284,33 @@ export function BotConfiguration({
             <RotateCcw className="w-4 h-4 mr-2" aria-hidden="true" />
             Restablecer
           </Button>
+          <div className="ml-auto flex items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleExport}
+              className="h-8 text-xs font-mono text-muted-foreground hover:text-foreground gap-1.5"
+              title="Exportar configuración como JSON"
+            >
+              <Download className="w-3.5 h-3.5" aria-hidden="true" />
+              Exportar
+            </Button>
+            <label
+              className="cursor-pointer h-8 px-3 inline-flex items-center gap-1.5 text-xs font-mono text-muted-foreground hover:text-foreground rounded-md hover:bg-accent transition-colors"
+              title="Importar configuración desde JSON"
+            >
+              <Upload className="w-3.5 h-3.5" aria-hidden="true" />
+              Importar
+              <input
+                type="file"
+                accept=".json,application/json"
+                className="sr-only"
+                onChange={handleImport}
+                aria-label="Importar configuración de personalidad"
+              />
+            </label>
+          </div>
         </div>
       </div>
     </div>

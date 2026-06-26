@@ -414,6 +414,7 @@ export default function AdminSettingsPage() {
         <div className={activeTab === "brain" ? "contents" : "hidden"}>
           <SettingsBrainTab
             uiExtra={uiExtra}
+            baselineUiExtra={baselineUiExtra}
             setUiExtra={setUiExtra}
             temperature={temperature}
             setTemperature={setTemperature}
