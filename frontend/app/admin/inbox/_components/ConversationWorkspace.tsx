@@ -160,12 +160,12 @@ function AnalyzingPlaceholder() {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 text-[12px] font-medium text-primary/80">
-        <Sparkles className="h-3.5 w-3.5 animate-pulse" />
+        <Sparkles className="h-3.5 w-3.5 animate-pulse motion-reduce:animate-none" />
         <span>Analizando conversación</span>
         <span className="inline-flex gap-0.5" aria-hidden="true">
-          <span className="h-1 w-1 animate-pulse rounded-full bg-primary/60 [animation-delay:0ms]" />
-          <span className="h-1 w-1 animate-pulse rounded-full bg-primary/60 [animation-delay:150ms]" />
-          <span className="h-1 w-1 animate-pulse rounded-full bg-primary/60 [animation-delay:300ms]" />
+          <span className="h-1 w-1 animate-pulse motion-reduce:animate-none rounded-full bg-primary/60 [animation-delay:0ms]" />
+          <span className="h-1 w-1 animate-pulse motion-reduce:animate-none rounded-full bg-primary/60 [animation-delay:150ms]" />
+          <span className="h-1 w-1 animate-pulse motion-reduce:animate-none rounded-full bg-primary/60 [animation-delay:300ms]" />
         </span>
       </div>
       <div className="space-y-2">
@@ -244,7 +244,7 @@ function SummaryCard({
             title="Regenerar resumen"
           >
             {isRefreshing ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
             ) : (
               <RefreshCw className="h-3.5 w-3.5" />
             )}
@@ -918,7 +918,7 @@ export function ConversationWorkspace({
               aria-label="Tomar conversación"
             >
               {takeoverMutating ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
               ) : (
                 "Tomar"
               )}
@@ -934,7 +934,7 @@ export function ConversationWorkspace({
               aria-label="Devolver al bot"
             >
               {takeoverMutating ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
               ) : (
                 "Devolver"
               )}
@@ -949,7 +949,7 @@ export function ConversationWorkspace({
             aria-label={isCompleted ? "Reabrir conversación" : "Completar conversación"}
           >
             {stageMutating ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
             ) : isCompleted ? (
               <>
                 <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
@@ -1075,7 +1075,7 @@ export function ConversationWorkspace({
                   aria-label="Enviar mensaje"
                 >
                   {sending ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
                   ) : (
                     <Send className="h-3.5 w-3.5" />
                   )}

@@ -112,7 +112,10 @@ function InboxConversationCardImpl({
     if (!viewed_at) return false;
     if (!last_user_message_at) return true;
     try {
-      return new Date(viewed_at).getTime() >= new Date(last_user_message_at).getTime();
+      return (
+        new Date(viewed_at).getTime() >=
+        new Date(last_user_message_at).getTime()
+      );
     } catch {
       return false;
     }
@@ -164,15 +167,12 @@ function InboxConversationCardImpl({
     <div
       ref={setDragRef}
       role="listitem"
-      className={cn(
-        "group/card relative",
-        isDragging && "opacity-40",
-      )}
+      className={cn("group/card relative", isDragging && "opacity-40")}
     >
       <button
         type="button"
         onClick={() => onSelect(conversation_id)}
-        aria-current={isActive ? "true" : undefined}
+        aria-pressed={isActive}
         aria-label={`${name}${isSeen ? "" : " — mensaje nuevo"}`}
         aria-busy={isMutating}
         className={cn(
@@ -188,217 +188,223 @@ function InboxConversationCardImpl({
               : "border-border/60 bg-card hover:-translate-y-px hover:border-primary/30 hover:shadow-hover",
         )}
       >
-      {/* Alta urgency: full top bar (not a side stripe) */}
-      {urgency === "alta" && (
-        <div className="absolute inset-x-0 top-0 h-0.5 bg-error" />
-      )}
+        {/* Alta urgency: full top bar (not a side stripe) */}
+        {urgency === "alta" && (
+          <div className="absolute inset-x-0 top-0 h-0.5 bg-error" />
+        )}
 
-      <div className="p-3 pt-3.5">
-        {/* Row 1: avatar + name + score */}
-        <div className="flex items-center gap-2">
-          <div
-            aria-hidden="true"
-            className="flex h-8 w-8 flex-none items-center justify-center rounded-lg font-heading text-[11px] font-bold leading-none text-foreground/70 shadow-sm"
-            style={{ backgroundColor: avatarBg }}
-          >
-            {initials}
+        <div className="p-3 pt-3.5">
+          {/* Row 1: avatar + name + score */}
+          <div className="flex items-center gap-2">
+            <div
+              aria-hidden="true"
+              className="flex h-8 w-8 flex-none items-center justify-center rounded-lg font-heading text-[11px] font-bold leading-none text-foreground/70 shadow-sm"
+              style={{ backgroundColor: avatarBg }}
+            >
+              {initials}
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <span
+                className={cn(
+                  "block truncate font-heading text-[12.5px] font-semibold leading-tight tracking-tight",
+                  isActive
+                    ? "text-primary"
+                    : "text-foreground group-hover:text-primary/90",
+                )}
+              >
+                {name}
+              </span>
+              {lead_email ? (
+                <span className="block truncate text-[10px] text-info">
+                  {lead_email}
+                </span>
+              ) : (
+                <span className="block font-mono text-[9px] text-muted-foreground/50">
+                  {conversation_id.slice(0, 10)}…
+                </span>
+              )}
+            </div>
+
+            {/* Score badge — semantic token, not hardcoded hex */}
+            {hasScore && scoreTone && (
+              <div
+                className={cn(
+                  "flex-none rounded-md border px-1.5 py-0.5",
+                  scoreTone === "success" &&
+                    "border-success/25 bg-success/10 text-success",
+                  scoreTone === "warning" &&
+                    "border-warning/25 bg-warning/10 text-warning",
+                  scoreTone === "error" &&
+                    "border-error/25 bg-error/10 text-error",
+                )}
+                title={
+                  isScoreSnapshot
+                    ? "Score congelado al completar la conversación"
+                    : `Lead score ${lead_score} de 100`
+                }
+                aria-label={`Lead score ${lead_score} de 100`}
+              >
+                <span className="font-mono text-[12px] font-bold tabular-nums">
+                  {lead_score}
+                </span>
+              </div>
+            )}
           </div>
 
-          <div className="min-w-0 flex-1">
+          {/* Score bar */}
+          {hasScore && scoreTone && (
+            <div
+              className="mt-2 h-1 w-full overflow-hidden rounded-full bg-muted/30"
+              role="progressbar"
+              aria-valuenow={lead_score!}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Lead score"
+            >
+              <div
+                className={cn(
+                  "h-full rounded-full transition-[width] duration-300 ease-out",
+                  scoreTone === "success" && "bg-success",
+                  scoreTone === "warning" && "bg-warning",
+                  scoreTone === "error" && "bg-error",
+                )}
+                style={{ width: `${lead_score}%` }}
+              />
+            </div>
+          )}
+
+          {/* Row 2: mode dot + urgency + timestamp */}
+          <div className="mt-2 flex items-center gap-1.5">
             <span
               className={cn(
-                "block truncate font-heading text-[12.5px] font-semibold leading-tight tracking-tight",
-                isActive
-                  ? "text-primary"
-                  : "text-foreground group-hover:text-primary/90",
+                "h-1.5 w-1.5 flex-none rounded-full",
+                MODE_DOT[mode],
               )}
-            >
-              {name}
+              title={MODE_LABEL[mode]}
+            />
+            <span className="font-heading text-[10px] font-medium text-muted-foreground">
+              {MODE_LABEL[mode]}
             </span>
-            {lead_email ? (
-              <span className="block truncate text-[10px] text-info">
-                {lead_email}
+            {urgency && (
+              <>
+                <span className="text-muted-foreground/40">·</span>
+                <span
+                  className={cn(
+                    "h-1.5 w-1.5 flex-none rounded-full",
+                    URGENCY_DOT[urgency] ?? "bg-muted-foreground/60",
+                  )}
+                />
+              </>
+            )}
+            {isScoreSnapshot && (
+              <>
+                <span className="text-muted-foreground/40">·</span>
+                <span
+                  className="rounded-sm border border-border bg-muted px-1 font-heading text-[9px] font-semibold uppercase tracking-wide text-muted-foreground"
+                  title="Score congelado al completar la conversación"
+                >
+                  snapshot
+                </span>
+              </>
+            )}
+            {isPending && minutes_waiting != null && (
+              <span className="ml-auto font-mono text-[10px] font-semibold text-amber">
+                {minutes_waiting}m
               </span>
-            ) : (
-              <span className="block font-mono text-[9px] text-muted-foreground/50">
-                {conversation_id.slice(0, 10)}…
+            )}
+            {timestamp && !isPending && (
+              <span className="ml-auto font-mono text-[9px] text-muted-foreground/50">
+                {timestamp}
               </span>
             )}
           </div>
 
-          {/* Score badge — semantic token, not hardcoded hex */}
-          {hasScore && scoreTone && (
-            <div
-              className={cn(
-                "flex-none rounded-md border px-1.5 py-0.5",
-                scoreTone === "success" &&
-                  "border-success/25 bg-success/10 text-success",
-                scoreTone === "warning" &&
-                  "border-warning/25 bg-warning/10 text-warning",
-                scoreTone === "error" &&
-                  "border-error/25 bg-error/10 text-error",
-              )}
-              title={
-                isScoreSnapshot
-                  ? "Score congelado al completar la conversación"
-                  : `Lead score ${lead_score} de 100`
-              }
-              aria-label={`Lead score ${lead_score} de 100`}
-            >
-              <span className="font-mono text-[12px] font-bold tabular-nums">
-                {lead_score}
+          {/* Interests — first one only */}
+          {hasInterests && (
+            <div className="mt-2">
+              <span className="inline-flex items-center rounded-md bg-primary/[0.08] px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                {product_interests![0]}
               </span>
+              {product_interests!.length > 1 && (
+                <span className="ml-1 font-mono text-[9px] text-muted-foreground">
+                  +{product_interests!.length - 1}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Last user message — scannable context */}
+          {last_user_message && (
+            <div className="mt-2 flex min-w-0 items-start gap-1.5">
+              {!isSeen && (
+                <span
+                  className="mt-1 h-1.5 w-1.5 flex-none rounded-full bg-amber"
+                  aria-label="Mensaje nuevo sin ver"
+                  title="No visto"
+                />
+              )}
+              <p className="line-clamp-2 min-w-0 flex-1 break-words text-[11px] leading-snug text-foreground/80">
+                {last_user_message}
+              </p>
+            </div>
+          )}
+
+          {/* AI summary — first line only as preview */}
+          {ai_summary && (
+            <p className="mt-1.5 line-clamp-1 break-words text-[10px] italic text-muted-foreground">
+              {ai_summary}
+            </p>
+          )}
+
+          {/* Action button — h-7 = 28px, large enough on touch without dominating the card */}
+          {(showTakeover || showRelease) && (
+            <div className="mt-2.5 flex gap-1.5">
+              {showTakeover && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  disabled={isMutating}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onTakeover(conversation_id);
+                  }}
+                  className="h-7 flex-1 rounded-lg px-2 font-heading text-[11px] font-semibold"
+                >
+                  {isMutating ? (
+                    <Loader2
+                      className="h-3 w-3 animate-spin"
+                      aria-label="Procesando"
+                    />
+                  ) : (
+                    "Tomar"
+                  )}
+                </Button>
+              )}
+              {showRelease && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isMutating}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRelease(conversation_id);
+                  }}
+                  className="h-7 flex-1 rounded-lg px-2 font-heading text-[11px] font-semibold"
+                >
+                  {isMutating ? (
+                    <Loader2
+                      className="h-3 w-3 animate-spin"
+                      aria-label="Procesando"
+                    />
+                  ) : (
+                    "Devolver"
+                  )}
+                </Button>
+              )}
             </div>
           )}
         </div>
-
-        {/* Score bar */}
-        {hasScore && scoreTone && (
-          <div
-            className="mt-2 h-1 w-full overflow-hidden rounded-full bg-muted/30"
-            role="progressbar"
-            aria-valuenow={lead_score!}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-label="Lead score"
-          >
-            <div
-              className={cn(
-                "h-full rounded-full transition-[width] duration-300 ease-out",
-                scoreTone === "success" && "bg-success",
-                scoreTone === "warning" && "bg-warning",
-                scoreTone === "error" && "bg-error",
-              )}
-              style={{ width: `${lead_score}%` }}
-            />
-          </div>
-        )}
-
-        {/* Row 2: mode dot + urgency + timestamp */}
-        <div className="mt-2 flex items-center gap-1.5">
-          <span
-            className={cn(
-              "h-1.5 w-1.5 flex-none rounded-full",
-              MODE_DOT[mode],
-            )}
-            title={MODE_LABEL[mode]}
-          />
-          <span className="font-heading text-[10px] font-medium text-muted-foreground">
-            {MODE_LABEL[mode]}
-          </span>
-          {urgency && (
-            <>
-              <span className="text-muted-foreground/40">·</span>
-              <span
-                className={cn(
-                  "h-1.5 w-1.5 flex-none rounded-full",
-                  URGENCY_DOT[urgency] ?? "bg-muted-foreground/60",
-                )}
-              />
-            </>
-          )}
-          {isScoreSnapshot && (
-            <>
-              <span className="text-muted-foreground/40">·</span>
-              <span
-                className="rounded-sm border border-border bg-muted px-1 font-heading text-[9px] font-semibold uppercase tracking-wide text-muted-foreground"
-                title="Score congelado al completar la conversación"
-              >
-                snapshot
-              </span>
-            </>
-          )}
-          {isPending && minutes_waiting != null && (
-            <span className="ml-auto font-mono text-[10px] font-semibold text-amber">
-              {minutes_waiting}m
-            </span>
-          )}
-          {timestamp && !isPending && (
-            <span className="ml-auto font-mono text-[9px] text-muted-foreground/50">
-              {timestamp}
-            </span>
-          )}
-        </div>
-
-        {/* Interests — first one only */}
-        {hasInterests && (
-          <div className="mt-2">
-            <span className="inline-flex items-center rounded-md bg-primary/[0.08] px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-              {product_interests![0]}
-            </span>
-            {product_interests!.length > 1 && (
-              <span className="ml-1 font-mono text-[9px] text-muted-foreground">
-                +{product_interests!.length - 1}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Last user message — scannable context */}
-        {last_user_message && (
-          <div className="mt-2 flex min-w-0 items-start gap-1.5">
-            {!isSeen && (
-              <span
-                className="mt-1 h-1.5 w-1.5 flex-none rounded-full bg-amber"
-                aria-label="Mensaje nuevo sin ver"
-                title="No visto"
-              />
-            )}
-            <p className="line-clamp-2 min-w-0 flex-1 break-words text-[11px] leading-snug text-foreground/80">
-              {last_user_message}
-            </p>
-          </div>
-        )}
-
-        {/* AI summary — first line only as preview */}
-        {ai_summary && (
-          <p className="mt-1.5 line-clamp-1 break-words text-[10px] italic text-muted-foreground">
-            {ai_summary}
-          </p>
-        )}
-
-        {/* Action button — h-7 = 28px, large enough on touch without dominating the card */}
-        {(showTakeover || showRelease) && (
-          <div className="mt-2.5 flex gap-1.5">
-            {showTakeover && (
-              <Button
-                variant="default"
-                size="sm"
-                disabled={isMutating}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onTakeover(conversation_id);
-                }}
-                className="h-7 flex-1 rounded-lg px-2 font-heading text-[11px] font-semibold"
-              >
-                {isMutating ? (
-                  <Loader2 className="h-3 w-3 animate-spin" aria-label="Procesando" />
-                ) : (
-                  "Tomar"
-                )}
-              </Button>
-            )}
-            {showRelease && (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={isMutating}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRelease(conversation_id);
-                }}
-                className="h-7 flex-1 rounded-lg px-2 font-heading text-[11px] font-semibold"
-              >
-                {isMutating ? (
-                  <Loader2 className="h-3 w-3 animate-spin" aria-label="Procesando" />
-                ) : (
-                  "Devolver"
-                )}
-              </Button>
-            )}
-          </div>
-        )}
-      </div>
       </button>
       {/* Drag handle — 24x24 hit target (WCAG 2.2 AA), opacity transition keeps it discreet */}
       <button

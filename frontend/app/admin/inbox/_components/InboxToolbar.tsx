@@ -214,7 +214,11 @@ function InboxToolbarImpl({
         </button>
 
         {/* Spacer pushes trailing controls to the right. */}
-        <div className="flex-1" aria-hidden="true" style={{ minWidth: "0.5rem" }} />
+        <div
+          className="flex-1"
+          aria-hidden="true"
+          style={{ minWidth: "0.5rem" }}
+        />
 
         {/* ── Column extras (popover) ──────────────────────────────────── */}
         <Popover>
@@ -226,7 +230,7 @@ function InboxToolbarImpl({
                   ? `Extras (${extrasCount} activas)`
                   : "Columnas adicionales"
               }
-              aria-haspopup="dialog"
+              aria-haspopup="menu"
               className={cn(
                 "group inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5",
                 "font-heading text-[11.5px] font-semibold leading-none",
@@ -396,7 +400,10 @@ function FilterPopover<V extends string>({
                       : "text-foreground hover:bg-muted",
                   )}
                 >
-                  <OptIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <OptIcon
+                    className="h-3.5 w-3.5 shrink-0"
+                    aria-hidden="true"
+                  />
                   <span className="flex-1 font-heading text-[12.5px] font-medium">
                     {opt.label}
                   </span>
@@ -423,7 +430,12 @@ interface ExtraOptionProps {
   hint: string;
 }
 
-function ExtraOption({ checked, onCheckedChange, label, hint }: ExtraOptionProps) {
+function ExtraOption({
+  checked,
+  onCheckedChange,
+  label,
+  hint,
+}: ExtraOptionProps) {
   return (
     <div
       className={cn(

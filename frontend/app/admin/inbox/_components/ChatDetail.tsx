@@ -78,6 +78,8 @@ export function ChatDetail({
           <div
             className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/60 text-sm font-semibold text-foreground shadow-sm"
             style={{ backgroundColor: colorFromId(chatId) }}
+            aria-label={humanizeId(chatId)}
+            role="img"
           >
             VT
           </div>
