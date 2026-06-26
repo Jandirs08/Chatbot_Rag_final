@@ -3,9 +3,10 @@ import { diff_match_patch } from "diff-match-patch";
 import { Button } from "@/app/components/ui/button";
 import { Label } from "@/app/components/ui/label";
 import { Slider } from "@/app/components/ui/slider";
-import { Save, RotateCcw, AlertCircle, Thermometer, GitCompareArrows, Download, Upload } from "lucide-react";
+import { Save, RotateCcw, AlertCircle, Thermometer, GitCompareArrows, Download, Upload, PlayCircle, X } from "lucide-react";
 import { PromptBuilderAssistant } from "@/app/components/PromptBuilderAssistant";
 import { toast } from "sonner";
+import { previewPersonality } from "@/app/lib/services/botConfigService";
 
 export interface BotConfigurationProps {
   prompt: string;
@@ -72,6 +73,31 @@ export function BotConfiguration({
   canReset,
 }: BotConfigurationProps) {
   const [showDiff, setShowDiff] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewMessage, setPreviewMessage] = useState("");
+  const [previewResponse, setPreviewResponse] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  const handlePreview = useCallback(async () => {
+    if (!previewMessage.trim()) {
+      toast.error("Escribe un mensaje de prueba primero.");
+      return;
+    }
+    setPreviewLoading(true);
+    setPreviewResponse(null);
+    try {
+      const res = await previewPersonality({
+        prompt: prompt.trim() || "Eres un asistente virtual.",
+        temperature,
+        test_message: previewMessage.trim(),
+      });
+      setPreviewResponse(res.response);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Error al previsualizar");
+    } finally {
+      setPreviewLoading(false);
+    }
+  }, [prompt, temperature, previewMessage]);
 
   const handleExport = useCallback(() => {
     const data = JSON.stringify({ prompt, temperature }, null, 2);
@@ -260,6 +286,54 @@ export function BotConfiguration({
         </div>
       </div>
 
+      {/* Preview panel */}
+      {showPreview && (
+        <div className="flex-shrink-0 border-t border-border bg-muted/30 px-6 py-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-foreground">Probar personalidad en borrador</p>
+            <button
+              type="button"
+              onClick={() => { setShowPreview(false); setPreviewResponse(null); }}
+              className="p-1 rounded hover:bg-accent text-muted-foreground"
+              aria-label="Cerrar panel de prueba"
+            >
+              <X className="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={previewMessage}
+              onChange={(e) => setPreviewMessage(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handlePreview(); }}
+              placeholder="Escribe un mensaje de prueba…"
+              maxLength={500}
+              className="flex-1 h-8 px-3 text-xs rounded-md border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+              aria-label="Mensaje de prueba para previsualización"
+            />
+            <Button
+              type="button"
+              size="sm"
+              onClick={handlePreview}
+              disabled={previewLoading || !previewMessage.trim()}
+              className="h-8 text-xs shrink-0"
+            >
+              {previewLoading ? "Probando…" : "Probar"}
+            </Button>
+          </div>
+          {previewResponse !== null && (
+            <div
+              className="rounded-lg bg-background border border-border px-3 py-2.5 text-xs text-foreground leading-relaxed"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              <span className="font-medium text-muted-foreground text-[10px] uppercase tracking-wide block mb-1">Respuesta del bot</span>
+              {previewResponse}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Footer */}
       <div className="flex-shrink-0 border-t border-border bg-card/80 backdrop-blur-sm px-6 py-4">
         <div className="flex items-center gap-3">
@@ -283,6 +357,17 @@ export function BotConfiguration({
           >
             <RotateCcw className="w-4 h-4 mr-2" aria-hidden="true" />
             Restablecer
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setShowPreview((v) => !v)}
+            className="h-9 text-xs gap-1.5"
+            title="Probar personalidad sin guardar"
+          >
+            <PlayCircle className="w-3.5 h-3.5" aria-hidden="true" />
+            Probar
           </Button>
           <div className="ml-auto flex items-center gap-2">
             <Button

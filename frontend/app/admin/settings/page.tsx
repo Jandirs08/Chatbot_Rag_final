@@ -421,6 +421,7 @@ export default function AdminSettingsPage() {
             handleBrainSave={handleBrainSave}
             handleBrainReset={handleBrainReset}
             handleDiscardChanges={handleDiscardChanges}
+            onHistoryRestored={mutate}
             isLoading={isLoading}
             savingBrain={savingBrain}
             errorBrain={errorBrain}

@@ -104,6 +104,62 @@ export const generateBotPrompt = async (payload: PromptGeneratorRequest): Promis
   return data.prompt as string;
 };
 
+export interface PreviewPersonalityRequest {
+  prompt: string;
+  temperature: number;
+  test_message: string;
+}
+
+export interface PreviewPersonalityResponse {
+  response: string;
+  temperature_used: number;
+  prompt_chars: number;
+}
+
+export const previewPersonality = async (
+  payload: PreviewPersonalityRequest
+): Promise<PreviewPersonalityResponse> => {
+  const res = await authenticatedFetch(`${API_URL}/bot/config/preview`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Error generando previsualización: ${res.status} ${text}`);
+  }
+  return res.json();
+};
+
+export interface PersonalityHistoryEntry {
+  history_id: string;
+  ui_prompt_extra: string | null;
+  temperature: number;
+  saved_at: string;
+}
+
+export const getPersonalityHistory = async (): Promise<PersonalityHistoryEntry[]> => {
+  const res = await authenticatedFetch(`${API_URL}/bot/config/history`, {
+    method: "GET",
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Error obteniendo historial: ${res.status} ${text}`);
+  }
+  const data = await res.json();
+  return (data.entries ?? []) as PersonalityHistoryEntry[];
+};
+
+export const restorePersonalityHistory = async (historyId: string): Promise<BotConfigDTO> => {
+  const res = await authenticatedFetch(`${API_URL}/bot/config/history/${encodeURIComponent(historyId)}/restore`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Error restaurando versión: ${res.status} ${text}`);
+  }
+  return res.json();
+};
+
 export const getBotRuntime = async (): Promise<BotRuntimeDTO> => {
   const res = await authenticatedFetch(`${API_URL}/bot/runtime`, {
     method: "GET",

@@ -7,7 +7,11 @@ import logging
 import time
 from fastapi import APIRouter, HTTPException, Request, status, Depends
 
-from api.schemas.config import BotConfigDTO, UpdateBotConfigRequest, PromptGeneratorRequest, PromptGeneratorResponse
+from api.schemas.config import (
+    BotConfigDTO, UpdateBotConfigRequest, PromptGeneratorRequest, PromptGeneratorResponse,
+    PreviewPersonalityRequest, PreviewPersonalityResponse,
+    PersonalityHistoryEntry, PersonalityHistoryResponse,
+)
 from database.config_repository import ConfigRepository
 from auth.permissions import require_manage_bot_config
 from models.user import User
@@ -277,6 +281,12 @@ async def update_bot_config(
         write_runtime_config_to_cache(runtime_payload)
         request.app.state.last_synced_bot_config = runtime_payload
 
+        if payload.ui_prompt_extra is not None or payload.temperature is not None:
+            try:
+                await repo.save_history_snapshot(updated.ui_prompt_extra, updated.temperature)
+            except Exception as snap_err:
+                logger.warning("Could not save history snapshot: %s", snap_err)
+
         changed_keys = [k for k, v in payload.model_dump().items() if v is not None]
         audit("bot_config_updated", str(current_user.id), changed_fields=changed_keys, ip=request.client.host if request.client else None)
 
@@ -533,3 +543,89 @@ async def generate_bot_prompt(
     except Exception as e:
         logger.error(f"Error calling OpenAI for prompt generation: {e}", exc_info=True)
         raise HTTPException(status_code=502, detail="Error al generar el prompt con IA")
+
+
+@router.post("/config/preview", response_model=PreviewPersonalityResponse, status_code=status.HTTP_200_OK)
+async def preview_personality(
+    request: Request,
+    payload: PreviewPersonalityRequest,
+    _: User = Depends(require_manage_bot_config),
+) -> PreviewPersonalityResponse:
+    """Preview bot response using draft personality without saving. Requires: authenticated user."""
+    from openai import AsyncOpenAI
+
+    try:
+        api_key = request.app.state.settings.openai_api_key.get_secret_value()
+    except Exception as e:
+        logger.error(f"Cannot read OpenAI API key for preview: {e}")
+        raise HTTPException(status_code=500, detail="Configuración de API no disponible")
+
+    system_prompt = payload.prompt.strip() or "Eres un asistente virtual."
+    try:
+        client = AsyncOpenAI(api_key=api_key)
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": payload.test_message},
+            ],
+            max_tokens=300,
+            temperature=payload.temperature,
+        )
+        bot_response = (response.choices[0].message.content or "").strip()
+        return PreviewPersonalityResponse(
+            response=bot_response,
+            temperature_used=payload.temperature,
+            prompt_chars=len(payload.prompt),
+        )
+    except Exception as e:
+        logger.error(f"Error in personality preview: {e}", exc_info=True)
+        raise HTTPException(status_code=502, detail="Error al generar la respuesta de previsualización")
+
+
+@router.get("/config/history", response_model=PersonalityHistoryResponse, status_code=status.HTTP_200_OK)
+async def get_personality_history(
+    request: Request,
+    _: User = Depends(require_manage_bot_config),
+) -> PersonalityHistoryResponse:
+    """Return last 10 saved personality snapshots. Requires: authenticated user."""
+    try:
+        repo = _get_config_repo(request)
+        entries = await repo.get_history()
+        return PersonalityHistoryResponse(
+            entries=[PersonalityHistoryEntry(**e) for e in entries]
+        )
+    except Exception as e:
+        logger.error(f"Error fetching personality history: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error al obtener el historial de personalidad")
+
+
+@router.post("/config/history/{history_id}/restore", response_model=BotConfigDTO, status_code=status.HTTP_200_OK)
+async def restore_personality_history(
+    history_id: str,
+    request: Request,
+    current_user: User = Depends(require_manage_bot_config),
+) -> BotConfigDTO:
+    """Restore personality to a saved snapshot. Requires: authenticated user."""
+    try:
+        repo = _get_config_repo(request)
+        updated = await repo.restore_history(history_id)
+
+        runtime_payload = build_runtime_config_payload(updated)
+        if hasattr(request.app.state, "settings") and request.app.state.settings:
+            apply_runtime_config(request.app.state.settings, runtime_payload)
+        if hasattr(request.app.state, "bot_instance") and request.app.state.bot_instance:
+            try:
+                request.app.state.bot_instance.reload_chain(request.app.state.settings)
+            except Exception as reload_err:
+                logger.error("Error recargando chain tras restore: %s", reload_err, exc_info=True)
+        write_runtime_config_to_cache(runtime_payload)
+        request.app.state.last_synced_bot_config = runtime_payload
+
+        audit("bot_config_history_restored", str(current_user.id), history_id=history_id, ip=request.client.host if request.client else None)
+        return _build_bot_config_dto(updated)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error restoring personality history {history_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error al restaurar la versión de personalidad")

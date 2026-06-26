@@ -90,3 +90,30 @@ class PromptGeneratorRequest(BaseModel):
 class PromptGeneratorResponse(BaseModel):
     """Generated prompt result."""
     prompt: str
+
+
+class PreviewPersonalityRequest(BaseModel):
+    """Request to preview bot personality without saving."""
+    prompt: str = Field(..., max_length=3000)
+    temperature: float = Field(default=0.7, ge=0.0, le=1.0)
+    test_message: str = Field(..., min_length=1, max_length=500)
+
+
+class PreviewPersonalityResponse(BaseModel):
+    """Bot response using draft personality settings."""
+    response: str
+    temperature_used: float
+    prompt_chars: int
+
+
+class PersonalityHistoryEntry(BaseModel):
+    """A saved snapshot of personality configuration."""
+    history_id: str
+    ui_prompt_extra: str | None
+    temperature: float
+    saved_at: datetime
+
+
+class PersonalityHistoryResponse(BaseModel):
+    """List of personality history entries."""
+    entries: list[PersonalityHistoryEntry]

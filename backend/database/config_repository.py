@@ -98,6 +98,45 @@ class ConfigRepository:
         doc = await self._collection.find_one({"_id": "default"})
         return BotConfig(**{k: v for k, v in doc.items() if k != "_id"})
 
+    async def save_history_snapshot(self, ui_prompt_extra: Optional[str], temperature: float) -> str:
+        """Store a personality snapshot in history (keep last 10)."""
+        import uuid
+        history_col = self._mongo.db.get_collection("bot_config_history")
+        snapshot_id = str(uuid.uuid4())
+        await history_col.insert_one({
+            "_id": snapshot_id,
+            "ui_prompt_extra": ui_prompt_extra,
+            "temperature": temperature,
+            "saved_at": datetime.now(timezone.utc),
+        })
+        # Keep only last 10
+        all_ids = [
+            doc["_id"]
+            async for doc in history_col.find({}, {"_id": 1}).sort("saved_at", -1).skip(10)
+        ]
+        if all_ids:
+            await history_col.delete_many({"_id": {"$in": all_ids}})
+        return snapshot_id
+
+    async def get_history(self) -> list[dict]:
+        """Return last 10 personality history snapshots, newest first."""
+        history_col = self._mongo.db.get_collection("bot_config_history")
+        return [
+            {**{k: v for k, v in doc.items() if k != "_id"}, "history_id": doc["_id"]}
+            async for doc in history_col.find({}).sort("saved_at", -1).limit(10)
+        ]
+
+    async def restore_history(self, history_id: str) -> BotConfig:
+        """Restore ui_prompt_extra and temperature from a history snapshot."""
+        history_col = self._mongo.db.get_collection("bot_config_history")
+        doc = await history_col.find_one({"_id": history_id})
+        if not doc:
+            raise ValueError(f"History entry {history_id!r} not found")
+        return await self.update_config(
+            ui_prompt_extra=doc.get("ui_prompt_extra"),
+            temperature=doc.get("temperature"),
+        )
+
     async def reset_ui(self) -> BotConfig:
         """Clear UI-driven fields (bot_name, ui_prompt_extra) and return config."""
         update_data = {
