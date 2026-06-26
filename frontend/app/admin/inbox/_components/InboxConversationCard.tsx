@@ -294,7 +294,18 @@ function InboxConversationCardImpl({
                     "h-1.5 w-1.5 flex-none rounded-full",
                     URGENCY_DOT[urgency] ?? "bg-muted-foreground/60",
                   )}
+                  aria-hidden="true"
                 />
+                <span
+                  className={cn(
+                    "font-heading text-[10px] font-medium capitalize",
+                    urgency === "alta" && "text-error/80",
+                    urgency === "media" && "text-warning/80",
+                    urgency === "baja" && "text-success/80",
+                  )}
+                >
+                  {urgency}
+                </span>
               </>
             )}
             {isScoreSnapshot && (

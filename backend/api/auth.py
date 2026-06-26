@@ -438,7 +438,8 @@ async def forgot_password(
             await svc.send_reset_password(payload.email, link)
             audit("password_reset_requested", str(user.id), ip=request.client.host if request.client else None)
         return {"status": "ok"}
-    except Exception:
+    except Exception as exc:
+        logger.error("forgot_password unexpected error: %s", exc, exc_info=True)
         return {"status": "ok"}
 
 

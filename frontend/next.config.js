@@ -77,6 +77,18 @@ const nextConfig = {
               chunks: "all",
               priority: 25,
             },
+            framerMotion: {
+              test: /[\\/]node_modules[\\/]framer-motion[\\/]/,
+              name: "framer-motion",
+              chunks: "all",
+              priority: 35,
+            },
+            dndKit: {
+              test: /[\\/]node_modules[\\/]@dnd-kit[\\/]/,
+              name: "dnd-kit",
+              chunks: "all",
+              priority: 35,
+            },
           },
         },
       };

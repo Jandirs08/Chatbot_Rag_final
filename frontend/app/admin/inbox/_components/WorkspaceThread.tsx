@@ -115,8 +115,8 @@ export function WorkspaceThread({
             <div className="space-y-3">
               {messages.map((msg, idx) => {
                 const key = msg.timestamp
-                  ? `${msg.role}-${msg.timestamp}-${idx}`
-                  : `${msg.role}-${idx}-${(msg.content ?? "").slice(0, 16)}`;
+                  ? `${msg.role}-${msg.timestamp}-${(msg.content ?? "").slice(0, 12)}-${idx}`
+                  : `${msg.role}-${idx}-${(msg.content ?? "").slice(0, 32)}`;
                 return <MessageBubble key={key} msg={msg} idx={idx} />;
               })}
             </div>
