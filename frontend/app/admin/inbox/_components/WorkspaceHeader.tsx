@@ -3,11 +3,7 @@
 import React from "react";
 import { Button } from "@/app/components/ui/button";
 import { cn } from "@/lib/utils";
-import {
-  CheckCircle2,
-  Loader2,
-  RotateCcw,
-} from "lucide-react";
+import { CheckCircle2, Loader2, RotateCcw } from "lucide-react";
 import type { ScoreStyle } from "./utils";
 
 // ─── Props ────────────────────────────────────────────────────────────────────

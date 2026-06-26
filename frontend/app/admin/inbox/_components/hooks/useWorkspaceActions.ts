@@ -78,7 +78,15 @@ export function useWorkspaceActions({
     } finally {
       setSending(false);
     }
-  }, [agentId, conversationId, draft, mutateMessages, sending, textareaRef, toast]);
+  }, [
+    agentId,
+    conversationId,
+    draft,
+    mutateMessages,
+    sending,
+    textareaRef,
+    toast,
+  ]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -177,7 +185,13 @@ export function useWorkspaceActions({
     } finally {
       setTakeoverMutating(false);
     }
-  }, [conversation, conversationId, onConversationUpdate, takeoverMutating, toast]);
+  }, [
+    conversation,
+    conversationId,
+    onConversationUpdate,
+    takeoverMutating,
+    toast,
+  ]);
 
   const handleRelease = useCallback(async () => {
     if (takeoverMutating) return;
@@ -206,7 +220,13 @@ export function useWorkspaceActions({
     } finally {
       setTakeoverMutating(false);
     }
-  }, [conversation, conversationId, onConversationUpdate, takeoverMutating, toast]);
+  }, [
+    conversation,
+    conversationId,
+    onConversationUpdate,
+    takeoverMutating,
+    toast,
+  ]);
 
   const handleRefreshClick = useCallback(() => {
     if (

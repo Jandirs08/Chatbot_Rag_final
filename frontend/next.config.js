@@ -123,7 +123,9 @@ const nextConfig = {
         return null;
       })
       .filter(Boolean);
-    const allowedEmbedHosts = embedTokens.length ? embedTokens.join(" ") : "'self'";
+    const allowedEmbedHosts = embedTokens.length
+      ? embedTokens.join(" ")
+      : "'self'";
 
     // NOTE: 'unsafe-inline' in script-src is required by Next.js 14 for its own
     // inline hydration scripts. Removing it without nonce support breaks the app.
@@ -159,8 +161,7 @@ const nextConfig = {
           { key: "X-Frame-Options", value: "DENY" },
           {
             key: "Content-Security-Policy",
-            value:
-              `default-src 'self'; script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}; style-src 'self' 'unsafe-inline'; connect-src 'self' ${apiOrigin}; img-src 'self' data: https://images.unsplash.com; frame-ancestors 'self'`,
+            value: `default-src 'self'; script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}; style-src 'self' 'unsafe-inline'; connect-src 'self' ${apiOrigin}; img-src 'self' data: https://images.unsplash.com; frame-ancestors 'self'`,
           },
         ],
       },

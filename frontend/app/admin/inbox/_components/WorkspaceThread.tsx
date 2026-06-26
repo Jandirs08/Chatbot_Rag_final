@@ -79,10 +79,7 @@ export function WorkspaceThread({
   textareaRef,
 }: WorkspaceThreadProps) {
   return (
-    <main
-      aria-label="Conversación"
-      className="flex min-h-0 flex-1 flex-col"
-    >
+    <main aria-label="Conversación" className="flex min-h-0 flex-1 flex-col">
       <div className="flex flex-none items-center justify-between border-b border-border/40 px-5 py-2">
         <span className="font-heading text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
           Conversación

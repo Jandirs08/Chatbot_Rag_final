@@ -53,7 +53,11 @@ export function RegisterForm({
       [name]: value,
     }));
     if (fieldErrors[name]) {
-      setFieldErrors((prev) => { const next = { ...prev }; delete next[name]; return next; });
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next[name];
+        return next;
+      });
     }
     if (error) setError(null);
     if (success) setSuccess(null);
@@ -67,7 +71,8 @@ export function RegisterForm({
     } else if (formData.username.length < 3) {
       errors.username = "El nombre de usuario debe tener al menos 3 caracteres";
     } else if (formData.username.length > 50) {
-      errors.username = "El nombre de usuario no puede tener más de 50 caracteres";
+      errors.username =
+        "El nombre de usuario no puede tener más de 50 caracteres";
     }
 
     if (!formData.email.trim()) {
@@ -183,10 +188,14 @@ export function RegisterForm({
               required
               autoComplete="username"
               aria-invalid={!!fieldErrors.username}
-              aria-describedby={fieldErrors.username ? "username-error" : undefined}
+              aria-describedby={
+                fieldErrors.username ? "username-error" : undefined
+              }
             />
             {fieldErrors.username && (
-              <p id="username-error" className="text-sm text-destructive">{fieldErrors.username}</p>
+              <p id="username-error" className="text-sm text-destructive">
+                {fieldErrors.username}
+              </p>
             )}
           </div>
 
@@ -206,7 +215,9 @@ export function RegisterForm({
               aria-describedby={fieldErrors.email ? "email-error" : undefined}
             />
             {fieldErrors.email && (
-              <p id="email-error" className="text-sm text-destructive">{fieldErrors.email}</p>
+              <p id="email-error" className="text-sm text-destructive">
+                {fieldErrors.email}
+              </p>
             )}
           </div>
 
@@ -239,7 +250,9 @@ export function RegisterForm({
                 autoComplete="new-password"
                 className="pr-10"
                 aria-invalid={!!fieldErrors.password}
-                aria-describedby={fieldErrors.password ? "password-error" : undefined}
+                aria-describedby={
+                  fieldErrors.password ? "password-error" : undefined
+                }
               />
               <Button
                 type="button"
@@ -260,7 +273,9 @@ export function RegisterForm({
               </Button>
             </div>
             {fieldErrors.password && (
-              <p id="password-error" className="text-sm text-destructive">{fieldErrors.password}</p>
+              <p id="password-error" className="text-sm text-destructive">
+                {fieldErrors.password}
+              </p>
             )}
           </div>
 
@@ -279,7 +294,11 @@ export function RegisterForm({
                 autoComplete="new-password"
                 className="pr-10"
                 aria-invalid={!!fieldErrors.confirmPassword}
-                aria-describedby={fieldErrors.confirmPassword ? "confirmPassword-error" : undefined}
+                aria-describedby={
+                  fieldErrors.confirmPassword
+                    ? "confirmPassword-error"
+                    : undefined
+                }
               />
               <Button
                 type="button"
@@ -302,7 +321,12 @@ export function RegisterForm({
               </Button>
             </div>
             {fieldErrors.confirmPassword && (
-              <p id="confirmPassword-error" className="text-sm text-destructive">{fieldErrors.confirmPassword}</p>
+              <p
+                id="confirmPassword-error"
+                className="text-sm text-destructive"
+              >
+                {fieldErrors.confirmPassword}
+              </p>
             )}
           </div>
         </CardContent>

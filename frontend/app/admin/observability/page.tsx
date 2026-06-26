@@ -19,7 +19,12 @@ import { useRingBuffer } from "@/app/hooks/useRingBuffer";
 import { API_URL } from "@/app/lib/config";
 import { authenticatedJsonFetcher } from "@/app/lib/services/authService";
 import { Skeleton } from "@/app/components/ui/skeleton";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/app/components/ui/tabs";
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "@/app/components/ui/tabs";
 import { TooltipProvider } from "@/app/components/ui/tooltip";
 import { Switch } from "@/app/components/ui/switch";
 import {
@@ -72,18 +77,44 @@ function HeroZone({
   onRefresh: () => void;
   uptimeSeconds?: number;
 }) {
-  const severityMap: Record<Severity, { color: string; bg: string; border: string; label: string }> = {
-    ok:    { color: "text-success", bg: "bg-success/10",  border: "border-success/30",  label: "saludable" },
-    info:  { color: "text-accent-cyan", bg: "bg-accent-cyan/10", border: "border-accent-cyan/30", label: "observando" },
-    warn:  { color: "text-warning", bg: "bg-warning/10",  border: "border-warning/30",  label: "atención" },
-    crit:  { color: "text-error",   bg: "bg-error/10",    border: "border-error/30",    label: "crítico" },
+  const severityMap: Record<
+    Severity,
+    { color: string; bg: string; border: string; label: string }
+  > = {
+    ok: {
+      color: "text-success",
+      bg: "bg-success/10",
+      border: "border-success/30",
+      label: "saludable",
+    },
+    info: {
+      color: "text-accent-cyan",
+      bg: "bg-accent-cyan/10",
+      border: "border-accent-cyan/30",
+      label: "observando",
+    },
+    warn: {
+      color: "text-warning",
+      bg: "bg-warning/10",
+      border: "border-warning/30",
+      label: "atención",
+    },
+    crit: {
+      color: "text-error",
+      bg: "bg-error/10",
+      border: "border-error/30",
+      label: "crítico",
+    },
   };
   const sev = severityMap[overall] ?? severityMap.info;
   const pulseColor: "success" | "cyan" | "warning" | "error" =
-    overall === "ok" ? "success" :
-    overall === "warn" ? "warning" :
-    overall === "crit" ? "error" :
-    "cyan";
+    overall === "ok"
+      ? "success"
+      : overall === "warn"
+        ? "warning"
+        : overall === "crit"
+          ? "error"
+          : "cyan";
 
   return (
     <section className="relative overflow-hidden rounded-3xl border border-border/60 bg-card px-8 py-12 md:px-12 md:py-14 mb-10">
@@ -91,33 +122,56 @@ function HeroZone({
         aria-hidden="true"
         className="absolute -top-24 -right-24 w-[440px] h-[440px] opacity-50 animate-orb-float pointer-events-none"
       >
-        <img src="/assets/decor/glow-orb-cyan.svg" alt="" className="w-full h-full" />
+        <img
+          src="/assets/decor/glow-orb-cyan.svg"
+          alt=""
+          className="w-full h-full"
+        />
       </div>
       <div
         aria-hidden="true"
         className="absolute -bottom-32 -left-20 w-[460px] h-[460px] opacity-35 animate-orb-float pointer-events-none"
         style={{ animationDelay: "-9s" }}
       >
-        <img src="/assets/decor/glow-orb-violet.svg" alt="" className="w-full h-full" />
+        <img
+          src="/assets/decor/glow-orb-violet.svg"
+          alt=""
+          className="w-full h-full"
+        />
       </div>
       <div
         aria-hidden="true"
         className="absolute right-12 top-1/2 -translate-y-1/2 w-40 opacity-30 text-accent-violet pointer-events-none hidden lg:block"
       >
-        <img src="/assets/decor/embedding-cloud.svg" alt="" className="w-full" loading="lazy" />
+        <img
+          src="/assets/decor/embedding-cloud.svg"
+          alt=""
+          className="w-full"
+          loading="lazy"
+        />
       </div>
       <div
         aria-hidden="true"
         className="absolute left-16 bottom-10 w-28 opacity-25 text-accent-cyan pointer-events-none hidden md:block"
       >
-        <img src="/assets/decor/pulse-wave.svg" alt="" className="w-full" loading="lazy" />
+        <img
+          src="/assets/decor/pulse-wave.svg"
+          alt=""
+          className="w-full"
+          loading="lazy"
+        />
       </div>
-      <div aria-hidden="true" className="absolute inset-0 bg-grid opacity-30 pointer-events-none" />
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-grid opacity-30 pointer-events-none"
+      />
 
       <div className="relative flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
         <div>
           <div className="flex items-center gap-2.5 mb-4">
-            <span className="font-mono text-[11px] text-primary/70 tabular-nums">01 / 06</span>
+            <span className="font-mono text-[11px] text-primary/70 tabular-nums">
+              01 / 06
+            </span>
             <span className="h-px w-8 bg-primary/40" />
             <span className="text-[10px] uppercase tracking-[0.18em] font-heading text-muted-foreground">
               Telemetría · backend
@@ -133,9 +187,13 @@ function HeroZone({
           </p>
 
           <div className="flex flex-wrap items-center gap-3 mt-5">
-            <div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full ${sev.bg} border ${sev.border}`}>
+            <div
+              className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full ${sev.bg} border ${sev.border}`}
+            >
               <PulseDot color={pulseColor} size={6} />
-              <span className={`text-[11px] font-mono uppercase tracking-wider ${sev.color}`}>
+              <span
+                className={`text-[11px] font-mono uppercase tracking-wider ${sev.color}`}
+              >
                 {sev.label}
               </span>
             </div>
@@ -157,7 +215,10 @@ function HeroZone({
               aria-label="Auto-refresh cada 30 segundos"
               className="h-4 w-8 [&>span]:h-3 [&>span]:w-3 [&>span[data-state=checked]]:translate-x-4"
             />
-            <span aria-hidden="true" className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
+            <span
+              aria-hidden="true"
+              className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground"
+            >
               auto · 30s
             </span>
           </div>
@@ -168,8 +229,13 @@ function HeroZone({
             aria-label={`Actualizar datos${lastRefresh ? `, última actualización ${fmtClock(lastRefresh)}` : ""}`}
             className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-border bg-background/40 backdrop-blur-sm text-xs font-mono text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/[0.04] transition-all duration-200 ease-out-expo disabled:opacity-50"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${isValidating ? "animate-spin text-primary" : ""}`} aria-hidden="true" />
-            <span aria-hidden="true">{lastRefresh ? fmtClock(lastRefresh) : "--:--"}</span>
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${isValidating ? "animate-spin text-primary" : ""}`}
+              aria-hidden="true"
+            />
+            <span aria-hidden="true">
+              {lastRefresh ? fmtClock(lastRefresh) : "--:--"}
+            </span>
           </button>
         </div>
       </div>
@@ -194,7 +260,9 @@ function SectionHeader({
 }) {
   return (
     <div className="flex items-center gap-3 mb-5 mt-2">
-      <span className="font-mono text-[11px] text-primary/70 tabular-nums">{index} / {total}</span>
+      <span className="font-mono text-[11px] text-primary/70 tabular-nums">
+        {index} / {total}
+      </span>
       <span className={`${iconColor} flex-shrink-0`}>
         <Icon className="h-4 w-4" />
       </span>
@@ -245,13 +313,19 @@ export default function ObservabilityPage() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
-  useEffect(() => { setLastRefresh(new Date()); }, []);
+  useEffect(() => {
+    setLastRefresh(new Date());
+  }, []);
 
-  const { data, isLoading, error, mutate, isValidating } = useSWR<ObservabilityData>(
-    isAuthorized ? `${API_URL}/dashboard/observability` : null,
-    authenticatedJsonFetcher,
-    { refreshInterval: autoRefresh ? REFRESH_MS : 0, onSuccess: () => setLastRefresh(new Date()) },
-  );
+  const { data, isLoading, error, mutate, isValidating } =
+    useSWR<ObservabilityData>(
+      isAuthorized ? `${API_URL}/dashboard/observability` : null,
+      authenticatedJsonFetcher,
+      {
+        refreshInterval: autoRefresh ? REFRESH_MS : 0,
+        onSuccess: () => setLastRefresh(new Date()),
+      },
+    );
 
   const { data: healthData } = useSWR<HealthReadyData>(
     isAuthorized ? `${API_URL}/health/ready` : null,
@@ -264,7 +338,9 @@ export default function ObservabilityPage() {
     { refreshInterval: 15000 },
   );
 
-  const handleRefresh = useCallback(() => { mutate(); }, [mutate]);
+  const handleRefresh = useCallback(() => {
+    mutate();
+  }, [mutate]);
 
   const t60 = data?.throughput?.["60m"];
   const successRate60 = t60 && t60.chats > 0 ? 1 - t60.error_rate : null;
@@ -272,61 +348,85 @@ export default function ObservabilityPage() {
   const totalP50 = data?.latency_ms?.total_ms?.p50 ?? null;
   const ftP95 = data?.latency_ms?.first_token_ms?.p95 ?? null;
 
-  useRingBuffer(successRate60 != null ? successRate60 * 100 : null, { capacity: 60, storageKey: "success60" });
-  useRingBuffer(t60?.chats_per_min ?? null, { capacity: 60, storageKey: "chats_per_min" });
+  useRingBuffer(successRate60 != null ? successRate60 * 100 : null, {
+    capacity: 60,
+    storageKey: "success60",
+  });
+  useRingBuffer(t60?.chats_per_min ?? null, {
+    capacity: 60,
+    storageKey: "chats_per_min",
+  });
   useRingBuffer(ftP95, { capacity: 60, storageKey: "ft_p95" });
   useRingBuffer(totalP95, { capacity: 60, storageKey: "total_p95" });
-  const mongoLatBuf = useRingBuffer(healthData?.mongodb?.latency_ms ?? null, { capacity: 60, storageKey: "mongo_lat" });
-  const qdrantLatBuf = useRingBuffer(healthData?.qdrant?.latency_ms ?? null, { capacity: 60, storageKey: "qdrant_lat" });
+  const mongoLatBuf = useRingBuffer(healthData?.mongodb?.latency_ms ?? null, {
+    capacity: 60,
+    storageKey: "mongo_lat",
+  });
+  const qdrantLatBuf = useRingBuffer(healthData?.qdrant?.latency_ms ?? null, {
+    capacity: 60,
+    storageKey: "qdrant_lat",
+  });
 
   const { overall, severities } = useMemo(() => {
-    const successSev: Severity = !t60 || t60.chats < 20 ? "info" : evalSuccess(successRate60);
+    const successSev: Severity =
+      !t60 || t60.chats < 20 ? "info" : evalSuccess(successRate60);
     const totalSev = evalLatency(totalP95, THRESHOLDS.p95Total);
     const ftSev = evalLatency(ftP95, THRESHOLDS.p95FirstToken);
     const totalAlertSev = evalLatency(totalP95, THRESHOLDS.p95TotalAlert);
     const ftAlertSev = evalLatency(ftP95, THRESHOLDS.p95FirstTokenAlert);
-    return { severities: { successSev, totalSev, ftSev }, overall: aggregate(successSev, totalAlertSev, ftAlertSev) };
+    return {
+      severities: { successSev, totalSev, ftSev },
+      overall: aggregate(successSev, totalAlertSev, ftAlertSev),
+    };
   }, [t60, successRate60, totalP95, ftP95]);
 
   const stages: WaterfallStage[] = useMemo(() => {
     if (!data) return [];
-    return PIPELINE_STAGES
-      .map((stage) => {
-        const bucket = data.latency_ms[stage.key];
-        if (!bucket || bucket.count === 0) return null;
-        const t = THRESHOLDS.pipeline[stage.key] ?? { ok: 1000, warn: 3000 };
-        return {
-          key: stage.key,
-          label: stage.label,
-          short: stage.short,
-          p50: bucket.p50,
-          p95: bucket.p95,
-          count: bucket.count,
-          severity: evalLatency(bucket.p95, t),
-        };
-      })
-      .filter(Boolean) as WaterfallStage[];
+    return PIPELINE_STAGES.map((stage) => {
+      const bucket = data.latency_ms[stage.key];
+      if (!bucket || bucket.count === 0) return null;
+      const t = THRESHOLDS.pipeline[stage.key] ?? { ok: 1000, warn: 3000 };
+      return {
+        key: stage.key,
+        label: stage.label,
+        short: stage.short,
+        p50: bucket.p50,
+        p95: bucket.p95,
+        count: bucket.count,
+        severity: evalLatency(bucket.p95, t),
+      };
+    }).filter(Boolean) as WaterfallStage[];
   }, [data]);
 
-  const { filteredGatingItems, filteredGatingTotal, cantAnswerCount } = useMemo(() => {
-    if (!data) return { filteredGatingItems: [] as GatingItem[], filteredGatingTotal: 0, cantAnswerCount: 0 };
-    const allItems: GatingItem[] = Object.entries(data.gating_reasons || {}).map(([key, count]) => ({
-      key,
-      label: GATING_LABELS[key] ?? key,
-      count,
-    }));
-    const items = allItems.filter((item) => !GATING_SUCCESS_KEYS.has(item.key));
-    const cant =
-      (data.gating_reasons?.no_candidates ?? 0) +
-      (data.gating_reasons?.no_parent_candidates ?? 0) +
-      (data.gating_reasons?.reranker_empty ?? 0) +
-      (data.gating_reasons?.low_relevance_score ?? 0);
-    return {
-      filteredGatingItems: items,
-      filteredGatingTotal: items.reduce((acc, it) => acc + it.count, 0),
-      cantAnswerCount: cant,
-    };
-  }, [data]);
+  const { filteredGatingItems, filteredGatingTotal, cantAnswerCount } =
+    useMemo(() => {
+      if (!data)
+        return {
+          filteredGatingItems: [] as GatingItem[],
+          filteredGatingTotal: 0,
+          cantAnswerCount: 0,
+        };
+      const allItems: GatingItem[] = Object.entries(
+        data.gating_reasons || {},
+      ).map(([key, count]) => ({
+        key,
+        label: GATING_LABELS[key] ?? key,
+        count,
+      }));
+      const items = allItems.filter(
+        (item) => !GATING_SUCCESS_KEYS.has(item.key),
+      );
+      const cant =
+        (data.gating_reasons?.no_candidates ?? 0) +
+        (data.gating_reasons?.no_parent_candidates ?? 0) +
+        (data.gating_reasons?.reranker_empty ?? 0) +
+        (data.gating_reasons?.low_relevance_score ?? 0);
+      return {
+        filteredGatingItems: items,
+        filteredGatingTotal: items.reduce((acc, it) => acc + it.count, 0),
+        cantAnswerCount: cant,
+      };
+    }, [data]);
 
   if (isChecking || !isAuthorized) return null;
 
@@ -334,7 +434,6 @@ export default function ObservabilityPage() {
     <TooltipProvider>
       <div className="min-h-full -m-8 p-6 md:p-10 lg:p-14">
         <div className="mx-auto max-w-[1200px]">
-
           <FadeIn>
             <HeroZone
               overall={overall}
@@ -374,7 +473,13 @@ export default function ObservabilityPage() {
                 ) : data ? (
                   <div className="space-y-10">
                     <section>
-                      <SectionHeader index="02" total="06" title="Indicadores clave" icon={Zap} iconColor="text-accent-cyan" />
+                      <SectionHeader
+                        index="02"
+                        total="06"
+                        title="Indicadores clave"
+                        icon={Zap}
+                        iconColor="text-accent-cyan"
+                      />
                       <KPISection
                         t60={t60}
                         successRate60={successRate60}
@@ -386,7 +491,13 @@ export default function ObservabilityPage() {
                     </section>
 
                     <section>
-                      <SectionHeader index="03" total="06" title="Servicios + datos" icon={Database} iconColor="text-accent-violet" />
+                      <SectionHeader
+                        index="03"
+                        total="06"
+                        title="Servicios + datos"
+                        icon={Database}
+                        iconColor="text-accent-violet"
+                      />
                       <ServicesSection
                         healthData={healthData}
                         statusData={statusData}
@@ -396,32 +507,61 @@ export default function ObservabilityPage() {
                     </section>
 
                     <section>
-                      <SectionHeader index="04" total="06" title="Pipeline RAG" icon={Workflow} iconColor="text-primary" />
-                      <PipelineSection stages={stages} totalP50={totalP50} totalP95={totalP95} />
+                      <SectionHeader
+                        index="04"
+                        total="06"
+                        title="Pipeline RAG"
+                        icon={Workflow}
+                        iconColor="text-primary"
+                      />
+                      <PipelineSection
+                        stages={stages}
+                        totalP50={totalP50}
+                        totalP95={totalP95}
+                      />
                     </section>
 
                     <section>
-                      <SectionHeader index="05" total="06" title="Throughput + gating" icon={BarChart3} iconColor="text-accent-cyan" />
+                      <SectionHeader
+                        index="05"
+                        total="06"
+                        title="Throughput + gating"
+                        icon={BarChart3}
+                        iconColor="text-accent-cyan"
+                      />
                       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                         <ThroughputSection throughput={data.throughput} />
-                        <GatingSection items={filteredGatingItems} total={filteredGatingTotal} />
+                        <GatingSection
+                          items={filteredGatingItems}
+                          total={filteredGatingTotal}
+                        />
                       </div>
                     </section>
 
                     <section>
-                      <SectionHeader index="06" total="06" title="Consumo LLM" icon={Coins} iconColor="text-accent-violet" />
+                      <SectionHeader
+                        index="06"
+                        total="06"
+                        title="Consumo LLM"
+                        icon={Coins}
+                        iconColor="text-accent-violet"
+                      />
                       <TokensSection tokens={data.tokens} />
                     </section>
 
                     <footer className="pt-6 mt-4 flex items-center gap-3 border-t border-border/40">
                       <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent-violet/10 border border-accent-violet/25">
                         <Timer className="h-3 w-3 text-accent-violet" />
-                        <span className="text-[10px] font-mono uppercase tracking-wider text-accent-violet">Uptime</span>
+                        <span className="text-[10px] font-mono uppercase tracking-wider text-accent-violet">
+                          Uptime
+                        </span>
                       </div>
                       <span className="font-mono text-sm text-foreground tabular-nums">
                         {data.uptime_seconds != null ? (
                           <TickNumber value={data.uptime_seconds} suffix="s" />
-                        ) : "s/d"}
+                        ) : (
+                          "s/d"
+                        )}
                       </span>
                       <span className="text-xs text-muted-foreground font-mono">
                         ≈ {fmtUptime(data.uptime_seconds) || "s/d"}
@@ -436,7 +576,6 @@ export default function ObservabilityPage() {
               </TabsContent>
             </Tabs>
           </FadeIn>
-
         </div>
       </div>
     </TooltipProvider>

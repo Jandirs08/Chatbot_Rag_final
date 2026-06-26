@@ -1,6 +1,10 @@
 "use client";
 
-import { GatingBars, HelpTooltip, type GatingItem } from "@/app/_components/telemetry";
+import {
+  GatingBars,
+  HelpTooltip,
+  type GatingItem,
+} from "@/app/_components/telemetry";
 
 interface Props {
   items: GatingItem[];

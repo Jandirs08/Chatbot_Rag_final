@@ -358,6 +358,43 @@ Funcional en desarrollo: backend, frontend, ingesta documental, panel administra
 
 ---
 
+## Tests
+
+### Frontend (Vitest + Playwright)
+
+> **Pendiente:** instalar dependencias antes de correr por primera vez.
+
+```bash
+cd frontend
+yarn add -D vitest @vitejs/plugin-react @testing-library/react @testing-library/jest-dom @testing-library/user-event jsdom
+yarn add -D @playwright/test
+npx playwright install chromium
+```
+
+| Comando | Qué corre |
+|---|---|
+| `yarn test` | Unit tests (Vitest) — 30 tests, sin servidor |
+| `yarn test:watch` | Vitest en modo watch |
+| `yarn test:e2e` | E2E Playwright — requiere `yarn dev` corriendo |
+
+**Tests unitarios (`__tests__/`):**
+- `inbox-utils.test.ts` — colorFromId, humanizeId, getInitials, getScoreTone, getScoreStyle, displayLabel, formatRelativeAgo, getMessageKey
+- `register-validation.test.ts` — lógica de validación del formulario de registro (username, email, password, confirmPassword)
+
+**Tests E2E (`e2e/`):**
+- `auth.spec.ts` — login page carga, error en credenciales inválidas, redirect a login sin auth
+
+### Backend (pytest)
+
+```bash
+cd backend
+pytest --cov=. --cov-report=term-missing
+```
+
+Coverage mínimo: 65% (enforced en CI).
+
+---
+
 ## Referencias preliminares
 
 - Lewis, P. *et al.* (2020). *Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks*. NeurIPS.
