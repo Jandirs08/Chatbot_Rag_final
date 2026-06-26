@@ -4,7 +4,14 @@ import { useRequirePermission } from "@/app/hooks/useAuthGuard";
 import { useBotConfig } from "@/app/hooks/useBotConfig";
 import { Button } from "@/app/components/ui/button";
 import { Skeleton } from "@/app/components/ui/skeleton";
-import { Loader2, Palette, Brain, Shield, Terminal, Settings as SettingsIcon } from "lucide-react";
+import {
+  Loader2,
+  Palette,
+  Brain,
+  Shield,
+  Terminal,
+  Settings as SettingsIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 import { FadeIn, PulseDot } from "@/app/_components/motion";
 import {
@@ -60,14 +67,16 @@ const presetColors = [
 
 type SettingsTab = "appearance" | "brain" | "system";
 
-const NAV_ITEMS: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
-  { id: "appearance", label: "Apariencia", icon: Palette },
-  { id: "brain",      label: "Personalidad", icon: Brain },
-  { id: "system",     label: "Sistema",     icon: Shield },
-];
+const NAV_ITEMS: { id: SettingsTab; label: string; icon: React.ElementType }[] =
+  [
+    { id: "appearance", label: "Apariencia", icon: Palette },
+    { id: "brain", label: "Personalidad", icon: Brain },
+    { id: "system", label: "Sistema", icon: Shield },
+  ];
 
 export default function AdminSettingsPage() {
-  const { isAuthorized, isChecking } = useRequirePermission("manage_bot_config");
+  const { isAuthorized, isChecking } =
+    useRequirePermission("manage_bot_config");
   const [activeTab, setActiveTab] = useState<SettingsTab>("appearance");
   const [config, setConfig] = useState({
     name: "",
@@ -84,7 +93,9 @@ export default function AdminSettingsPage() {
     const name = data?.bot_name || "Asistente IA";
     const brand = data?.theme_color || "#F97316";
     const ph = data?.input_placeholder || "Escribe aquí...";
-    const starters = Array.isArray(data?.starters) ? data!.starters!.slice(0, 6) : [];
+    const starters = Array.isArray(data?.starters)
+      ? data!.starters!.slice(0, 6)
+      : [];
     const avatarUrl = `${API_URL}/assets/logo`;
     return { name, brandColor: brand, placeholder: ph, starters, avatarUrl };
   }, [data]);
@@ -118,10 +129,16 @@ export default function AdminSettingsPage() {
     [config, baseline],
   );
 
-  const { checkUnsavedChanges } = useUnsavedChanges(appearanceIsDirty || brainIsDirty);
+  const { checkUnsavedChanges } = useUnsavedChanges(
+    appearanceIsDirty || brainIsDirty,
+  );
 
   const handleTabChange = (targetTab: SettingsTab) => {
-    if (activeTab === "appearance" && appearanceIsDirty && targetTab !== "appearance") {
+    if (
+      activeTab === "appearance" &&
+      appearanceIsDirty &&
+      targetTab !== "appearance"
+    ) {
       checkUnsavedChanges(() => setActiveTab(targetTab));
       return;
     }
@@ -143,16 +160,26 @@ export default function AdminSettingsPage() {
 
   React.useEffect(() => {
     if (!data) return;
-    setTemperature(typeof data.temperature === "number" ? data.temperature : 0.7);
+    setTemperature(
+      typeof data.temperature === "number" ? data.temperature : 0.7,
+    );
     setUiExtra(sanitizeUiExtra(data.ui_prompt_extra));
     setBaselineUiExtra(sanitizeUiExtra(data.ui_prompt_extra));
-    setBaselineTemperature(typeof data.temperature === "number" ? data.temperature : 0.7);
+    setBaselineTemperature(
+      typeof data.temperature === "number" ? data.temperature : 0.7,
+    );
     let cancelled = false;
     botService
       .getState()
-      .then((st) => { if (!cancelled) setIsBotActive(!!st.is_active); })
-      .catch(() => { if (!cancelled) setIsBotActive(false); });
-    return () => { cancelled = true; };
+      .then((st) => {
+        if (!cancelled) setIsBotActive(!!st.is_active);
+      })
+      .catch(() => {
+        if (!cancelled) setIsBotActive(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [data]);
 
   const handleSave = async () => {
@@ -167,7 +194,9 @@ export default function AdminSettingsPage() {
       toast.success("Configuración guardada");
       mutate();
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Error al guardar configuración");
+      toast.error(
+        e instanceof Error ? e.message : "Error al guardar configuración",
+      );
     } finally {
       setSaving(false);
     }
@@ -184,9 +213,12 @@ export default function AdminSettingsPage() {
       setUiExtra(sanitizeUiExtra(updated.ui_prompt_extra));
       setBaselineUiExtra(sanitizeUiExtra(updated.ui_prompt_extra));
       setBaselineTemperature(updated.temperature ?? temperature);
+      mutate();
+      setFieldsLocked(true);
       toast.success("Configuración guardada. Cambios aplicados al bot.");
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Error al guardar configuración";
+      const msg =
+        e instanceof Error ? e.message : "Error al guardar configuración";
       setErrorBrain(msg);
       toast.error(msg);
     } finally {
@@ -194,7 +226,12 @@ export default function AdminSettingsPage() {
     }
   };
 
-  const handleBrainReset = async () => {
+  const [resetConfirmOpen, setResetConfirmOpen] = useState<boolean>(false);
+
+  const handleBrainReset = () => setResetConfirmOpen(true);
+
+  const handleBrainResetConfirmed = async () => {
+    setResetConfirmOpen(false);
     try {
       setSavingBrain(true);
       setErrorBrain(null);
@@ -206,7 +243,8 @@ export default function AdminSettingsPage() {
       mutate();
       toast.success("Configuración restablecida.");
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Error al restablecer configuración";
+      const msg =
+        e instanceof Error ? e.message : "Error al restablecer configuración";
       setErrorBrain(msg);
       toast.error(`Error al restablecer: ${msg}`);
     } finally {
@@ -226,7 +264,9 @@ export default function AdminSettingsPage() {
       setRuntimeData(rt);
       setRuntimeOpen(true);
     } catch (e: unknown) {
-      toast.error(`Error al obtener runtime: ${e instanceof Error ? e.message : String(e)}`);
+      toast.error(
+        `Error al obtener runtime: ${e instanceof Error ? e.message : String(e)}`,
+      );
     } finally {
       setRuntimeLoading(false);
     }
@@ -250,13 +290,23 @@ export default function AdminSettingsPage() {
           aria-hidden="true"
           className="absolute -top-10 -left-10 w-44 h-44 opacity-25 animate-orb-float pointer-events-none"
         >
-          <img src="/assets/decor/glow-orb-violet.svg" alt="" className="w-full h-full" loading="lazy" />
+          <img
+            src="/assets/decor/glow-orb-violet.svg"
+            alt=""
+            className="w-full h-full"
+            loading="lazy"
+          />
         </div>
-        <div aria-hidden="true" className="absolute inset-0 bg-grid opacity-15 pointer-events-none" />
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-grid opacity-15 pointer-events-none"
+        />
 
         <div className="relative px-5 pt-6 pb-5 border-b border-border/60">
           <div className="flex items-center gap-2.5 mb-3">
-            <span className="font-mono text-[10px] text-accent-violet/80 tabular-nums">07 / 09</span>
+            <span className="font-mono text-[10px] text-accent-violet/80 tabular-nums">
+              07 / 09
+            </span>
             <span className="h-px w-6 bg-accent-violet/40" />
           </div>
           <div className="flex items-center gap-2.5 mb-3">
@@ -281,7 +331,11 @@ export default function AdminSettingsPage() {
           </div>
         </div>
 
-        <nav role="tablist" aria-label="Secciones de configuración" className="relative flex-1 overflow-y-auto p-3 space-y-1">
+        <nav
+          role="tablist"
+          aria-label="Secciones de configuración"
+          className="relative flex-1 overflow-y-auto p-3 space-y-1"
+        >
           {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
             const isActive = activeTab === id;
             const isDirty =
@@ -300,14 +354,18 @@ export default function AdminSettingsPage() {
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/60 border border-transparent"
                 }`}
               >
-                <Icon className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${isActive ? "" : "group-hover:scale-110"}`} />
+                <Icon
+                  className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${isActive ? "" : "group-hover:scale-110"}`}
+                />
                 <span className="flex-1">{label}</span>
                 {isDirty && (
-                  <span
-                    className="w-1.5 h-1.5 rounded-full bg-amber flex-shrink-0"
-                    aria-hidden="true"
-                  />
-                  <span className="sr-only">Cambios sin guardar</span>
+                  <>
+                    <span
+                      className="w-1.5 h-1.5 rounded-full bg-amber flex-shrink-0"
+                      aria-hidden="true"
+                    />
+                    <span className="sr-only">Cambios sin guardar</span>
+                  </>
                 )}
               </button>
             );
@@ -323,9 +381,11 @@ export default function AdminSettingsPage() {
             onClick={handleOpenRuntime}
             disabled={runtimeLoading}
           >
-            {runtimeLoading
-              ? <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
-              : <Terminal className="w-3.5 h-3.5 flex-shrink-0" />}
+            {runtimeLoading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+            ) : (
+              <Terminal className="w-3.5 h-3.5 flex-shrink-0" />
+            )}
             ver runtime
           </Button>
         </div>
@@ -363,9 +423,7 @@ export default function AdminSettingsPage() {
             brainIsDirty={brainIsDirty}
           />
         )}
-        {activeTab === "system" && (
-          <SettingsSystemTab isLoading={isLoading} />
-        )}
+        {activeTab === "system" && <SettingsSystemTab isLoading={isLoading} />}
       </main>
 
       {/* ── Runtime dialog ───────────────────────────────────────────────────── */}
@@ -374,7 +432,9 @@ export default function AdminSettingsPage() {
           <DialogHeader>
             <div className="flex items-center gap-2.5 mb-1">
               <Terminal className="h-4 w-4 text-accent-violet" />
-              <DialogTitle className="font-heading">Runtime del bot</DialogTitle>
+              <DialogTitle className="font-heading">
+                Runtime del bot
+              </DialogTitle>
             </div>
             <DialogDescription className="font-mono text-xs">
               estado efectivo · modelo, temperatura, prompt compuesto.
@@ -387,14 +447,25 @@ export default function AdminSettingsPage() {
               </pre>
             ) : (
               <div className="relative overflow-hidden rounded-xl border border-dashed border-border bg-card/40 p-8">
-                <div aria-hidden="true" className="absolute inset-0 bg-grid opacity-25 pointer-events-none" />
+                <div
+                  aria-hidden="true"
+                  className="absolute inset-0 bg-grid opacity-25 pointer-events-none"
+                />
                 <div className="relative flex flex-col items-center text-center gap-3">
                   <div className="text-accent-violet w-24 h-16">
-                    <img src="/assets/decor/empty-brain.svg" alt="" className="w-full h-full" loading="lazy" />
+                    <img
+                      src="/assets/decor/empty-brain.svg"
+                      alt=""
+                      className="w-full h-full"
+                      loading="lazy"
+                    />
                   </div>
-                  <p className="font-heading font-semibold text-sm text-foreground">runtime no disponible</p>
+                  <p className="font-heading font-semibold text-sm text-foreground">
+                    runtime no disponible
+                  </p>
                   <p className="text-xs text-muted-foreground font-mono max-w-xs">
-                    backend no respondió o aún no se ejecutó la consulta inicial.
+                    backend no respondió o aún no se ejecutó la consulta
+                    inicial.
                   </p>
                   <button
                     onClick={handleOpenRuntime}
@@ -407,13 +478,57 @@ export default function AdminSettingsPage() {
               </div>
             )}
             <div className="flex gap-2 justify-end">
-              <Button variant="outline" size="sm" onClick={handleOpenRuntime} disabled={runtimeLoading} className="font-mono text-xs">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleOpenRuntime}
+                disabled={runtimeLoading}
+                className="font-mono text-xs"
+              >
                 {runtimeLoading ? "actualizando..." : "actualizar"}
               </Button>
-              <Button size="sm" onClick={() => setRuntimeOpen(false)} className="font-mono text-xs">
+              <Button
+                size="sm"
+                onClick={() => setRuntimeOpen(false)}
+                className="font-mono text-xs"
+              >
                 cerrar
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Reset confirmation dialog ────────────────────────────────────────── */}
+      <Dialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
+        <DialogContent className="max-w-sm glass border-destructive/30">
+          <DialogHeader>
+            <DialogTitle className="font-heading">
+              ¿Restablecer configuración?
+            </DialogTitle>
+            <DialogDescription className="text-sm">
+              El prompt y la temperatura volverán a sus valores de fábrica. Esta
+              acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2 justify-end pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setResetConfirmOpen(false)}
+              className="font-mono text-xs"
+            >
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={handleBrainResetConfirmed}
+              disabled={savingBrain}
+              className="font-mono text-xs"
+            >
+              {savingBrain ? "Restableciendo…" : "Sí, restablecer"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

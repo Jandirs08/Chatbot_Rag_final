@@ -44,7 +44,7 @@ export function SettingsBrainTab({
         isLoading={isLoading || savingBrain}
         error={errorBrain || undefined}
         canSave={brainIsDirty}
-        canReset={brainIsDirty}
+        canReset={true}
       />
     </div>
   );
