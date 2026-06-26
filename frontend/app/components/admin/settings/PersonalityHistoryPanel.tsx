@@ -15,8 +15,11 @@ interface Props {
 
 function formatDate(iso: string) {
   return new Intl.DateTimeFormat("es-PE", {
-    day: "2-digit", month: "short", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   }).format(new Date(iso));
 }
 
@@ -32,7 +35,9 @@ export function PersonalityHistoryPanel({ onRestored }: Props) {
       const data = await getPersonalityHistory();
       setEntries(data);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Error al cargar historial");
+      toast.error(
+        err instanceof Error ? err.message : "Error al cargar historial",
+      );
     } finally {
       setLoading(false);
     }
@@ -44,19 +49,22 @@ export function PersonalityHistoryPanel({ onRestored }: Props) {
     if (next && entries.length === 0) await loadHistory();
   }, [open, entries.length, loadHistory]);
 
-  const handleRestore = useCallback(async (historyId: string) => {
-    setRestoringId(historyId);
-    try {
-      await restorePersonalityHistory(historyId);
-      toast.success("Versión restaurada correctamente");
-      onRestored();
-      setOpen(false);
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Error al restaurar");
-    } finally {
-      setRestoringId(null);
-    }
-  }, [onRestored]);
+  const handleRestore = useCallback(
+    async (historyId: string) => {
+      setRestoringId(historyId);
+      try {
+        await restorePersonalityHistory(historyId);
+        toast.success("Versión restaurada correctamente");
+        onRestored();
+        setOpen(false);
+      } catch (err: unknown) {
+        toast.error(err instanceof Error ? err.message : "Error al restaurar");
+      } finally {
+        setRestoringId(null);
+      }
+    },
+    [onRestored],
+  );
 
   return (
     <div className="border border-border rounded-lg overflow-hidden">
@@ -67,28 +75,43 @@ export function PersonalityHistoryPanel({ onRestored }: Props) {
         aria-expanded={open}
       >
         <span className="flex items-center gap-2">
-          <History className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+          <History
+            className="w-4 h-4 text-muted-foreground"
+            aria-hidden="true"
+          />
           Historial de versiones
         </span>
         {open ? (
-          <ChevronUp className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+          <ChevronUp
+            className="w-4 h-4 text-muted-foreground"
+            aria-hidden="true"
+          />
         ) : (
-          <ChevronDown className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+          <ChevronDown
+            className="w-4 h-4 text-muted-foreground"
+            aria-hidden="true"
+          />
         )}
       </button>
 
       {open && (
         <div className="border-t border-border">
           {loading ? (
-            <p className="px-4 py-3 text-xs text-muted-foreground">Cargando historial…</p>
+            <p className="px-4 py-3 text-xs text-muted-foreground">
+              Cargando historial…
+            </p>
           ) : entries.length === 0 ? (
             <p className="px-4 py-3 text-xs text-muted-foreground">
-              No hay versiones guardadas aún. Las versiones se crean automáticamente al guardar la personalidad.
+              No hay versiones guardadas aún. Las versiones se crean
+              automáticamente al guardar la personalidad.
             </p>
           ) : (
             <ul role="list" className="divide-y divide-border">
               {entries.map((entry, idx) => (
-                <li key={entry.history_id} className="flex items-center justify-between px-4 py-2.5 gap-3">
+                <li
+                  key={entry.history_id}
+                  className="flex items-center justify-between px-4 py-2.5 gap-3"
+                >
                   <div className="min-w-0">
                     <p className="text-xs font-medium text-foreground truncate">
                       Versión {entries.length - idx}
@@ -96,7 +119,9 @@ export function PersonalityHistoryPanel({ onRestored }: Props) {
                         temp {entry.temperature.toFixed(1)}
                       </span>
                     </p>
-                    <p className="text-[11px] text-muted-foreground">{formatDate(entry.saved_at)}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {formatDate(entry.saved_at)}
+                    </p>
                     {entry.ui_prompt_extra && (
                       <p className="text-[11px] text-muted-foreground truncate max-w-xs">
                         {entry.ui_prompt_extra.slice(0, 60)}…
@@ -112,7 +137,9 @@ export function PersonalityHistoryPanel({ onRestored }: Props) {
                     onClick={() => handleRestore(entry.history_id)}
                   >
                     <RotateCcw className="w-3 h-3 mr-1" aria-hidden="true" />
-                    {restoringId === entry.history_id ? "Restaurando…" : "Restaurar"}
+                    {restoringId === entry.history_id
+                      ? "Restaurando…"
+                      : "Restaurar"}
                   </Button>
                 </li>
               ))}

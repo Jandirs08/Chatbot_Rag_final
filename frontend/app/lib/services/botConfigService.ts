@@ -37,7 +37,12 @@ export const getBotConfig = async (): Promise<BotConfigDTO> => {
   return res.json();
 };
 
-export const getPublicBotConfig = async (): Promise<Pick<BotConfigDTO, "bot_name" | "theme_color" | "starters" | "input_placeholder">> => {
+export const getPublicBotConfig = async (): Promise<
+  Pick<
+    BotConfigDTO,
+    "bot_name" | "theme_color" | "starters" | "input_placeholder"
+  >
+> => {
   const res = await publicFetch(`${API_URL}/bot/config/public`, {
     method: "GET",
   });
@@ -48,7 +53,7 @@ export const getPublicBotConfig = async (): Promise<Pick<BotConfigDTO, "bot_name
 };
 
 export const updateBotConfig = async (
-  payload: UpdateBotConfigRequest
+  payload: UpdateBotConfigRequest,
 ): Promise<BotConfigDTO> => {
   const res = await authenticatedFetch(`${API_URL}/bot/config`, {
     method: "PUT",
@@ -67,7 +72,9 @@ export const resetBotConfig = async (): Promise<BotConfigDTO> => {
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Error restableciendo configuración: ${res.status} ${text}`);
+    throw new Error(
+      `Error restableciendo configuración: ${res.status} ${text}`,
+    );
   }
   return res.json();
 };
@@ -91,11 +98,16 @@ export interface PromptGeneratorRequest {
   website_url?: string;
 }
 
-export const generateBotPrompt = async (payload: PromptGeneratorRequest): Promise<string> => {
-  const res = await authenticatedFetch(`${API_URL}/bot/config/generate-prompt`, {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+export const generateBotPrompt = async (
+  payload: PromptGeneratorRequest,
+): Promise<string> => {
+  const res = await authenticatedFetch(
+    `${API_URL}/bot/config/generate-prompt`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`Error generando prompt: ${res.status} ${text}`);
@@ -117,7 +129,7 @@ export interface PreviewPersonalityResponse {
 }
 
 export const previewPersonality = async (
-  payload: PreviewPersonalityRequest
+  payload: PreviewPersonalityRequest,
 ): Promise<PreviewPersonalityResponse> => {
   const res = await authenticatedFetch(`${API_URL}/bot/config/preview`, {
     method: "POST",
@@ -137,7 +149,9 @@ export interface PersonalityHistoryEntry {
   saved_at: string;
 }
 
-export const getPersonalityHistory = async (): Promise<PersonalityHistoryEntry[]> => {
+export const getPersonalityHistory = async (): Promise<
+  PersonalityHistoryEntry[]
+> => {
   const res = await authenticatedFetch(`${API_URL}/bot/config/history`, {
     method: "GET",
   });
@@ -149,10 +163,15 @@ export const getPersonalityHistory = async (): Promise<PersonalityHistoryEntry[]
   return (data.entries ?? []) as PersonalityHistoryEntry[];
 };
 
-export const restorePersonalityHistory = async (historyId: string): Promise<BotConfigDTO> => {
-  const res = await authenticatedFetch(`${API_URL}/bot/config/history/${encodeURIComponent(historyId)}/restore`, {
-    method: "POST",
-  });
+export const restorePersonalityHistory = async (
+  historyId: string,
+): Promise<BotConfigDTO> => {
+  const res = await authenticatedFetch(
+    `${API_URL}/bot/config/history/${encodeURIComponent(historyId)}/restore`,
+    {
+      method: "POST",
+    },
+  );
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`Error restaurando versión: ${res.status} ${text}`);

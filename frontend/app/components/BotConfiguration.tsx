@@ -3,7 +3,17 @@ import { diff_match_patch } from "diff-match-patch";
 import { Button } from "@/app/components/ui/button";
 import { Label } from "@/app/components/ui/label";
 import { Slider } from "@/app/components/ui/slider";
-import { Save, RotateCcw, AlertCircle, Thermometer, GitCompareArrows, Download, Upload, PlayCircle, X } from "lucide-react";
+import {
+  Save,
+  RotateCcw,
+  AlertCircle,
+  Thermometer,
+  GitCompareArrows,
+  Download,
+  Upload,
+  PlayCircle,
+  X,
+} from "lucide-react";
 import { PromptBuilderAssistant } from "@/app/components/PromptBuilderAssistant";
 import { toast } from "sonner";
 import { previewPersonality } from "@/app/lib/services/botConfigService";
@@ -37,13 +47,22 @@ function tempLabel(t: number) {
 }
 
 function tempDescriptor(t: number) {
-  if (t < 0.3) return "Respuestas muy consistentes y predecibles. Menor riesgo de alucinaciones.";
-  if (t < 0.6) return "Balance entre variedad y precisión. Recomendado para soporte al cliente.";
-  if (t < 0.85) return "Respuestas más variadas y expresivas. Verifica el comportamiento en producción.";
+  if (t < 0.3)
+    return "Respuestas muy consistentes y predecibles. Menor riesgo de alucinaciones.";
+  if (t < 0.6)
+    return "Balance entre variedad y precisión. Recomendado para soporte al cliente.";
+  if (t < 0.85)
+    return "Respuestas más variadas y expresivas. Verifica el comportamiento en producción.";
   return "Alta variabilidad. Riesgo elevado de respuestas inventadas (alucinaciones).";
 }
 
-function PromptDiff({ baseline, current }: { baseline: string; current: string }) {
+function PromptDiff({
+  baseline,
+  current,
+}: {
+  baseline: string;
+  current: string;
+}) {
   const dmp = new diff_match_patch();
   const diffs = dmp.diff_main(baseline, current);
   dmp.diff_cleanupSemantic(diffs);
@@ -51,8 +70,23 @@ function PromptDiff({ baseline, current }: { baseline: string; current: string }
     <pre className="text-[12px] leading-relaxed font-mono whitespace-pre-wrap break-words p-4 bg-background/60 rounded-lg border border-border max-h-64 overflow-y-auto">
       {diffs.map(([op, text], i) => {
         if (op === 0) return <span key={i}>{text}</span>;
-        if (op === 1) return <mark key={i} className="bg-green-500/20 text-green-700 dark:text-green-400 rounded-sm">{text}</mark>;
-        return <del key={i} className="bg-red-500/15 text-red-600 dark:text-red-400 rounded-sm line-through">{text}</del>;
+        if (op === 1)
+          return (
+            <mark
+              key={i}
+              className="bg-green-500/20 text-green-700 dark:text-green-400 rounded-sm"
+            >
+              {text}
+            </mark>
+          );
+        return (
+          <del
+            key={i}
+            className="bg-red-500/15 text-red-600 dark:text-red-400 rounded-sm line-through"
+          >
+            {text}
+          </del>
+        );
       })}
     </pre>
   );
@@ -93,7 +127,9 @@ export function BotConfiguration({
       });
       setPreviewResponse(res.response);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Error al previsualizar");
+      toast.error(
+        err instanceof Error ? err.message : "Error al previsualizar",
+      );
     } finally {
       setPreviewLoading(false);
     }
@@ -101,7 +137,9 @@ export function BotConfiguration({
 
   const handleExport = useCallback(() => {
     const data = JSON.stringify({ prompt, temperature }, null, 2);
-    const url = URL.createObjectURL(new Blob([data], { type: "application/json" }));
+    const url = URL.createObjectURL(
+      new Blob([data], { type: "application/json" }),
+    );
     const a = document.createElement("a");
     a.href = url;
     a.download = "bot-personality.json";
@@ -109,34 +147,44 @@ export function BotConfiguration({
     URL.revokeObjectURL(url);
   }, [prompt, temperature]);
 
-  const handleImport = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const parsed = JSON.parse(ev.target?.result as string);
-        if (typeof parsed.prompt !== "string" || typeof parsed.temperature !== "number") {
-          toast.error("Archivo inválido: debe contener prompt (string) y temperature (number).");
-          return;
+  const handleImport = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const parsed = JSON.parse(ev.target?.result as string);
+          if (
+            typeof parsed.prompt !== "string" ||
+            typeof parsed.temperature !== "number"
+          ) {
+            toast.error(
+              "Archivo inválido: debe contener prompt (string) y temperature (number).",
+            );
+            return;
+          }
+          onPromptChange(parsed.prompt);
+          onTemperatureChange(Math.min(1, Math.max(0, parsed.temperature)));
+          toast.success("Personalidad importada. Revisa y guarda los cambios.");
+        } catch {
+          toast.error("No se pudo leer el archivo JSON.");
         }
-        onPromptChange(parsed.prompt);
-        onTemperatureChange(Math.min(1, Math.max(0, parsed.temperature)));
-        toast.success("Personalidad importada. Revisa y guarda los cambios.");
-      } catch {
-        toast.error("No se pudo leer el archivo JSON.");
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = "";
-  }, [onPromptChange, onTemperatureChange]);
+      };
+      reader.readAsText(file);
+      e.target.value = "";
+    },
+    [onPromptChange, onTemperatureChange],
+  );
 
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border flex-shrink-0">
         <div>
-          <h2 className="text-base font-semibold text-foreground">Personalidad del bot</h2>
+          <h2 className="text-base font-semibold text-foreground">
+            Personalidad del bot
+          </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             Define el tono, restricciones y comportamiento del asistente.
           </p>
@@ -155,8 +203,15 @@ export function BotConfiguration({
       {canSave && (
         <div className="flex-shrink-0 border-b border-amber/20 bg-amber/8">
           <div className="flex items-center justify-between gap-3 px-6 py-2.5">
-            <div aria-live="polite" aria-atomic="true" className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400 font-medium">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" aria-hidden="true" />
+            <div
+              aria-live="polite"
+              aria-atomic="true"
+              className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400 font-medium"
+            >
+              <span
+                className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0"
+                aria-hidden="true"
+              />
               Cambios sin guardar
             </div>
             <div className="flex items-center gap-2">
@@ -199,8 +254,14 @@ export function BotConfiguration({
           {showDiff && baselinePrompt !== undefined && (
             <div className="px-6 pb-4">
               <p className="text-[11px] text-muted-foreground mb-2 font-mono">
-                <mark className="bg-green-500/20 text-green-700 dark:text-green-400 rounded-sm px-1">verde</mark> = añadido &nbsp;
-                <del className="bg-red-500/15 text-red-600 dark:text-red-400 rounded-sm px-1">rojo</del> = eliminado
+                <mark className="bg-green-500/20 text-green-700 dark:text-green-400 rounded-sm px-1">
+                  verde
+                </mark>{" "}
+                = añadido &nbsp;
+                <del className="bg-red-500/15 text-red-600 dark:text-red-400 rounded-sm px-1">
+                  rojo
+                </del>{" "}
+                = eliminado
               </p>
               <PromptDiff baseline={baselinePrompt} current={prompt} />
             </div>
@@ -212,12 +273,18 @@ export function BotConfiguration({
       <div className="flex-1 overflow-y-auto">
         <div className="px-6 py-5 space-y-6">
           {/* Prompt guardrails hints */}
-          {!canSave && prompt.trim().length > 0 && prompt.trim().length < 80 && (
-            <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-muted/60 border border-border text-[11px] text-muted-foreground">
-              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" aria-hidden="true" />
-              El prompt es muy corto para definir una personalidad útil. Considera agregar más contexto.
-            </div>
-          )}
+          {!canSave &&
+            prompt.trim().length > 0 &&
+            prompt.trim().length < 80 && (
+              <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-muted/60 border border-border text-[11px] text-muted-foreground">
+                <AlertCircle
+                  className="w-3.5 h-3.5 flex-shrink-0 mt-0.5"
+                  aria-hidden="true"
+                />
+                El prompt es muy corto para definir una personalidad útil.
+                Considera agregar más contexto.
+              </div>
+            )}
 
           {/* Prompt builder */}
           <PromptBuilderAssistant
@@ -230,11 +297,16 @@ export function BotConfiguration({
           <div className="space-y-3 pt-2 border-t border-border">
             <div className="flex items-center justify-between">
               <Label className="text-sm font-medium flex items-center gap-1.5">
-                <Thermometer className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
+                <Thermometer
+                  className="w-3.5 h-3.5 text-muted-foreground"
+                  aria-hidden="true"
+                />
                 Temperatura del modelo
               </Label>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">{tempLabel(temperature)}</span>
+                <span className="text-xs text-muted-foreground">
+                  {tempLabel(temperature)}
+                </span>
                 <span className="text-sm font-mono font-semibold text-foreground tabular-nums">
                   {temperature.toFixed(1)}
                 </span>
@@ -274,12 +346,18 @@ export function BotConfiguration({
               <span>Preciso</span>
               <span>Creativo</span>
             </div>
-            <p className="text-xs text-muted-foreground">{tempDescriptor(temperature)}</p>
+            <p className="text-xs text-muted-foreground">
+              {tempDescriptor(temperature)}
+            </p>
 
             {temperature >= 0.85 && (
               <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-destructive/8 border border-destructive/20 text-[11px] text-destructive">
-                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" aria-hidden="true" />
-                Alta temperatura puede aumentar respuestas inventadas. Verifica el comportamiento en producción.
+                <AlertCircle
+                  className="w-3.5 h-3.5 flex-shrink-0 mt-0.5"
+                  aria-hidden="true"
+                />
+                Alta temperatura puede aumentar respuestas inventadas. Verifica
+                el comportamiento en producción.
               </div>
             )}
           </div>
@@ -290,10 +368,15 @@ export function BotConfiguration({
       {showPreview && (
         <div className="flex-shrink-0 border-t border-border bg-muted/30 px-6 py-4 space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-foreground">Probar personalidad en borrador</p>
+            <p className="text-xs font-medium text-foreground">
+              Probar personalidad en borrador
+            </p>
             <button
               type="button"
-              onClick={() => { setShowPreview(false); setPreviewResponse(null); }}
+              onClick={() => {
+                setShowPreview(false);
+                setPreviewResponse(null);
+              }}
               className="p-1 rounded hover:bg-accent text-muted-foreground"
               aria-label="Cerrar panel de prueba"
             >
@@ -305,7 +388,9 @@ export function BotConfiguration({
               type="text"
               value={previewMessage}
               onChange={(e) => setPreviewMessage(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") handlePreview(); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handlePreview();
+              }}
               placeholder="Escribe un mensaje de prueba…"
               maxLength={500}
               className="flex-1 h-8 px-3 text-xs rounded-md border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
@@ -327,7 +412,9 @@ export function BotConfiguration({
               aria-live="polite"
               aria-atomic="true"
             >
-              <span className="font-medium text-muted-foreground text-[10px] uppercase tracking-wide block mb-1">Respuesta del bot</span>
+              <span className="font-medium text-muted-foreground text-[10px] uppercase tracking-wide block mb-1">
+                Respuesta del bot
+              </span>
               {previewResponse}
             </div>
           )}
