@@ -14,7 +14,6 @@ from chat.memory import (
 from chat.memory.memory_types import MEM_TO_CLASS, MemoryTypes
 from models import ModelTypes
 from common.objects import Message
-from utils import CacheTypes, ChatbotCache
 from utils.logging_utils import get_logger
 from config import Settings, settings as app_settings
 from common.chunk_utils import extract_text_from_chunk
@@ -36,7 +35,6 @@ class Bot:
         settings: Settings,
         memory_type: Optional[MemoryTypes] = None,
         memory_kwargs: Optional[dict] = None,
-        cache: Optional[CacheTypes] = None,
         model_type: Optional[ModelTypes] = None,
         rag_retriever: Optional[RAGRetriever] = None,
         tools: Optional[Sequence[ToolDefinition]] = None,
@@ -45,27 +43,6 @@ class Bot:
         self.logger = get_logger(self.__class__.__name__)
         self.is_active = True
 
-
-        # Cache
-        has_redis_url = False
-        if getattr(self.settings, "redis_url", None):
-            try:
-                raw_url = (
-                    self.settings.redis_url.get_secret_value()
-                    if hasattr(self.settings.redis_url, 'get_secret_value')
-                    else str(self.settings.redis_url)
-                )
-                has_redis_url = bool(raw_url.strip())
-            except Exception as exc:
-                self.logger.warning("[Bot] Failed to read redis_url secret: %s", exc)
-                has_redis_url = False
-
-        default_cache_type = cache or (
-            CacheTypes.RedisCache if has_redis_url else CacheTypes.InMemoryCache
-        )
-        self._cache = ChatbotCache.create(
-            settings=self.settings, cache_type=default_cache_type
-        )
 
         # Memoria
         self._memory: AbstractChatbotMemory = self.get_memory(
@@ -116,10 +93,6 @@ class Bot:
     @property
     def memory(self):
         return self._memory
-
-    @property
-    def cache(self):
-        return self._cache
 
     def _build_pipeline(self):
         """

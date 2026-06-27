@@ -442,7 +442,6 @@ async def _init_bot(app: FastAPI, s) -> None:
         settings=s,
         memory_type=bot_memory_type,
         memory_kwargs={"conversation_id": "default_session"},
-        cache=None,
         model_type=None,
         rag_retriever=app.state.rag_retriever,
         tools=tool_registry.list_tools(),
