@@ -53,6 +53,12 @@ def get_cors_origins_list() -> list:
             if client_norm not in unique_origins:
                 unique_origins.insert(0, client_norm)
 
+    if settings.environment == "production" and not unique_origins:
+        raise RuntimeError(
+            "CORS: No hay origenes permitidos configurados para produccion. "
+            "Configure CORS_ORIGINS o CLIENT_ORIGIN_URL antes de iniciar."
+        )
+
     main_logger.debug("CORS Origins configurados: %s", unique_origins)
     main_logger.debug("CORS Widget Origins: %s", settings.cors_origins_widget)
     main_logger.debug("CORS Admin Origins: %s", settings.cors_origins_admin)
