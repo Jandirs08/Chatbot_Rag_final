@@ -7,11 +7,11 @@ from operator import itemgetter
 from langchain_core.runnables import RunnableLambda, RunnableMap, Runnable
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, AIMessageChunk
 
-from memory import (
+from chat.memory import (
     AbstractChatbotMemory,
     BaseChatbotMemory
 )
-from memory.memory_types import MEM_TO_CLASS, MemoryTypes
+from chat.memory.memory_types import MEM_TO_CLASS, MemoryTypes
 from models import ModelTypes
 from common.objects import Message
 from utils import CacheTypes, ChatbotCache

@@ -173,7 +173,7 @@ from auth.middleware import AuthenticationMiddleware
 # Dependencias para inicializar managers
 from core.bot import Bot
 from core.tools import bootstrap_tools, registry as tool_registry
-from memory import MemoryTypes
+from chat.memory import MemoryTypes
 from rag.embeddings.embedding_manager import EmbeddingManager
 from rag.vector_store.vector_store import VectorStore
 from rag.ingestion.hierarchical_chunker import HierarchicalChunker

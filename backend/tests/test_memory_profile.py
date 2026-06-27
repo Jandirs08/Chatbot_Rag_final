@@ -15,12 +15,12 @@ from unittest.mock import patch, MagicMock
 
 def _get_extractor():
     """Crea una instancia de BaseChatbotMemory con MongoDB mockeado."""
-    with patch("memory.base_memory.get_mongodb_client") as mock_get_client:
+    with patch("chat.memory.base_memory.get_mongodb_client") as mock_get_client:
         mock_client = MagicMock()
         mock_client.db = {"chat_profiles": MagicMock()}
         mock_get_client.return_value = mock_client
 
-        from memory.base_memory import BaseChatbotMemory
+        from chat.memory.base_memory import BaseChatbotMemory
         return BaseChatbotMemory(
             window_size=5,
             settings=None,
