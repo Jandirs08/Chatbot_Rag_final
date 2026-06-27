@@ -1,4 +1,4 @@
-"""Unit tests for sanitize_doc_content and sanitize_metadata_field in rag.retrieval.retriever."""
+"""Unit tests for sanitize_doc_content and sanitize_metadata_field in rag.retrieval.sanitize."""
 from __future__ import annotations
 
 import pytest
