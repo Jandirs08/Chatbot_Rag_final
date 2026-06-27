@@ -131,7 +131,9 @@ export function BotConfiguration({
             Personalidad del bot
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {locked ? "Modo lectura — haz clic en editar para modificar." : "Define el tono, restricciones y comportamiento del asistente."}
+            {locked
+              ? "Modo lectura — haz clic en editar para modificar."
+              : "Define el tono, restricciones y comportamiento del asistente."}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -152,7 +154,11 @@ export function BotConfiguration({
             aria-label={locked ? "Editar personalidad" : "Editando"}
             className={`h-8 w-8 transition-colors ${locked ? "text-muted-foreground hover:text-accent-violet hover:bg-accent-violet/10" : "text-accent-violet bg-accent-violet/10"}`}
           >
-            {locked ? <Lock className="w-3.5 h-3.5" aria-hidden="true" /> : <Pencil className="w-3.5 h-3.5" aria-hidden="true" />}
+            {locked ? (
+              <Lock className="w-3.5 h-3.5" aria-hidden="true" />
+            ) : (
+              <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
+            )}
           </Button>
         </div>
       </div>
@@ -229,6 +235,31 @@ export function BotConfiguration({
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto">
         <div className="px-6 py-4 space-y-4">
+          {/* Empty state for first-time setup */}
+          {locked && !prompt.trim() && (
+            <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-accent-violet/10 flex items-center justify-center">
+                <Lock className="w-5 h-5 text-accent-violet/60" aria-hidden="true" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">Sin personalidad configurada</p>
+                <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                  Haz clic en el ícono de editar para configurar el tono y comportamiento del asistente.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onUnlock}
+                className="mt-1 gap-2 text-xs border-accent-violet/30 text-accent-violet hover:bg-accent-violet/10"
+              >
+                <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
+                Configurar personalidad
+              </Button>
+            </div>
+          )}
+
           {/* Short prompt guardrail */}
           {!canSave &&
             prompt.trim().length > 0 &&
@@ -242,11 +273,13 @@ export function BotConfiguration({
                 Considera agregar más contexto.
               </div>
             )}
-          <PromptBuilderAssistant
-            prompt={prompt}
-            onPromptChange={onPromptChange}
-            fieldsReadOnly={!!locked}
-          />
+          {!(locked && !prompt.trim()) && (
+            <PromptBuilderAssistant
+              prompt={prompt}
+              onPromptChange={onPromptChange}
+              fieldsReadOnly={!!locked}
+            />
+          )}
         </div>
       </div>
 

@@ -258,6 +258,7 @@ export default function AdminSettingsPage() {
       setBaselineUiExtra("");
       setTemperature(0.7);
       setBaselineTemperature(0.7);
+      setBrainLocked(true);
       mutate();
       toast.success("Configuración restablecida.");
     } catch (e: unknown) {
