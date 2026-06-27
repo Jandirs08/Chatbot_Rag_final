@@ -1,4 +1,4 @@
-from .model_types import ModelTypes as ModelTypes, MODEL_TO_CLASS as MODEL_TO_CLASS
+from .llm_providers import ModelTypes as ModelTypes, MODEL_TO_CLASS as MODEL_TO_CLASS
 from .user import (
     User as User,
     UserCreate as UserCreate,

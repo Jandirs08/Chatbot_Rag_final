@@ -8,7 +8,7 @@ import asyncio
 from typing import Any, Dict
 
 from config import settings
-from domain.model_types import ModelTypes, MODEL_TO_CLASS
+from domain.llm_providers import ModelTypes, MODEL_TO_CLASS
 from infra.logging_utils import get_logger
 
 from .cache_key import parse_verification_json
