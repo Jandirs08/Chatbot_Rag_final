@@ -1,4 +1,4 @@
-"""Debug chat routes — admin only, never persists to DB."""
+﻿"""Debug chat routes â€” admin only, never persists to DB."""
 import json
 import uuid
 import asyncio
@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse
 from api.schemas import ChatRequest
 from auth.permissions import require_view_debug
 from chat.turn_context import get_request_context
-from models.user import User
+from domain.user import User
 from rag.retrieval.retriever import RetrievalBackendUnavailableError
 from infra.logging_utils import get_logger
 
@@ -21,7 +21,7 @@ async def debug_chat_stream(
     request: Request,
     _: User = Depends(require_view_debug),
 ):
-    """Streaming debug chat — admin only.
+    """Streaming debug chat â€” admin only.
 
     Identical pipeline to /chat but:
     - Always runs with debug_mode=True (full metrics + prompt emitted via SSE event: debug)
@@ -32,7 +32,7 @@ async def debug_chat_stream(
     bot = request.app.state.bot_instance
 
     if not bot.is_active:
-        raise HTTPException(status_code=503, detail="El bot está desactivado actualmente")
+        raise HTTPException(status_code=503, detail="El bot estÃ¡ desactivado actualmente")
 
     try:
         data = await request.json()
@@ -42,10 +42,10 @@ async def debug_chat_stream(
     try:
         chat_input = ChatRequest(**data)
     except Exception as e:
-        raise HTTPException(status_code=422, detail=f"Cuerpo de la solicitud inválido: {e}")
+        raise HTTPException(status_code=422, detail=f"Cuerpo de la solicitud invÃ¡lido: {e}")
 
     if not chat_input.input:
-        raise HTTPException(status_code=400, detail="El mensaje no puede estar vacío")
+        raise HTTPException(status_code=400, detail="El mensaje no puede estar vacÃ­o")
 
     input_text = chat_input.input
     conversation_id = chat_input.conversation_id or str(uuid.uuid4())

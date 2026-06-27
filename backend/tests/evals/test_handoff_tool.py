@@ -19,13 +19,14 @@ from __future__ import annotations
 
 import os
 from types import SimpleNamespace
-from typing import Any, AsyncIterator, Optional
+from typing import Any, Optional
 
 import pytest
 
 from core.tools import ToolContext, ToolDefinition, bootstrap_tools, registry
 from core.tools.handoff_tool import HANDOFF_TOOL, HANDOFF_TOOL_NAME
 from chat.tool_dispatch import DispatchEvent, consume_stream
+from helpers import MockChunk, _aiter, _collect
 
 
 pytestmark = pytest.mark.anyio
@@ -34,19 +35,6 @@ pytestmark = pytest.mark.anyio
 # ---------------------------------------------------------------------------
 # Fixtures + mock helpers
 # ---------------------------------------------------------------------------
-
-
-class MockChunk:
-    """Minimal AIMessageChunk-like object the dispatcher knows how to read."""
-
-    def __init__(self, content: str = "", tool_call_chunks: Optional[list[dict]] = None):
-        self.content = content
-        self.tool_call_chunks = tool_call_chunks or []
-
-
-async def _aiter(items: list[Any]) -> AsyncIterator[Any]:
-    for it in items:
-        yield it
 
 
 @pytest.fixture
@@ -61,13 +49,6 @@ def handoff_registry():
 @pytest.fixture
 def tool_ctx():
     return ToolContext(conversation_id="conv-test-1", user_input="hola")
-
-
-async def _collect(chunks: list[Any], ctx: ToolContext, **kwargs) -> list[DispatchEvent]:
-    out: list[DispatchEvent] = []
-    async for ev in consume_stream(_aiter(chunks), ctx, **kwargs):
-        out.append(ev)
-    return out
 
 
 # ---------------------------------------------------------------------------

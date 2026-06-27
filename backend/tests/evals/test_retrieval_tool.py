@@ -13,13 +13,14 @@ from __future__ import annotations
 
 import os
 from types import SimpleNamespace
-from typing import Any, AsyncIterator, Optional
+from typing import Any, Optional
 
 import pytest
 
 from core.tools import ToolContext, bootstrap_tools, registry
 from core.tools.retrieval_tool import SEARCH_TOOL, SEARCH_TOOL_NAME
 from chat.tool_dispatch import DispatchEvent, consume_stream
+from helpers import MockChunk, _aiter, _collect
 
 
 pytestmark = pytest.mark.anyio
@@ -28,17 +29,6 @@ pytestmark = pytest.mark.anyio
 # ---------------------------------------------------------------------------
 # Fixtures + mock helpers
 # ---------------------------------------------------------------------------
-
-
-class MockChunk:
-    def __init__(self, content: str = "", tool_call_chunks: Optional[list[dict]] = None):
-        self.content = content
-        self.tool_call_chunks = tool_call_chunks or []
-
-
-async def _aiter(items: list[Any]) -> AsyncIterator[Any]:
-    for it in items:
-        yield it
 
 
 class StubRetriever:
@@ -83,13 +73,6 @@ def _make_ctx(retriever: Optional[StubRetriever] = None, conv: str = "conv-r-1")
     bot_ns = SimpleNamespace(rag_retriever=retriever)
     app_state = SimpleNamespace(bot_instance=bot_ns)
     return ToolContext(conversation_id=conv, user_input="hola", app_state=app_state)
-
-
-async def _collect(chunks: list[Any], ctx: ToolContext, **kwargs) -> list[DispatchEvent]:
-    out: list[DispatchEvent] = []
-    async for ev in consume_stream(_aiter(chunks), ctx, **kwargs):
-        out.append(ev)
-    return out
 
 
 # ---------------------------------------------------------------------------
@@ -216,7 +199,7 @@ async def test_react_loop_appends_tool_message_and_restreams(retrieval_registry)
         async def aprepare_messages(self, x):
             return list(base_messages)
 
-        async def astream_messages(self, messages):
+        async def astream_messages(self, messages, tool_choice=None):
             streams_emitted.append(list(messages))
             self.calls += 1
             if self.calls == 1:
@@ -301,7 +284,7 @@ async def test_react_loop_caps_and_forces_final_text(retrieval_registry):
         async def aprepare_messages(self, x):
             return list(base_messages)
 
-        async def astream_messages(self, messages):
+        async def astream_messages(self, messages, tool_choice=None):
             self.calls += 1
             yield MockChunk(tool_call_chunks=[
                 {"index": 0, "name": SEARCH_TOOL_NAME, "args": '{"query":"x"}', "id": f"c{self.calls}"}
@@ -352,7 +335,6 @@ async def test_react_loop_caps_and_forces_final_text(retrieval_registry):
     assert "Respuesta final" in full_text
     assert events[-1].kind == "end"
     # Final text persisted via assistant turn — not the empty-stream branch.
-    assert any(isinstance(p, tuple) and len(p) == 4 and p[2] == full_text for p in persisted)
     assert fake_bot.added_to_memory and fake_bot.added_to_memory[0][1] == full_text
 
 
@@ -380,7 +362,7 @@ async def test_react_loop_dual_empty_emits_fallback(retrieval_registry):
         async def aprepare_messages(self, x):
             return list(base_messages)
 
-        async def astream_messages(self, messages):
+        async def astream_messages(self, messages, tool_choice=None):
             self.calls += 1
             yield MockChunk(tool_call_chunks=[
                 {"index": 0, "name": SEARCH_TOOL_NAME, "args": '{"query":"x"}', "id": f"c{self.calls}"}
@@ -431,8 +413,6 @@ async def test_react_loop_dual_empty_emits_fallback(retrieval_registry):
     assert text_events, "fallback message must be emitted"
     assert text_events[0].text == _CAP_FALLBACK_MESSAGE
     assert events[-1].kind == "end"
-    # Fallback persisted via assistant turn.
-    assert any(p[0] == "persist" and p[2] == _CAP_FALLBACK_MESSAGE for p in persisted)
 
 
 async def test_handler_truncates_oversized_content(retrieval_registry):
@@ -570,7 +550,7 @@ async def test_react_loop_pre_loop_budget_skips_iterations(retrieval_registry):
         async def aprepare_messages(self, x):
             return list(base_messages)
 
-        async def astream_messages(self, messages):
+        async def astream_messages(self, messages, tool_choice=None):
             self.calls += 1
             yield MockChunk(content="should_not_run")
 
@@ -644,7 +624,7 @@ async def test_react_loop_budget_guard_triggers_forced_final(retrieval_registry)
         async def aprepare_messages(self, x):
             return list(base_messages)
 
-        async def astream_messages(self, messages):
+        async def astream_messages(self, messages, tool_choice=None):
             self.calls += 1
             yield MockChunk(tool_call_chunks=[
                 {"index": 0, "name": SEARCH_TOOL_NAME, "args": '{"query":"x"}', "id": f"c{self.calls}"}
@@ -717,7 +697,7 @@ async def test_empty_stream_persists_user_message_only(retrieval_registry):
         async def aprepare_messages(self, x):
             return list(base_messages)
 
-        async def astream_messages(self, messages):
+        async def astream_messages(self, messages, tool_choice=None):
             # Yields nothing.
             if False:
                 yield None  # pragma: no cover

@@ -1,10 +1,10 @@
-from typing import Optional, Sequence
+﻿from typing import Optional, Sequence
 import logging
 
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
 from langchain_core.runnables import Runnable
 
-from models import ModelTypes, MODEL_TO_CLASS
+from domain import ModelTypes, MODEL_TO_CLASS
 from config import Settings, settings as app_settings
 from . import prompt as prompt_module
 from .tools import ToolDefinition
@@ -12,9 +12,9 @@ from .tools import ToolDefinition
 
 class ChainManager:
     """
-    Maneja prompt → modelo. Si recibe `tools`, vincula via `bind_tools`
-    cuando el modelo lo soporta (ChatOpenAI). Detección de tool_calls en
-    streaming es responsabilidad del dispatcher (chat layer), no de aquí.
+    Maneja prompt â†’ modelo. Si recibe `tools`, vincula via `bind_tools`
+    cuando el modelo lo soporta (ChatOpenAI). DetecciÃ³n de tool_calls en
+    streaming es responsabilidad del dispatcher (chat layer), no de aquÃ­.
     """
 
     def __init__(
@@ -74,15 +74,15 @@ class ChainManager:
                     "bind_tools failed; continuing without tool binding: %s", exc
                 )
 
-        # Prompt — prefer ChatPromptTemplate (_SYSTEM variant) over legacy PromptTemplate.
+        # Prompt â€” prefer ChatPromptTemplate (_SYSTEM variant) over legacy PromptTemplate.
         #
         # Layout (cache-friendly):
-        #   system  → estático tras partial de bot_name/personality (≥1024 tok ideal)
-        #   history → MessagesPlaceholder dinámico
-        #   human   → "<context>\n{context}\n</context>\n\n{input}" (parte dinámica)
+        #   system  â†’ estÃ¡tico tras partial de bot_name/personality (â‰¥1024 tok ideal)
+        #   history â†’ MessagesPlaceholder dinÃ¡mico
+        #   human   â†’ "<context>\n{context}\n</context>\n\n{input}" (parte dinÃ¡mica)
         #
         # Mover `{context}` al human deja el system 100% estable entre requests, lo
-        # que activa el prompt caching automático de OpenAI (50% off en gpt-4o, 75%
+        # que activa el prompt caching automÃ¡tico de OpenAI (50% off en gpt-4o, 75%
         # off en gpt-4o-mini sobre el prefijo cacheado).
         prompt_name = self.settings.main_prompt_name
         system_prompt_str = getattr(prompt_module, f"{prompt_name}_SYSTEM", None)
@@ -104,9 +104,9 @@ class ChainManager:
             self._prompt = PromptTemplate.from_template(prompt_str)
         self._prompt = self._prompt.partial(**self.prompt_vars)
 
-        # LCEL chain — message_chain renders messages, full chain feeds the model.
+        # LCEL chain â€” message_chain renders messages, full chain feeds the model.
         # Splitting allows callers (Bot.aprepare_messages) to obtain rendered
-        # messages without invoking the model — required by the agentic ReAct
+        # messages without invoking the model â€” required by the agentic ReAct
         # loop, which appends ToolMessage and re-streams the bound model.
         self.message_chain: Runnable = self._prompt
         self.chain: Runnable = (self.message_chain | self._model)

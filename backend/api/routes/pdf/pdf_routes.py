@@ -1,4 +1,4 @@
-"""API routes for PDF management."""
+﻿"""API routes for PDF management."""
 import datetime
 import logging
 from pathlib import Path
@@ -16,7 +16,7 @@ from api.schemas import (
 )
 from auth.permissions import require_manage_documents
 from config import settings
-from models.user import User
+from domain.user import User
 from infra.rate_limiter import conditional_limit
 from infra.audit import audit
 
@@ -103,12 +103,12 @@ async def upload_pdf(
             if file_size > request.app.state.settings.max_file_size_mb * 1024 * 1024:
                 raise HTTPException(
                     status_code=413,
-                    detail=f"Archivo excede el tamaño maximo permitido de {request.app.state.settings.max_file_size_mb}MB",
+                    detail=f"Archivo excede el tamaÃ±o maximo permitido de {request.app.state.settings.max_file_size_mb}MB",
                 )
         await file.seek(0)
         magic = await file.read(4)
         if magic != b"%PDF":
-            raise HTTPException(status_code=415, detail="El archivo no es un PDF válido")
+            raise HTTPException(status_code=415, detail="El archivo no es un PDF vÃ¡lido")
         await file.seek(0)
 
         file_path = await pdf_file_manager.save_pdf(file)

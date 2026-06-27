@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any, AsyncGenerator, Sequence
+﻿from typing import Optional, Dict, Any, AsyncGenerator, Sequence
 import time
 import asyncio
 import uuid
@@ -12,7 +12,7 @@ from chat.memory import (
     BaseChatbotMemory
 )
 from chat.memory.memory_types import MEM_TO_CLASS, MemoryTypes
-from models import ModelTypes
+from domain import ModelTypes
 from common.objects import Message
 from infra.logging_utils import get_logger
 from config import Settings, settings as app_settings
@@ -27,7 +27,7 @@ from database.retrieval_log_repository import GAP_REASONS, schedule_log_retrieva
 class Bot:
     """
     Pipeline LCEL limpio:
-    input → memory → history → context (RAG) → prompt → modelo.
+    input â†’ memory â†’ history â†’ context (RAG) â†’ prompt â†’ modelo.
     """
 
     def __init__(
@@ -68,8 +68,8 @@ class Bot:
     def reload_chain(self, new_settings: Optional[Settings] = None):
         """Recarga la chain del bot aplicando nuevos settings.
 
-        Reinstancia el ChainManager con la configuración actualizada y
-        reconstruye el pipeline LCEL completo (history/context → prompt → modelo).
+        Reinstancia el ChainManager con la configuraciÃ³n actualizada y
+        reconstruye el pipeline LCEL completo (history/context â†’ prompt â†’ modelo).
         """
         try:
             # Actualizar settings si se proveen
@@ -87,7 +87,7 @@ class Bot:
             self._build_pipeline()
             self.logger.info("Chain del bot recargada correctamente con nuevos settings.")
         except Exception as e:
-            # No levantar excepción para no romper la petición; logueamos el error.
+            # No levantar excepciÃ³n para no romper la peticiÃ³n; logueamos el error.
             self.logger.error(f"Error recargando chain del bot: {e}")
 
     @property
@@ -97,11 +97,11 @@ class Bot:
     def _build_pipeline(self):
         """
         Construye el pipeline LCEL completo:
-        {input, history, context} → prompt → modelo.
+        {input, history, context} â†’ prompt â†’ modelo.
 
-        Además expone `_message_pipeline` (todo lo previo al modelo) para que
+        AdemÃ¡s expone `_message_pipeline` (todo lo previo al modelo) para que
         `aprepare_messages` pueda renderizar la lista de `BaseMessage` sin
-        invocar al LLM — base del bucle ReAct cuando hay tools de continuation.
+        invocar al LLM â€” base del bucle ReAct cuando hay tools de continuation.
         """
         prompt_model_chain: Runnable = self.chain_manager.runnable_chain
         message_chain: Runnable = self.chain_manager.message_chain
@@ -128,11 +128,11 @@ class Bot:
 
 
         async def get_context_async(x):
-            """Inyecta contexto RAG y evita contexto vacío con un mensaje explícito."""
+            """Inyecta contexto RAG y evita contexto vacÃ­o con un mensaje explÃ­cito."""
             req_ctx = get_request_context()
-            fallback_ctx = "No hay información adicional recuperada para esta consulta."
-            # Agentic RAG: el modelo decide cuándo invocar `search_documents`.
-            # Saltamos la inyección eager para que la herramienta dirija el retrieval.
+            fallback_ctx = "No hay informaciÃ³n adicional recuperada para esta consulta."
+            # Agentic RAG: el modelo decide cuÃ¡ndo invocar `search_documents`.
+            # Saltamos la inyecciÃ³n eager para que la herramienta dirija el retrieval.
             if getattr(self.settings, "enable_agentic_rag", False):
                 req_ctx.gating_reason = "agentic_rag_enabled"
                 return fallback_ctx
@@ -337,7 +337,7 @@ class Bot:
     async def astream_chunked(self, x: Dict[str, Any], min_chunk_chars: int = 128) -> AsyncGenerator[str, None]:
         if getattr(self.settings, "mock_mode", False):
             await asyncio.sleep(1.5)
-            yield " [MOCK] Respuesta simulada para prueba de carga. Sistema operativo bajo estrés. "
+            yield " [MOCK] Respuesta simulada para prueba de carga. Sistema operativo bajo estrÃ©s. "
             return
 
         conversation_id = x.get("conversation_id", "default_session")
@@ -381,7 +381,7 @@ class Bot:
             )
 
     def _format_history_str(self, hist_list) -> str:
-        """String version used by debug/classification — NOT for LangChain prompt."""
+        """String version used by debug/classification â€” NOT for LangChain prompt."""
         lines = []
         for msg in hist_list:
             role = msg.get("role", "unknown")

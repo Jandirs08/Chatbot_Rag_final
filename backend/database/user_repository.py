@@ -1,11 +1,11 @@
-"""User repository for MongoDB operations."""
+﻿"""User repository for MongoDB operations."""
 import logging
 from datetime import datetime, timezone
 from typing import Optional, List
 from pymongo.errors import DuplicateKeyError
 from bson import ObjectId
 
-from models.user import User, UserCreate, UserUpdate
+from domain.user import User, UserCreate, UserUpdate
 from database.mongodb import MongodbClient
 
 logger = logging.getLogger(__name__)
@@ -22,12 +22,12 @@ class UserRepository:
         """
         self.mongodb_client = mongodb_client
         self.collection_name = "users"
-        # Los índices se aplican en el arranque de la aplicación (lifespan)
+        # Los Ã­ndices se aplican en el arranque de la aplicaciÃ³n (lifespan)
         # para evitar corutinas no esperadas dentro de __init__.
     
     def _ensure_indexes(self):
-        """Deprecated: índices se aseguran desde MongodbClient en el startup."""
-        logger.debug("_ensure_indexes() no-op; índices manejados en app startup.")
+        """Deprecated: Ã­ndices se aseguran desde MongodbClient en el startup."""
+        logger.debug("_ensure_indexes() no-op; Ã­ndices manejados en app startup.")
     
     async def create_user(self, user_data: UserCreate, hashed_password: str) -> Optional[User]:
         """Create a new user in the database.

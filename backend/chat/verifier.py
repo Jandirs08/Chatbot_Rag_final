@@ -1,14 +1,14 @@
-"""Verificador de respuestas (fact-checker) usado en modo debug.
+﻿"""Verificador de respuestas (fact-checker) usado en modo debug.
 
 Reutiliza el LLM configurado en el bot pero con `temperature=0` para evitar
-veredictos inestables. Se ejecuta solo cuando el cliente pide verificación
-explícita en debug, NO en el camino productivo de streaming.
+veredictos inestables. Se ejecuta solo cuando el cliente pide verificaciÃ³n
+explÃ­cita en debug, NO en el camino productivo de streaming.
 """
 import asyncio
 from typing import Any, Dict
 
 from config import settings
-from models.model_types import ModelTypes, MODEL_TO_CLASS
+from domain.model_types import ModelTypes, MODEL_TO_CLASS
 from infra.logging_utils import get_logger
 
 from .cache_key import parse_verification_json
@@ -17,13 +17,13 @@ logger = get_logger(__name__)
 
 
 _VERIFIER_PROMPT = (
-    "Eres un Auditor de Hechos (Fact-Checker) estricto. Tu única misión es validar si la RESPUESTA del asistente se basa EXCLUSIVAMENTE en el CONTEXTO provisto.\n\n"
-    "REGLAS DE AUDITORÍA:\n"
-    "1. Datos Duros: Si la respuesta contiene números, precios, fechas, nombres propios o códigos que NO aparecen textualmente en el contexto: ES ALUCINACIÓN (False).\n"
-    "2. Invención de Información: Si la respuesta afirma características, políticas o instrucciones que no existen en el contexto: ES ALUCINACIÓN (False).\n"
-    "3. Conocimiento Externo: Si la respuesta usa información general (que GPT sabe por entrenamiento) pero que no está en el documento (ej: 'El cielo es azul'): ES ALUCINACIÓN (False). Solo vale lo que está en el PDF.\n"
-    "4. Excepción Social: Ignora saludos ('Hola'), despedidas o frases de cortesía ('Estoy para ayudarte'). Eso NO es alucinación.\n\n"
-    "Analiza paso a paso y responde SOLO en formato JSON: { 'is_grounded': bool, 'reason': 'Explica brevemente qué dato específico no se encontró en el contexto' }\n\n"
+    "Eres un Auditor de Hechos (Fact-Checker) estricto. Tu Ãºnica misiÃ³n es validar si la RESPUESTA del asistente se basa EXCLUSIVAMENTE en el CONTEXTO provisto.\n\n"
+    "REGLAS DE AUDITORÃA:\n"
+    "1. Datos Duros: Si la respuesta contiene nÃºmeros, precios, fechas, nombres propios o cÃ³digos que NO aparecen textualmente en el contexto: ES ALUCINACIÃ“N (False).\n"
+    "2. InvenciÃ³n de InformaciÃ³n: Si la respuesta afirma caracterÃ­sticas, polÃ­ticas o instrucciones que no existen en el contexto: ES ALUCINACIÃ“N (False).\n"
+    "3. Conocimiento Externo: Si la respuesta usa informaciÃ³n general (que GPT sabe por entrenamiento) pero que no estÃ¡ en el documento (ej: 'El cielo es azul'): ES ALUCINACIÃ“N (False). Solo vale lo que estÃ¡ en el PDF.\n"
+    "4. ExcepciÃ³n Social: Ignora saludos ('Hola'), despedidas o frases de cortesÃ­a ('Estoy para ayudarte'). Eso NO es alucinaciÃ³n.\n\n"
+    "Analiza paso a paso y responde SOLO en formato JSON: { 'is_grounded': bool, 'reason': 'Explica brevemente quÃ© dato especÃ­fico no se encontrÃ³ en el contexto' }\n\n"
     "CONSULTA:\n{query}\n\n"
     "CONTEXTO:\n{context}\n\n"
     "RESPUESTA:\n{response}\n"
@@ -103,5 +103,5 @@ class ResponseVerifier:
                 grounded = 'true' in low and 'false' not in low
             return {"is_grounded": grounded, "reason": txt[:400]}
         except Exception as e:
-            logger.warning(f"Error en verificación de respuesta: {e}")
+            logger.warning(f"Error en verificaciÃ³n de respuesta: {e}")
             return {"is_grounded": False, "reason": "Error verificando respuesta"}

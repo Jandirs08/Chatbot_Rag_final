@@ -1,4 +1,4 @@
-"""API routes for user management.
+﻿"""API routes for user management.
 
 Proteccion: los endpoints requieren el permiso semantico manage_users.
 Hoy manage_users mapea a admin; la dependencia queda lista para roles futuros.
@@ -14,7 +14,7 @@ from starlette.responses import Response
 from database.user_repository import UserRepository, get_user_repository
 from auth.password_handler import hash_password
 from auth.permissions import require_manage_users
-from models.user import User
+from domain.user import User
 from infra.audit import audit
 from api.schemas.pagination import Page
 
@@ -98,7 +98,7 @@ async def list_users(
         try:
             users.append(User(**doc))
         except ValidationError as ve:
-            logger.warning(f"Documento de usuario inválido omitido: {ve}")
+            logger.warning(f"Documento de usuario invÃ¡lido omitido: {ve}")
             continue
 
     return Page[UserResponse].build(

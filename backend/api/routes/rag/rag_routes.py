@@ -1,4 +1,4 @@
-"""API routes for RAG management."""
+﻿"""API routes for RAG management."""
 import datetime
 import logging
 from pathlib import Path
@@ -19,7 +19,7 @@ from api.schemas import (
     RetrieveDebugResponse,
 )
 from auth.permissions import require_manage_documents, require_view_debug
-from models.user import User
+from domain.user import User
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

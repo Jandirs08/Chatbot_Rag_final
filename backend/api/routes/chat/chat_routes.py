@@ -1,4 +1,4 @@
-"""API routes for chat management."""
+﻿"""API routes for chat management."""
 from infra.logging_utils import get_logger
 import uuid
 import json
@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 import csv
 
-# Importar modelos Pydantic desde el módulo centralizado
+# Importar modelos Pydantic desde el mÃ³dulo centralizado
 from api.schemas import (
     ChatRequest
 )
@@ -20,7 +20,7 @@ from infra.rate_limiter import conditional_limit
 from config import settings
 from auth.dependencies import get_current_active_user, get_optional_current_user
 from auth.permissions import require_view_debug
-from models.user import User
+from domain.user import User
 from chat.turn_context import get_request_context
 from rag.retrieval.retriever import RetrievalBackendUnavailableError
 from database.conversation_repository import ConversationRepository
@@ -58,8 +58,8 @@ async def _classify_web(conversation_id: str, app_state) -> None:
         except Exception:
             pass
 
-# 🌐 NOTA: Todas las rutas de este módulo son PÚBLICAS
-# No requieren autenticación para permitir acceso libre al chat
+# ðŸŒ NOTA: Todas las rutas de este mÃ³dulo son PÃšBLICAS
+# No requieren autenticaciÃ³n para permitir acceso libre al chat
 
 @router.post("/")
 @conditional_limit(settings.chat_rate_limit)
@@ -76,7 +76,7 @@ async def chat_stream_log(
         if not bot.is_active:
             raise HTTPException(
                 status_code=503,
-                detail="El bot está desactivado actualmente"
+                detail="El bot estÃ¡ desactivado actualmente"
             )
             
         try:
@@ -87,8 +87,8 @@ async def chat_stream_log(
         try:
             chat_input = ChatRequest(**data)
         except Exception as pydantic_error:
-            logger.error(f"Error de validación en la entrada de chat_stream_log: {pydantic_error}")
-            raise HTTPException(status_code=422, detail=f"Cuerpo de la solicitud inválido: {pydantic_error}")
+            logger.error(f"Error de validaciÃ³n en la entrada de chat_stream_log: {pydantic_error}")
+            raise HTTPException(status_code=422, detail=f"Cuerpo de la solicitud invÃ¡lido: {pydantic_error}")
 
         input_text = chat_input.input
         conversation_id = chat_input.conversation_id or str(uuid.uuid4())
@@ -99,7 +99,7 @@ async def chat_stream_log(
         enable_verification = bool(getattr(chat_input, "enable_verification", False))
         
         if not input_text:
-            raise HTTPException(status_code=400, detail="El mensaje no puede estar vacío")
+            raise HTTPException(status_code=400, detail="El mensaje no puede estar vacÃ­o")
         
         logger.info(f"[CHAT] Request: '{input_text[:50]}...' conv={conversation_id}")
 
@@ -153,7 +153,7 @@ async def chat_stream_log(
                         app_state=request.app.state,
                     ):
                         if await request.is_disconnected():
-                            logger.info(f"[CHAT] Cliente desconectó | conv={conversation_id}")
+                            logger.info(f"[CHAT] Cliente desconectÃ³ | conv={conversation_id}")
                             return
                         if event.kind == "text" and event.text:
                             yield f"data: {json.dumps({'stream': event.text})}\n\n"
@@ -167,8 +167,8 @@ async def chat_stream_log(
                                     "(lead already captured)"
                                 )
                                 already_msg = (
-                                    "Ya tenemos tus datos, un asesor te contactará en breve. "
-                                    "¿Algo más?"
+                                    "Ya tenemos tus datos, un asesor te contactarÃ¡ en breve. "
+                                    "Â¿Algo mÃ¡s?"
                                 )
                                 yield f"data: {json.dumps({'stream': already_msg})}\n\n"
                                 continue
@@ -193,7 +193,7 @@ async def chat_stream_log(
                     except Exception:
                         pass
                     err_payload = json.dumps({
-                        "message": "Lo siento, ocurrió un error al procesar tu mensaje. Por favor, inténtalo nuevamente."
+                        "message": "Lo siento, ocurriÃ³ un error al procesar tu mensaje. Por favor, intÃ©ntalo nuevamente."
                     })
                     yield f"event: error\ndata: {err_payload}\n\n"
                     yield "event: end\ndata: {}\n\n"
@@ -205,7 +205,7 @@ async def chat_stream_log(
                 logger.debug(f"[CHAT] Streaming iniciado | conv={conversation_id}")
                 async for chunk in stream_gen:
                     if await request.is_disconnected():
-                        logger.info(f"[CHAT] Cliente desconectó durante streaming | conv={conversation_id}")
+                        logger.info(f"[CHAT] Cliente desconectÃ³ durante streaming | conv={conversation_id}")
                         await stream_gen.aclose()
                         return
                     try:
@@ -227,7 +227,7 @@ async def chat_stream_log(
                 yield "event: end\ndata: {}\n\n"
             except asyncio.TimeoutError:
                 err_payload = json.dumps({
-                    "message": "Lo siento, la respuesta está tardando más de lo esperado. Por favor, inténtalo nuevamente en unos segundos."
+                    "message": "Lo siento, la respuesta estÃ¡ tardando mÃ¡s de lo esperado. Por favor, intÃ©ntalo nuevamente en unos segundos."
                 })
                 yield f"event: error\ndata: {err_payload}\n\n"
                 yield "event: end\ndata: {}\n\n"
@@ -243,7 +243,7 @@ async def chat_stream_log(
                 except Exception:
                     pass
                 err_payload = json.dumps({
-                    "message": "Lo siento, ocurrió un error al procesar tu mensaje. Por favor, inténtalo nuevamente."
+                    "message": "Lo siento, ocurriÃ³ un error al procesar tu mensaje. Por favor, intÃ©ntalo nuevamente."
                 })
                 yield f"event: error\ndata: {err_payload}\n\n"
                 yield "event: end\ndata: {}\n\n"
@@ -280,16 +280,16 @@ async def get_history(
     limit: int = Query(_HISTORY_DEFAULT_LIMIT, ge=1, le=_HISTORY_MAX_LIMIT),
     current_user: Optional[User] = Depends(get_optional_current_user),
 ):
-    """Devuelve historial de mensajes (más recientes primero, devueltos en orden ASC).
+    """Devuelve historial de mensajes (mÃ¡s recientes primero, devueltos en orden ASC).
 
     - Devuelve hasta `limit` mensajes (default 500, max 2000).
     - Headers: `X-Total-Messages` (total real), `X-Truncated` (1 si total > limit).
-    - Sin paginación cursor todavía; el cliente debería paginar cuando supere el cap.
+    - Sin paginaciÃ³n cursor todavÃ­a; el cliente deberÃ­a paginar cuando supere el cap.
     """
     try:
         uuid.UUID(conversation_id)
     except ValueError:
-        raise HTTPException(status_code=400, detail="conversation_id inválido")
+        raise HTTPException(status_code=400, detail="conversation_id invÃ¡lido")
     try:
         chat_manager = request.app.state.chat_manager
         db = chat_manager.db
@@ -352,10 +352,10 @@ async def get_history(
 
 def _normalize_messages_for_export(messages):
     """
-    Normaliza documentos de la colección `messages` para exportación.
+    Normaliza documentos de la colecciÃ³n `messages` para exportaciÃ³n.
     - Elimina `_id`
     - Crea `Fecha y Hora` (Lima) desde `timestamp`
-    - Ordena del más reciente al más antiguo
+    - Ordena del mÃ¡s reciente al mÃ¡s antiguo
     - Renombra columnas base
     - Mantiene columnas extra sin alterar
     """
@@ -375,14 +375,14 @@ def _normalize_messages_for_export(messages):
         df['Fecha y Hora'] = '-'
         df = df.sort_values(['Fecha y Hora'], ascending=False)
     if 'conversation_id' in df.columns:
-        df = df.rename(columns={'conversation_id': 'ID Conversación'})
+        df = df.rename(columns={'conversation_id': 'ID ConversaciÃ³n'})
     if 'role' in df.columns:
         df = df.rename(columns={'role': 'Rol'})
     if 'content' in df.columns:
         df = df.rename(columns={'content': 'Mensaje'})
     if 'source' in df.columns:
         df = df.rename(columns={'source': 'Fuente'})
-    base_cols = [c for c in ['ID Conversación', 'Fecha y Hora', 'Rol', 'Mensaje', 'Fuente'] if c in df.columns]
+    base_cols = [c for c in ['ID ConversaciÃ³n', 'Fecha y Hora', 'Rol', 'Mensaje', 'Fuente'] if c in df.columns]
     extras = [c for c in df.columns if c not in base_cols]
     ordered = base_cols + sorted(extras)
     df = df[ordered]
@@ -390,7 +390,7 @@ def _normalize_messages_for_export(messages):
 
 
 def _process_export(messages, format: str, current_time: str) -> tuple[bytes, str, str]:
-    """Procesa la exportación en un hilo separado para no bloquear el event loop."""
+    """Procesa la exportaciÃ³n en un hilo separado para no bloquear el event loop."""
     import pandas as pd
     import json as pyjson
     
@@ -398,7 +398,7 @@ def _process_export(messages, format: str, current_time: str) -> tuple[bytes, st
         output = BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             if not messages:
-                df = pd.DataFrame(columns=['ID Conversación', 'Fecha y Hora', 'Rol', 'Mensaje'])
+                df = pd.DataFrame(columns=['ID ConversaciÃ³n', 'Fecha y Hora', 'Rol', 'Mensaje'])
                 lima_now = datetime.now(ZoneInfo("America/Lima")).strftime('%Y-%m-%d %H:%M:%S')
                 df.loc[0] = ["-", lima_now, "info", "Sin conversaciones registradas"]
                 df.to_excel(writer, sheet_name='Conversaciones', index=False)
@@ -417,7 +417,7 @@ def _process_export(messages, format: str, current_time: str) -> tuple[bytes, st
                     worksheet.write(0, col_num, value, header_format)
 
                 current_conversation = None
-                id_idx = df.columns.get_loc('ID Conversación') if 'ID Conversación' in df.columns else None
+                id_idx = df.columns.get_loc('ID ConversaciÃ³n') if 'ID ConversaciÃ³n' in df.columns else None
                 for row_num, row in enumerate(df.itertuples(index=False), start=1):
                     conv = row[id_idx] if id_idx is not None else None
                     if conv != current_conversation:
@@ -429,7 +429,7 @@ def _process_export(messages, format: str, current_time: str) -> tuple[bytes, st
                             continue
                         worksheet.write(row_num, col_idx, row[col_idx], cell_format)
 
-                if 'ID Conversación' in df.columns:
+                if 'ID ConversaciÃ³n' in df.columns:
                     worksheet.set_column(id_idx, id_idx, 36)
                 if 'Fecha y Hora' in df.columns:
                     ts_idx = df.columns.get_loc('Fecha y Hora')
@@ -452,7 +452,7 @@ def _process_export(messages, format: str, current_time: str) -> tuple[bytes, st
 
     elif format.lower() == 'csv':
         if not messages:
-            df = pd.DataFrame(columns=['ID Conversación', 'Fecha y Hora', 'Rol', 'Mensaje'])
+            df = pd.DataFrame(columns=['ID ConversaciÃ³n', 'Fecha y Hora', 'Rol', 'Mensaje'])
             lima_now = datetime.now(ZoneInfo("America/Lima")).strftime('%Y-%m-%d %H:%M:%S')
             df.loc[0] = ["-", lima_now, "info", "Sin conversaciones registradas"]
         else:
@@ -475,7 +475,7 @@ def _process_export(messages, format: str, current_time: str) -> tuple[bytes, st
         return json_str.encode('utf-8'), media_type, filename
 
     else:
-        raise ValueError("Formato de exportación no soportado: use xlsx, csv o json")
+        raise ValueError("Formato de exportaciÃ³n no soportado: use xlsx, csv o json")
 
 
 @router.get("/export-conversations")
@@ -521,7 +521,7 @@ async def get_stats(
     _: User = Depends(get_current_active_user),
 ):
     """
-    Obtiene estadísticas de consultas, usuarios activos y PDFs cargados.
+    Obtiene estadÃ­sticas de consultas, usuarios activos y PDFs cargados.
     """
     try:
         chat_manager = request.app.state.chat_manager
@@ -531,7 +531,7 @@ async def get_stats(
         # Obtener total de consultas (mensajes)
         total_queries = await db.messages.count_documents({})
 
-        # Cardinalidad de conversation_id vía aggregation (no carga IDs en memoria)
+        # Cardinalidad de conversation_id vÃ­a aggregation (no carga IDs en memoria)
         users_pipeline = [
             {"$group": {"_id": "$conversation_id"}},
             {"$count": "n"},
@@ -550,8 +550,8 @@ async def get_stats(
         }
         
     except Exception as e:
-        logger.error(f"Error al obtener estadísticas: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error al obtener estadísticas: {str(e)}")
+        logger.error(f"Error al obtener estadÃ­sticas: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error al obtener estadÃ­sticas: {str(e)}")
 
 
 @router.get("/stats/history")
@@ -561,13 +561,13 @@ async def get_stats_history(
     _: User = Depends(get_current_active_user),
 ):
     """
-    Estadísticas históricas agrupadas por día.
+    EstadÃ­sticas histÃ³ricas agrupadas por dÃ­a.
 
     - Param: `days` en {7, 30, 90}
-    - Fuente: colección `messages` en MongoDB
-    - Aggregation: `$match` por rango de fechas y `$group` por día usando `$dateToString`
-    - `users_count`: cardinalidad de `conversation_id` por día usando `$addToSet` + `$size`
-    - Rellena días faltantes con 0 para no romper la línea del gráfico
+    - Fuente: colecciÃ³n `messages` en MongoDB
+    - Aggregation: `$match` por rango de fechas y `$group` por dÃ­a usando `$dateToString`
+    - `users_count`: cardinalidad de `conversation_id` por dÃ­a usando `$addToSet` + `$size`
+    - Rellena dÃ­as faltantes con 0 para no romper la lÃ­nea del grÃ¡fico
     """
     try:
         allowed = {7, 30, 90}
@@ -631,7 +631,7 @@ async def get_stats_history(
         return filled
     except Exception as e:
         logger.error(f"Error en stats history: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error al obtener estadísticas históricas: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error al obtener estadÃ­sticas histÃ³ricas: {str(e)}")
 
 
 @router.get("/conversations")
@@ -671,7 +671,7 @@ async def list_recent_conversations(
         for r in items_db:
             txt = str(r.get("last_message") or "").strip()
             m = 160
-            preview = txt if len(txt) <= m else (txt[:m] + "…")
+            preview = txt if len(txt) <= m else (txt[:m] + "â€¦")
             ts = r.get("updated_at")
             items_processed.append({
                 "conversation_id": r.get("conversation_id"),
@@ -691,13 +691,13 @@ async def list_recent_conversations(
 
 @router.delete("/history")
 async def clear_history(request: Request, current_user=Depends(require_view_debug)):
-    """Borra historial de conversaciones + diagnóstico de retrieval.
+    """Borra historial de conversaciones + diagnÃ³stico de retrieval.
 
     Limpia tres colecciones para que "borrar historial" sea exhaustivo:
       - messages: mensajes user/assistant
-      - chat_profiles: perfiles de memoria por conversación
-      - retrieval_logs: huellas de búsqueda que alimentan el tab de vacíos
-        (sin esto, gaps históricos quedan visibles tras una limpieza).
+      - chat_profiles: perfiles de memoria por conversaciÃ³n
+      - retrieval_logs: huellas de bÃºsqueda que alimentan el tab de vacÃ­os
+        (sin esto, gaps histÃ³ricos quedan visibles tras una limpieza).
     """
     try:
         chat_manager = request.app.state.chat_manager

@@ -1,4 +1,4 @@
-"""Authentication API endpoints."""
+﻿"""Authentication API endpoints."""
 import logging
 from typing import Dict
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Response
@@ -13,7 +13,7 @@ from api.schemas.auth import (
     ForgotPasswordRequest,
     ResetPasswordRequest,
 )
-from models.user import User
+from domain.user import User
 from database.user_repository import UserRepository, get_user_repository
 from auth.jwt_handler import (
     create_access_token,
@@ -390,8 +390,8 @@ async def logout(
                 if jti:
                     await token_blacklist.blacklist(jti, int(exp))
             except Exception as exc:
-                # Logout no debe fallar por error de revocación; logueamos a DEBUG
-                # para diagnóstico sin afectar UX.
+                # Logout no debe fallar por error de revocaciÃ³n; logueamos a DEBUG
+                # para diagnÃ³stico sin afectar UX.
                 logger.debug("Access token revocation skipped on logout: %s", exc)
 
         # Revoke the refresh token

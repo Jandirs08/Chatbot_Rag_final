@@ -1,4 +1,4 @@
-"""API routes for bot configuration management.
+﻿"""API routes for bot configuration management.
 
 Proteccion: todos los endpoints (excepto /config/public) requieren manage_bot_config.
 Hoy manage_bot_config mapea a admin; /config/public sigue publico para el widget.
@@ -14,7 +14,7 @@ from api.schemas.config import (
 )
 from database.config_repository import ConfigRepository
 from auth.permissions import require_manage_bot_config
-from models.user import User
+from domain.user import User
 from cache.manager import cache
 from infra.audit import audit
 from database.bot_state_repo import (
@@ -45,7 +45,7 @@ SAFE_PUBLIC_BOT_CONFIG = {
     "bot_name": "Asistente IA",
     "theme_color": "#F97316",
     "starters": [],
-    "input_placeholder": "Escribe aquí...",
+    "input_placeholder": "Escribe aquÃ­...",
 }
 
 
@@ -127,7 +127,7 @@ def read_public_config_from_cache() -> dict | None:
     try:
         return normalize_public_config_payload(cache.get(BOT_PUBLIC_CONFIG_CACHE_KEY))
     except Exception as exc:
-        logger.warning("No se pudo leer la configuración pública del bot desde Redis: %s", exc, exc_info=True)
+        logger.warning("No se pudo leer la configuraciÃ³n pÃºblica del bot desde Redis: %s", exc, exc_info=True)
         return None
 
 
@@ -143,7 +143,7 @@ def write_public_config_to_cache(config_obj: object) -> None:
     try:
         cache.set(BOT_PUBLIC_CONFIG_CACHE_KEY, normalized, ttl=BOT_PUBLIC_CONFIG_CACHE_TTL_SECONDS)
     except Exception as exc:
-        logger.warning("No se pudo guardar la configuración pública del bot en Redis: %s", exc, exc_info=True)
+        logger.warning("No se pudo guardar la configuraciÃ³n pÃºblica del bot en Redis: %s", exc, exc_info=True)
 
 
 def apply_runtime_config(settings_obj: object, payload: object) -> bool:
@@ -189,7 +189,7 @@ async def get_bot_config(
         return _build_bot_config_dto(config)
     except Exception as e:
         logger.error(f"Error getting bot config: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error interno del servidor al obtener la configuración")
+        raise HTTPException(status_code=500, detail="Error interno del servidor al obtener la configuraciÃ³n")
 
 
 @router.put("/config", response_model=BotConfigDTO, status_code=status.HTTP_200_OK)
@@ -246,7 +246,7 @@ async def update_bot_config(
         raise
     except Exception as e:
         logger.error(f"Error updating bot config: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error interno del servidor al actualizar la configuración")
+        raise HTTPException(status_code=500, detail="Error interno del servidor al actualizar la configuraciÃ³n")
 
 
 @router.post("/config/reset", response_model=BotConfigDTO, status_code=status.HTTP_200_OK)
@@ -277,7 +277,7 @@ async def reset_bot_config(
         return _build_bot_config_dto(updated)
     except Exception as e:
         logger.error(f"Error resetting bot config: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error interno del servidor al restablecer la configuración")
+        raise HTTPException(status_code=500, detail="Error interno del servidor al restablecer la configuraciÃ³n")
 
 
 @router.get("/config/public", status_code=status.HTTP_200_OK)
@@ -302,20 +302,20 @@ async def get_bot_public_config(request: Request):
 
 _TONE_DESCRIPTIONS = {
     "formal": "profesional y corporativo; usa 'usted'; lenguaje preciso, sin informalidades ni contracciones",
-    "cercano": "amigable y natural; usa 'tú'; conversacional pero siempre respetuoso y claro",
-    "tecnico": "experto y preciso; usa terminología del sector sin simplificar; respuestas detalladas con contexto técnico",
-    "empatico": "cálido y comprensivo; valida la emoción antes de informar; prioriza la escucha activa sobre la eficiencia",
+    "cercano": "amigable y natural; usa 'tÃº'; conversacional pero siempre respetuoso y claro",
+    "tecnico": "experto y preciso; usa terminologÃ­a del sector sin simplificar; respuestas detalladas con contexto tÃ©cnico",
+    "empatico": "cÃ¡lido y comprensivo; valida la emociÃ³n antes de informar; prioriza la escucha activa sobre la eficiencia",
 }
 
-_GENERATE_PROMPT_SYSTEM = """Eres un especialista en diseño de prompts para asistentes de IA empresariales.
-Tu tarea: generar instrucciones de personalidad completas y específicas para un chatbot RAG.
-Este chatbot solo responde usando documentos reales de la empresa — nunca inventa información ni da datos de otras fuentes.
+_GENERATE_PROMPT_SYSTEM = """Eres un especialista en diseÃ±o de prompts para asistentes de IA empresariales.
+Tu tarea: generar instrucciones de personalidad completas y especÃ­ficas para un chatbot RAG.
+Este chatbot solo responde usando documentos reales de la empresa â€” nunca inventa informaciÃ³n ni da datos de otras fuentes.
 
 Reglas del output:
-- En español. Sin meta-comentarios, sin explicaciones, sin prefijos.
-- Concreto y accionable — nada genérico como "sé amable".
-- Usa exactamente estas secciones con sus etiquetas en mayúsculas seguidas de dos puntos.
-- Cada sección debe tener contenido específico al negocio descrito.
+- En espaÃ±ol. Sin meta-comentarios, sin explicaciones, sin prefijos.
+- Concreto y accionable â€” nada genÃ©rico como "sÃ© amable".
+- Usa exactamente estas secciones con sus etiquetas en mayÃºsculas seguidas de dos puntos.
+- Cada secciÃ³n debe tener contenido especÃ­fico al negocio descrito.
 
 Secciones requeridas:
 ROL:
@@ -332,39 +332,39 @@ RUBRO: {business_sector}
 NEGOCIO: {business_description}
 AUDIENCIA: {audience}
 TONO DESEADO: {tone_description}
-RESTRICCIONES ESPECÍFICAS: {restrictions}
+RESTRICCIONES ESPECÃFICAS: {restrictions}
 FLUJO ESPECIAL: {special_flows}
 {website_section}
 
 Formato de respuesta (sin intro, sin cierre, solo las secciones):
 
 ROL:
-[2-3 oraciones: qué es este bot, para qué empresa/rubro, qué puede hacer por el usuario]
+[2-3 oraciones: quÃ© es este bot, para quÃ© empresa/rubro, quÃ© puede hacer por el usuario]
 
 TONO:
-• [lineamiento de comunicación específico y aplicable]
-• [otro lineamiento]
-• [otro lineamiento]
+â€¢ [lineamiento de comunicaciÃ³n especÃ­fico y aplicable]
+â€¢ [otro lineamiento]
+â€¢ [otro lineamiento]
 
 AUDIENCIA:
-[Cómo adaptar el trato según quién pregunta]
+[CÃ³mo adaptar el trato segÃºn quiÃ©n pregunta]
 
 SCOPE:
-• Responde sobre: [temas concretos del negocio]
-• No responde sobre: [qué está fuera de su alcance]
+â€¢ Responde sobre: [temas concretos del negocio]
+â€¢ No responde sobre: [quÃ© estÃ¡ fuera de su alcance]
 
 RESTRICCIONES:
-• [límite concreto 1]
-• [límite concreto 2]
+â€¢ [lÃ­mite concreto 1]
+â€¢ [lÃ­mite concreto 2]
 
 COMPORTAMIENTO:
-[Qué hacer cuando preguntan algo fuera de scope o que no está en los documentos]
+[QuÃ© hacer cuando preguntan algo fuera de scope o que no estÃ¡ en los documentos]
 
 EJEMPLO:
-Usuario: [pregunta típica que recibirá este bot en el rubro {business_sector}]
+Usuario: [pregunta tÃ­pica que recibirÃ¡ este bot en el rubro {business_sector}]
 Bot: [respuesta ideal que muestre exactamente el tono y estilo correcto]"""
 
-_MAX_RESPONSE_BYTES = 512 * 1024  # 512 KB — avoids memory bomb on large responses
+_MAX_RESPONSE_BYTES = 512 * 1024  # 512 KB â€” avoids memory bomb on large responses
 
 
 def _assert_host_allowed(host: str) -> None:
@@ -386,7 +386,7 @@ def _assert_host_allowed(host: str) -> None:
     except ValueError as exc:
         if "not allowed" in str(exc) or "not allowed" in str(exc):
             raise
-        # hostname, not a numeric IP — allowed at this stage
+        # hostname, not a numeric IP â€” allowed at this stage
 
 
 async def _fetch_website_context(url: str) -> str:
@@ -454,7 +454,7 @@ async def generate_bot_prompt(
         api_key = settings_obj.openai_api_key.get_secret_value()
     except Exception as e:
         logger.error(f"Cannot read OpenAI API key: {e}")
-        raise HTTPException(status_code=500, detail="Configuración de API no disponible")
+        raise HTTPException(status_code=500, detail="ConfiguraciÃ³n de API no disponible")
 
     website_section = ""
     if payload.website_url:
@@ -465,7 +465,7 @@ async def generate_bot_prompt(
             raise HTTPException(status_code=400, detail=f"URL no permitida: {e}")
         except Exception as e:
             logger.warning(f"Could not fetch website {payload.website_url}: {e}")
-            website_section = f"\n(No se pudo acceder al sitio {payload.website_url} — generando sin ese contexto)"
+            website_section = f"\n(No se pudo acceder al sitio {payload.website_url} â€” generando sin ese contexto)"
 
     tone_desc = _TONE_DESCRIPTIONS.get(payload.tone, _TONE_DESCRIPTIONS["cercano"])
     user_message = _GENERATE_PROMPT_TEMPLATE.format(
@@ -509,7 +509,7 @@ async def preview_personality(
         api_key = request.app.state.settings.openai_api_key.get_secret_value()
     except Exception as e:
         logger.error(f"Cannot read OpenAI API key for preview: {e}")
-        raise HTTPException(status_code=500, detail="Configuración de API no disponible")
+        raise HTTPException(status_code=500, detail="ConfiguraciÃ³n de API no disponible")
 
     system_prompt = payload.prompt.strip() or "Eres un asistente virtual."
     try:
@@ -531,7 +531,7 @@ async def preview_personality(
         )
     except Exception as e:
         logger.error(f"Error in personality preview: {e}", exc_info=True)
-        raise HTTPException(status_code=502, detail="Error al generar la respuesta de previsualización")
+        raise HTTPException(status_code=502, detail="Error al generar la respuesta de previsualizaciÃ³n")
 
 
 @router.get("/config/history", response_model=PersonalityHistoryResponse, status_code=status.HTTP_200_OK)
@@ -566,7 +566,7 @@ async def delete_personality_history(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error(f"Error deleting personality history {history_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error al eliminar la versión de historial")
+        raise HTTPException(status_code=500, detail="Error al eliminar la versiÃ³n de historial")
 
 
 @router.post("/config/history/{history_id}/restore", response_model=BotConfigDTO, status_code=status.HTTP_200_OK)
@@ -597,4 +597,4 @@ async def restore_personality_history(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error(f"Error restoring personality history {history_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error al restaurar la versión de personalidad")
+        raise HTTPException(status_code=500, detail="Error al restaurar la versiÃ³n de personalidad")

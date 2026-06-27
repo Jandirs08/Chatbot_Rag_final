@@ -1,4 +1,4 @@
-"""API routes for bot state management."""
+﻿"""API routes for bot state management."""
 from infra.logging_utils import get_logger
 from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from auth.dependencies import get_current_active_user
 from auth.permissions import require_manage_bot_config
-from models.user import User
+from domain.user import User
 from database.bot_state_repo import (
     read_is_active_from_mongo,
     read_is_active_from_redis,
@@ -17,7 +17,7 @@ from database.bot_state_repo import (
 logger = get_logger(__name__)
 router = APIRouter(tags=["bot"])
 
-# 🔒 NOTA: Todas las rutas de este módulo están protegidas por AuthenticationMiddleware
+# ðŸ”’ NOTA: Todas las rutas de este mÃ³dulo estÃ¡n protegidas por AuthenticationMiddleware
 # Solo usuarios admin autenticados pueden acceder a estos endpoints
 
 class BotStateResponse(BaseModel):
@@ -28,7 +28,7 @@ class BotStateResponse(BaseModel):
 
 
 class BotRuntimeResponse(BaseModel):
-    """Modelo de respuesta para inspeccionar configuración runtime del bot."""
+    """Modelo de respuesta para inspeccionar configuraciÃ³n runtime del bot."""
     # Evitar warning de pydantic por prefijo "model_" en campos
     model_config = {"protected_namespaces": ()}
     model_name: str | None = None
@@ -126,7 +126,7 @@ async def get_bot_runtime(
     request: Request,
     _: User = Depends(require_manage_bot_config),
 ):
-    """Inspeccionar configuración runtime actual del bot (modelo, temperatura, prompt efectivo)."""
+    """Inspeccionar configuraciÃ³n runtime actual del bot (modelo, temperatura, prompt efectivo)."""
     try:
         bot = request.app.state.bot_instance
         cm = bot.chain_manager
@@ -148,7 +148,7 @@ async def get_bot_runtime(
             runtime["bot_name"] = nombre
             personality = cm._prompt.partial_variables.get("bot_personality") if hasattr(cm._prompt, "partial_variables") else None
             runtime["effective_personality_len"] = len(personality) if personality else 0
-            # Intentar estimar longitud de extras si están presentes en settings
+            # Intentar estimar longitud de extras si estÃ¡n presentes en settings
             s = request.app.state.settings
             ui_extra = getattr(s, "ui_prompt_extra", None) or ""
             runtime["ui_prompt_extra_len"] = len(ui_extra)

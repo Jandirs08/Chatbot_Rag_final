@@ -1,4 +1,4 @@
-"""
+﻿"""
 FastAPI dependencies for authentication and authorization.
 Simplified, safer, no global singletons, no redundancy.
 """
@@ -13,7 +13,7 @@ from fastapi.security import (
     OAuth2PasswordBearer,
 )
 
-from models.user import User
+from domain.user import User
 from database.user_repository import UserRepository
 from .jwt_handler import (
     verify_token,
@@ -192,5 +192,5 @@ async def get_optional_current_user(
         )
         return await deps.extract_user_from_token(credentials)
     except Exception:
-        # Token inválido o expirado → tratamos como "no autenticado"
+        # Token invÃ¡lido o expirado â†’ tratamos como "no autenticado"
         return None

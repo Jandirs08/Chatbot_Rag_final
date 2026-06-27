@@ -1,10 +1,10 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from enum import StrEnum
 
 from fastapi import Depends, HTTPException, status
 
-from models.user import User
+from domain.user import User
 
 from .dependencies import get_current_active_user
 
