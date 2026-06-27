@@ -184,7 +184,7 @@ class HierarchicalRetriever(RAGRetriever):
         call on every repeated query (TTL 24h — hypothetical text is stable enough).
         """
         from cache.manager import cache as _cache
-        from utils.hashing import hash_for_cache_key
+        from infra.hashing import hash_for_cache_key
 
         hyde_model = getattr(settings, "hyde_model_name", None) or getattr(settings, "base_model_name", "gpt-4o-mini")
         cache_key = f"hyde:hyp:{hyde_model}:{hash_for_cache_key((query or '').strip().lower())}"

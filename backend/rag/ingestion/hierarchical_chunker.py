@@ -12,7 +12,7 @@ from typing import Awaitable, Callable, Iterable, Sequence
 import tiktoken
 from langchain_core.documents import Document
 
-from utils.hashing import hash_content_for_dedup, hash_for_cache_key
+from infra.hashing import hash_content_for_dedup, hash_for_cache_key
 
 from .models import ChildChunk, HierarchicalChunkingResult, PageSpan, ParentDocument
 

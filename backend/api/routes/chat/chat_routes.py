@@ -16,7 +16,7 @@ from api.schemas import (
     ChatRequest
 )
 from api.schemas.pagination import Page
-from utils.rate_limiter import conditional_limit
+from infra.rate_limiter import conditional_limit
 from config import settings
 from auth.dependencies import get_current_active_user, get_optional_current_user
 from auth.permissions import require_view_debug

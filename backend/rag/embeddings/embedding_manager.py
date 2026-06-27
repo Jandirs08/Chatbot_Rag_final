@@ -5,7 +5,7 @@ import time
 from utils.logging_utils import get_logger
 from config import settings
 from cache.manager import cache
-from utils.hashing import hash_for_cache_key
+from infra.hashing import hash_for_cache_key
 
 # Usar embeddings remotos de OpenAI para reducir uso de memoria
 try:

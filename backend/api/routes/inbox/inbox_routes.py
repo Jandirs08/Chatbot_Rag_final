@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel
 from utils.logging_utils import get_logger
-from utils.rate_limiter import conditional_limit
+from infra.rate_limiter import conditional_limit
 from config import settings
 
 from auth.dependencies import require_admin

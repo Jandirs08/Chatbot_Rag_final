@@ -13,7 +13,7 @@ import re
 from typing import Any, Dict, Optional
 
 from rag.corpus_state import get_corpus_cache_version
-from utils.hashing import hash_for_cache_key
+from infra.hashing import hash_for_cache_key
 
 
 _RESPONSE_CACHE_SETTING_FIELDS = (

@@ -9,7 +9,7 @@ Cubre:
 """
 import pytest
 
-from utils.hashing import (
+from infra.hashing import (
     hash_text_md5,
     hash_text_sha256,
     hash_content_for_dedup,
@@ -17,8 +17,8 @@ from utils.hashing import (
 )
 
 
-class TestHashTextMD5:
-    """Tests para hash_text_md5."""
+class TestHashTextSHA256Compat:
+    """Tests para hash_text_md5 (migrada internamente a SHA-256; len=64, no 32)."""
 
     def test_determinista(self):
         """El mismo input produce el mismo hash."""

@@ -17,7 +17,7 @@ from api.schemas import (
 from auth.permissions import require_manage_documents
 from config import settings
 from models.user import User
-from utils.rate_limiter import conditional_limit
+from infra.rate_limiter import conditional_limit
 from infra.audit import audit
 
 logger = logging.getLogger(__name__)

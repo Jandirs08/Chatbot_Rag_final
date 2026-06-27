@@ -29,7 +29,7 @@ from auth.password_handler import verify_password, hash_password
 from services.email_service import EmailService
 from auth.dependencies import get_current_user, get_current_active_user, get_token_blacklist, extract_token_from_request
 from config import get_settings
-from utils.rate_limiter import conditional_limit
+from infra.rate_limiter import conditional_limit
 from infra.audit import audit
 
 # Configure logging

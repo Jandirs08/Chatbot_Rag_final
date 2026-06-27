@@ -18,7 +18,7 @@ from slowapi.middleware import SlowAPIMiddleware
 # ---- Internos ----
 from utils.logging_utils import get_logger, suppress_cl100k_warnings
 from config import settings
-from utils.rate_limiter import limiter, retry_after_for_path
+from infra.rate_limiter import limiter, retry_after_for_path
 from chat.manager import ChatManager
 from rag.retrieval import HierarchicalRetriever
 from rag.retrieval.reranker import build_parent_reranker
