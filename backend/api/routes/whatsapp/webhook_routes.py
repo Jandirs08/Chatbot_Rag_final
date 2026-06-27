@@ -6,10 +6,10 @@ from database.conversation_repository import ConversationRepository
 from database.failed_message_repository import FailedMessageRepository
 from database.mongodb import get_mongodb_client
 from services.classification import classify_conversation
-from utils.whatsapp.formatter import format_text
-from utils.whatsapp.client import WhatsAppClient
-from utils.whatsapp.idempotency import claim_message
-from utils.whatsapp.rate_limit import check_and_increment, should_notify_once
+from integrations.whatsapp.formatter import format_text
+from integrations.whatsapp.client import WhatsAppClient
+from integrations.whatsapp.idempotency import claim_message
+from integrations.whatsapp.rate_limit import check_and_increment, should_notify_once
 from config import settings
 from core.tools import registry as tool_registry
 import httpx

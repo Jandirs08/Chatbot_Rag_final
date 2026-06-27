@@ -1,4 +1,4 @@
-"""Tests para utils.whatsapp.idempotency.
+"""Tests para integrations.whatsapp.idempotency.
 
 Cubre el path en memoria (sin Redis) y la coherencia ante reintentos.
 """
@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from utils.whatsapp import idempotency
+from integrations.whatsapp import idempotency
 
 
 @pytest.fixture(autouse=True)
