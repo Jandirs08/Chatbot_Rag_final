@@ -3,7 +3,14 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Textarea } from "@/app/components/ui/textarea";
 import { Input } from "@/app/components/ui/input";
-import { Sparkles, RefreshCw, ChevronDown, ChevronUp, Copy, Check } from "lucide-react";
+import {
+  Sparkles,
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Check,
+} from "lucide-react";
 import { generateBotPrompt } from "@/app/lib/services/botConfigService";
 import { toast } from "sonner";
 
@@ -12,20 +19,35 @@ import { toast } from "sonner";
 type Tone = "formal" | "cercano" | "tecnico" | "empatico";
 
 const SECTORS = [
-  "Educación", "E-commerce", "Servicios profesionales",
-  "Salud y bienestar", "Inmobiliaria", "Gastronomía",
-  "Tecnología", "Turismo", "Finanzas", "Otro",
+  "Educación",
+  "E-commerce",
+  "Servicios profesionales",
+  "Salud y bienestar",
+  "Inmobiliaria",
+  "Gastronomía",
+  "Tecnología",
+  "Turismo",
+  "Finanzas",
+  "Otro",
 ];
 
 const SECTOR_PLACEHOLDERS: Record<string, string> = {
-  "Educación": "Ofrecemos cursos online de programación para adultos que quieren cambiar de carrera",
-  "E-commerce": "Vendemos ropa de mujeres con envío a todo el país, especializados en tallas grandes",
-  "Salud y bienestar": "Clínica de nutrición y medicina preventiva, atendemos consultas presenciales y virtuales",
-  "Inmobiliaria": "Compramos, vendemos y alquilamos propiedades residenciales en Lima y provincias",
-  "Gastronomía": "Restaurante de comida fusión nikkei con servicio de delivery y catering para eventos",
-  "Tecnología": "Desarrollamos software a medida para pequeñas y medianas empresas en la región",
-  "Turismo": "Agencia de viajes especializada en paquetes a Machu Picchu y circuitos por Sudamérica",
-  "Finanzas": "Asesoría financiera para personas naturales: inversiones, seguros y planificación fiscal",
+  Educación:
+    "Ofrecemos cursos online de programación para adultos que quieren cambiar de carrera",
+  "E-commerce":
+    "Vendemos ropa de mujeres con envío a todo el país, especializados en tallas grandes",
+  "Salud y bienestar":
+    "Clínica de nutrición y medicina preventiva, atendemos consultas presenciales y virtuales",
+  Inmobiliaria:
+    "Compramos, vendemos y alquilamos propiedades residenciales en Lima y provincias",
+  Gastronomía:
+    "Restaurante de comida fusión nikkei con servicio de delivery y catering para eventos",
+  Tecnología:
+    "Desarrollamos software a medida para pequeñas y medianas empresas en la región",
+  Turismo:
+    "Agencia de viajes especializada en paquetes a Machu Picchu y circuitos por Sudamérica",
+  Finanzas:
+    "Asesoría financiera para personas naturales: inversiones, seguros y planificación fiscal",
 };
 
 const AI_FORM_PRESETS = [
@@ -33,7 +55,8 @@ const AI_FORM_PRESETS = [
     label: "Soporte al cliente",
     sector: "Servicios profesionales",
     tone: "cercano" as Tone,
-    description: "Brindamos soporte técnico y atención al cliente para productos de software",
+    description:
+      "Brindamos soporte técnico y atención al cliente para productos de software",
     audience: "Usuarios con dudas técnicas o incidencias",
     restrictions: "No comprometerse con fechas de resolución",
   },
@@ -41,7 +64,8 @@ const AI_FORM_PRESETS = [
     label: "E-commerce",
     sector: "E-commerce",
     tone: "cercano" as Tone,
-    description: "Tienda online con catálogo de productos, envíos y devoluciones",
+    description:
+      "Tienda online con catálogo de productos, envíos y devoluciones",
     audience: "Compradores online buscando productos y seguimiento de pedidos",
     restrictions: "No confirmar stock en tiempo real",
   },
@@ -49,7 +73,8 @@ const AI_FORM_PRESETS = [
     label: "Educación",
     sector: "Educación",
     tone: "empatico" as Tone,
-    description: "Plataforma de cursos online con tutorías y contenido on-demand",
+    description:
+      "Plataforma de cursos online con tutorías y contenido on-demand",
     audience: "Estudiantes adultos que buscan aprender nuevas habilidades",
     restrictions: "No prometer resultados de aprendizaje garantizados",
   },
@@ -57,8 +82,10 @@ const AI_FORM_PRESETS = [
     label: "B2B formal",
     sector: "Tecnología",
     tone: "formal" as Tone,
-    description: "Soluciones de software empresarial para optimización de procesos",
-    audience: "Gerentes y directores de empresa buscando soluciones tecnológicas",
+    description:
+      "Soluciones de software empresarial para optimización de procesos",
+    audience:
+      "Gerentes y directores de empresa buscando soluciones tecnológicas",
     restrictions: "No revelar precios sin pasar por el equipo comercial",
   },
 ] as const;
@@ -72,16 +99,28 @@ const PHASES = [
 ];
 
 const TONES: { id: Tone; label: string; desc: string; color: string }[] = [
-  { id: "formal",   label: "Formal",   desc: "Usted · Preciso",      color: "#4f35cc" },
-  { id: "cercano",  label: "Cercano",  desc: "Tú · Natural",         color: "#17a96a" },
-  { id: "tecnico",  label: "Técnico",  desc: "Experto · Detallado",  color: "#0ea5e9" },
-  { id: "empatico", label: "Empático", desc: "Cálido · Comprensivo", color: "#d48c0a" },
+  { id: "formal", label: "Formal", desc: "Usted · Preciso", color: "#4f35cc" },
+  { id: "cercano", label: "Cercano", desc: "Tú · Natural", color: "#17a96a" },
+  {
+    id: "tecnico",
+    label: "Técnico",
+    desc: "Experto · Detallado",
+    color: "#0ea5e9",
+  },
+  {
+    id: "empatico",
+    label: "Empático",
+    desc: "Cálido · Comprensivo",
+    color: "#d48c0a",
+  },
 ];
 
 // ─── Style constants ──────────────────────────────────────────────────────────
 
-const LABEL_CLS = "block font-sans text-[11px] font-semibold tracking-[0.07em] uppercase text-muted-foreground mb-2";
-const MUTED_CLS = "font-normal normal-case tracking-normal text-muted-foreground/70";
+const LABEL_CLS =
+  "block font-sans text-[11px] font-semibold tracking-[0.07em] uppercase text-muted-foreground mb-2";
+const MUTED_CLS =
+  "font-normal normal-case tracking-normal text-muted-foreground/70";
 const INPUT_CLS =
   "text-sm border-border " +
   "focus-visible:border-primary focus-visible:ring-2 " +
@@ -97,14 +136,24 @@ interface Props {
 
 function isValidHttpUrl(val: string): boolean {
   try {
-    const { protocol } = new URL(val);
-    return protocol === "http:" || protocol === "https:";
+    const { protocol, hostname } = new URL(val);
+    if (protocol !== "http:" && protocol !== "https:") return false;
+    const h = hostname.toLowerCase();
+    if (h === "localhost" || h === "127.0.0.1" || h === "::1") return false;
+    if (/^10\.\d+\.\d+\.\d+$/.test(h)) return false;
+    if (/^192\.168\.\d+\.\d+$/.test(h)) return false;
+    if (/^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/.test(h)) return false;
+    return true;
   } catch {
     return false;
   }
 }
 
-export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly }: Props) {
+export function PromptBuilderAssistant({
+  prompt,
+  onPromptChange,
+  fieldsReadOnly,
+}: Props) {
   const [mode, setMode] = useState<"ai" | "manual">(prompt ? "manual" : "ai");
 
   const [sector, setSector] = useState("");
@@ -127,7 +176,12 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
 
   const effectiveSector = sector === "Otro" ? customSector.trim() : sector;
   const descTrimLen = description.trim().length;
-  const canGenerate = !!effectiveSector && descTrimLen >= 10 && !loading && !fieldsReadOnly && !websiteUrlError;
+  const canGenerate =
+    !!effectiveSector &&
+    descTrimLen >= 10 &&
+    !loading &&
+    !fieldsReadOnly &&
+    !websiteUrlError;
 
   const descPlaceholder =
     sector && sector !== "Otro"
@@ -140,7 +194,9 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
       return;
     }
     setWebsiteUrlError(
-      isValidHttpUrl(websiteUrl.trim()) ? null : "URL inválida. Usa https://tuempresa.com"
+      isValidHttpUrl(websiteUrl.trim())
+        ? null
+        : "URL inválida. Usa https://tuempresa.com",
     );
   };
 
@@ -196,9 +252,12 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
 
   return (
     <div className="space-y-5">
-
       {/* Mode toggle */}
-      <div className="inline-flex items-center rounded-full p-1 gap-0.5 bg-primary/10" role="group" aria-label="Modo de edición">
+      <div
+        className="inline-flex items-center rounded-full p-1 gap-0.5 bg-primary/10"
+        role="group"
+        aria-label="Modo de edición"
+      >
         {(["ai", "manual"] as const).map((m) => (
           <button
             type="button"
@@ -221,7 +280,6 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
       {/* ── AI MODE ─────────────────────────────────────────────────────────── */}
       {mode === "ai" && (
         <div className="space-y-6">
-
           {/* Quick presets */}
           <div>
             <span className={LABEL_CLS}>Aplicar preset rápido</span>
@@ -252,14 +310,19 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
           <div role="group" aria-labelledby="sector-label" aria-required="true">
             <span id="sector-label" className={LABEL_CLS}>
               ¿En qué rubro está tu negocio?{" "}
-              <span className="text-destructive font-bold" aria-hidden="true">*</span>
+              <span className="text-destructive font-bold" aria-hidden="true">
+                *
+              </span>
             </span>
             <div className="flex flex-wrap gap-2">
               {SECTORS.map((s) => (
                 <button
                   type="button"
                   key={s}
-                  onClick={() => { setSector(s); if (s !== "Otro") setCustomSector(""); }}
+                  onClick={() => {
+                    setSector(s);
+                    if (s !== "Otro") setCustomSector("");
+                  }}
                   disabled={fieldsReadOnly || loading}
                   aria-pressed={sector === s}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-150 disabled:opacity-40 border ${
@@ -289,9 +352,13 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
             <div className="flex items-center justify-between mb-2">
               <label htmlFor="pb-description" className={`${LABEL_CLS} mb-0`}>
                 ¿Qué ofrece tu negocio?{" "}
-                <span className="text-destructive font-bold" aria-hidden="true">*</span>
+                <span className="text-destructive font-bold" aria-hidden="true">
+                  *
+                </span>
               </label>
-              <span className={`text-[11px] font-mono ${descTrimLen >= 10 ? "text-success" : "text-muted-foreground"}`}>
+              <span
+                className={`text-[11px] font-mono ${descTrimLen >= 10 ? "text-success" : "text-muted-foreground"}`}
+              >
                 {descTrimLen}/10 mín
               </span>
             </div>
@@ -311,8 +378,7 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
           {/* 3. Audience */}
           <div>
             <label htmlFor="pb-audience" className={LABEL_CLS}>
-              ¿A quién atiende?{" "}
-              <span className={MUTED_CLS}>recomendado</span>
+              ¿A quién atiende? <span className={MUTED_CLS}>recomendado</span>
             </label>
             <Input
               id="pb-audience"
@@ -326,7 +392,9 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
 
           {/* 4. Tone */}
           <div role="group" aria-labelledby="tone-label">
-            <span id="tone-label" className={LABEL_CLS}>Tono del bot</span>
+            <span id="tone-label" className={LABEL_CLS}>
+              Tono del bot
+            </span>
             <div className="grid grid-cols-2 gap-2">
               {TONES.map((t) => (
                 <button
@@ -338,7 +406,11 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
                   className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-lg text-left transition-all duration-150 disabled:opacity-40 border"
                   style={
                     tone === t.id
-                      ? { background: t.color + "12", borderColor: t.color, boxShadow: `0 0 0 3px ${t.color}18` }
+                      ? {
+                          background: t.color + "12",
+                          borderColor: t.color,
+                          boxShadow: `0 0 0 3px ${t.color}18`,
+                        }
                       : undefined
                   }
                 >
@@ -370,8 +442,13 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
               onClick={() => setShowExtras(!showExtras)}
               className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-primary transition-colors"
             >
-              {showExtras ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-              {showExtras ? "Ocultar" : "Más detalles"} — restricciones, flujos, web
+              {showExtras ? (
+                <ChevronUp className="w-3.5 h-3.5" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5" />
+              )}
+              {showExtras ? "Ocultar" : "Más detalles"} — restricciones, flujos,
+              web
             </button>
 
             {showExtras && (
@@ -414,20 +491,34 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
                   <Input
                     id="pb-website"
                     value={websiteUrl}
-                    onChange={(e) => { setWebsiteUrl(e.target.value); setWebsiteUrlError(null); }}
+                    onChange={(e) => {
+                      setWebsiteUrl(e.target.value);
+                      setWebsiteUrlError(null);
+                    }}
                     onBlur={handleWebsiteUrlBlur}
                     placeholder="https://tuempresa.com"
                     type="url"
                     disabled={fieldsReadOnly || loading}
                     aria-invalid={!!websiteUrlError}
-                    aria-describedby={websiteUrlError ? "pb-website-error" : "pb-website-hint"}
+                    aria-describedby={
+                      websiteUrlError ? "pb-website-error" : "pb-website-hint"
+                    }
                     className={`${INPUT_CLS} bg-card ${websiteUrlError ? "border-destructive" : ""}`}
                   />
                   {websiteUrlError ? (
-                    <p id="pb-website-error" className="mt-1.5 text-[11px] text-destructive">{websiteUrlError}</p>
+                    <p
+                      id="pb-website-error"
+                      className="mt-1.5 text-[11px] text-destructive"
+                    >
+                      {websiteUrlError}
+                    </p>
                   ) : (
-                    <p id="pb-website-hint" className="mt-1.5 text-[11px] text-muted-foreground">
-                      Solo se consulta el sitio que indiques. No se siguen otros enlaces.
+                    <p
+                      id="pb-website-hint"
+                      className="mt-1.5 text-[11px] text-muted-foreground"
+                    >
+                      Solo se consulta el sitio que indiques. No se siguen otros
+                      enlaces.
                     </p>
                   )}
                 </div>
@@ -469,7 +560,11 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
 
           {/* Screen reader generation status */}
           <div aria-live="polite" aria-atomic="true" className="sr-only">
-            {loading ? "Generando personalidad, por favor espera." : hasGenerated ? "Personalidad generada. Revisa el resultado." : ""}
+            {loading
+              ? "Generando personalidad, por favor espera."
+              : hasGenerated
+                ? "Personalidad generada. Revisa el resultado."
+                : ""}
           </div>
 
           {/* AI working indicator */}
@@ -491,7 +586,10 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
                       <span
                         key={i}
                         className="block w-2 h-2 rounded-full bg-primary/60 animate-bounce"
-                        style={{ animationDelay: `${i * 150}ms`, animationDuration: "900ms" }}
+                        style={{
+                          animationDelay: `${i * 150}ms`,
+                          animationDuration: "900ms",
+                        }}
                       />
                     ))}
                   </div>
@@ -540,7 +638,11 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
                     onClick={handleCopy}
                     className={`flex items-center gap-1.5 text-[11px] font-medium transition-colors ${copied ? "text-success" : "text-muted-foreground hover:text-primary"}`}
                   >
-                    {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                    {copied ? (
+                      <Check className="w-3 h-3" />
+                    ) : (
+                      <Copy className="w-3 h-3" />
+                    )}
                     {copied ? "Copiado" : "Copiar"}
                   </button>
                   <button
@@ -569,7 +671,10 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
                   <span className="text-[11px] text-muted-foreground">
                     Ajusta el texto si es necesario antes de guardar
                   </span>
-                  <span id="ai-prompt-count" className={`text-[11px] font-mono ${prompt.length > 2700 ? "text-destructive" : "text-muted-foreground"}`}>
+                  <span
+                    id="ai-prompt-count"
+                    className={`text-[11px] font-mono ${prompt.length > 2700 ? "text-destructive" : "text-muted-foreground"}`}
+                  >
                     {prompt.length} / 3000
                   </span>
                 </div>
@@ -600,8 +705,13 @@ export function PromptBuilderAssistant({ prompt, onPromptChange, fieldsReadOnly 
             className={`resize-none text-[13px] leading-relaxed font-mono bg-card ${INPUT_CLS}`}
           />
           <div className="flex justify-between items-center">
-            <span className="text-[11px] text-muted-foreground">Edición directa</span>
-            <span id="manual-prompt-count" className={`text-[11px] font-mono ${prompt.length > 2700 ? "text-destructive" : "text-muted-foreground"}`}>
+            <span className="text-[11px] text-muted-foreground">
+              Edición directa
+            </span>
+            <span
+              id="manual-prompt-count"
+              className={`text-[11px] font-mono ${prompt.length > 2700 ? "text-destructive" : "text-muted-foreground"}`}
+            >
               {prompt.length} / 3000
             </span>
           </div>
