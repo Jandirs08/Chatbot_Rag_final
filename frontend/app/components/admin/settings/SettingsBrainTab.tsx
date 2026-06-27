@@ -20,6 +20,8 @@ interface SettingsBrainTabProps {
   brainIsDirty: boolean;
   brainLocked: boolean;
   onBrainUnlock: () => void;
+  personalityName: string;
+  onPersonalityNameChange: (val: string) => void;
 }
 
 export function SettingsBrainTab({
@@ -38,6 +40,8 @@ export function SettingsBrainTab({
   brainIsDirty,
   brainLocked,
   onBrainUnlock,
+  personalityName,
+  onPersonalityNameChange,
 }: SettingsBrainTabProps) {
   const disabled = isLoading || savingBrain;
   return (
@@ -57,6 +61,8 @@ export function SettingsBrainTab({
           canReset={true}
           locked={brainLocked}
           onUnlock={onBrainUnlock}
+          personalityName={personalityName}
+          onPersonalityNameChange={onPersonalityNameChange}
         />
       </div>
 

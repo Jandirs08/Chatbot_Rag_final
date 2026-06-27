@@ -114,6 +114,7 @@ export default function AdminSettingsPage() {
   const [savingBrain, setSavingBrain] = useState<boolean>(false);
   const [errorBrain, setErrorBrain] = useState<string | null>(null);
   const [isBotActive, setIsBotActive] = useState<boolean>(false);
+  const [personalityName, setPersonalityName] = useState<string>("");
 
   const brainIsDirty = useMemo(
     () => uiExtra !== baselineUiExtra || temperature !== baselineTemperature,
@@ -221,10 +222,12 @@ export default function AdminSettingsPage() {
       const updated = await updateBotConfig({
         temperature,
         ui_prompt_extra: (uiExtra || "").trim(),
+        personality_name: personalityName.trim() || undefined,
       });
       setUiExtra(sanitizeUiExtra(updated.ui_prompt_extra));
       setBaselineUiExtra(sanitizeUiExtra(updated.ui_prompt_extra));
       setBaselineTemperature(updated.temperature ?? temperature);
+      setPersonalityName("");
       setBrainLocked(true);
       mutate();
       toast.success("Configuración guardada. Cambios aplicados al bot.");
@@ -241,6 +244,7 @@ export default function AdminSettingsPage() {
   const handleDiscardChanges = () => {
     setUiExtra(baselineUiExtra);
     setTemperature(baselineTemperature);
+    setPersonalityName("");
     setBrainLocked(true);
   };
 
@@ -258,6 +262,7 @@ export default function AdminSettingsPage() {
       setBaselineUiExtra("");
       setTemperature(0.7);
       setBaselineTemperature(0.7);
+      setPersonalityName("");
       setBrainLocked(true);
       mutate();
       toast.success("Configuración restablecida.");
@@ -448,6 +453,8 @@ export default function AdminSettingsPage() {
             brainIsDirty={brainIsDirty}
             brainLocked={brainLocked}
             onBrainUnlock={() => setBrainLocked(false)}
+            personalityName={personalityName}
+            onPersonalityNameChange={setPersonalityName}
           />
         </div>
         {activeTab === "system" && <SettingsSystemTab isLoading={isLoading} />}

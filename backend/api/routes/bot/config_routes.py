@@ -283,7 +283,11 @@ async def update_bot_config(
 
         if payload.ui_prompt_extra is not None or payload.temperature is not None:
             try:
-                await repo.save_history_snapshot(updated.ui_prompt_extra, updated.temperature)
+                await repo.save_history_snapshot(
+                    updated.ui_prompt_extra,
+                    updated.temperature,
+                    personality_name=payload.personality_name,
+                )
             except Exception as snap_err:
                 logger.warning("Could not save history snapshot: %s", snap_err)
 

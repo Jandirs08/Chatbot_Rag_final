@@ -23,6 +23,7 @@ class UpdateBotConfigRequest(BaseModel):
     temperature: Optional[float] = Field(default=None, description="New temperature (0..1)")
     bot_name: Optional[str] = Field(default=None, description="New bot display name")
     ui_prompt_extra: Optional[str] = Field(default=None, description="Additional instructions (max 3000 chars)")
+    personality_name: Optional[str] = Field(default=None, max_length=60, description="Label for this personality version")
     twilio_account_sid: Optional[str] = Field(default=None)
     twilio_auth_token: Optional[str] = Field(default=None)
     twilio_whatsapp_from: Optional[str] = Field(default=None)
@@ -112,6 +113,7 @@ class PersonalityHistoryEntry(BaseModel):
     ui_prompt_extra: str | None
     temperature: float
     saved_at: datetime
+    personality_name: str | None = None
 
 
 class PersonalityHistoryResponse(BaseModel):

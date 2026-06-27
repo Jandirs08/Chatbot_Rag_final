@@ -31,7 +31,10 @@ interface TemperatureCardProps {
 
 export function TemperatureCard({ temperature, onTemperatureChange, disabled }: TemperatureCardProps) {
   return (
-    <div className="glass rounded-xl border border-border/60 overflow-hidden" style={{ boxShadow: "var(--shadow-card)" }}>
+    <div
+      className={`glass rounded-xl border border-border/60 overflow-hidden transition-opacity ${disabled ? "opacity-55 pointer-events-none select-none" : ""}`}
+      style={{ boxShadow: "var(--shadow-card)" }}
+    >
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border/60 bg-accent-violet/5">
         <Thermometer className="w-3.5 h-3.5 text-accent-violet flex-shrink-0" aria-hidden="true" />
         <span className="text-xs font-semibold text-foreground">Temperatura</span>

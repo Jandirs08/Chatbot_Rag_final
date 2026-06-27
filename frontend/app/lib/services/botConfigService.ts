@@ -19,6 +19,7 @@ export interface UpdateBotConfigRequest {
   temperature?: number;
   bot_name?: string;
   ui_prompt_extra?: string;
+  personality_name?: string;
   twilio_account_sid?: string;
   twilio_auth_token?: string;
   twilio_whatsapp_from?: string;
@@ -147,6 +148,7 @@ export interface PersonalityHistoryEntry {
   ui_prompt_extra: string | null;
   temperature: number;
   saved_at: string;
+  personality_name?: string | null;
 }
 
 export const getPersonalityHistory = async (): Promise<

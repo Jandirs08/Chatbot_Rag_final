@@ -98,32 +98,40 @@ class ConfigRepository:
         doc = await self._collection.find_one({"_id": "default"})
         return BotConfig(**{k: v for k, v in doc.items() if k != "_id"})
 
-    async def save_history_snapshot(self, ui_prompt_extra: Optional[str], temperature: float) -> str:
-        """Store a personality snapshot in history (keep last 10)."""
+    async def save_history_snapshot(
+        self,
+        ui_prompt_extra: Optional[str],
+        temperature: float,
+        personality_name: Optional[str] = None,
+    ) -> str:
+        """Store a personality snapshot in history (keep last 5)."""
         import uuid
         history_col = self._mongo.db.get_collection("bot_config_history")
         snapshot_id = str(uuid.uuid4())
-        await history_col.insert_one({
+        doc: dict = {
             "_id": snapshot_id,
             "ui_prompt_extra": ui_prompt_extra,
             "temperature": temperature,
             "saved_at": datetime.now(timezone.utc),
-        })
-        # Keep only last 10
+        }
+        if personality_name:
+            doc["personality_name"] = personality_name.strip()[:60]
+        await history_col.insert_one(doc)
+        # Keep only last 5
         all_ids = [
-            doc["_id"]
-            async for doc in history_col.find({}, {"_id": 1}).sort("saved_at", -1).skip(10)
+            d["_id"]
+            async for d in history_col.find({}, {"_id": 1}).sort("saved_at", -1).skip(5)
         ]
         if all_ids:
             await history_col.delete_many({"_id": {"$in": all_ids}})
         return snapshot_id
 
     async def get_history(self) -> list[dict]:
-        """Return last 10 personality history snapshots, newest first."""
+        """Return last 5 personality history snapshots, newest first."""
         history_col = self._mongo.db.get_collection("bot_config_history")
         return [
             {**{k: v for k, v in doc.items() if k != "_id"}, "history_id": doc["_id"]}
-            async for doc in history_col.find({}).sort("saved_at", -1).limit(10)
+            async for doc in history_col.find({}).sort("saved_at", -1).limit(5)
         ]
 
     async def restore_history(self, history_id: str) -> BotConfig:

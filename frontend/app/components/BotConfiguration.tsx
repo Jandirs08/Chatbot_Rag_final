@@ -1,6 +1,7 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { diff_match_patch } from "diff-match-patch";
 import { Button } from "@/app/components/ui/button";
+import { Input } from "@/app/components/ui/input";
 import {
   Save,
   RotateCcw,
@@ -10,6 +11,7 @@ import {
   Upload,
   Pencil,
   Lock,
+  Tag,
 } from "lucide-react";
 import { PromptBuilderAssistant } from "@/app/components/PromptBuilderAssistant";
 import { toast } from "sonner";
@@ -27,6 +29,8 @@ export interface BotConfigurationProps {
   canReset?: boolean;
   locked?: boolean;
   onUnlock?: () => void;
+  personalityName?: string;
+  onPersonalityNameChange?: (val: string) => void;
 }
 
 function PromptDiff({
@@ -81,8 +85,18 @@ export function BotConfiguration({
   canReset,
   locked,
   onUnlock,
+  personalityName = "",
+  onPersonalityNameChange,
 }: BotConfigurationProps) {
   const [showDiff, setShowDiff] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // Scroll content area into view and focus name input when unlocked
+  useEffect(() => {
+    if (!locked) {
+      contentRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [locked]);
 
   const handleExport = useCallback(() => {
     const data = JSON.stringify({ prompt }, null, 2);
@@ -126,15 +140,37 @@ export function BotConfiguration({
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border/60 flex-shrink-0">
-        <div>
+        <div className="flex-1 min-w-0">
           <h2 className="text-sm font-semibold text-foreground">
             Personalidad del bot
           </h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {locked
-              ? "Modo lectura — haz clic en editar para modificar."
-              : "Define el tono, restricciones y comportamiento del asistente."}
-          </p>
+          {locked ? (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {personalityName ? (
+                <span className="flex items-center gap-1.5">
+                  <Tag className="w-3 h-3 text-muted-foreground/60" aria-hidden="true" />
+                  {personalityName}
+                  <span className="text-muted-foreground/50">— clic en editar para modificar</span>
+                </span>
+              ) : (
+                "Modo lectura — haz clic en editar para modificar."
+              )}
+            </p>
+          ) : (
+            <div className="mt-2 max-w-xs" ref={contentRef}>
+              <div className="relative">
+                <Tag className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground/50" aria-hidden="true" />
+                <Input
+                  value={personalityName}
+                  onChange={(e) => onPersonalityNameChange?.(e.target.value)}
+                  placeholder="Nombre de esta versión (opcional)"
+                  maxLength={60}
+                  className="pl-7 h-7 text-xs border-border/60 focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary/20"
+                  aria-label="Nombre de la personalidad"
+                />
+              </div>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <div aria-live="polite" aria-atomic="true">
@@ -239,12 +275,18 @@ export function BotConfiguration({
           {locked && !prompt.trim() && (
             <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
               <div className="w-10 h-10 rounded-full bg-accent-violet/10 flex items-center justify-center">
-                <Lock className="w-5 h-5 text-accent-violet/60" aria-hidden="true" />
+                <Lock
+                  className="w-5 h-5 text-accent-violet/60"
+                  aria-hidden="true"
+                />
               </div>
               <div>
-                <p className="text-sm font-medium text-foreground">Sin personalidad configurada</p>
+                <p className="text-sm font-medium text-foreground">
+                  Sin personalidad configurada
+                </p>
                 <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-                  Haz clic en el ícono de editar para configurar el tono y comportamiento del asistente.
+                  Haz clic en el ícono de editar para configurar el tono y
+                  comportamiento del asistente.
                 </p>
               </div>
               <Button
@@ -286,17 +328,6 @@ export function BotConfiguration({
       {/* Footer */}
       <div className="flex-shrink-0 border-t border-border/60 bg-card/80 backdrop-blur-sm px-6 py-3">
         <div className="flex items-center gap-2">
-          {!canSave && !locked && (
-            <Button
-              type="button"
-              onClick={onSave}
-              className="gradient-primary hover:opacity-90 h-8 text-xs"
-              disabled={!!isLoading}
-            >
-              <Save className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
-              {isLoading ? "Guardando…" : "Guardar cambios"}
-            </Button>
-          )}
           <Button
             type="button"
             onClick={onReset}
