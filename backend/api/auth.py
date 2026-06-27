@@ -3,7 +3,7 @@ import logging
 from typing import Dict
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Response
 
-from models.auth import (
+from api.schemas.auth import (
     LoginRequest,
     LogoutRequest,
     TokenResponse,
