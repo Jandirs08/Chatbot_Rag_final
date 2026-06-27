@@ -416,7 +416,7 @@ async def stream_with_tools(
                 log_stream_timing_summary(conversation_id, is_cached=False)
 
                 try:
-                    from utils.metrics_collector import ChatSample, get_metrics_collector
+                    from infra.metrics_collector import ChatSample, get_metrics_collector
 
                     tokens_out_estimate = int(req_ctx.tokens_out or 0)
                     stages = req_ctx.stage_timings_ms or {}

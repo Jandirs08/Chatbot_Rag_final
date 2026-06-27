@@ -16,7 +16,7 @@ from database.config_repository import ConfigRepository
 from auth.permissions import require_manage_bot_config
 from models.user import User
 from cache.manager import cache
-from utils.audit import audit
+from infra.audit import audit
 from database.bot_state_repo import (
     BOT_CONFIG_CACHE_FIELDS,
     normalize_runtime_config_payload,

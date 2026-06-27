@@ -12,7 +12,7 @@ from cache.manager import cache
 from database.mongodb import get_mongodb_client
 from database.retrieval_log_repository import GAP_REASONS, REASON_META
 from utils.logging_utils import get_logger
-from utils.metrics_collector import get_metrics_collector
+from infra.metrics_collector import get_metrics_collector
 
 logger = get_logger(__name__)
 router = APIRouter()

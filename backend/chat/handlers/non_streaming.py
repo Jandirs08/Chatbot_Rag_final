@@ -158,7 +158,7 @@ async def generate_response(
         if req_ctx is not None:
             try:
                 from chat.debug import get_token_count
-                from utils.metrics_collector import ChatSample, get_metrics_collector
+                from infra.metrics_collector import ChatSample, get_metrics_collector
 
                 total_ms = (time.perf_counter() - total_started_at) * 1000
                 rag_ms = (req_ctx.rag_time * 1000) if req_ctx.rag_time else None

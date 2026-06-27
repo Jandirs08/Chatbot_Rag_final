@@ -30,7 +30,7 @@ from services.email_service import EmailService
 from auth.dependencies import get_current_user, get_current_active_user, get_token_blacklist, extract_token_from_request
 from config import get_settings
 from utils.rate_limiter import conditional_limit
-from utils.audit import audit
+from infra.audit import audit
 
 # Configure logging
 logger = logging.getLogger(__name__)

@@ -15,7 +15,7 @@ from database.user_repository import UserRepository, get_user_repository
 from auth.password_handler import hash_password
 from auth.permissions import require_manage_users
 from models.user import User
-from utils.audit import audit
+from infra.audit import audit
 from api.schemas.pagination import Page
 
 logger = logging.getLogger(__name__)
