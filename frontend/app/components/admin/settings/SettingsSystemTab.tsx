@@ -56,20 +56,20 @@ export function SettingsSystemTab({ isLoading }: SettingsSystemTabProps) {
       </div>
 
       {/* Scrollable content */}
-      <div className="flex-1 px-6 py-6">
-        <section className="space-y-4 max-w-xl">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-              Zona de peligro
-            </p>
-            <p className="text-xs text-muted-foreground/70 mt-1">
-              Acciones irreversibles sobre los datos del sistema.
-            </p>
-          </div>
+      <div className="flex-1 px-4 py-4 space-y-3">
+        <section className="max-w-xl space-y-3">
 
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/20 bg-destructive/[0.03] px-4 py-3">
+          {/* Danger zone card */}
+          <div className="rounded-xl border border-destructive/30 bg-destructive/5 overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-destructive/20 bg-destructive/5">
+              <AlertTriangle className="w-3.5 h-3.5 text-destructive flex-shrink-0" aria-hidden="true" />
+              <span className="text-xs font-semibold text-destructive">Zona de peligro</span>
+              <span className="ml-auto text-[10px] text-destructive/60 font-mono">acciones irreversibles</span>
+            </div>
+            <div className="px-4 py-4 space-y-3">
+
+          <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="mt-0.5 h-4 w-4 flex-none text-destructive" />
             <div className="space-y-0.5">
               <p className="text-sm font-medium text-foreground">
                 Eliminar historial de conversaciones
@@ -205,7 +205,10 @@ export function SettingsSystemTab({ isLoading }: SettingsSystemTabProps) {
               )}
             </DialogContent>
           </Dialog>
-        </div>
+          </div>
+            </div>{/* /danger-zone body */}
+          </div>{/* /danger-zone card */}
+
         </section>
       </div>
     </div>
