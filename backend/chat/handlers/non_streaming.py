@@ -1,4 +1,4 @@
-from typing import Optional
+﻿from typing import Optional
 import asyncio
 import time
 
@@ -7,8 +7,8 @@ from fastapi import HTTPException
 from infra.logging_utils import get_logger
 from cache.manager import cache
 from config import settings
-from common.constants import USER_ROLE, ASSISTANT_ROLE
-from common.objects import Message as BotMessage
+from infra.constants import USER_ROLE, ASSISTANT_ROLE
+from domain.objects import Message as BotMessage
 from chat.turn_context import new_request_context
 from rag.retrieval.retriever import RetrievalBackendUnavailableError
 
@@ -29,7 +29,7 @@ async def generate_response(
     source: str | None = None,
     debug_mode: bool = False,
 ):
-    """Genera respuesta vía Bot. LCEL inyecta RAG automáticamente."""
+    """Genera respuesta vÃ­a Bot. LCEL inyecta RAG automÃ¡ticamente."""
     conversation_lock: Optional[object] = None
     lock_acquired = False
     req_ctx = None
@@ -42,9 +42,9 @@ async def generate_response(
             raise HTTPException(status_code=429, detail="Conversation busy, try again")
         req_ctx = new_request_context()
         if getattr(settings, "enable_rag_lcel", False):
-            logger.debug("ENABLE_RAG_LCEL activo: contexto RAG será inyectado automáticamente.")
+            logger.debug("ENABLE_RAG_LCEL activo: contexto RAG serÃ¡ inyectado automÃ¡ticamente.")
         else:
-            logger.debug("ENABLE_RAG_LCEL desactivado: la recuperación contextual no se aplicará.")
+            logger.debug("ENABLE_RAG_LCEL desactivado: la recuperaciÃ³n contextual no se aplicarÃ¡.")
 
         cache_key = build_response_cache_key(bot, conversation_id, input_text)
         cached_response = None
@@ -56,7 +56,7 @@ async def generate_response(
             cached_response = None
 
         if cached_response is not None:
-            logger.debug("Cache HIT respuesta LLM para conversación")
+            logger.debug("Cache HIT respuesta LLM para conversaciÃ³n")
             response_content = cached_response
             from_cache = True
             t_llm_start = None
@@ -72,7 +72,7 @@ async def generate_response(
                     is_cached=True,
                 )
         else:
-            logger.debug("Cache MISS respuesta LLM — generando con Bot")
+            logger.debug("Cache MISS respuesta LLM â€” generando con Bot")
             bot_input = {"input": input_text, "conversation_id": conversation_id}
 
             try:
@@ -82,8 +82,8 @@ async def generate_response(
             except asyncio.TimeoutError:
                 logger.error("Timeout al generar respuesta con el modelo LLM.")
                 return (
-                    "Lo siento, la respuesta está tardando más de lo esperado. "
-                    "Por favor, inténtalo nuevamente en unos segundos."
+                    "Lo siento, la respuesta estÃ¡ tardando mÃ¡s de lo esperado. "
+                    "Por favor, intÃ©ntalo nuevamente en unos segundos."
                 )
 
             ai_response_message = BotMessage(
@@ -104,7 +104,7 @@ async def generate_response(
                 await db.add_message(conversation_id, ASSISTANT_ROLE, response_content, source)
             except Exception as exc:
                 logger.error(
-                    "No se pudo persistir la conversación en Mongo para conv=%s: %s",
+                    "No se pudo persistir la conversaciÃ³n en Mongo para conv=%s: %s",
                     conversation_id,
                     exc,
                     exc_info=True,
@@ -121,21 +121,21 @@ async def generate_response(
                 is_cached=False,
             )
         logger.info(
-            f"Respuesta generada{' y guardada' if not debug_mode else ''} para conversación {conversation_id}"
+            f"Respuesta generada{' y guardada' if not debug_mode else ''} para conversaciÃ³n {conversation_id}"
         )
         return response_content
 
     except RetrievalBackendUnavailableError as e:
         logger.warning(f"Error de retrieval en ChatManager: {e}")
         return (
-            "El servicio de búsqueda no está disponible en este momento. "
-            "Por favor, inténtalo nuevamente en unos minutos."
+            "El servicio de bÃºsqueda no estÃ¡ disponible en este momento. "
+            "Por favor, intÃ©ntalo nuevamente en unos minutos."
         )
     except asyncio.TimeoutError:
         logger.warning("Timeout generando respuesta en ChatManager.")
         return (
-            "La respuesta está tardando más de lo esperado. "
-            "Por favor, inténtalo nuevamente en unos segundos."
+            "La respuesta estÃ¡ tardando mÃ¡s de lo esperado. "
+            "Por favor, intÃ©ntalo nuevamente en unos segundos."
         )
     except Exception as e:
         err_name = type(e).__name__
@@ -143,17 +143,17 @@ async def generate_response(
         if "ratelimit" in err_name.lower() or "rate_limit" in err_str or "429" in err_str:
             logger.warning("Rate limit upstream en ChatManager: %s", e, exc_info=True)
             return (
-                "Estamos recibiendo mucho tráfico en este momento. "
+                "Estamos recibiendo mucho trÃ¡fico en este momento. "
                 "Reintenta en unos segundos."
             )
         if "apiconnection" in err_name.lower() or "apitimeout" in err_name.lower():
-            logger.warning("Conectividad con proveedor LLM falló: %s", e, exc_info=True)
+            logger.warning("Conectividad con proveedor LLM fallÃ³: %s", e, exc_info=True)
             return (
                 "No pudimos conectarnos al servicio de IA en este momento. "
-                "Por favor, inténtalo nuevamente en unos minutos."
+                "Por favor, intÃ©ntalo nuevamente en unos minutos."
             )
         logger.error(f"Error generando respuesta en ChatManager: {e}", exc_info=True)
-        return "Hubo un problema procesando tu mensaje. Por favor, inténtalo nuevamente."
+        return "Hubo un problema procesando tu mensaje. Por favor, intÃ©ntalo nuevamente."
     finally:
         if req_ctx is not None:
             try:

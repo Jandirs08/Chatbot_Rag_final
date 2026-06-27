@@ -13,7 +13,7 @@ from chat.memory import (
 )
 from chat.memory.memory_types import MEM_TO_CLASS, MemoryTypes
 from domain import ModelTypes
-from common.objects import Message
+from domain.objects import Message
 from infra.logging_utils import get_logger
 from config import Settings, settings as app_settings
 from infra.chunk_utils import extract_text_from_chunk

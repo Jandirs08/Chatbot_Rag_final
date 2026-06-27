@@ -1,12 +1,12 @@
-"""ChatManager: orquesta Bot, persistencia, locks, caché y debug.
+﻿"""ChatManager: orquesta Bot, persistencia, locks, cachÃ© y debug.
 
-Lógica especializada vive en módulos vecinos:
-- locks.py     → ConversationLockManager
-- cache_key.py → build_response_cache_key
-- verifier.py  → ResponseVerifier (fact-checker en debug)
-- debug.py     → DebugInfoBuilder + log_stream_timing_summary
-- handlers/non_streaming.py → generate_response logic
-- handlers/agentic.py       → stream_with_tools + generate_agentic_response
+LÃ³gica especializada vive en mÃ³dulos vecinos:
+- locks.py     â†’ ConversationLockManager
+- cache_key.py â†’ build_response_cache_key
+- verifier.py  â†’ ResponseVerifier (fact-checker en debug)
+- debug.py     â†’ DebugInfoBuilder + log_stream_timing_summary
+- handlers/non_streaming.py â†’ generate_response logic
+- handlers/agentic.py       â†’ stream_with_tools + generate_agentic_response
 """
 from typing import Optional
 import asyncio
@@ -18,8 +18,8 @@ from infra.logging_utils import get_logger
 from cache.manager import cache
 from config import settings
 from database.mongodb import get_mongodb_client
-from common.constants import USER_ROLE, ASSISTANT_ROLE
-from common.objects import Message as BotMessage
+from infra.constants import USER_ROLE, ASSISTANT_ROLE
+from domain.objects import Message as BotMessage
 from core.bot import Bot
 from chat.turn_context import new_request_context
 from rag.retrieval.retriever import RetrievalBackendUnavailableError
@@ -47,7 +47,7 @@ logger = get_logger(__name__)
 
 
 class ChatManager:
-    """Manager principal para la interacción con el Bot y persistencia en Mongo."""
+    """Manager principal para la interacciÃ³n con el Bot y persistencia en Mongo."""
 
     def __init__(self, bot_instance: Bot):
         self.bot = bot_instance
@@ -73,7 +73,7 @@ class ChatManager:
             await self.db.add_message(conversation_id, ASSISTANT_ROLE, response_content, source)
         except Exception as exc:
             logger.error(
-                "No se pudo persistir la conversación en Mongo para conv=%s: %s",
+                "No se pudo persistir la conversaciÃ³n en Mongo para conv=%s: %s",
                 conversation_id,
                 exc,
                 exc_info=True,
@@ -86,7 +86,7 @@ class ChatManager:
         source: str | None = None,
         debug_mode: bool = False,
     ):
-        """Genera respuesta vía Bot. LCEL inyecta RAG automáticamente."""
+        """Genera respuesta vÃ­a Bot. LCEL inyecta RAG automÃ¡ticamente."""
         return await _generate_response(
             bot=self.bot,
             db=self.db,
@@ -150,7 +150,7 @@ class ChatManager:
         )
 
     async def close(self) -> None:
-        """Cierra la conexión de MongoDB."""
+        """Cierra la conexiÃ³n de MongoDB."""
         await self.db.close()
         logger.info("MongoDB client cerrado en ChatManager.")
 
@@ -238,7 +238,7 @@ class ChatManager:
                         await self.bot.add_to_memory(human=input_text, ai=final_text, conversation_id=conversation_id)
                     except Exception as persist_err:
                         logger.warning(
-                            "No se pudo persistir respuesta parcial tras cancelación: %s", persist_err
+                            "No se pudo persistir respuesta parcial tras cancelaciÃ³n: %s", persist_err
                         )
                 raise
 

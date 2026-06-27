@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict
-from .constants import USER_ROLE, ASSISTANT_ROLE
+from infra.constants import USER_ROLE, ASSISTANT_ROLE
 
 # CONVENCIÓN DE IDENTIFICADORES DE CONVERSACIÓN:
 #

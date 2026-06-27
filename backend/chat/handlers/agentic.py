@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+﻿from dataclasses import dataclass
 from typing import Optional
 import asyncio
 import re
@@ -8,7 +8,7 @@ from fastapi import HTTPException
 
 from infra.logging_utils import get_logger
 from config import settings
-from common.constants import USER_ROLE
+from infra.constants import USER_ROLE
 from chat.turn_context import new_request_context
 from core.tools import ToolContext
 from core.tools.retrieval_tool import SEARCH_TOOL_NAME
@@ -23,24 +23,24 @@ logger = get_logger(__name__)
 MAX_TOOL_ITERS = 3
 
 # Peruvian Spanish greeting / ack / meta-question patterns. Full-match anchored,
-# case-insensitive. If matched → tool_choice="auto" (let model decide).
-# Otherwise → force search_documents so agent can't skip retrieval for legit
+# case-insensitive. If matched â†’ tool_choice="auto" (let model decide).
+# Otherwise â†’ force search_documents so agent can't skip retrieval for legit
 # domain questions just because they're phrased informally.
 _NO_SEARCH_RE = re.compile(
     r"^\s*(?:"
-    r"hola+|holi+|holap|buen[oa]s?(?:\s+(?:d[ií]as?|tardes?|noches?))?|"
-    r"qu[eé]\s+tal|qu[eé]\s+hubo|qu[eé]\s+onda|c[oó]mo\s+est[aá]s?|c[oó]mo\s+va|"
+    r"hola+|holi+|holap|buen[oa]s?(?:\s+(?:d[iÃ­]as?|tardes?|noches?))?|"
+    r"qu[eÃ©]\s+tal|qu[eÃ©]\s+hubo|qu[eÃ©]\s+onda|c[oÃ³]mo\s+est[aÃ¡]s?|c[oÃ³]mo\s+va|"
     r"todo\s+bien|hi|hello|hey|"
-    r"adi[oó]s|chao|chau|bye|nos\s+vemos|hasta\s+luego|hasta\s+pronto|me\s+voy|"
+    r"adi[oÃ³]s|chao|chau|bye|nos\s+vemos|hasta\s+luego|hasta\s+pronto|me\s+voy|"
     r"gracias|muchas?\s+gracias|mil\s+gracias|thanks|thank\s+you|"
     r"ok|okay|okey|ya|listo|perfecto|entendido|entiendo|comprendo|"
-    r"genial|excelente|bacán|chevere|chévere|de\s+una|s[ií]|sip|no|nop|nope|"
-    r"dale|va|claro|claro\s+que\s+s[ií]|por\s+supuesto|"
-    r"no\s+entend[ií]|no\s+entiendo|no\s+capto|repite|rep[ií]telo|"
-    r"resume|res[uú]melo|m[aá]s\s+corto|m[aá]s\s+simple|expl[ií]ca(?:lo)?\s+m[aá]s\s+simple|"
-    r"qui[eé]n\s+eres|qu[eé]\s+eres|qu[eé]\s+haces|qu[eé]\s+puedes\s+hacer|"
-    r"c[oó]mo\s+funcionas|para\s+qu[eé]\s+sirves"
-    r")\s*[.!?¿¡…]*\s*$",
+    r"genial|excelente|bacÃ¡n|chevere|chÃ©vere|de\s+una|s[iÃ­]|sip|no|nop|nope|"
+    r"dale|va|claro|claro\s+que\s+s[iÃ­]|por\s+supuesto|"
+    r"no\s+entend[iÃ­]|no\s+entiendo|no\s+capto|repite|rep[iÃ­]telo|"
+    r"resume|res[uÃº]melo|m[aÃ¡]s\s+corto|m[aÃ¡]s\s+simple|expl[iÃ­]ca(?:lo)?\s+m[aÃ¡]s\s+simple|"
+    r"qui[eÃ©]n\s+eres|qu[eÃ©]\s+eres|qu[eÃ©]\s+haces|qu[eÃ©]\s+puedes\s+hacer|"
+    r"c[oÃ³]mo\s+funcionas|para\s+qu[eÃ©]\s+sirves"
+    r")\s*[.!?Â¿Â¡â€¦]*\s*$",
     re.IGNORECASE,
 )
 
@@ -58,7 +58,7 @@ def _should_force_search(text: Optional[str]) -> bool:
 
 
 def _search_tool_choice() -> dict:
-    """Fresh dict per call — defends against any downstream in-place mutation."""
+    """Fresh dict per call â€” defends against any downstream in-place mutation."""
     return {"type": "function", "function": {"name": SEARCH_TOOL_NAME}}
 
 
@@ -80,8 +80,8 @@ _REACT_STREAM_IDLE_TIMEOUT = float(getattr(settings, "react_stream_idle_timeout_
 _MAX_TURN_CHARS = 240_000
 
 _CAP_FALLBACK_MESSAGE = (
-    "No pude completar tu consulta con la información disponible. "
-    "¿Podrías reformular la pregunta o ser más específico?"
+    "No pude completar tu consulta con la informaciÃ³n disponible. "
+    "Â¿PodrÃ­as reformular la pregunta o ser mÃ¡s especÃ­fico?"
 )
 
 
@@ -112,8 +112,8 @@ def _messages_total_chars(messages) -> int:
 
 
 def _messages_total_tokens(messages) -> int:
-    """Estimación tiktoken cl100k_base sobre `messages` list. Reusa el helper
-    de `chat/debug.py` para consistencia. Bajo costo (~50µs por mensaje cacheado).
+    """EstimaciÃ³n tiktoken cl100k_base sobre `messages` list. Reusa el helper
+    de `chat/debug.py` para consistencia. Bajo costo (~50Âµs por mensaje cacheado).
     """
     from chat.debug import get_token_count
     total = 0
@@ -147,7 +147,7 @@ async def _collect_prior_user_msgs(memory, conversation_id: str, limit: int = 2)
     if not isinstance(hist, list):
         return []
     out: list[str] = []
-    for msg in hist[-(limit * 4):]:  # over-fetch — filter below
+    for msg in hist[-(limit * 4):]:  # over-fetch â€” filter below
         if not isinstance(msg, dict):
             continue
         if msg.get("role") not in ("human", "user"):
@@ -283,7 +283,7 @@ async def stream_with_tools(
                                 yield event
                 except asyncio.TimeoutError:
                     logger.warning(
-                        "[ReAct] iter=%s stream idle timeout (%.1fs) conv=%s — forced final",
+                        "[ReAct] iter=%s stream idle timeout (%.1fs) conv=%s â€” forced final",
                         iteration + 1, _REACT_STREAM_IDLE_TIMEOUT, conversation_id,
                     )
                     forced_final = True
@@ -355,7 +355,7 @@ async def stream_with_tools(
                 elif event.kind == "end":
                     if not fallback_iter_text and not text_accum:
                         logger.warning(
-                            "[ReAct] dual-empty stream conv=%s — emitting fallback text",
+                            "[ReAct] dual-empty stream conv=%s â€” emitting fallback text",
                             conversation_id,
                         )
                         text_accum += _CAP_FALLBACK_MESSAGE
@@ -367,7 +367,7 @@ async def stream_with_tools(
             try:
                 await db.add_message(conversation_id, USER_ROLE, input_text, source)
                 if text_accum:
-                    from common.constants import ASSISTANT_ROLE
+                    from infra.constants import ASSISTANT_ROLE
                     await db.add_message(conversation_id, ASSISTANT_ROLE, text_accum, source)
             except Exception as exc:
                 logger.error(
@@ -376,12 +376,12 @@ async def stream_with_tools(
                 )
         elif text_accum:
             try:
-                from common.constants import ASSISTANT_ROLE
+                from infra.constants import ASSISTANT_ROLE
                 await db.add_message(conversation_id, USER_ROLE, input_text, source)
                 await db.add_message(conversation_id, ASSISTANT_ROLE, text_accum, source)
             except Exception as exc:
                 logger.error(
-                    "No se pudo persistir la conversación en Mongo para conv=%s: %s",
+                    "No se pudo persistir la conversaciÃ³n en Mongo para conv=%s: %s",
                     conversation_id,
                     exc,
                     exc_info=True,
