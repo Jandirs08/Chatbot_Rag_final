@@ -28,13 +28,10 @@ router = APIRouter(tags=["whatsapp"])
 
 # --- HELPERS ---
 
-def log_error(message: str, wa_id: str = None):
-    """Helper para logs de error seguros."""
+def log_error(message: str, wa_id: str = None, exc_info: bool = False) -> None:
+    """Helper para logs de error en el webhook de WhatsApp."""
     msg = message if not wa_id else f"{message} para wa_id={wa_id}"
-    try:
-        logger.error(msg)
-    except Exception:
-        pass
+    logger.error(msg, exc_info=exc_info)
 
 async def _run_classification(conversation_id: str, app_state) -> None:
     try:
@@ -129,7 +126,7 @@ async def process_message_background(
         await _run_classification(conversation_id, app_state)
 
     except Exception as e:
-        log_error(f"CRITICAL: Error en proceso de fondo (LLM/Send): {e}", wa_id)
+        log_error(f"CRITICAL: Error en proceso de fondo (LLM/Send): {e}", wa_id, exc_info=True)
         try:
             mongodb_client = getattr(app_state, "mongodb_client", None) or get_mongodb_client()
             dlq = FailedMessageRepository(mongodb_client)
@@ -140,8 +137,13 @@ async def process_message_background(
                 message_sid=message_sid,
                 error=str(e),
             )
-        except Exception:
-            pass
+        except Exception as dlq_exc:
+            logger.error(
+                "DLQ record failed — mensaje perdido para wa_id=%s: %s",
+                wa_id,
+                dlq_exc,
+                exc_info=True,
+            )
 
 # --- ENDPOINTS ---
 
@@ -257,7 +259,7 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
         conversation_id = await repo.get_or_create(wa_id)
         await repo.touch(wa_id)
     except Exception as e:
-        log_error(f"Error DB sesión: {e}", wa_id)
+        log_error(f"Error DB sesión: {e}", wa_id, exc_info=True)
         conversation_id = f"fallback_{wa_id}"
     
     # 6. Encolar Tarea (Background)

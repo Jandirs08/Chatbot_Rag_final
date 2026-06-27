@@ -123,8 +123,18 @@ class EmbeddingManager:
         """Genera embeddings para una lista de textos usando OpenAI."""
 
         if getattr(settings, "mock_mode", False):
-            # Simula latencia y retorna embeddings vacíos
+            # Simula latencia mínima para testing. Este método es síncrono por
+            # contrato con LangChain; callers async deben usar embed_documents_async().
             vector_dim = getattr(settings, "default_embedding_dimension", 1536)
+            try:
+                loop = asyncio.get_running_loop()
+                if loop is not None:
+                    self.logger.warning(
+                        "embed_documents llamado directamente en un event loop activo "
+                        "(mock_mode). Usar embed_documents_async() desde contextos async."
+                    )
+            except RuntimeError:
+                pass  # no hay event loop activo — contexto sync correcto
             time.sleep(0.01)
             self.logger.info("MOCK EMBEDDING GENERATED (Costo $0)")
             return [[0.0] * vector_dim for _ in texts]
@@ -255,8 +265,17 @@ class EmbeddingManager:
     def embed_query(self, query: str) -> List[float]:
         """Genera embedding para una consulta usando OpenAI."""
         if getattr(settings, "mock_mode", False):
-            # Simula latencia y retorna embedding vacío
+            # Simula latencia mínima para testing. Callers async deben usar embed_text().
             vector_dim = getattr(settings, "default_embedding_dimension", 1536)
+            try:
+                loop = asyncio.get_running_loop()
+                if loop is not None:
+                    self.logger.warning(
+                        "embed_query llamado directamente en un event loop activo "
+                        "(mock_mode). Usar embed_text() desde contextos async."
+                    )
+            except RuntimeError:
+                pass  # no hay event loop activo — contexto sync correcto
             time.sleep(0.01)
             self.logger.info("MOCK EMBEDDING GENERATED (Costo $0)")
             return [0.0] * vector_dim

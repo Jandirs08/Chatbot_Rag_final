@@ -75,6 +75,9 @@ class CacheManager:
                             f"CacheManager: Intento {attempt}/{retry_attempts} de conexión a Redis falló: {e}. "
                             f"Reintentando en {delay}s..."
                         )
+                        # Seguro: _init_backend corre en import-time, antes del
+                        # event loop de uvicorn. Si se re-inicializa en contexto
+                        # async, refactorizar a async factory con asyncio.sleep.
                         time.sleep(delay)
                     else:
                         _logger.warning(

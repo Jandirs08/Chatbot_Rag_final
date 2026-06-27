@@ -51,7 +51,8 @@ async def generate_response(
         try:
             if bool(getattr(settings, "enable_cache", True)):
                 cached_response = await cache.aget(cache_key)
-        except Exception:
+        except Exception as e:
+            logger.warning("Cache GET failed | key=%s | err=%s", cache_key, e)
             cached_response = None
 
         if cached_response is not None:
@@ -94,8 +95,8 @@ async def generate_response(
             try:
                 if bool(getattr(settings, "enable_cache", True)):
                     await cache.aset(cache_key, response_content, cache.ttl)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Cache SET failed | key=%s | err=%s", cache_key, e)
 
         if not debug_mode:
             try:
@@ -140,13 +141,13 @@ async def generate_response(
         err_name = type(e).__name__
         err_str = str(e).lower()
         if "ratelimit" in err_name.lower() or "rate_limit" in err_str or "429" in err_str:
-            logger.warning(f"Rate limit upstream en ChatManager: {e}")
+            logger.warning("Rate limit upstream en ChatManager: %s", e, exc_info=True)
             return (
                 "Estamos recibiendo mucho tráfico en este momento. "
                 "Reintenta en unos segundos."
             )
         if "apiconnection" in err_name.lower() or "apitimeout" in err_name.lower():
-            logger.warning(f"Conectividad con proveedor LLM falló: {e}")
+            logger.warning("Conectividad con proveedor LLM falló: %s", e, exc_info=True)
             return (
                 "No pudimos conectarnos al servicio de IA en este momento. "
                 "Por favor, inténtalo nuevamente en unos minutos."
