@@ -182,6 +182,10 @@ export default function AdminSettingsPage() {
   }, [data]);
 
   const handleSave = async () => {
+    if (!/^#[0-9A-Fa-f]{6}$/.test(config.brandColor)) {
+      toast.error("Color de marca inválido. Usa un código hexadecimal de 6 dígitos (ej. #0EA5E9).");
+      return;
+    }
     try {
       setSaving(true);
       await updateBotConfig({

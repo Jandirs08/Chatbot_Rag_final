@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { diff_match_patch } from "diff-match-patch";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -26,9 +26,12 @@ export interface BotConfigurationProps {
 }
 
 function PromptDiff({ baseline, current }: { baseline: string; current: string }) {
-  const dmp = new diff_match_patch();
-  const diffs = dmp.diff_main(baseline, current);
-  dmp.diff_cleanupSemantic(diffs);
+  const diffs = useMemo(() => {
+    const dmp = new diff_match_patch();
+    const d = dmp.diff_main(baseline, current);
+    dmp.diff_cleanupSemantic(d);
+    return d;
+  }, [baseline, current]);
   return (
     <pre className="text-[12px] leading-relaxed font-mono whitespace-pre-wrap break-words p-4 bg-background/60 rounded-lg border border-border max-h-64 overflow-y-auto">
       {diffs.map(([op, text], i) => {
@@ -117,15 +120,14 @@ export function BotConfiguration({
         </div>
       </div>
 
-      {/* Dirty-state banner */}
-      {canSave && (
-        <div className="flex-shrink-0 border-b border-amber-500/20 bg-amber-500/5">
+      {/* Dirty-state banner — live region always in DOM so screen readers catch the announcement */}
+      <div
+        aria-live="polite"
+        aria-atomic="true"
+        className={`flex-shrink-0 border-b border-amber-500/20 bg-amber-500/5 ${canSave ? "" : "hidden"}`}
+      >
           <div className="flex items-center justify-between gap-3 px-6 py-2">
-            <div
-              aria-live="polite"
-              aria-atomic="true"
-              className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400 font-medium"
-            >
+            <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400 font-medium">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0 animate-pulse" aria-hidden="true" />
               Cambios sin guardar
             </div>
@@ -175,8 +177,7 @@ export function BotConfiguration({
               <PromptDiff baseline={baselinePrompt} current={prompt} />
             </div>
           )}
-        </div>
-      )}
+      </div>{/* /aria-live dirty banner */}
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto">

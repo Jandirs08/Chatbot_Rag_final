@@ -55,6 +55,7 @@ export function PersonalityHistoryPanel({ onRestored }: Props) {
       try {
         await restorePersonalityHistory(historyId);
         toast.success("Versión restaurada correctamente");
+        setEntries([]);
         onRestored();
         setOpen(false);
       } catch (err: unknown) {
@@ -73,6 +74,7 @@ export function PersonalityHistoryPanel({ onRestored }: Props) {
         onClick={handleToggle}
         className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-foreground hover:bg-accent/50 transition-colors border-b border-border/60 bg-muted/10"
         aria-expanded={open}
+        aria-controls="history-panel-content"
       >
         <span className="flex items-center gap-2">
           <History
@@ -89,7 +91,7 @@ export function PersonalityHistoryPanel({ onRestored }: Props) {
       </button>
 
       {open && (
-        <div>
+        <div id="history-panel-content">
           {loading ? (
             <p className="px-4 py-3 text-xs text-muted-foreground">
               Cargando historial…
