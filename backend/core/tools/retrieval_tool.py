@@ -13,7 +13,7 @@ import time
 from typing import Any, Optional
 
 from cache.manager import cache as _cache
-from core.request_context import get_request_context
+from chat.turn_context import get_request_context
 from database.retrieval_log_repository import GAP_REASONS, schedule_log_retrieval
 from rag.corpus_state import get_corpus_cache_version
 from .base import ToolContext, ToolDefinition, ToolResult

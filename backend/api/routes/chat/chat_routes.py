@@ -21,7 +21,7 @@ from config import settings
 from auth.dependencies import get_current_active_user, get_optional_current_user
 from auth.permissions import require_view_debug
 from models.user import User
-from core.request_context import get_request_context
+from chat.turn_context import get_request_context
 from rag.retrieval.retriever import RetrievalBackendUnavailableError
 from database.conversation_repository import ConversationRepository
 from database.mongodb import get_mongodb_client

@@ -21,7 +21,7 @@ from database.mongodb import get_mongodb_client
 from common.constants import USER_ROLE, ASSISTANT_ROLE
 from common.objects import Message as BotMessage
 from core.bot import Bot
-from core.request_context import new_request_context
+from chat.turn_context import new_request_context
 from rag.retrieval.retriever import RetrievalBackendUnavailableError
 
 from chat.cache_key import build_response_cache_key

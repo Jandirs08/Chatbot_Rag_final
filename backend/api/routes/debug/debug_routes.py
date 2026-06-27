@@ -7,7 +7,7 @@ from fastapi.responses import StreamingResponse
 
 from api.schemas import ChatRequest
 from auth.permissions import require_view_debug
-from core.request_context import get_request_context
+from chat.turn_context import get_request_context
 from models.user import User
 from rag.retrieval.retriever import RetrievalBackendUnavailableError
 from utils.logging_utils import get_logger

@@ -4,7 +4,7 @@ import pytest
 from langchain_core.documents import Document
 
 from rag.ingestion.models import PageSpan, ParentDocument
-from core.request_context import new_request_context, get_request_context
+from chat.turn_context import new_request_context, get_request_context
 from rag.retrieval.hierarchical_retriever import HierarchicalRetriever
 from rag.retrieval.reranker import BaseParentReranker, ParentCandidate
 

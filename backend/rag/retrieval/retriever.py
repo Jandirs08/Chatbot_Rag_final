@@ -18,7 +18,7 @@ from langchain_core.documents import Document
 
 from cache.manager import cache
 from config import settings
-from core.request_context import get_request_context
+from chat.turn_context import get_request_context
 
 from ..vector_store.vector_store import VectorStore, VectorStoreUnavailableError
 from ..corpus_centroid import get_centroid, is_out_of_scope

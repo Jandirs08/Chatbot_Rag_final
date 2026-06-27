@@ -9,7 +9,7 @@ from fastapi import HTTPException
 from utils.logging_utils import get_logger
 from config import settings
 from common.constants import USER_ROLE
-from core.request_context import new_request_context
+from chat.turn_context import new_request_context
 from core.tools import ToolContext
 from core.tools.retrieval_tool import SEARCH_TOOL_NAME
 from langchain_core.messages import AIMessage, ToolMessage

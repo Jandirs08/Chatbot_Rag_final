@@ -2,7 +2,7 @@
 from typing import List
 
 from api.schemas import DebugInfo, RetrievedDocument
-from core.request_context import get_request_context
+from chat.turn_context import get_request_context
 from utils.logging_utils import get_logger
 
 logger = get_logger(__name__)

@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional
 from langchain_core.documents import Document
 
 from config import settings
-from core.request_context import get_request_context
+from chat.turn_context import get_request_context
 from database import LexicalSearchHit
 from rag.ingestion.models import ParentDocument
 
