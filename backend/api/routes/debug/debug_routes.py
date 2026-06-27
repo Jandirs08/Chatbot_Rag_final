@@ -10,7 +10,7 @@ from auth.permissions import require_view_debug
 from chat.turn_context import get_request_context
 from models.user import User
 from rag.retrieval.retriever import RetrievalBackendUnavailableError
-from utils.logging_utils import get_logger
+from infra.logging_utils import get_logger
 
 logger = get_logger(__name__)
 router = APIRouter()

@@ -1,7 +1,7 @@
 import httpx
 import asyncio
 import random
-from utils.logging_utils import get_logger
+from infra.logging_utils import get_logger
 from config import settings
 
 class WhatsAppClient:

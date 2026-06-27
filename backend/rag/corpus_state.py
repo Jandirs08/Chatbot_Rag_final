@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import BackgroundTasks
 
 from cache.manager import cache
-from utils.logging_utils import get_logger
+from infra.logging_utils import get_logger
 
 logger = get_logger(__name__)
 

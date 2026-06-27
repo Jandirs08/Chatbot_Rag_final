@@ -1,5 +1,5 @@
 """API routes for chat management."""
-from utils.logging_utils import get_logger
+from infra.logging_utils import get_logger
 import uuid
 import json
 import asyncio

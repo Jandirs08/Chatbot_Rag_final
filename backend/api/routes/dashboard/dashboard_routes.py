@@ -11,7 +11,7 @@ from auth.dependencies import require_admin
 from cache.manager import cache
 from database.mongodb import get_mongodb_client
 from database.retrieval_log_repository import GAP_REASONS, REASON_META
-from utils.logging_utils import get_logger
+from infra.logging_utils import get_logger
 from infra.metrics_collector import get_metrics_collector
 
 logger = get_logger(__name__)

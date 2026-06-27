@@ -10,7 +10,7 @@ import time
 from typing import Dict, Optional
 
 from cache.manager import cache
-from utils.logging_utils import get_logger
+from infra.logging_utils import get_logger
 from infra.redis_lock import RedisAdvisoryLock
 
 logger = get_logger(__name__)

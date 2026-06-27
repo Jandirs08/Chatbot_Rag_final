@@ -2,7 +2,7 @@ from typing import List, Optional
 import asyncio
 import numpy as np
 import time
-from utils.logging_utils import get_logger
+from infra.logging_utils import get_logger
 from config import settings
 from cache.manager import cache
 from infra.hashing import hash_for_cache_key

@@ -14,7 +14,7 @@ from chat.memory import (
 from chat.memory.memory_types import MEM_TO_CLASS, MemoryTypes
 from models import ModelTypes
 from common.objects import Message
-from utils.logging_utils import get_logger
+from infra.logging_utils import get_logger
 from config import Settings, settings as app_settings
 from common.chunk_utils import extract_text_from_chunk
 from .chain import ChainManager

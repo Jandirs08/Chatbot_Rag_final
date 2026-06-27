@@ -12,7 +12,7 @@ from api.schemas.health import (
     CircuitBreakerStatus,
     SystemStatusResponse,
 )
-from utils.logging_utils import get_logger
+from infra.logging_utils import get_logger
 
 logger = get_logger(__name__)
 router = APIRouter()

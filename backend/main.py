@@ -18,7 +18,7 @@ if env_path.exists():
     load_dotenv(env_path)
 
 # Importar y configurar el logging al inicio de todo
-from utils.logging_utils import setup_logging
+from infra.logging_utils import setup_logging
 setup_logging()
 
 # Inicializar Sentry antes de crear la app para capturar errores desde el inicio

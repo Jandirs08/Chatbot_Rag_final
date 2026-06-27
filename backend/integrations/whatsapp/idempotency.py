@@ -7,7 +7,7 @@ respuestas duplicadas al usuario. Marcamos cada `MessageSid` visto en Redis
 """
 import time
 
-from utils.logging_utils import get_logger
+from infra.logging_utils import get_logger
 
 logger = get_logger(__name__)
 

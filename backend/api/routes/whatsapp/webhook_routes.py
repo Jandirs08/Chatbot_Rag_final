@@ -1,4 +1,4 @@
-from utils.logging_utils import get_logger
+from infra.logging_utils import get_logger
 from fastapi import APIRouter, Request, HTTPException, BackgroundTasks, Depends
 from fastapi.responses import JSONResponse
 from database.whatsapp_session_repository import WhatsAppSessionRepository

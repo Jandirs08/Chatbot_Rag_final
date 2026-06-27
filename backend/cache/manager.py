@@ -2,7 +2,7 @@ import asyncio
 from typing import Any, Optional
 
 from config import settings
-from utils.logging_utils import get_logger
+from infra.logging_utils import get_logger
 
 _logger = get_logger(__name__)
 

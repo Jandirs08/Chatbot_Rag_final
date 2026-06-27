@@ -16,7 +16,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 # ---- Internos ----
-from utils.logging_utils import get_logger, suppress_cl100k_warnings
+from infra.logging_utils import get_logger, suppress_cl100k_warnings
 from config import settings
 from infra.rate_limiter import limiter, retry_after_for_path
 from chat.manager import ChatManager

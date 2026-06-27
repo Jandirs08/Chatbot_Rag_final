@@ -7,7 +7,7 @@ solo sirve como degradación graceful en dev/local.
 import time
 from typing import Tuple
 
-from utils.logging_utils import get_logger
+from infra.logging_utils import get_logger
 
 logger = get_logger(__name__)
 

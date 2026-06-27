@@ -9,7 +9,7 @@ from typing import Any, Dict
 
 from config import settings
 from models.model_types import ModelTypes, MODEL_TO_CLASS
-from utils.logging_utils import get_logger
+from infra.logging_utils import get_logger
 
 from .cache_key import parse_verification_json
 

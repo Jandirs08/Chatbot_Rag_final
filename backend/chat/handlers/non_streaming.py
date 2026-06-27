@@ -4,7 +4,7 @@ import time
 
 from fastapi import HTTPException
 
-from utils.logging_utils import get_logger
+from infra.logging_utils import get_logger
 from cache.manager import cache
 from config import settings
 from common.constants import USER_ROLE, ASSISTANT_ROLE

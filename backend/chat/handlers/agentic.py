@@ -6,7 +6,7 @@ import time
 
 from fastapi import HTTPException
 
-from utils.logging_utils import get_logger
+from infra.logging_utils import get_logger
 from config import settings
 from common.constants import USER_ROLE
 from chat.turn_context import new_request_context
