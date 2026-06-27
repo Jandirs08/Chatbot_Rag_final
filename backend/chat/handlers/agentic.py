@@ -1,8 +1,8 @@
-﻿from dataclasses import dataclass
-from typing import Optional
+﻿from __future__ import annotations
+
 import asyncio
-import re
 import time
+from typing import Optional
 
 from fastapi import HTTPException
 
@@ -11,168 +11,34 @@ from config import settings
 from domain.constants import USER_ROLE
 from chat.turn_context import new_request_context
 from core.tools import ToolContext
-from core.tools.retrieval_tool import SEARCH_TOOL_NAME
 from langchain_core.messages import AIMessage, ToolMessage
 
 from chat.debug import log_stream_timing_summary
 from chat.locks import ConversationLockManager
 from chat.tool_dispatch import DispatchEvent, consume_stream
+from .agentic_utils import (
+    AgenticResponseResult,
+    _should_force_search,
+    _search_tool_choice,
+    _bot_has_search_tool,
+    _messages_total_chars,
+    _messages_total_tokens,
+    _collect_prior_user_msgs,
+    _stream_with_idle_timeout,
+)
 
 logger = get_logger(__name__)
 
 MAX_TOOL_ITERS = 3
-
-# Peruvian Spanish greeting / ack / meta-question patterns. Full-match anchored,
-# case-insensitive. If matched â†’ tool_choice="auto" (let model decide).
-# Otherwise â†’ force search_documents so agent can't skip retrieval for legit
-# domain questions just because they're phrased informally.
-_NO_SEARCH_RE = re.compile(
-    r"^\s*(?:"
-    r"hola+|holi+|holap|buen[oa]s?(?:\s+(?:d[iÃ­]as?|tardes?|noches?))?|"
-    r"qu[eÃ©]\s+tal|qu[eÃ©]\s+hubo|qu[eÃ©]\s+onda|c[oÃ³]mo\s+est[aÃ¡]s?|c[oÃ³]mo\s+va|"
-    r"todo\s+bien|hi|hello|hey|"
-    r"adi[oÃ³]s|chao|chau|bye|nos\s+vemos|hasta\s+luego|hasta\s+pronto|me\s+voy|"
-    r"gracias|muchas?\s+gracias|mil\s+gracias|thanks|thank\s+you|"
-    r"ok|okay|okey|ya|listo|perfecto|entendido|entiendo|comprendo|"
-    r"genial|excelente|bacÃ¡n|chevere|chÃ©vere|de\s+una|s[iÃ­]|sip|no|nop|nope|"
-    r"dale|va|claro|claro\s+que\s+s[iÃ­]|por\s+supuesto|"
-    r"no\s+entend[iÃ­]|no\s+entiendo|no\s+capto|repite|rep[iÃ­]telo|"
-    r"resume|res[uÃº]melo|m[aÃ¡]s\s+corto|m[aÃ¡]s\s+simple|expl[iÃ­]ca(?:lo)?\s+m[aÃ¡]s\s+simple|"
-    r"qui[eÃ©]n\s+eres|qu[eÃ©]\s+eres|qu[eÃ©]\s+haces|qu[eÃ©]\s+puedes\s+hacer|"
-    r"c[oÃ³]mo\s+funcionas|para\s+qu[eÃ©]\s+sirves"
-    r")\s*[.!?Â¿Â¡â€¦]*\s*$",
-    re.IGNORECASE,
-)
-
-_MIN_FORCE_CHARS = 3
-
-
-def _should_force_search(text: Optional[str]) -> bool:
-    """True when user input should bypass tool_choice='auto'."""
-    if not text:
-        return False
-    stripped = text.strip()
-    if len(stripped) < _MIN_FORCE_CHARS:
-        return False
-    return _NO_SEARCH_RE.match(stripped) is None
-
-
-def _search_tool_choice() -> dict:
-    """Fresh dict per call â€” defends against any downstream in-place mutation."""
-    return {"type": "function", "function": {"name": SEARCH_TOOL_NAME}}
-
-
-def _bot_has_search_tool(bot) -> bool:
-    """True when search_documents is actually bound to the model.
-
-    If bind_tools failed at startup (chain.py logs a warning but continues),
-    forcing tool_choice would trigger an OpenAI 400. Guard against that.
-    """
-    try:
-        tools = getattr(bot.chain_manager, "tools", None) or []
-        return any(getattr(t, "name", None) == SEARCH_TOOL_NAME for t in tools)
-    except Exception as exc:
-        logger.warning("_bot_has_search_tool check failed, defaulting to False: %s", exc)
-        return False
 
 _REACT_STREAM_IDLE_TIMEOUT = float(getattr(settings, "react_stream_idle_timeout_seconds", 30.0))
 
 _MAX_TURN_CHARS = 240_000
 
 _CAP_FALLBACK_MESSAGE = (
-    "No pude completar tu consulta con la informaciÃ³n disponible. "
-    "Â¿PodrÃ­as reformular la pregunta o ser mÃ¡s especÃ­fico?"
+    "No pude completar tu consulta con la informacion disponible. "
+    "Podrias reformular la pregunta o ser mas especifico?"
 )
-
-
-@dataclass
-class AgenticResponseResult:
-    text: str
-    terminal_tool: Optional[str] = None
-    terminal_event: Optional[str] = None
-    terminal_payload: Optional[dict] = None
-
-
-def _messages_total_chars(messages) -> int:
-    """Sum content length across a message list (proxy for token count)."""
-    total = 0
-    for m in messages:
-        c = getattr(m, "content", None)
-        if isinstance(c, str):
-            total += len(c)
-        elif isinstance(c, list):
-            for part in c:
-                if isinstance(part, str):
-                    total += len(part)
-                else:
-                    total += len(str(part))
-        elif c is not None:
-            total += len(str(c))
-    return total
-
-
-def _messages_total_tokens(messages) -> int:
-    """EstimaciÃ³n tiktoken cl100k_base sobre `messages` list. Reusa el helper
-    de `chat/debug.py` para consistencia. Bajo costo (~50Âµs por mensaje cacheado).
-    """
-    from chat.debug import get_token_count
-    total = 0
-    for m in messages:
-        c = getattr(m, "content", None)
-        if isinstance(c, str):
-            total += get_token_count(c)
-        elif isinstance(c, list):
-            for part in c:
-                total += get_token_count(part if isinstance(part, str) else str(part))
-        elif c is not None:
-            total += get_token_count(str(c))
-        tool_calls = getattr(m, "tool_calls", None) or []
-        for tc in tool_calls:
-            try:
-                total += get_token_count(str(tc))
-            except Exception:
-                pass
-    return total
-
-
-async def _collect_prior_user_msgs(memory, conversation_id: str, limit: int = 2) -> list[str]:
-    """Best-effort fetch of the last N user messages for query expansion."""
-    if memory is None:
-        return []
-    try:
-        hist = await memory.get_history(conversation_id)
-    except Exception as exc:
-        logger.warning("_collect_prior_user_msgs failed for conv=%s: %s", conversation_id, exc)
-        return []
-    if not isinstance(hist, list):
-        return []
-    out: list[str] = []
-    for msg in hist[-(limit * 4):]:  # over-fetch â€” filter below
-        if not isinstance(msg, dict):
-            continue
-        if msg.get("role") not in ("human", "user"):
-            continue
-        content = msg.get("content")
-        if isinstance(content, str) and content.strip():
-            out.append(content.strip())
-    return out[-limit:]
-
-
-async def _stream_with_idle_timeout(agen, idle_timeout: float):
-    """Yield events from agen, raise TimeoutError if no event within idle_timeout seconds."""
-    while True:
-        try:
-            event = await asyncio.wait_for(agen.__anext__(), timeout=idle_timeout)
-        except StopAsyncIteration:
-            return
-        except asyncio.TimeoutError:
-            try:
-                await agen.aclose()
-            except Exception:
-                pass
-            raise
-        yield event
-
 
 async def stream_with_tools(
     bot,
