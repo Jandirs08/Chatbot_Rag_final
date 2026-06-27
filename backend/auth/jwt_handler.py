@@ -3,6 +3,7 @@ JWT utilities with hardened validation.
 """
 
 import logging
+import threading
 from uuid import uuid4
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
@@ -134,13 +135,16 @@ class JWTHandler:
 # ---- Singleton via dependency-injected lifespan ----
 
 _jwt_handler_instance: Optional[JWTHandler] = None
+_jwt_handler_lock: threading.Lock = threading.Lock()
 
 
 def get_jwt_handler() -> JWTHandler:
     global _jwt_handler_instance
     if _jwt_handler_instance is None:
-        from config import get_settings
-        _jwt_handler_instance = JWTHandler(get_settings())
+        with _jwt_handler_lock:
+            if _jwt_handler_instance is None:
+                from config import get_settings
+                _jwt_handler_instance = JWTHandler(get_settings())
     return _jwt_handler_instance
 
 

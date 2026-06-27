@@ -151,8 +151,8 @@ class HierarchicalIngestionService:
         # Bump doc timestamp so retrieval cache for this doc_id is invalidated
         try:
             cache.set(f"rag:ts:{resolved_doc_id}", str(time.time()))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Cache invalidation failed after ingest | doc_id=%s | err=%s", resolved_doc_id, e)
 
         return {
             "doc_id": resolved_doc_id,
@@ -183,8 +183,8 @@ class HierarchicalIngestionService:
         for doc_id in doc_ids:
             try:
                 cache.set(f"rag:ts:{doc_id}", str(time.time()))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Cache invalidation failed after delete | doc_id=%s | err=%s", doc_id, e)
 
     async def _build_doc_id(self, pdf_path: Path) -> str:
         sha256 = hashlib.sha256()

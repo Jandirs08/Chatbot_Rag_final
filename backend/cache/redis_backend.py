@@ -112,8 +112,8 @@ class RedisCache:
                 self.client.unlink(key)
             else:
                 self.client.delete(key)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("RedisCache.delete failed | key=%s | err=%s", key, e)
 
     def invalidate_prefix(self, prefix: str) -> None:
         if not prefix:
@@ -126,10 +126,10 @@ class RedisCache:
                         self.client.unlink(key)
                     else:
                         self.client.delete(key)
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                except Exception as e:
+                    logger.warning("RedisCache.invalidate_prefix key delete failed | key=%s | err=%s", key, e)
+        except Exception as e:
+            logger.warning("RedisCache.invalidate_prefix scan failed | prefix=%s | err=%s", prefix, e)
 
     def increment(self, key: str, delta: int = 1, initial: int = 0) -> int:
         if key is None:

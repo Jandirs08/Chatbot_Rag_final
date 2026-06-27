@@ -79,7 +79,7 @@ async def rag_status(
         )
     except Exception as exc:
         logger.error("Error al obtener estado RAG: %s", exc, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor al obtener estado RAG: {exc}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
 @router.post("/clear-rag", response_model=ClearRAGResponse)
@@ -167,7 +167,7 @@ async def clear_rag(
         raise
     except Exception as exc:
         logger.error("Error al limpiar RAG: %s", exc, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor al limpiar RAG: {exc}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
 @router.post("/retrieve-debug", response_model=RetrieveDebugResponse)

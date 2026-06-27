@@ -265,7 +265,7 @@ async def chat_stream_log(
         logger.error(f"Error general en chat_stream_log: {str(e)}", exc_info=True)
         return JSONResponse(
             status_code=500,
-            content={"detail": f"Error interno del servidor en chat: {str(e)}"}
+            content={"detail": "Error interno del servidor"}
         )
 
 
@@ -286,6 +286,10 @@ async def get_history(
     - Headers: `X-Total-Messages` (total real), `X-Truncated` (1 si total > limit).
     - Sin paginación cursor todavía; el cliente debería paginar cuando supere el cap.
     """
+    try:
+        uuid.UUID(conversation_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="conversation_id inválido")
     try:
         chat_manager = request.app.state.chat_manager
         db = chat_manager.db

@@ -133,8 +133,8 @@ class MongodbClient:
             await users_collection.create_index("is_active")
             logger.debug("Índices de usuarios aplicados correctamente")
         except Exception as e:
-            logger.error(f"❌ Error aplicando índices de usuarios: {str(e)}")
-            # No relanzamos para no bloquear el arranque; se puede reintentar luego
+            logger.error("❌ Error aplicando índices de usuarios: %s", e)
+            raise
 
     
     async def list_recent_conversations(
@@ -224,8 +224,8 @@ class MongodbClient:
 
             return {"items": items, "total": total}
         except Exception as e:
-            logger.error(f"Error listando conversaciones recientes: {str(e)}", exc_info=True)
-            return {"items": [], "total": 0}
+            logger.error("Error listando conversaciones recientes: %s", e, exc_info=True)
+            raise
 
     async def clear_all_messages(self) -> int:
         """Elimina todos los documentos de la colección 'messages'.
