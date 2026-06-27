@@ -16,7 +16,8 @@ from database import LexicalSearchHit
 from rag.ingestion.models import ParentDocument
 
 from .reranker import BaseParentReranker, ParentCandidate
-from .retriever import NO_CONTEXT_MESSAGE, RAGRetriever, RetrievalBackendUnavailableError, sanitize_doc_content, sanitize_metadata_field
+from .retriever import NO_CONTEXT_MESSAGE, RAGRetriever, RetrievalBackendUnavailableError
+from .sanitize import sanitize_doc_content, sanitize_metadata_field
 
 logger = logging.getLogger(__name__)
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from rag.retrieval.retriever import sanitize_doc_content, sanitize_metadata_field
+from rag.retrieval.sanitize import sanitize_doc_content, sanitize_metadata_field
 
 
 # ─── sanitize_doc_content ────────────────────────────────────────────────────
