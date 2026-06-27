@@ -11,7 +11,7 @@ from typing import Dict, Optional
 
 from cache.manager import cache
 from utils.logging_utils import get_logger
-from utils.redis_lock import RedisAdvisoryLock
+from infra.redis_lock import RedisAdvisoryLock
 
 logger = get_logger(__name__)
 

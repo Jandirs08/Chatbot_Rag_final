@@ -23,7 +23,7 @@ from qdrant_client.http.models import (
 )
 
 from config import settings
-from utils.circuit_breaker import CircuitBreaker, CircuitOpenError
+from infra.circuit_breaker import CircuitBreaker, CircuitOpenError
 
 logger = logging.getLogger(__name__)
 

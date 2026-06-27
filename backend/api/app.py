@@ -178,7 +178,7 @@ from rag.embeddings.embedding_manager import EmbeddingManager
 from rag.vector_store.vector_store import VectorStore
 from rag.ingestion.hierarchical_chunker import HierarchicalChunker
 from rag.ingestion.hierarchical_ingestion_service import HierarchicalIngestionService
-from utils.deploy_log import build_full_startup_summary
+from infra.deploy_log import build_full_startup_summary
 from storage.pdf_processor_adapter import PDFProcessorAdapter
 from cache.manager import cache
 
