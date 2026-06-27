@@ -1,6 +1,8 @@
 import React from "react";
 import { BotConfiguration } from "@/app/components/BotConfiguration";
 import { PersonalityHistoryPanel } from "./PersonalityHistoryPanel";
+import { TemperatureCard } from "./TemperatureCard";
+import { PersonalityPreviewCard } from "./PersonalityPreviewCard";
 
 interface SettingsBrainTabProps {
   uiExtra: string;
@@ -33,25 +35,37 @@ export function SettingsBrainTab({
   errorBrain,
   brainIsDirty,
 }: SettingsBrainTabProps) {
+  const disabled = isLoading || savingBrain;
   return (
-    <div className="h-full overflow-hidden flex flex-col">
-      <div className="flex-1 overflow-hidden">
+    <div className="h-full overflow-hidden flex">
+      {/* Left: prompt editor */}
+      <div className="flex-1 min-w-0 flex flex-col border-r border-border/60">
         <BotConfiguration
           prompt={uiExtra}
           baselinePrompt={baselineUiExtra}
-          onPromptChange={(val) => setUiExtra(val)}
-          temperature={temperature}
-          onTemperatureChange={setTemperature}
+          onPromptChange={setUiExtra}
           onSave={handleBrainSave}
           onReset={handleBrainReset}
           onDiscardChanges={handleDiscardChanges}
-          isLoading={isLoading || savingBrain}
+          isLoading={disabled}
           error={errorBrain || undefined}
           canSave={brainIsDirty}
           canReset={true}
         />
       </div>
-      <div className="px-6 py-4 border-t border-border flex-shrink-0">
+
+      {/* Right: cards panel */}
+      <div className="w-72 xl:w-80 flex-shrink-0 overflow-y-auto p-4 space-y-3 bg-muted/20">
+        <TemperatureCard
+          temperature={temperature}
+          onTemperatureChange={setTemperature}
+          disabled={disabled}
+        />
+        <PersonalityPreviewCard
+          prompt={uiExtra}
+          temperature={temperature}
+          disabled={disabled}
+        />
         <PersonalityHistoryPanel onRestored={onHistoryRestored} />
       </div>
     </div>

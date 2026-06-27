@@ -395,7 +395,8 @@ export default function AdminSettingsPage() {
       </aside>
 
       {/* ── Content ─────────────────────────────────────────────────────────── */}
-      <main className="flex-1 min-w-0 overflow-hidden">
+      <main className="flex-1 min-w-0 overflow-hidden relative">
+        <div aria-hidden="true" className="absolute inset-0 bg-grid opacity-[0.04] pointer-events-none" />
         {activeTab === "appearance" && (
           <SettingsAppearanceTab
             isLoading={isLoading}

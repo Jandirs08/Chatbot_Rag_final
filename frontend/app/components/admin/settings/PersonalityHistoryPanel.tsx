@@ -67,43 +67,36 @@ export function PersonalityHistoryPanel({ onRestored }: Props) {
   );
 
   return (
-    <div className="border border-border rounded-lg overflow-hidden">
+    <div className="glass rounded-xl border border-border/60 overflow-hidden" style={{ boxShadow: "var(--shadow-card)" }}>
       <button
         type="button"
         onClick={handleToggle}
-        className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-foreground hover:bg-accent/50 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-foreground hover:bg-accent/50 transition-colors border-b border-border/60 bg-muted/10"
         aria-expanded={open}
       >
         <span className="flex items-center gap-2">
           <History
-            className="w-4 h-4 text-muted-foreground"
+            className="w-3.5 h-3.5 text-muted-foreground"
             aria-hidden="true"
           />
           Historial de versiones
         </span>
         {open ? (
-          <ChevronUp
-            className="w-4 h-4 text-muted-foreground"
-            aria-hidden="true"
-          />
+          <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
         ) : (
-          <ChevronDown
-            className="w-4 h-4 text-muted-foreground"
-            aria-hidden="true"
-          />
+          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
         )}
       </button>
 
       {open && (
-        <div className="border-t border-border">
+        <div>
           {loading ? (
             <p className="px-4 py-3 text-xs text-muted-foreground">
               Cargando historial…
             </p>
           ) : entries.length === 0 ? (
             <p className="px-4 py-3 text-xs text-muted-foreground">
-              No hay versiones guardadas aún. Las versiones se crean
-              automáticamente al guardar la personalidad.
+              No hay versiones guardadas. Se crean automáticamente al guardar la personalidad.
             </p>
           ) : (
             <ul role="list" className="divide-y divide-border">
