@@ -1,23 +1,23 @@
-from pydantic import BaseModel, Field, validator
+﻿from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict
-from infra.constants import USER_ROLE, ASSISTANT_ROLE
+from domain.constants import USER_ROLE, ASSISTANT_ROLE
 
-# CONVENCIÓN DE IDENTIFICADORES DE CONVERSACIÓN:
+# CONVENCIÃ“N DE IDENTIFICADORES DE CONVERSACIÃ“N:
 #
-# - `conversation_id`: Es el identificador principal para una secuencia de diálogo
-#   entre un usuario y el bot. Se utiliza a lo largo de la aplicación (API,
+# - `conversation_id`: Es el identificador principal para una secuencia de diÃ¡logo
+#   entre un usuario y el bot. Se utiliza a lo largo de la aplicaciÃ³n (API,
 #   ChatManager, almacenamiento en base de datos) para agrupar y rastrear
-#   interacciones. Generalmente, es un UUID generado por la aplicación.
+#   interacciones. Generalmente, es un UUID generado por la aplicaciÃ³n.
 #
-# - `session_id`: Este término es comúnmente utilizado por componentes específicos
-#   de Langchain, especialmente sus clases de gestión de memoria (ej.
+# - `session_id`: Este tÃ©rmino es comÃºnmente utilizado por componentes especÃ­ficos
+#   de Langchain, especialmente sus clases de gestiÃ³n de memoria (ej.
 #   `MongoDBChatMessageHistory`). Para mantener la coherencia y vincular
-#   directamente el historial de Langchain con la lógica de la aplicación,
-#   CUANDO UN COMPONENTE LANGCHAIN REQUIERA UN `session_id`, SE DEBERÁ UTILIZAR
-#   EL VALOR DEL `conversation_id` DE LA APLICACIÓN.
+#   directamente el historial de Langchain con la lÃ³gica de la aplicaciÃ³n,
+#   CUANDO UN COMPONENTE LANGCHAIN REQUIERA UN `session_id`, SE DEBERÃ UTILIZAR
+#   EL VALOR DEL `conversation_id` DE LA APLICACIÃ“N.
 #
-# Esto asegura que un único `conversation_id` representa de forma única una
-# conversación completa a través de todas las capas del sistema.
+# Esto asegura que un Ãºnico `conversation_id` representa de forma Ãºnica una
+# conversaciÃ³n completa a travÃ©s de todas las capas del sistema.
 
 class Message(BaseModel):
     message: str = Field(description="User message")

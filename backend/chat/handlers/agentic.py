@@ -8,7 +8,7 @@ from fastapi import HTTPException
 
 from infra.logging_utils import get_logger
 from config import settings
-from infra.constants import USER_ROLE
+from domain.constants import USER_ROLE
 from chat.turn_context import new_request_context
 from core.tools import ToolContext
 from core.tools.retrieval_tool import SEARCH_TOOL_NAME
@@ -367,7 +367,7 @@ async def stream_with_tools(
             try:
                 await db.add_message(conversation_id, USER_ROLE, input_text, source)
                 if text_accum:
-                    from infra.constants import ASSISTANT_ROLE
+                    from domain.constants import ASSISTANT_ROLE
                     await db.add_message(conversation_id, ASSISTANT_ROLE, text_accum, source)
             except Exception as exc:
                 logger.error(
@@ -376,7 +376,7 @@ async def stream_with_tools(
                 )
         elif text_accum:
             try:
-                from infra.constants import ASSISTANT_ROLE
+                from domain.constants import ASSISTANT_ROLE
                 await db.add_message(conversation_id, USER_ROLE, input_text, source)
                 await db.add_message(conversation_id, ASSISTANT_ROLE, text_accum, source)
             except Exception as exc:

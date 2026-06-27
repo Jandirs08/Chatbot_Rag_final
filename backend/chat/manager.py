@@ -18,7 +18,7 @@ from infra.logging_utils import get_logger
 from cache.manager import cache
 from config import settings
 from database.mongodb import get_mongodb_client
-from infra.constants import USER_ROLE, ASSISTANT_ROLE
+from domain.constants import USER_ROLE, ASSISTANT_ROLE
 from domain.objects import Message as BotMessage
 from core.bot import Bot
 from chat.turn_context import new_request_context

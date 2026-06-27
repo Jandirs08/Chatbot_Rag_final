@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from infra.logging_utils import get_logger
 from cache.manager import cache
 from config import settings
-from infra.constants import USER_ROLE, ASSISTANT_ROLE
+from domain.constants import USER_ROLE, ASSISTANT_ROLE
 from domain.objects import Message as BotMessage
 from chat.turn_context import new_request_context
 from rag.retrieval.retriever import RetrievalBackendUnavailableError
