@@ -674,7 +674,7 @@ def create_app() -> FastAPI:
 
     @app.middleware("http")
     async def log_requests(request: Request, call_next):
-        from utils.request_context import set_request_id, clear_request_id
+        from infra.request_id import set_request_id, clear_request_id
 
         incoming_id = request.headers.get("X-Request-ID")
         request_id = set_request_id(incoming_id)

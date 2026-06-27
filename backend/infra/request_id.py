@@ -6,11 +6,11 @@ automatically propagated to all log messages within a request.
 
 Usage:
     # In middleware (automatically done by RequestContextMiddleware):
-    from utils.request_context import set_request_id
+    from infra.request_id import set_request_id
     set_request_id(request_id)
     
     # Anywhere in the request lifecycle:
-    from utils.request_context import get_request_id
+    from infra.request_id import get_request_id
     current_request_id = get_request_id()
 """
 

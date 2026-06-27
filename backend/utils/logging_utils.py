@@ -80,7 +80,7 @@ class _RequestIdFilter(logging.Filter):
     """
     def filter(self, record: logging.LogRecord) -> bool:
         try:
-            from utils.request_context import get_request_id
+            from infra.request_id import get_request_id
             request_id = get_request_id()
             record.request_id = f"[{request_id}] " if request_id else ""
         except Exception:
