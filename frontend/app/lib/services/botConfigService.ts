@@ -165,6 +165,19 @@ export const getPersonalityHistory = async (): Promise<
   return (data.entries ?? []) as PersonalityHistoryEntry[];
 };
 
+export const deletePersonalityHistory = async (
+  historyId: string,
+): Promise<void> => {
+  const res = await authenticatedFetch(
+    `${API_URL}/bot/config/history/${encodeURIComponent(historyId)}`,
+    { method: "DELETE" },
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Error eliminando versión: ${res.status} ${text}`);
+  }
+};
+
 export const restorePersonalityHistory = async (
   historyId: string,
 ): Promise<BotConfigDTO> => {

@@ -51,17 +51,22 @@ export function useDocumentManagement() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadPhaseRef = useRef<"uploading" | "queued" | "processing">("uploading");
+  const mountedRef = useRef(true);
   const { toast } = useToast();
+
+  useEffect(() => () => { mountedRef.current = false; }, []);
 
   const loadDocuments = useCallback(async () => {
     try {
       setIsLoadingList(true);
       const response = await PDFService.listPDFs();
+      if (!mountedRef.current) return;
       setDocuments(Array.isArray(response.pdfs) ? response.pdfs : []);
     } catch {
+      if (!mountedRef.current) return;
       toast({ title: "Error", description: "No se pudieron cargar los documentos", variant: "destructive" });
     } finally {
-      setIsLoadingList(false);
+      if (mountedRef.current) setIsLoadingList(false);
     }
   }, [toast]);
 
@@ -170,6 +175,7 @@ export function useDocumentManagement() {
         handleUploadStatusChange(file.name, status),
       );
       const uploadedFilename = response.filename || file.name;
+      if (!mountedRef.current) return;
 
       if (response.rateLimit) {
         setRateLimitInfo(response.rateLimit.remaining > 0 ? null : {
@@ -188,6 +194,7 @@ export function useDocumentManagement() {
       void loadDocuments();
       toast({ title: "PDF subido", description: "La ingesta quedo en cola." });
     } catch (error: unknown) {
+      if (!mountedRef.current) return;
       const message = error instanceof Error ? error.message : String(error);
 
       if (error instanceof RateLimitError) {
@@ -221,7 +228,7 @@ export function useDocumentManagement() {
 
       setUploadState({ phase: "error", fileName: file.name, message, failedPhase: uploadPhaseRef.current });
     } finally {
-      setIsUploading(false);
+      if (mountedRef.current) setIsUploading(false);
       uploadPhaseRef.current = "uploading";
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
@@ -231,16 +238,18 @@ export function useDocumentManagement() {
     try {
       setIsLoadingList(true);
       await PDFService.deletePDF(filename);
+      if (!mountedRef.current) return;
       toast({ title: "Éxito", description: "PDF eliminado correctamente" });
       loadDocuments();
     } catch (error) {
+      if (!mountedRef.current) return;
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "No se pudo eliminar el PDF",
         variant: "destructive",
       });
     } finally {
-      setIsLoadingList(false);
+      if (mountedRef.current) setIsLoadingList(false);
     }
   };
 
@@ -252,11 +261,13 @@ export function useDocumentManagement() {
     setPreviewLoading(true);
     try {
       const url = await PDFService.getPDFBlobUrl(filename, "view");
+      if (!mountedRef.current) { URL.revokeObjectURL(url); return; }
       setPreviewUrl(url);
     } catch (error) {
+      if (!mountedRef.current) return;
       setPreviewError(error instanceof Error ? error.message : "No se pudo cargar el preview");
     } finally {
-      setPreviewLoading(false);
+      if (mountedRef.current) setPreviewLoading(false);
     }
   };
 

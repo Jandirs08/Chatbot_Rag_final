@@ -1,3 +1,4 @@
+"use client";
 import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -58,157 +59,175 @@ export function SettingsSystemTab({ isLoading }: SettingsSystemTabProps) {
       {/* Scrollable content */}
       <div className="flex-1 px-4 py-4 space-y-3">
         <section className="max-w-xl space-y-3">
-
           {/* Danger zone card */}
           <div className="rounded-xl border border-destructive/30 bg-destructive/5 overflow-hidden">
             <div className="flex items-center gap-2 px-4 py-3 border-b border-destructive/20 bg-destructive/5">
-              <AlertTriangle className="w-3.5 h-3.5 text-destructive flex-shrink-0" aria-hidden="true" />
-              <span className="text-xs font-semibold text-destructive">Zona de peligro</span>
-              <span className="ml-auto text-[10px] text-destructive/60 font-mono">acciones irreversibles</span>
+              <AlertTriangle
+                className="w-3.5 h-3.5 text-destructive flex-shrink-0"
+                aria-hidden="true"
+              />
+              <span className="text-xs font-semibold text-destructive">
+                Zona de peligro
+              </span>
+              <span className="ml-auto text-[10px] text-destructive/60 font-mono">
+                acciones irreversibles
+              </span>
             </div>
             <div className="px-4 py-4 space-y-3">
-
-          <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <div className="space-y-0.5">
-              <p className="text-sm font-medium text-foreground">
-                Eliminar historial de conversaciones
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Borra todos los mensajes y conversaciones. No se puede deshacer.
-              </p>
-            </div>
-          </div>
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button
-                variant="destructive"
-                size="sm"
-                className="gap-2"
-                disabled={isLoading}
-              >
-                <Trash className="h-3.5 w-3.5" /> Eliminar todo
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Confirmar eliminación</DialogTitle>
-                {!processing && !success && !error && (
-                  <DialogDescription>
-                    Esta acción eliminará permanentemente todos los mensajes y
-                    conversaciones. Esta acción no se puede deshacer.
-                  </DialogDescription>
-                )}
-              </DialogHeader>
-              {(processing || success || error) && (
-                <div className="space-y-3">
-                  <Progress value={progress} />
-                  {success && (
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 text-success text-sm">
-                        <CheckCircle2 className="w-5 h-5" /> Base de datos limpia
-                      </div>
-                      <Button variant="outline" size="sm" onClick={() => setOpen(false)}>
-                        Cerrar
-                      </Button>
-                    </div>
-                  )}
-                  {error && (
-                    <Alert variant="destructive">
-                      <AlertDescription className="flex items-center gap-2">
-                        <AlertTriangle className="w-4 h-4" /> {error}
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </div>
-              )}
-              {!processing && !success && !error && (
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium" htmlFor="confirm">
-                      Escribe ELIMINAR para continuar
-                    </label>
-                    <Input
-                      id="confirm"
-                      value={confirmText}
-                      onChange={(e) => setConfirmText(e.target.value)}
-                      placeholder="ELIMINAR"
-                    />
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium text-foreground">
+                      Eliminar historial de conversaciones
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Borra todos los mensajes y conversaciones. No se puede
+                      deshacer.
+                    </p>
                   </div>
-                  <DialogFooter>
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      className="w-full"
-                      disabled={
-                        confirmText.trim().toUpperCase() !== "ELIMINAR" ||
-                        isLoading
-                      }
-                      onClick={async () => {
-                        try {
-                          setProcessing(true);
-                          setError(null);
-                          setSuccess(false);
-                          if (timerRef.current)
-                            window.clearInterval(timerRef.current);
-                          setProgress(5);
-                          timerRef.current = window.setInterval(() => {
-                            setProgress((p) => (p + 3 >= 90 ? 90 : p + 3));
-                          }, 250);
-                          const res = await authenticatedFetch(
-                            `${API_URL}/chat/history`,
-                            { method: "DELETE" }
-                          );
-                          const body = await res.json().catch(() => ({}));
-                          if (!res.ok) {
-                            if (timerRef.current) {
-                              window.clearInterval(timerRef.current);
-                              timerRef.current = null;
-                            }
-                            setProgress(100);
-                            setProcessing(false);
-                            setError(
-                              String(
-                                body?.detail ||
-                                  body?.message ||
-                                  `Error ${res.status}`,
-                              ),
-                            );
-                            return;
-                          }
-                          if (timerRef.current) {
-                            window.clearInterval(timerRef.current);
-                            timerRef.current = null;
-                          }
-                          setProgress(100);
-                          setSuccess(true);
-                          setProcessing(false);
-                        } catch (e: unknown) {
-                          if (timerRef.current) {
-                            window.clearInterval(timerRef.current);
-                            timerRef.current = null;
-                          }
-                          setProgress(100);
-                          setProcessing(false);
-                          setError(
-                            e instanceof Error
-                              ? e.message
-                              : "Error inesperado al eliminar",
-                          );
-                        }
-                      }}
-                    >
-                      Eliminar definitivamente
-                    </Button>
-                  </DialogFooter>
                 </div>
-              )}
-            </DialogContent>
-          </Dialog>
+                <Dialog open={open} onOpenChange={setOpen}>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="gap-2"
+                      disabled={isLoading}
+                    >
+                      <Trash className="h-3.5 w-3.5" /> Eliminar todo
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Confirmar eliminación</DialogTitle>
+                      {!processing && !success && !error && (
+                        <DialogDescription>
+                          Esta acción eliminará permanentemente todos los
+                          mensajes y conversaciones. Esta acción no se puede
+                          deshacer.
+                        </DialogDescription>
+                      )}
+                    </DialogHeader>
+                    {(processing || success || error) && (
+                      <div className="space-y-3">
+                        <Progress value={progress} />
+                        {success && (
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-2 text-success text-sm">
+                              <CheckCircle2 className="w-5 h-5" /> Base de datos
+                              limpia
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setOpen(false)}
+                            >
+                              Cerrar
+                            </Button>
+                          </div>
+                        )}
+                        {error && (
+                          <Alert variant="destructive">
+                            <AlertDescription className="flex items-center gap-2">
+                              <AlertTriangle className="w-4 h-4" /> {error}
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                      </div>
+                    )}
+                    {!processing && !success && !error && (
+                      <div className="space-y-3">
+                        <div className="space-y-2">
+                          <label
+                            className="text-sm font-medium"
+                            htmlFor="confirm"
+                          >
+                            Escribe ELIMINAR para continuar
+                          </label>
+                          <Input
+                            id="confirm"
+                            value={confirmText}
+                            onChange={(e) => setConfirmText(e.target.value)}
+                            placeholder="ELIMINAR"
+                          />
+                        </div>
+                        <DialogFooter>
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            className="w-full"
+                            disabled={
+                              confirmText.trim().toUpperCase() !== "ELIMINAR" ||
+                              isLoading
+                            }
+                            onClick={async () => {
+                              try {
+                                setProcessing(true);
+                                setError(null);
+                                setSuccess(false);
+                                if (timerRef.current)
+                                  window.clearInterval(timerRef.current);
+                                setProgress(5);
+                                timerRef.current = window.setInterval(() => {
+                                  setProgress((p) =>
+                                    p + 3 >= 90 ? 90 : p + 3,
+                                  );
+                                }, 250);
+                                const res = await authenticatedFetch(
+                                  `${API_URL}/chat/history`,
+                                  { method: "DELETE" },
+                                );
+                                const body = await res.json().catch(() => ({}));
+                                if (!res.ok) {
+                                  if (timerRef.current) {
+                                    window.clearInterval(timerRef.current);
+                                    timerRef.current = null;
+                                  }
+                                  setProgress(100);
+                                  setProcessing(false);
+                                  setError(
+                                    String(
+                                      body?.detail ||
+                                        body?.message ||
+                                        `Error ${res.status}`,
+                                    ),
+                                  );
+                                  return;
+                                }
+                                if (timerRef.current) {
+                                  window.clearInterval(timerRef.current);
+                                  timerRef.current = null;
+                                }
+                                setProgress(100);
+                                setSuccess(true);
+                                setProcessing(false);
+                              } catch (e: unknown) {
+                                if (timerRef.current) {
+                                  window.clearInterval(timerRef.current);
+                                  timerRef.current = null;
+                                }
+                                setProgress(100);
+                                setProcessing(false);
+                                setError(
+                                  e instanceof Error
+                                    ? e.message
+                                    : "Error inesperado al eliminar",
+                                );
+                              }
+                            }}
+                          >
+                            Eliminar definitivamente
+                          </Button>
+                        </DialogFooter>
+                      </div>
+                    )}
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </div>
+            {/* /danger-zone body */}
           </div>
-            </div>{/* /danger-zone body */}
-          </div>{/* /danger-zone card */}
-
+          {/* /danger-zone card */}
         </section>
       </div>
     </div>

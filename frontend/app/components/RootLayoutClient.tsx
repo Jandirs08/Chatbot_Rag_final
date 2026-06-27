@@ -21,14 +21,13 @@ export function RootLayoutClient({ children }: { children: React.ReactNode }) {
 function RootLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { isAuthenticated, isInitialized, isLoading } = useAuth();
+  const { isAuthenticated, isInitialized } = useAuth();
   const forcedLight = pathname.startsWith("/chat");
   useTheme(forcedLight);
   useInactivityTimeout();
 
   const shouldShowSidebar = isProtectedPath(pathname);
-  const isResolvingProtectedSession =
-    shouldShowSidebar && (!isInitialized || isLoading);
+  const isResolvingProtectedSession = shouldShowSidebar && !isInitialized;
   const shouldRedirectToLogin =
     shouldShowSidebar && isInitialized && !isAuthenticated;
 

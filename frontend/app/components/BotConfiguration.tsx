@@ -1,4 +1,11 @@
-import React, { useState, useCallback, useMemo, useRef, useEffect } from "react";
+"use client";
+import React, {
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+  useEffect,
+} from "react";
 import { diff_match_patch } from "diff-match-patch";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
@@ -13,6 +20,13 @@ import {
   Lock,
   Tag,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/app/components/ui/dialog";
 import { PromptBuilderAssistant } from "@/app/components/PromptBuilderAssistant";
 import { toast } from "sonner";
 
@@ -29,8 +43,10 @@ export interface BotConfigurationProps {
   canReset?: boolean;
   locked?: boolean;
   onUnlock?: () => void;
+  onLock?: () => void;
   personalityName?: string;
   onPersonalityNameChange?: (val: string) => void;
+  savedPersonalityName?: string;
 }
 
 function PromptDiff({
@@ -85,18 +101,36 @@ export function BotConfiguration({
   canReset,
   locked,
   onUnlock,
+  onLock,
   personalityName = "",
   onPersonalityNameChange,
+  savedPersonalityName = "",
 }: BotConfigurationProps) {
   const [showDiff, setShowDiff] = useState(false);
+  const [lockConfirmOpen, setLockConfirmOpen] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
-  // Scroll content area into view and focus name input when unlocked
   useEffect(() => {
     if (!locked) {
-      contentRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      contentRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
     }
   }, [locked]);
+
+  const handleLockClick = useCallback(() => {
+    if (canSave) {
+      setLockConfirmOpen(true);
+    } else {
+      onLock?.();
+    }
+  }, [canSave, onLock]);
+
+  const handleLockConfirmed = useCallback(() => {
+    setLockConfirmOpen(false);
+    onLock?.();
+  }, [onLock]);
 
   const handleExport = useCallback(() => {
     const data = JSON.stringify({ prompt }, null, 2);
@@ -142,60 +176,98 @@ export function BotConfiguration({
       <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border/60 flex-shrink-0">
         <div className="flex-1 min-w-0">
           <h2 className="text-sm font-semibold text-foreground">
-            Personalidad del bot
+            Instrucciones del bot
           </h2>
           {locked ? (
             <p className="text-xs text-muted-foreground mt-0.5">
-              {personalityName ? (
+              {savedPersonalityName ? (
                 <span className="flex items-center gap-1.5">
-                  <Tag className="w-3 h-3 text-muted-foreground/60" aria-hidden="true" />
-                  {personalityName}
-                  <span className="text-muted-foreground/50">— clic en editar para modificar</span>
+                  <Tag
+                    className="w-3 h-3 text-muted-foreground/60"
+                    aria-hidden="true"
+                  />
+                  <span className="font-medium text-foreground/80">
+                    {savedPersonalityName}
+                  </span>
+                  <span className="text-muted-foreground/50">
+                    — clic en editar para modificar
+                  </span>
                 </span>
               ) : (
-                "Modo lectura — haz clic en editar para modificar."
+                "Complementa el comportamiento base del asistente IA."
               )}
             </p>
           ) : (
             <div className="mt-2 max-w-xs" ref={contentRef}>
               <div className="relative">
-                <Tag className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground/50" aria-hidden="true" />
+                <Tag
+                  className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground/50"
+                  aria-hidden="true"
+                />
                 <Input
                   value={personalityName}
                   onChange={(e) => onPersonalityNameChange?.(e.target.value)}
-                  placeholder="Nombre de esta versión (opcional)"
+                  placeholder="Nombre de esta versión"
                   maxLength={60}
-                  className="pl-7 h-7 text-xs border-border/60 focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary/20"
+                  className={`pl-7 h-7 text-xs border-border/60 focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary/20 ${error ? "border-destructive/60 focus-visible:border-destructive" : ""}`}
                   aria-label="Nombre de la personalidad"
+                  aria-required="true"
+                  aria-describedby={error ? "name-error" : undefined}
                 />
+                <span
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-destructive text-xs font-bold pointer-events-none"
+                  aria-hidden="true"
+                >
+                  *
+                </span>
               </div>
+              {error && (
+                <p
+                  id="name-error"
+                  className="flex items-center gap-1 text-[10px] text-destructive mt-1 pl-1"
+                  role="alert"
+                >
+                  <AlertCircle
+                    className="w-3 h-3 flex-shrink-0"
+                    aria-hidden="true"
+                  />
+                  {error}
+                </p>
+              )}
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <div aria-live="polite" aria-atomic="true">
-            {error && (
-              <span className="flex items-center gap-1.5 text-xs text-destructive">
-                <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />
-                {error}
-              </span>
-            )}
-          </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={onUnlock}
-            disabled={!locked || !!isLoading}
-            aria-label={locked ? "Editar personalidad" : "Editando"}
-            className={`h-8 w-8 transition-colors ${locked ? "text-muted-foreground hover:text-accent-violet hover:bg-accent-violet/10" : "text-accent-violet bg-accent-violet/10"}`}
-          >
-            {locked ? (
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {locked ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={onUnlock}
+              disabled={!!isLoading}
+              aria-label="Editar instrucciones"
+              className="h-8 w-8 text-muted-foreground hover:text-accent-violet hover:bg-accent-violet/10 transition-colors"
+            >
               <Lock className="w-3.5 h-3.5" aria-hidden="true" />
-            ) : (
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={handleLockClick}
+              disabled={!!isLoading}
+              aria-label="Cancelar edición"
+              title={
+                canSave
+                  ? "Cancelar y descartar cambios"
+                  : "Volver a modo lectura"
+              }
+              className="h-8 w-8 text-accent-violet bg-accent-violet/10 hover:bg-accent-violet/20 transition-colors"
+            >
               <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
-            )}
-          </Button>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -282,11 +354,12 @@ export function BotConfiguration({
               </div>
               <div>
                 <p className="text-sm font-medium text-foreground">
-                  Sin personalidad configurada
+                  Sin instrucciones configuradas
                 </p>
                 <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-                  Haz clic en el ícono de editar para configurar el tono y
-                  comportamiento del asistente.
+                  Añade instrucciones extra para personalizar el comportamiento
+                  del bot según tu negocio. El asistente ya tiene un
+                  comportamiento base — esto lo complementa.
                 </p>
               </div>
               <Button
@@ -297,7 +370,7 @@ export function BotConfiguration({
                 className="mt-1 gap-2 text-xs border-accent-violet/30 text-accent-violet hover:bg-accent-violet/10"
               >
                 <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
-                Configurar personalidad
+                Configurar instrucciones
               </Button>
             </div>
           )}
@@ -369,6 +442,37 @@ export function BotConfiguration({
           </div>
         </div>
       </div>
+
+      {/* Lock-with-dirty confirm dialog */}
+      <Dialog open={lockConfirmOpen} onOpenChange={setLockConfirmOpen}>
+        <DialogContent className="max-w-sm glass border-amber-500/30">
+          <DialogHeader>
+            <DialogTitle className="font-heading">
+              ¿Descartar cambios?
+            </DialogTitle>
+            <DialogDescription className="text-sm">
+              Tienes cambios sin guardar. Si vuelves a modo lectura ahora, se
+              perderán.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2 justify-end pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setLockConfirmOpen(false)}
+            >
+              Seguir editando
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={handleLockConfirmed}
+            >
+              Descartar y cerrar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

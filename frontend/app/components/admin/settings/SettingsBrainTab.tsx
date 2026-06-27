@@ -3,6 +3,7 @@ import { BotConfiguration } from "@/app/components/BotConfiguration";
 import { PersonalityHistoryPanel } from "./PersonalityHistoryPanel";
 import { TemperatureCard } from "./TemperatureCard";
 import { PersonalityPreviewCard } from "./PersonalityPreviewCard";
+import { type BotConfigDTO } from "@/app/lib/services/botConfigService";
 
 interface SettingsBrainTabProps {
   uiExtra: string;
@@ -13,15 +14,18 @@ interface SettingsBrainTabProps {
   handleBrainSave: () => void;
   handleBrainReset: () => void;
   handleDiscardChanges: () => void;
-  onHistoryRestored: () => void;
+  onHistoryRestored: (config: BotConfigDTO, personalityName: string) => void;
   isLoading: boolean;
   savingBrain: boolean;
   errorBrain: string | null;
   brainIsDirty: boolean;
   brainLocked: boolean;
   onBrainUnlock: () => void;
+  onBrainLock: () => void;
   personalityName: string;
   onPersonalityNameChange: (val: string) => void;
+  savedPersonalityName: string;
+  historyRefreshKey: number;
 }
 
 export function SettingsBrainTab({
@@ -40,8 +44,11 @@ export function SettingsBrainTab({
   brainIsDirty,
   brainLocked,
   onBrainUnlock,
+  onBrainLock,
   personalityName,
   onPersonalityNameChange,
+  savedPersonalityName,
+  historyRefreshKey,
 }: SettingsBrainTabProps) {
   const disabled = isLoading || savingBrain;
   return (
@@ -58,16 +65,18 @@ export function SettingsBrainTab({
           isLoading={disabled}
           error={errorBrain || undefined}
           canSave={brainIsDirty}
-          canReset={true}
+          canReset={!!uiExtra.trim() || temperature !== 0.7}
           locked={brainLocked}
           onUnlock={onBrainUnlock}
+          onLock={onBrainLock}
           personalityName={personalityName}
           onPersonalityNameChange={onPersonalityNameChange}
+          savedPersonalityName={savedPersonalityName}
         />
       </div>
 
       {/* Right: cards panel */}
-      <div className="w-72 xl:w-80 flex-shrink-0 overflow-y-auto p-4 space-y-3 bg-muted/20">
+      <div className="w-72 xl:w-80 flex-shrink-0 overflow-y-auto p-4 space-y-3 bg-muted/30 border-l-0">
         <TemperatureCard
           temperature={temperature}
           onTemperatureChange={setTemperature}
@@ -80,7 +89,12 @@ export function SettingsBrainTab({
             disabled={disabled}
           />
         )}
-        <PersonalityHistoryPanel onRestored={onHistoryRestored} />
+        <PersonalityHistoryPanel
+          onRestored={onHistoryRestored}
+          currentUiExtra={uiExtra}
+          currentTemperature={temperature}
+          refreshKey={historyRefreshKey}
+        />
       </div>
     </div>
   );

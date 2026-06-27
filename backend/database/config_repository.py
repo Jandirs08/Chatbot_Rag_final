@@ -145,6 +145,13 @@ class ConfigRepository:
             temperature=doc.get("temperature"),
         )
 
+    async def delete_history(self, history_id: str) -> None:
+        """Delete a specific personality history snapshot."""
+        history_col = self._mongo.db.get_collection("bot_config_history")
+        result = await history_col.delete_one({"_id": history_id})
+        if result.deleted_count == 0:
+            raise ValueError(f"History entry {history_id!r} not found")
+
     async def reset_ui(self) -> BotConfig:
         """Clear UI-driven fields (bot_name, ui_prompt_extra) and return config."""
         update_data = {

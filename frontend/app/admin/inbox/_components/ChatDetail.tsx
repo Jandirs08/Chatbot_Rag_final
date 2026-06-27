@@ -39,12 +39,11 @@ export function ChatDetail({
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      setTimeout(() => {
-        const el = scrollRef.current!;
-        el.scrollTop = el.scrollHeight;
-      }, 100);
-    }
+    if (!scrollRef.current) return;
+    const id = setTimeout(() => {
+      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+    }, 100);
+    return () => clearTimeout(id);
   }, [messages, chatId]);
 
   if (!chatId) {

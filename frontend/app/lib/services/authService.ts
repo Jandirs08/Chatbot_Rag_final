@@ -164,10 +164,7 @@ export const authService = {
         throw new Error("No se pudo persistir la sesión");
       }
 
-      TokenManager.setTokens(
-        authData.access_token,
-        authData.expires_in,
-      );
+      TokenManager.setTokens(authData.access_token, authData.expires_in);
 
       return authData;
     } catch (error) {
@@ -207,9 +204,9 @@ export const authService = {
     return response.json();
   },
 
-  async refreshToken(
-    { silent = false }: { silent?: boolean } = {},
-  ): Promise<AuthResponse> {
+  async refreshToken({
+    silent = false,
+  }: { silent?: boolean } = {}): Promise<AuthResponse> {
     if (refreshInFlight) {
       return refreshInFlight;
     }
@@ -225,25 +222,18 @@ export const authService = {
         }
 
         const authData: AuthResponse = await response.json();
-        TokenManager.setTokens(
-          authData.access_token,
-          authData.expires_in,
-        );
+        TokenManager.setTokens(authData.access_token, authData.expires_in);
 
         return authData;
       } catch (error) {
-        if (silent) {
-          // Only expire the session if the token was already invalid.
-          // A network blip during proactive refresh (token still valid) must
-          // not log the user out — the existing cookie is still usable.
-          const wasAlreadyInvalid = !TokenManager.isTokenValid();
-          TokenManager.clearTokens();
-          if (wasAlreadyInvalid) {
-            dispatchAuthEvent(AUTH_SESSION_EXPIRED_EVENT);
-          }
-        } else {
-          await expireSession();
-        }
+        // Always revoke the server-side refresh cookie on a failed refresh,
+        // regardless of the silent flag. The silent flag controls only UX
+        // feedback (toasts, redirects) — leaving the backend cookie active
+        // after a rejected refresh would leave stale credentials on the server.
+        // Callers that join a shared refreshInFlight promise inherit the
+        // closure's silent value, so branching here on silent produces
+        // incorrect server-side cleanup for non-silent callers.
+        await expireSession();
         throw error;
       } finally {
         refreshInFlight = null;
@@ -308,7 +298,11 @@ async function maybeDispatchInvalidSession(
   try {
     const cloned = response.clone();
     const data = await cloned.json();
-    if (data && typeof data === "object" && (data as { code?: unknown }).code === "INVALID_SESSION") {
+    if (
+      data &&
+      typeof data === "object" &&
+      (data as { code?: unknown }).code === "INVALID_SESSION"
+    ) {
       dispatchAuthEvent(AUTH_STATE_INVALIDATED_EVENT);
     }
   } catch {
@@ -400,7 +394,11 @@ export async function authenticatedHistoryFetcher(
   const items = await response.json();
   const totalHeader = response.headers.get("X-Total-Messages");
   const truncatedHeader = response.headers.get("X-Truncated");
-  const total = totalHeader ? Number(totalHeader) : Array.isArray(items) ? items.length : 0;
+  const total = totalHeader
+    ? Number(totalHeader)
+    : Array.isArray(items)
+      ? items.length
+      : 0;
   return {
     items: Array.isArray(items) ? items : [],
     total: Number.isFinite(total) ? total : 0,

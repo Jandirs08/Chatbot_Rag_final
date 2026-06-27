@@ -34,7 +34,7 @@ function useConversationSWR(
     {
       fallbackData,
       refreshInterval: 15000,
-      revalidateOnFocus: true,
+      revalidateOnFocus: false,
       dedupingInterval: 3000,
       shouldRetryOnError: (err) => !(err instanceof RateLimitError),
       onError: (err) => {

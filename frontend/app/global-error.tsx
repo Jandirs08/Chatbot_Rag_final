@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { logger } from "@/app/lib/logger";
 
 export default function GlobalError({
   error,
@@ -10,23 +11,23 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("Global error boundary caught:", error);
+    logger.error("Global error boundary caught:", error);
   }, [error]);
 
   return (
     <html lang="es">
       <body>
         <div
-          className="min-h-screen flex items-center justify-center p-6 bg-background text-foreground"
+          className="min-h-screen flex items-center justify-center p-6 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100"
           role="alert"
         >
           <div className="text-center max-w-md">
             <h1 className="text-4xl font-bold mb-2">Ha ocurrido un error</h1>
-            <p className="text-muted-foreground mb-2">
+            <p className="text-neutral-500 dark:text-neutral-400 mb-2">
               {error?.message || "Algo salió mal mientras cargábamos la aplicación."}
             </p>
             {error?.digest && (
-              <p className="mb-6 text-xs text-muted-foreground/70 font-mono">
+              <p className="mb-6 text-xs text-neutral-500/70 dark:text-neutral-400/70 font-mono">
                 ID del error: {error.digest}
               </p>
             )}

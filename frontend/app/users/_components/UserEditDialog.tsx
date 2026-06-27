@@ -54,6 +54,7 @@ export function UserEditDialog({
     password: "",
   });
   const [hints, setHints] = useState(EMPTY_HINTS);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -65,6 +66,7 @@ export function UserEditDialog({
         password: "",
       });
       setHints(EMPTY_HINTS);
+      setIsSubmitting(false);
     }
   }, [user]);
 
@@ -82,6 +84,7 @@ export function UserEditDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (isSubmitting) return;
     const payload: Record<string, unknown> = {
       email: form.email !== user.email ? form.email : undefined,
       full_name: form.full_name,
@@ -95,7 +98,12 @@ export function UserEditDialog({
       }
       payload.password = form.password;
     }
-    await onSubmit(user.id, payload);
+    setIsSubmitting(true);
+    try {
+      await onSubmit(user.id, payload);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -175,7 +183,9 @@ export function UserEditDialog({
             <Button type="button" variant="outline" onClick={onClose}>
               Cancelar
             </Button>
-            <Button type="submit">Guardar</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Guardando..." : "Guardar"}
+            </Button>
           </div>
         </form>
       </DialogContent>

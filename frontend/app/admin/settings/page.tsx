@@ -1,5 +1,5 @@
 "use client";
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useRef, useLayoutEffect } from "react";
 import { useRequirePermission } from "@/app/hooks/useAuthGuard";
 import { useBotConfig } from "@/app/hooks/useBotConfig";
 import { Button } from "@/app/components/ui/button";
@@ -18,7 +18,9 @@ import {
   updateBotConfig,
   resetBotConfig,
   getBotRuntime,
+  getPersonalityHistory,
   type BotRuntimeDTO,
+  type BotConfigDTO,
 } from "@/app/lib/services/botConfigService";
 import {
   Dialog,
@@ -78,6 +80,14 @@ export default function AdminSettingsPage() {
   const { isAuthorized, isChecking } =
     useRequirePermission("manage_bot_config");
   const [activeTab, setActiveTab] = useState<SettingsTab>("appearance");
+  const isFirstTabRender = useRef(true);
+
+  useLayoutEffect(() => {
+    const hash = window.location.hash.replace("#", "") as SettingsTab;
+    if (hash === "appearance" || hash === "brain" || hash === "system") {
+      setActiveTab(hash);
+    }
+  }, []);
   const [config, setConfig] = useState({
     name: "",
     avatarUrl: "",
@@ -115,6 +125,9 @@ export default function AdminSettingsPage() {
   const [errorBrain, setErrorBrain] = useState<string | null>(null);
   const [isBotActive, setIsBotActive] = useState<boolean>(false);
   const [personalityName, setPersonalityName] = useState<string>("");
+  const [activePersonalityName, setActivePersonalityName] =
+    useState<string>("");
+  const [historyRefreshKey, setHistoryRefreshKey] = useState<number>(0);
 
   const brainIsDirty = useMemo(
     () => uiExtra !== baselineUiExtra || temperature !== baselineTemperature,
@@ -134,47 +147,54 @@ export default function AdminSettingsPage() {
     appearanceIsDirty || brainIsDirty,
   );
 
-  const handleTabChange = (targetTab: SettingsTab) => {
-    if (
-      activeTab === "appearance" &&
-      appearanceIsDirty &&
-      targetTab !== "appearance"
-    ) {
-      checkUnsavedChanges(() => setActiveTab(targetTab));
-      return;
-    }
-    if (activeTab === "brain" && brainIsDirty && targetTab !== "brain") {
-      checkUnsavedChanges(() => setActiveTab(targetTab));
-      return;
-    }
-    setActiveTab(targetTab);
-  };
-
-  React.useEffect(() => {
-    if (typeof window !== "undefined") {
-      const hash = window.location.hash.replace("#", "") as SettingsTab;
-      if (hash === "appearance" || hash === "brain" || hash === "system") {
-        setActiveTab(hash);
+  const handleTabChange = React.useCallback(
+    (targetTab: SettingsTab) => {
+      if (
+        activeTab === "appearance" &&
+        appearanceIsDirty &&
+        targetTab !== "appearance"
+      ) {
+        checkUnsavedChanges(() => setActiveTab(targetTab));
+        return;
       }
-    }
-  }, []);
+      if (activeTab === "brain" && brainIsDirty && targetTab !== "brain") {
+        checkUnsavedChanges(() => setActiveTab(targetTab));
+        return;
+      }
+      setActiveTab(targetTab);
+    },
+    [activeTab, appearanceIsDirty, brainIsDirty, checkUnsavedChanges],
+  );
 
   React.useEffect(() => {
+    if (isFirstTabRender.current) {
+      isFirstTabRender.current = false;
+      return;
+    }
     if (typeof window !== "undefined") {
       history.replaceState(null, "", "#" + activeTab);
     }
   }, [activeTab]);
 
   React.useEffect(() => {
+    const onHashChange = () => {
+      const hash = window.location.hash.replace("#", "") as SettingsTab;
+      if (hash === "appearance" || hash === "brain" || hash === "system") {
+        handleTabChange(hash);
+      }
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, [handleTabChange]);
+
+  React.useEffect(() => {
     if (!data) return;
-    setTemperature(
-      typeof data.temperature === "number" ? data.temperature : 0.7,
-    );
-    setUiExtra(sanitizeUiExtra(data.ui_prompt_extra));
-    setBaselineUiExtra(sanitizeUiExtra(data.ui_prompt_extra));
-    setBaselineTemperature(
-      typeof data.temperature === "number" ? data.temperature : 0.7,
-    );
+    const extra = sanitizeUiExtra(data.ui_prompt_extra);
+    const temp = typeof data.temperature === "number" ? data.temperature : 0.7;
+    setTemperature(temp);
+    setUiExtra(extra);
+    setBaselineUiExtra(extra);
+    setBaselineTemperature(temp);
     let cancelled = false;
     botService
       .getState()
@@ -184,6 +204,20 @@ export default function AdminSettingsPage() {
       .catch(() => {
         if (!cancelled) setIsBotActive(false);
       });
+    // Resolve current personality name from history (API doesn't return it in config)
+    getPersonalityHistory()
+      .then((entries) => {
+        if (cancelled) return;
+        const match = entries.find(
+          (e) =>
+            e.ui_prompt_extra?.trim() === extra &&
+            Math.abs(e.temperature - temp) < 0.05,
+        );
+        if (match?.personality_name?.trim()) {
+          setActivePersonalityName(match.personality_name.trim());
+        }
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -216,19 +250,26 @@ export default function AdminSettingsPage() {
   };
 
   const handleBrainSave = async () => {
+    if (uiExtra.trim().length > 0 && !personalityName.trim()) {
+      setErrorBrain("El nombre de la versión es obligatorio antes de guardar.");
+      toast.error("Ingresa un nombre para esta versión antes de guardar.");
+      return;
+    }
     try {
       setSavingBrain(true);
       setErrorBrain(null);
       const updated = await updateBotConfig({
         temperature,
         ui_prompt_extra: (uiExtra || "").trim(),
-        personality_name: personalityName.trim() || undefined,
+        personality_name: personalityName.trim(),
       });
       setUiExtra(sanitizeUiExtra(updated.ui_prompt_extra));
       setBaselineUiExtra(sanitizeUiExtra(updated.ui_prompt_extra));
       setBaselineTemperature(updated.temperature ?? temperature);
+      setActivePersonalityName(personalityName.trim());
       setPersonalityName("");
       setBrainLocked(true);
+      setHistoryRefreshKey((k) => k + 1);
       mutate();
       toast.success("Configuración guardada. Cambios aplicados al bot.");
     } catch (e: unknown) {
@@ -248,6 +289,25 @@ export default function AdminSettingsPage() {
     setBrainLocked(true);
   };
 
+  const handleHistoryRestored = (
+    restoredConfig: BotConfigDTO,
+    restoredName: string,
+  ) => {
+    const restoredExtra = sanitizeUiExtra(restoredConfig.ui_prompt_extra);
+    const restoredTemp =
+      typeof restoredConfig.temperature === "number"
+        ? restoredConfig.temperature
+        : 0.7;
+    setUiExtra(restoredExtra);
+    setBaselineUiExtra(restoredExtra);
+    setTemperature(restoredTemp);
+    setBaselineTemperature(restoredTemp);
+    setActivePersonalityName(restoredName);
+    setPersonalityName("");
+    setBrainLocked(true);
+    mutate();
+  };
+
   const [resetConfirmOpen, setResetConfirmOpen] = useState<boolean>(false);
 
   const handleBrainReset = () => setResetConfirmOpen(true);
@@ -263,7 +323,9 @@ export default function AdminSettingsPage() {
       setTemperature(0.7);
       setBaselineTemperature(0.7);
       setPersonalityName("");
+      setActivePersonalityName("");
       setBrainLocked(true);
+      setHistoryRefreshKey((k) => k + 1);
       mutate();
       toast.success("Configuración restablecida.");
     } catch (e: unknown) {
@@ -446,15 +508,18 @@ export default function AdminSettingsPage() {
             handleBrainSave={handleBrainSave}
             handleBrainReset={handleBrainReset}
             handleDiscardChanges={handleDiscardChanges}
-            onHistoryRestored={mutate}
+            onHistoryRestored={handleHistoryRestored}
             isLoading={isLoading}
             savingBrain={savingBrain}
             errorBrain={errorBrain}
             brainIsDirty={brainIsDirty}
             brainLocked={brainLocked}
             onBrainUnlock={() => setBrainLocked(false)}
+            onBrainLock={handleDiscardChanges}
             personalityName={personalityName}
             onPersonalityNameChange={setPersonalityName}
+            savedPersonalityName={activePersonalityName}
+            historyRefreshKey={historyRefreshKey}
           />
         </div>
         {activeTab === "system" && <SettingsSystemTab isLoading={isLoading} />}

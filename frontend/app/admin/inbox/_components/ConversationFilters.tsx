@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import {
@@ -36,8 +36,13 @@ export function ConversationFilters({
   config,
   onChange,
 }: ConversationFiltersProps) {
-  const today = todayString();
-  const week = lastWeekRange();
+  const [today, setToday] = useState("");
+  const [week, setWeek] = useState<{ start: string; end: string }>({ start: "", end: "" });
+
+  useEffect(() => {
+    setToday(todayString());
+    setWeek(lastWeekRange());
+  }, []);
 
   const isAll = !config.startDate && !config.endDate;
   const isToday = config.startDate === today && config.endDate === today;

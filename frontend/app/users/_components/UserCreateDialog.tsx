@@ -46,6 +46,7 @@ export function UserCreateDialog({
   });
   const [role, setRole] = useState("admin");
   const [hints, setHints] = useState(EMPTY_HINTS);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const reset = () => {
     setForm({ email: "", password: "", full_name: "", is_admin: true });
@@ -66,6 +67,7 @@ export function UserCreateDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     if (!isValidPassword(hints)) {
       onError(
         "La contraseña debe tener mínimo 8 caracteres, una mayúscula y un carácter especial.",
@@ -78,8 +80,13 @@ export function UserCreateDialog({
       full_name: form.full_name,
       is_admin: role === "admin",
     };
-    await onSubmit(payload);
-    reset();
+    setIsSubmitting(true);
+    try {
+      await onSubmit(payload);
+      reset();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -146,7 +153,9 @@ export function UserCreateDialog({
             >
               Cancelar
             </Button>
-            <Button type="submit">Crear</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Creando..." : "Crear"}
+            </Button>
           </div>
         </form>
       </DialogContent>

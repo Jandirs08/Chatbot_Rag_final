@@ -86,7 +86,6 @@ export function LoginForm({ onSuccess, redirectTo = "/" }: LoginFormProps) {
 
       setIsRedirecting(true);
       router.replace(redirectTo);
-      router.refresh();
     } catch (err) {
       toast.dismiss(toastId);
       setIsSubmitting(false);

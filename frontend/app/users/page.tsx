@@ -22,6 +22,7 @@ export default function UsuariosPage() {
   const [editingUser, setEditingUser] = useState<UserListItem | null>(null);
   const [deleteUser, setDeleteUser] = useState<UserListItem | null>(null);
   const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set());
+  const [isResettingId, setIsResettingId] = useState<string | null>(null);
   const [pendingActiveById, setPendingActiveById] = useState<
     Record<string, boolean>
   >({});
@@ -38,20 +39,22 @@ export default function UsuariosPage() {
     return () => clearTimeout(t);
   }, [search]);
 
-  const { data, error: listError, isLoading } = useUsers(
+  const {
+    data,
+    error: listError,
+    isLoading,
+  } = useUsers(
     {
       skip,
       limit,
       search: debouncedSearch || undefined,
-      role:
-        roleFilter !== "all" ? (roleFilter as "admin" | "user") : undefined,
-      is_active:
-        activeFilter === "all" ? undefined : activeFilter === "active",
+      role: roleFilter !== "all" ? (roleFilter as "admin" | "user") : undefined,
+      is_active: activeFilter === "all" ? undefined : activeFilter === "active",
     },
     {
       enabled: isAuthorized,
       keepPreviousData: true,
-      revalidateOnFocus: true,
+      revalidateOnFocus: false,
     },
   );
   const {
@@ -109,11 +112,15 @@ export default function UsuariosPage() {
   };
 
   const handleResetPassword = async (u: UserListItem) => {
+    if (isResettingId === u.id) return;
+    setIsResettingId(u.id);
     try {
       await requestPasswordReset(u.email);
       toast.success(`Correo de recuperación enviado a ${u.email}`);
     } catch {
       toast.error("No se pudo enviar el correo de recuperación");
+    } finally {
+      setIsResettingId(null);
     }
   };
 
@@ -145,10 +152,13 @@ export default function UsuariosPage() {
     <div className="space-y-5 p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-heading font-semibold tracking-tight">Gestión de Usuarios</h1>
+          <h1 className="text-2xl font-heading font-semibold tracking-tight">
+            Gestión de Usuarios
+          </h1>
           {!loading && (
             <p className="text-sm text-muted-foreground mt-0.5">
-              <span className="font-data">{total}</span> usuario{total !== 1 ? "s" : ""}
+              <span className="font-data">{total}</span> usuario
+              {total !== 1 ? "s" : ""}
             </p>
           )}
         </div>
@@ -187,6 +197,7 @@ export default function UsuariosPage() {
         pendingActiveById={pendingActiveById}
         onToggleActive={toggleActive}
         onEdit={setEditingUser}
+        resettingId={isResettingId}
         onResetPassword={handleResetPassword}
         onDelete={setDeleteUser}
       />

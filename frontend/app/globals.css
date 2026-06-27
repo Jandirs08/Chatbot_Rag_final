@@ -115,6 +115,16 @@
   /* Font families — loaded via next/font */
   --font-heading: 'Space Grotesk', system-ui, sans-serif;
   --font-mono-ui: 'DM Mono', 'Fira Code', 'Courier New', monospace;
+
+  /* Severity tokens */
+  --severity-ok: hsl(154 76% 38%);
+  --severity-warn: hsl(38 90% 46%);
+  --severity-crit: hsl(0 72% 51%);
+  /* Mission Control */
+  --mc-bg: hsl(220 40% 4%);
+  --mc-surface: hsl(220 30% 8%);
+  --mc-surface2: hsl(220 28% 12%);
+  --mc-border: rgba(99, 179, 255, 0.07);
 }
 
 .dark {

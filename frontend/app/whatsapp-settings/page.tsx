@@ -15,7 +15,16 @@ import { toast } from "sonner";
 import { API_URL } from "@/app/lib/config";
 import { updateBotConfig } from "@/app/lib/services/botConfigService";
 import { whatsappService } from "@/app/lib/services/whatsappService";
-import { CheckCircle, AlertTriangle, Circle, Lock, Unlock, Wifi, Copy, Check } from "lucide-react";
+import {
+  CheckCircle,
+  AlertTriangle,
+  Circle,
+  Lock,
+  Unlock,
+  Wifi,
+  Copy,
+  Check,
+} from "lucide-react";
 import { useUnsavedChanges } from "@/app/hooks/useUnsavedChanges";
 
 export default function ConfiguracionWhatsAppPage() {
@@ -27,7 +36,7 @@ export default function ConfiguracionWhatsAppPage() {
     mutate: mutateBotConfig,
   } = useBotConfig({
     enabled: isAuthorized,
-    revalidateOnFocus: true,
+    revalidateOnFocus: false,
   });
   const [twilioSid, setTwilioSid] = useState("");
   const [twilioToken, setTwilioToken] = useState("");
@@ -36,7 +45,9 @@ export default function ConfiguracionWhatsAppPage() {
   const [baselineSid, setBaselineSid] = useState("");
   const [baselineToken, setBaselineToken] = useState("");
   const [baselineFrom, setBaselineFrom] = useState("");
-  const [status, setStatus] = useState<"unknown" | "ok" | "error" | "dirty">("unknown");
+  const [status, setStatus] = useState<"unknown" | "ok" | "error" | "dirty">(
+    "unknown",
+  );
   const webhookUrl = `${API_URL}/whatsapp/webhook`;
   const [loading, setLoading] = useState(false);
   const [testLoading, setTestLoading] = useState(false);
@@ -92,7 +103,9 @@ export default function ConfiguracionWhatsAppPage() {
       setBaselineFrom(twilioFrom);
       setStatus("dirty");
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Error al guardar configuración");
+      toast.error(
+        e instanceof Error ? e.message : "Error al guardar configuración",
+      );
     } finally {
       setLoading(false);
     }
@@ -129,7 +142,9 @@ export default function ConfiguracionWhatsAppPage() {
       <div className="flex items-start justify-between gap-4 pb-4 border-b">
         <div>
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-semibold tracking-tight">Configuración de WhatsApp</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Configuración de WhatsApp
+            </h1>
             {status === "ok" && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-success/10 text-success border border-success/25 text-xs font-medium">
                 <CheckCircle className="w-3 h-3" aria-hidden="true" /> Conectado
@@ -137,12 +152,14 @@ export default function ConfiguracionWhatsAppPage() {
             )}
             {status === "dirty" && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-warning/10 text-warning border border-warning/25 text-xs font-medium">
-                <AlertTriangle className="w-3 h-3" aria-hidden="true" /> Sin probar
+                <AlertTriangle className="w-3 h-3" aria-hidden="true" /> Sin
+                probar
               </span>
             )}
             {status === "error" && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-error/10 text-error border border-error/25 text-xs font-medium">
-                <AlertTriangle className="w-3 h-3" aria-hidden="true" /> Error de conexión
+                <AlertTriangle className="w-3 h-3" aria-hidden="true" /> Error
+                de conexión
               </span>
             )}
             {status === "unknown" && (
@@ -163,9 +180,13 @@ export default function ConfiguracionWhatsAppPage() {
           aria-label={fieldsLocked ? "Editar credenciales" : "Bloquear edición"}
         >
           {fieldsLocked ? (
-            <><Lock className="w-3.5 h-3.5" aria-hidden="true" /> Editar</>
+            <>
+              <Lock className="w-3.5 h-3.5" aria-hidden="true" /> Editar
+            </>
           ) : (
-            <><Unlock className="w-3.5 h-3.5" aria-hidden="true" /> Bloquear</>
+            <>
+              <Unlock className="w-3.5 h-3.5" aria-hidden="true" /> Bloquear
+            </>
           )}
         </Button>
       </div>
@@ -173,10 +194,16 @@ export default function ConfiguracionWhatsAppPage() {
       {/* Credentials card */}
       <Card>
         <CardHeader className="pb-3">
-          <h2 className="text-sm font-semibold text-foreground">Credenciales de Twilio</h2>
-          <p className="text-xs text-muted-foreground">Obtén estos valores en tu consola de Twilio.</p>
+          <h2 className="text-sm font-semibold text-foreground">
+            Credenciales de Twilio
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Obtén estos valores en tu consola de Twilio.
+          </p>
         </CardHeader>
-        <CardContent className={`space-y-4 transition-opacity${fieldsLocked ? " opacity-60" : ""}`}>
+        <CardContent
+          className={`space-y-4 transition-opacity${fieldsLocked ? " opacity-60" : ""}`}
+        >
           <div className="space-y-1.5">
             <Label htmlFor="twilio_sid">Account SID</Label>
             <Input
@@ -244,9 +271,12 @@ export default function ConfiguracionWhatsAppPage() {
       {/* Webhook card */}
       <Card>
         <CardHeader className="pb-3">
-          <h2 className="text-sm font-semibold text-foreground">URL del Webhook</h2>
+          <h2 className="text-sm font-semibold text-foreground">
+            URL del Webhook
+          </h2>
           <p className="text-xs text-muted-foreground">
-            Configura esta URL en la consola de Twilio para recibir mensajes entrantes.
+            Configura esta URL en la consola de Twilio para recibir mensajes
+            entrantes.
           </p>
         </CardHeader>
         <CardContent>

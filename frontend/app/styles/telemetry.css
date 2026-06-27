@@ -190,6 +190,7 @@
   border: 1px solid var(--t-surface-edge);
   border-radius: 0.75rem;
   padding: 1.5rem;
+  box-shadow: var(--shadow-card);
 }
 [data-surface="telemetry"] .t-section-card[data-severity="warn"] {
   border-color: var(--t-signal);

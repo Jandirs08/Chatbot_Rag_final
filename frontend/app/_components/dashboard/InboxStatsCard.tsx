@@ -43,7 +43,7 @@ export function InboxStatsCard({
   const { data, isLoading } = useSWR<HandoffStats>(
     enabled ? `${API_URL}/inbox/handoff-stats?days=${days}` : null,
     fetcher,
-    { refreshInterval: 30000, revalidateOnFocus: true },
+    { refreshInterval: 30000, revalidateOnFocus: false },
   );
 
   const period = data?.period_days ?? days;
@@ -73,7 +73,9 @@ export function InboxStatsCard({
         const value = data?.[r.key] ?? 0;
         return (
           <div key={r.key} className="flex items-center gap-2">
-            <span className={cn("h-2 w-2 rounded-full flex-none", r.dotClass)} />
+            <span
+              className={cn("h-2 w-2 rounded-full flex-none", r.dotClass)}
+            />
             <span className={cn("font-mono text-sm font-bold", r.numClass)}>
               {value}
             </span>

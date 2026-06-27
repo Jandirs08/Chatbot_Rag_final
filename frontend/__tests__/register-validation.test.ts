@@ -18,7 +18,8 @@ function validateForm(formData: FormData): Record<string, string> {
   } else if (formData.username.length < 3) {
     errors.username = "El nombre de usuario debe tener al menos 3 caracteres";
   } else if (formData.username.length > 50) {
-    errors.username = "El nombre de usuario no puede tener más de 50 caracteres";
+    errors.username =
+      "El nombre de usuario no puede tener más de 50 caracteres";
   }
 
   if (!formData.email.trim()) {
@@ -75,9 +76,7 @@ describe("validateForm — username", () => {
   });
 
   it("fails when > 50 chars", () => {
-    expect(
-      validateForm({ ...valid, username: "a".repeat(51) }),
-    ).toHaveProperty(
+    expect(validateForm({ ...valid, username: "a".repeat(51) })).toHaveProperty(
       "username",
       "El nombre de usuario no puede tener más de 50 caracteres",
     );
@@ -111,9 +110,10 @@ describe("validateForm — email", () => {
   });
 
   it("fails with invalid format", () => {
-    expect(
-      validateForm({ ...valid, email: "no-es-email" }),
-    ).toHaveProperty("email", "Por favor ingresa un email válido");
+    expect(validateForm({ ...valid, email: "no-es-email" })).toHaveProperty(
+      "email",
+      "Por favor ingresa un email válido",
+    );
   });
 
   it("fails without domain", () => {

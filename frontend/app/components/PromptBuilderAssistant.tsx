@@ -103,8 +103,18 @@ const PHASES = [
 const TONES: { id: Tone; label: string; desc: string; color: string }[] = [
   { id: "formal", label: "Formal", desc: "Usted · Preciso", color: "#4f35cc" },
   { id: "cercano", label: "Cercano", desc: "Tú · Natural", color: "#17a96a" },
-  { id: "tecnico", label: "Técnico", desc: "Experto · Detallado", color: "#0ea5e9" },
-  { id: "empatico", label: "Empático", desc: "Cálido · Comprensivo", color: "#d48c0a" },
+  {
+    id: "tecnico",
+    label: "Técnico",
+    desc: "Experto · Detallado",
+    color: "#0ea5e9",
+  },
+  {
+    id: "empatico",
+    label: "Empático",
+    desc: "Cálido · Comprensivo",
+    color: "#d48c0a",
+  },
 ];
 
 const LABEL_CLS =
@@ -163,7 +173,9 @@ export function PromptBuilderAssistant({
   const isGeneratingRef = useRef(false);
   const phaseTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const focusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const aiPanelRef = useRef<HTMLDivElement>(null);
 
   const effectiveSector = sector === "Otro" ? customSector.trim() : sector;
   const descTrimLen = description.trim().length;
@@ -179,18 +191,11 @@ export function PromptBuilderAssistant({
       ? `Ej: ${SECTOR_PLACEHOLDERS[sector] ?? "Describe brevemente qué ofreces y a quién"}`
       : "Describe brevemente qué ofreces y a quién va dirigido";
 
-  // Close AI panel when prompt appears for the first time (edge-case guard)
-  const hadPromptRef = useRef(!!prompt);
-  useEffect(() => {
-    if (!hadPromptRef.current && prompt) {
-      hadPromptRef.current = true;
-    }
-  }, [prompt]);
-
   useEffect(() => {
     return () => {
       if (phaseTimerRef.current) clearInterval(phaseTimerRef.current);
       if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
     };
   }, []);
 
@@ -231,7 +236,7 @@ export function PromptBuilderAssistant({
       });
       onPromptChange(result);
       setAiOpen(false);
-      setTimeout(() => textareaRef.current?.focus(), 80);
+      focusTimerRef.current = setTimeout(() => textareaRef.current?.focus(), 80);
     } catch {
       toast.error("No se pudo generar el prompt. Intenta de nuevo.");
     } finally {
@@ -239,7 +244,17 @@ export function PromptBuilderAssistant({
       isGeneratingRef.current = false;
       setLoading(false);
     }
-  }, [canGenerate, effectiveSector, description, audience, tone, restrictions, specialFlow, websiteUrl, onPromptChange]);
+  }, [
+    canGenerate,
+    effectiveSector,
+    description,
+    audience,
+    tone,
+    restrictions,
+    specialFlow,
+    websiteUrl,
+    onPromptChange,
+  ]);
 
   const handleCopy = useCallback(async () => {
     if (!prompt) return;
@@ -252,6 +267,19 @@ export function PromptBuilderAssistant({
       toast.error("No se pudo copiar. Selecciona el texto manualmente.");
     }
   }, [prompt]);
+
+  useEffect(() => {
+    if (aiOpen) {
+      setTimeout(
+        () =>
+          aiPanelRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "nearest",
+          }),
+        50,
+      );
+    }
+  }, [aiOpen]);
 
   const openAiAndFocus = useCallback(() => {
     setAiOpen(true);
@@ -266,13 +294,14 @@ export function PromptBuilderAssistant({
 
   return (
     <div className="space-y-4">
-
       {/* ── Textarea section ──────────────────────────────────────────────── */}
       <div>
         {!fieldsReadOnly && (
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[11px] text-muted-foreground">
-              {prompt ? "Instrucciones del bot" : "Escribe tus instrucciones"}
+              {prompt
+                ? "Instrucciones extra del bot"
+                : "Escribe instrucciones extra"}
             </span>
             <div className="flex items-center gap-1">
               {prompt && (
@@ -286,7 +315,11 @@ export function PromptBuilderAssistant({
                   }`}
                   title="Copiar prompt"
                 >
-                  {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                  {copied ? (
+                    <Check className="w-3 h-3" />
+                  ) : (
+                    <Copy className="w-3 h-3" />
+                  )}
                   {copied ? "Copiado" : "Copiar"}
                 </button>
               )}
@@ -300,7 +333,11 @@ export function PromptBuilderAssistant({
                 }`}
               >
                 <Sparkles className="w-3 h-3" aria-hidden="true" />
-                {aiOpen ? "Cerrar IA" : prompt ? "Regenerar con IA" : "Crear con IA"}
+                {aiOpen
+                  ? "Cerrar IA"
+                  : prompt
+                    ? "Regenerar con IA"
+                    : "Crear con IA"}
               </button>
             </div>
           </div>
@@ -317,7 +354,7 @@ export function PromptBuilderAssistant({
           placeholder={
             fieldsReadOnly
               ? ""
-              : "Eres un asistente de [negocio]. Tu función es [función]. Siempre responde en [idioma]…"
+              : "Ej: ROL:\nSoy el asistente de [negocio]...\n\nTONO:\n• Usa lenguaje amigable y natural\n• Responde siempre en español"
           }
           className={`resize-none text-[13px] leading-relaxed font-mono bg-card ${INPUT_CLS} ${
             !fieldsReadOnly && !prompt ? "border-dashed" : ""
@@ -326,7 +363,9 @@ export function PromptBuilderAssistant({
         {!fieldsReadOnly && (
           <div className="flex justify-between items-center mt-1">
             <span className="text-[11px] text-muted-foreground">
-              {prompt ? "Edición directa" : "O usa la IA para generar"}
+              {prompt
+                ? "Edición directa · complementa el comportamiento base"
+                : "O usa la IA para generar"}
             </span>
             <span
               id="prompt-char-count"
@@ -346,7 +385,15 @@ export function PromptBuilderAssistant({
       {/* ── Empty-state CTAs (no prompt, AI panel closed) ─────────────────── */}
       {!fieldsReadOnly && !prompt && !aiOpen && (
         <div className="flex flex-col items-center gap-3 py-6 text-center">
-          <p className="text-xs text-muted-foreground">¿Cómo quieres empezar?</p>
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground font-medium">
+              ¿Cómo quieres personalizar tu bot?
+            </p>
+            <p className="text-[11px] text-muted-foreground/60 max-w-xs mx-auto">
+              Estas instrucciones complementan el comportamiento base del
+              asistente.
+            </p>
+          </div>
           <div className="flex gap-2 flex-wrap justify-center">
             <button
               type="button"
@@ -354,7 +401,7 @@ export function PromptBuilderAssistant({
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-primary-foreground gradient-primary hover:opacity-90 transition-opacity"
             >
               <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-              Crear con IA
+              Generar con IA
             </button>
             <button
               type="button"
@@ -370,12 +417,17 @@ export function PromptBuilderAssistant({
 
       {/* ── AI Panel (collapsible) ─────────────────────────────────────────── */}
       {!fieldsReadOnly && aiOpen && (
-        <div className="rounded-xl border border-primary/25 bg-primary/3 overflow-hidden">
+        <div
+          ref={aiPanelRef}
+          className="rounded-xl border border-primary/25 bg-primary/3 overflow-hidden"
+        >
           {/* Panel header */}
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-primary/15 bg-primary/5">
             <span className="text-xs font-semibold text-primary flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-              {prompt ? "Regenerar personalidad con IA" : "Crear personalidad con IA"}
+              {prompt
+                ? "Regenerar instrucciones extra con IA"
+                : "Generar instrucciones extra con IA"}
             </span>
             <button
               type="button"
@@ -402,7 +454,10 @@ export function PromptBuilderAssistant({
                     <span
                       key={i}
                       className="block w-2 h-2 rounded-full bg-primary/60 animate-bounce"
-                      style={{ animationDelay: `${i * 150}ms`, animationDuration: "900ms" }}
+                      style={{
+                        animationDelay: `${i * 150}ms`,
+                        animationDuration: "900ms",
+                      }}
                     />
                   ))}
                 </div>
@@ -461,10 +516,19 @@ export function PromptBuilderAssistant({
               </div>
 
               {/* Sector */}
-              <div role="group" aria-labelledby="sector-label" aria-required="true">
+              <div
+                role="group"
+                aria-labelledby="sector-label"
+                aria-required="true"
+              >
                 <span id="sector-label" className={LABEL_CLS}>
                   Rubro del negocio{" "}
-                  <span className="text-destructive font-bold" aria-hidden="true">*</span>
+                  <span
+                    className="text-destructive font-bold"
+                    aria-hidden="true"
+                  >
+                    *
+                  </span>
                 </span>
                 <div className="flex flex-wrap gap-2">
                   {SECTORS.map((s) => (
@@ -500,11 +564,21 @@ export function PromptBuilderAssistant({
               {/* Description */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label htmlFor="pb-description" className={`${LABEL_CLS} mb-0`}>
+                  <label
+                    htmlFor="pb-description"
+                    className={`${LABEL_CLS} mb-0`}
+                  >
                     ¿Qué ofrece tu negocio?{" "}
-                    <span className="text-destructive font-bold" aria-hidden="true">*</span>
+                    <span
+                      className="text-destructive font-bold"
+                      aria-hidden="true"
+                    >
+                      *
+                    </span>
                   </label>
-                  <span className={`text-[11px] font-mono ${descTrimLen >= 10 ? "text-success" : "text-muted-foreground"}`}>
+                  <span
+                    className={`text-[11px] font-mono ${descTrimLen >= 10 ? "text-success" : "text-muted-foreground"}`}
+                  >
                     {descTrimLen}/10 mín
                   </span>
                 </div>
@@ -523,7 +597,8 @@ export function PromptBuilderAssistant({
               {/* Audience */}
               <div>
                 <label htmlFor="pb-audience" className={LABEL_CLS}>
-                  ¿A quién atiende? <span className={MUTED_CLS}>recomendado</span>
+                  ¿A quién atiende?{" "}
+                  <span className={MUTED_CLS}>recomendado</span>
                 </label>
                 <Input
                   id="pb-audience"
@@ -536,7 +611,9 @@ export function PromptBuilderAssistant({
 
               {/* Tone */}
               <div role="group" aria-labelledby="tone-label">
-                <span id="tone-label" className={LABEL_CLS}>Tono del bot</span>
+                <span id="tone-label" className={LABEL_CLS}>
+                  Tono del bot
+                </span>
                 <div className="grid grid-cols-2 gap-2">
                   {TONES.map((t) => (
                     <button
@@ -547,14 +624,20 @@ export function PromptBuilderAssistant({
                       className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-lg text-left transition-all duration-150 border"
                       style={
                         tone === t.id
-                          ? { background: t.color + "12", borderColor: t.color, boxShadow: `0 0 0 3px ${t.color}18` }
+                          ? {
+                              background: t.color + "12",
+                              borderColor: t.color,
+                              boxShadow: `0 0 0 3px ${t.color}18`,
+                            }
                           : undefined
                       }
                     >
                       <span
                         aria-hidden="true"
                         className="w-2 h-2 rounded-full mt-1 shrink-0"
-                        style={{ background: tone === t.id ? t.color : "#94a3b8" }}
+                        style={{
+                          background: tone === t.id ? t.color : "#94a3b8",
+                        }}
                       />
                       <span>
                         <span
@@ -563,7 +646,9 @@ export function PromptBuilderAssistant({
                         >
                           {t.label}
                         </span>
-                        <span className="block text-[11px] text-muted-foreground">{t.desc}</span>
+                        <span className="block text-[11px] text-muted-foreground">
+                          {t.desc}
+                        </span>
                       </span>
                     </button>
                   ))}
@@ -577,14 +662,20 @@ export function PromptBuilderAssistant({
                   onClick={() => setShowExtras(!showExtras)}
                   className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-primary transition-colors"
                 >
-                  {showExtras ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                  {showExtras ? "Ocultar" : "Más detalles"} — restricciones, flujos, web
+                  {showExtras ? (
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  ) : (
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  )}
+                  {showExtras ? "Ocultar" : "Más detalles"} — restricciones,
+                  flujos, web
                 </button>
                 {showExtras && (
                   <div className="mt-4 space-y-4 p-4 rounded-lg bg-muted/50 border border-border">
                     <div>
                       <label htmlFor="pb-restrictions" className={LABEL_CLS}>
-                        ¿Qué debe evitar? <span className={MUTED_CLS}>opcional</span>
+                        ¿Qué debe evitar?{" "}
+                        <span className={MUTED_CLS}>opcional</span>
                       </label>
                       <Input
                         id="pb-restrictions"
@@ -596,7 +687,8 @@ export function PromptBuilderAssistant({
                     </div>
                     <div>
                       <label htmlFor="pb-special-flow" className={LABEL_CLS}>
-                        ¿Algún flujo especial? <span className={MUTED_CLS}>opcional</span>
+                        ¿Algún flujo especial?{" "}
+                        <span className={MUTED_CLS}>opcional</span>
                       </label>
                       <Input
                         id="pb-special-flow"
@@ -608,24 +700,41 @@ export function PromptBuilderAssistant({
                     </div>
                     <div>
                       <label htmlFor="pb-website" className={LABEL_CLS}>
-                        Sitio web <span className={MUTED_CLS}>contexto adicional</span>
+                        Sitio web{" "}
+                        <span className={MUTED_CLS}>contexto adicional</span>
                       </label>
                       <Input
                         id="pb-website"
                         value={websiteUrl}
-                        onChange={(e) => { setWebsiteUrl(e.target.value); setWebsiteUrlError(null); }}
+                        onChange={(e) => {
+                          setWebsiteUrl(e.target.value);
+                          setWebsiteUrlError(null);
+                        }}
                         onBlur={handleWebsiteUrlBlur}
                         placeholder="https://tuempresa.com"
                         type="url"
                         aria-invalid={!!websiteUrlError}
-                        aria-describedby={websiteUrlError ? "pb-website-error" : "pb-website-hint"}
+                        aria-describedby={
+                          websiteUrlError
+                            ? "pb-website-error"
+                            : "pb-website-hint"
+                        }
                         className={`${INPUT_CLS} bg-card ${websiteUrlError ? "border-destructive" : ""}`}
                       />
                       {websiteUrlError ? (
-                        <p id="pb-website-error" className="mt-1.5 text-[11px] text-destructive">{websiteUrlError}</p>
+                        <p
+                          id="pb-website-error"
+                          className="mt-1.5 text-[11px] text-destructive"
+                        >
+                          {websiteUrlError}
+                        </p>
                       ) : (
-                        <p id="pb-website-hint" className="mt-1.5 text-[11px] text-muted-foreground">
-                          Solo se consulta el sitio indicado. No se siguen otros enlaces.
+                        <p
+                          id="pb-website-hint"
+                          className="mt-1.5 text-[11px] text-muted-foreground"
+                        >
+                          Solo se consulta el sitio indicado. No se siguen otros
+                          enlaces.
                         </p>
                       )}
                     </div>
@@ -645,9 +754,13 @@ export function PromptBuilderAssistant({
                 }`}
               >
                 {prompt ? (
-                  <><RefreshCw className="w-4 h-4" /> Regenerar personalidad</>
+                  <>
+                    <RefreshCw className="w-4 h-4" /> Regenerar personalidad
+                  </>
                 ) : (
-                  <><Sparkles className="w-4 h-4" /> Generar personalidad</>
+                  <>
+                    <Sparkles className="w-4 h-4" /> Generar personalidad
+                  </>
                 )}
               </button>
 

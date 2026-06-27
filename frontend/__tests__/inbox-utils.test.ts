@@ -125,7 +125,11 @@ describe("displayLabel", () => {
 
 describe("getMessageKey", () => {
   it("uses id field when present", () => {
-    const msg = { role: "user", content: "hola", id: "msg-42" } as HistoryItem & { id: string };
+    const msg = {
+      role: "user",
+      content: "hola",
+      id: "msg-42",
+    } as HistoryItem & { id: string };
     expect(getMessageKey(msg as unknown as HistoryItem, 0)).toBe("msg-42");
   });
 

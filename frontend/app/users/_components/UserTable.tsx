@@ -35,6 +35,7 @@ interface UserTableProps {
   onEdit: (user: UserListItem) => void;
   onResetPassword: (user: UserListItem) => void;
   onDelete: (user: UserListItem) => void;
+  resettingId?: string | null;
 }
 
 function getInitials(u: UserListItem): string {
@@ -58,6 +59,7 @@ export function UserTable({
   onEdit,
   onResetPassword,
   onDelete,
+  resettingId,
 }: UserTableProps) {
   if (loading) {
     return (
@@ -168,8 +170,11 @@ export function UserTable({
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => onEdit(u)}>Editar</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onResetPassword(u)}>
-                          Enviar reset password
+                        <DropdownMenuItem
+                          onClick={() => onResetPassword(u)}
+                          disabled={resettingId === u.id}
+                        >
+                          {resettingId === u.id ? "Enviando..." : "Enviar reset password"}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive focus:bg-destructive/10"

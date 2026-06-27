@@ -172,7 +172,10 @@ function getLoginErrorMessage(error: unknown): string {
       return "El servidor no pudo procesar el inicio de sesión. Revisa que el backend esté activo.";
     }
 
-    return error.message || "No se pudo iniciar sesión. Revisa los datos e inténtalo otra vez.";
+    return (
+      error.message ||
+      "No se pudo iniciar sesión. Revisa los datos e inténtalo otra vez."
+    );
   }
 
   if (error instanceof DOMException && error.name === "AbortError") {
@@ -233,12 +236,17 @@ export function AuthProvider({
       accessToken: initialSession.accessToken,
       expiresAt: initialSession.expiresAt,
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // initialSession is an SSR mount-time snapshot, never changes at runtime
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const bootstrapRef = React.useRef(false);
+  const checkInFlightRef = React.useRef(false);
+  const refreshAuthInFlightRef = React.useRef(false);
 
   const checkAuthStatus = useCallback(async () => {
+    if (checkInFlightRef.current) return;
+    checkInFlightRef.current = true;
     dispatch({ type: "SET_LOADING", payload: true });
 
     try {
@@ -265,6 +273,7 @@ export function AuthProvider({
         payload: "No se pudo validar la sesion. Reintentando...",
       });
     } finally {
+      checkInFlightRef.current = false;
       dispatch({ type: "SET_LOADING", payload: false });
     }
   }, []);
@@ -319,6 +328,8 @@ export function AuthProvider({
   ]);
 
   const refreshAuth = useCallback(async () => {
+    if (refreshAuthInFlightRef.current) return;
+    refreshAuthInFlightRef.current = true;
     try {
       const response = await authService.refreshToken();
       const user = await authService.getCurrentUser();
@@ -333,6 +344,8 @@ export function AuthProvider({
       logger.error("Failed to refresh auth:", error);
       dispatch({ type: "AUTH_LOGOUT" });
       throw error;
+    } finally {
+      refreshAuthInFlightRef.current = false;
     }
   }, []);
 
@@ -341,7 +354,11 @@ export function AuthProvider({
       dispatch({ type: "AUTH_LOGOUT" });
     };
 
+    let lastInvalidatedCheck = 0;
     const handleStateInvalidated = () => {
+      const now = Date.now();
+      if (now - lastInvalidatedCheck < 60_000) return;
+      lastInvalidatedCheck = now;
       void checkAuthStatus();
     };
 
@@ -350,7 +367,8 @@ export function AuthProvider({
       TokenManager.clearTokens();
       dispatch({ type: "AUTH_LOGOUT" });
       if (!isPublicPath(window.location.pathname)) {
-        window.location.replace("/auth/login");
+        const from = window.location.pathname;
+        window.location.replace(`/auth/login?from=${encodeURIComponent(from)}`);
       }
       try {
         localStorage.removeItem("auth:logout-event");
@@ -454,14 +472,17 @@ export function AuthProvider({
     dispatch({ type: "CLEAR_ERROR" });
   }, []);
 
-  const contextValue = useMemo<AuthContextType>(() => ({
-    ...state,
-    login,
-    logout,
-    refreshAuth,
-    clearError,
-    checkAuthStatus,
-  }), [state, login, logout, refreshAuth, clearError, checkAuthStatus]);
+  const contextValue = useMemo<AuthContextType>(
+    () => ({
+      ...state,
+      login,
+      logout,
+      refreshAuth,
+      clearError,
+      checkAuthStatus,
+    }),
+    [state, login, logout, refreshAuth, clearError, checkAuthStatus],
+  );
 
   return (
     <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>

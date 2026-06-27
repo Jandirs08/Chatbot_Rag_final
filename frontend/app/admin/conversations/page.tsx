@@ -1,6 +1,12 @@
 "use client";
 
-import React, { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import useSWR from "swr";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useRequireAdmin } from "@/app/hooks/useAuthGuard";
@@ -48,12 +54,28 @@ function buildConversationsUrl(args: {
   if (args.search.trim()) url.searchParams.set("search", args.search.trim());
   if (args.startDate) {
     const [y, m, d] = args.startDate.split("-");
-    const iso = new Date(Number(y), Number(m) - 1, Number(d), 0, 0, 0, 0).toISOString();
+    const iso = new Date(
+      Number(y),
+      Number(m) - 1,
+      Number(d),
+      0,
+      0,
+      0,
+      0,
+    ).toISOString();
     url.searchParams.set("start_date", iso);
   }
   if (args.endDate) {
     const [y, m, d] = args.endDate.split("-");
-    const iso = new Date(Number(y), Number(m) - 1, Number(d), 23, 59, 59, 999).toISOString();
+    const iso = new Date(
+      Number(y),
+      Number(m) - 1,
+      Number(d),
+      23,
+      59,
+      59,
+      999,
+    ).toISOString();
     url.searchParams.set("end_date", iso);
   }
   if (args.hideTrivial) url.searchParams.set("hide_trivial", "true");
@@ -79,11 +101,7 @@ function ConversationsContent() {
   const skip = (page - 1) * LIMIT;
 
   const setFilterConfig = useCallback(
-    (
-      next:
-        | FilterConfig
-        | ((prev: FilterConfig) => FilterConfig),
-    ) => {
+    (next: FilterConfig | ((prev: FilterConfig) => FilterConfig)) => {
       setPage(1);
       setFilterConfigState(next);
     },
@@ -106,7 +124,7 @@ function ConversationsContent() {
         })
       : null,
     authenticatedJsonFetcher,
-    { refreshInterval: 10000, revalidateOnFocus: true },
+    { refreshInterval: 10000, revalidateOnFocus: false },
   );
 
   const conversations = conversationData?.items ?? EMPTY_CONVERSATIONS;
@@ -120,13 +138,14 @@ function ConversationsContent() {
     }
   }, [conversationData, page]);
 
-  const { data: historyData, isLoading: loadingHistory } = useSWR<HistoryFetchResult>(
-    isAuthorized && chatIdFromUrl
-      ? `${API_URL}/chat/history/${chatIdFromUrl}`
-      : null,
-    authenticatedHistoryFetcher,
-    { refreshInterval: 5000, revalidateOnFocus: false },
-  );
+  const { data: historyData, isLoading: loadingHistory } =
+    useSWR<HistoryFetchResult>(
+      isAuthorized && chatIdFromUrl
+        ? `${API_URL}/chat/history/${chatIdFromUrl}`
+        : null,
+      authenticatedHistoryFetcher,
+      { refreshInterval: 5000, revalidateOnFocus: false },
+    );
   const messages = (historyData?.items as HistoryItem[]) ?? EMPTY_HISTORY;
   const historyTruncated = historyData?.truncated ?? false;
 
@@ -161,23 +180,34 @@ function ConversationsContent() {
   return (
     <FadeIn className="-m-8 p-6 md:p-10 lg:p-12">
       <div className="mx-auto max-w-[1400px]">
-
         {/* ── Compact hero strip ───────────────────────────────────── */}
         <header className="relative overflow-hidden rounded-2xl border border-border/60 bg-card px-6 py-5 md:px-8 md:py-6 mb-6">
           <div
             aria-hidden="true"
             className="absolute -top-16 -right-12 w-64 h-64 opacity-30 animate-orb-float pointer-events-none"
           >
-            <img src="/assets/decor/glow-orb-teal.svg" alt="" className="w-full h-full" />
+            <img
+              src="/assets/decor/glow-orb-teal.svg"
+              alt=""
+              className="w-full h-full"
+            />
           </div>
           <div
             aria-hidden="true"
             className="absolute -bottom-20 right-32 w-48 h-48 opacity-22 animate-orb-float pointer-events-none"
             style={{ animationDelay: "-9s" }}
           >
-            <img src="/assets/decor/glow-orb-violet.svg" alt="" className="w-full h-full" loading="lazy" />
+            <img
+              src="/assets/decor/glow-orb-violet.svg"
+              alt=""
+              className="w-full h-full"
+              loading="lazy"
+            />
           </div>
-          <div aria-hidden="true" className="absolute inset-0 bg-grid opacity-25 pointer-events-none" />
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 bg-grid opacity-25 pointer-events-none"
+          />
 
           <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
@@ -198,12 +228,16 @@ function ConversationsContent() {
               <div className="flex flex-wrap items-center gap-3 mt-3 text-xs">
                 <span className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-success/10 border border-success/25">
                   <PulseDot color="success" size={6} />
-                  <span className="font-mono uppercase tracking-wider text-success text-[10px]">en vivo</span>
+                  <span className="font-mono uppercase tracking-wider text-success text-[10px]">
+                    en vivo
+                  </span>
                 </span>
                 <span className="inline-flex items-center gap-1.5 font-mono text-muted-foreground tabular-nums">
                   <Inbox className="h-3 w-3 text-amber" />
                   <TickNumber value={totalConversations} />
-                  <span className="text-muted-foreground/70">conversaciones</span>
+                  <span className="text-muted-foreground/70">
+                    conversaciones
+                  </span>
                 </span>
                 <span className="font-mono text-muted-foreground/70 text-[11px]">
                   auto-refresh · 10s
@@ -218,7 +252,10 @@ function ConversationsContent() {
               className="h-9 self-start rounded-lg border-border/60 hover:border-primary/40 hover:bg-primary/[0.04] transition-all duration-200 ease-out-expo"
             >
               <RefreshCw
-                className={cn("mr-2 h-3.5 w-3.5", loadingList && "animate-spin text-primary")}
+                className={cn(
+                  "mr-2 h-3.5 w-3.5",
+                  loadingList && "animate-spin text-primary",
+                )}
               />
               <span className="font-mono text-xs">actualizar</span>
             </Button>

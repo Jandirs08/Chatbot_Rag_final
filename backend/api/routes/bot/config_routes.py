@@ -604,6 +604,24 @@ async def get_personality_history(
         raise HTTPException(status_code=500, detail="Error al obtener el historial de personalidad")
 
 
+@router.delete("/config/history/{history_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_personality_history(
+    history_id: str,
+    request: Request,
+    current_user: User = Depends(require_manage_bot_config),
+) -> None:
+    """Delete a personality history snapshot. Requires: authenticated user."""
+    try:
+        repo = _get_config_repo(request)
+        await repo.delete_history(history_id)
+        audit("bot_config_history_deleted", str(current_user.id), history_id=history_id, ip=request.client.host if request.client else None)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error deleting personality history {history_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error al eliminar la versión de historial")
+
+
 @router.post("/config/history/{history_id}/restore", response_model=BotConfigDTO, status_code=status.HTTP_200_OK)
 async def restore_personality_history(
     history_id: str,

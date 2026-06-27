@@ -159,14 +159,16 @@ export function ChatWindow(props: {
   }, [cfg]);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       try {
         if (TokenManager.isTokenValid()) {
           const state = await botService.getState();
-          setIsBotActive(state.is_active);
+          if (!cancelled) setIsBotActive(state.is_active);
         }
       } catch (_e) {}
     })();
+    return () => { cancelled = true; };
   }, []);
 
   const handleLeadSubmit = async () => {
