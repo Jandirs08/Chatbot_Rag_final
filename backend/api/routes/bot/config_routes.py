@@ -17,6 +17,12 @@ from auth.permissions import require_manage_bot_config
 from models.user import User
 from cache.manager import cache
 from utils.audit import audit
+from database.bot_state_repo import (
+    BOT_CONFIG_CACHE_FIELDS,
+    normalize_runtime_config_payload,
+    build_runtime_config_payload,
+    redis_coordination_available,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["bot"])
@@ -28,16 +34,6 @@ RUNTIME_CONFIG_LOCAL_TTL_SECONDS = 5.0
 
 _runtime_config_local_cache: dict | None = None
 _runtime_config_local_expires_at: float = 0.0
-BOT_CONFIG_CACHE_FIELDS = (
-    "temperature",
-    "bot_name",
-    "ui_prompt_extra",
-    "theme_color",
-    "starters",
-    "input_placeholder",
-    "twilio_account_sid",
-    "twilio_whatsapp_from",
-)
 BOT_PUBLIC_CONFIG_FIELDS = (
     "bot_name",
     "theme_color",
@@ -51,55 +47,6 @@ SAFE_PUBLIC_BOT_CONFIG = {
     "starters": [],
     "input_placeholder": "Escribe aquí...",
 }
-
-
-def redis_coordination_available() -> bool:
-    try:
-        return bool(cache.get_health_status().get("redis_connected"))
-    except Exception:
-        return False
-
-
-def normalize_runtime_config_payload(payload: object) -> dict | None:
-    if not isinstance(payload, dict):
-        return None
-
-    normalized = {field: payload.get(field) for field in BOT_CONFIG_CACHE_FIELDS}
-
-    try:
-        if normalized["temperature"] is not None:
-            normalized["temperature"] = float(normalized["temperature"])
-    except Exception:
-        normalized["temperature"] = None
-
-    starters = normalized.get("starters")
-    if starters is None:
-        normalized["starters"] = []
-    elif isinstance(starters, list):
-        normalized["starters"] = [str(item).strip() for item in starters if str(item).strip()]
-    else:
-        starter = str(starters).strip()
-        normalized["starters"] = [starter] if starter else []
-
-    for field in (
-        "bot_name",
-        "ui_prompt_extra",
-        "theme_color",
-        "input_placeholder",
-        "twilio_account_sid",
-        "twilio_whatsapp_from",
-    ):
-        value = normalized.get(field)
-        if value is None:
-            continue
-        normalized[field] = str(value)
-
-    return normalized
-
-
-def build_runtime_config_payload(config_obj: object) -> dict:
-    payload = {field: getattr(config_obj, field, None) for field in BOT_CONFIG_CACHE_FIELDS}
-    return normalize_runtime_config_payload(payload) or {}
 
 
 def normalize_public_config_payload(payload: object) -> dict | None:

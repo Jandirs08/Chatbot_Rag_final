@@ -152,7 +152,6 @@ from .routes.bot.bot_routes import router as bot_router
 from .routes.bot.config_routes import (
     router as bot_config_router,
     apply_runtime_config,
-    build_runtime_config_payload,
     read_runtime_config_from_cache,
     write_runtime_config_to_cache,
 )
@@ -162,11 +161,12 @@ from .routes.inbox.inbox_routes import router as inbox_router
 from .routes.dashboard.dashboard_routes import router as dashboard_router
 from .routes.debug.debug_routes import router as debug_router
 from .auth import router as auth_router
-from .bot_state_repo import (
+from database.bot_state_repo import (
     read_is_active_from_redis,
     write_is_active_to_redis,
     read_is_active_from_mongo,
     read_runtime_config_from_mongo,
+    build_runtime_config_payload,
 )
 from auth.middleware import AuthenticationMiddleware
 

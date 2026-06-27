@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from auth.dependencies import get_current_active_user
 from auth.permissions import require_manage_bot_config
 from models.user import User
-from api.bot_state_repo import (
+from database.bot_state_repo import (
     read_is_active_from_mongo,
     read_is_active_from_redis,
     save_is_active_to_mongo,

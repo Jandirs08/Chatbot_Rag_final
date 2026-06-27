@@ -1,11 +1,8 @@
-"""Acceso a estado del bot (is_active + runtime_config) en Redis y Mongo.
+"""Bot active-state and runtime-config storage (Redis + MongoDB).
 
-Centraliza el contrato de almacenamiento para que las rutas admin
-(`bot_routes.py`) y la sincronización inline en `app.py` compartan el mismo
-formato y constantes.
-
-Las lecturas Redis aquí NO aplican TTL local — quien quiera amortizar el
-hop a Redis lo envuelve en su capa.
+Centralizes the storage contract shared by admin routes and app startup.
+Redis reads here carry no local TTL — callers that need amortisation
+wrap results in their own short-lived cache.
 """
 from datetime import datetime, timezone
 from typing import Optional
@@ -13,12 +10,63 @@ from typing import Optional
 from cache.manager import cache
 from database.config_repository import ConfigRepository
 
-from .routes.bot.config_routes import build_runtime_config_payload
-
 
 BOT_CONFIG_COLLECTION = "bot_config"
 BOT_CONFIG_DOC_ID = "default"
 BOT_IS_ACTIVE_CACHE_KEY = "bot:is_active"
+
+BOT_CONFIG_CACHE_FIELDS = (
+    "temperature",
+    "bot_name",
+    "ui_prompt_extra",
+    "theme_color",
+    "starters",
+    "input_placeholder",
+    "twilio_account_sid",
+    "twilio_whatsapp_from",
+)
+
+
+def normalize_runtime_config_payload(payload: object) -> dict | None:
+    if not isinstance(payload, dict):
+        return None
+
+    normalized = {field: payload.get(field) for field in BOT_CONFIG_CACHE_FIELDS}
+
+    try:
+        if normalized["temperature"] is not None:
+            normalized["temperature"] = float(normalized["temperature"])
+    except Exception:
+        normalized["temperature"] = None
+
+    starters = normalized.get("starters")
+    if starters is None:
+        normalized["starters"] = []
+    elif isinstance(starters, list):
+        normalized["starters"] = [str(item).strip() for item in starters if str(item).strip()]
+    else:
+        starter = str(starters).strip()
+        normalized["starters"] = [starter] if starter else []
+
+    for field in (
+        "bot_name",
+        "ui_prompt_extra",
+        "theme_color",
+        "input_placeholder",
+        "twilio_account_sid",
+        "twilio_whatsapp_from",
+    ):
+        value = normalized.get(field)
+        if value is None:
+            continue
+        normalized[field] = str(value)
+
+    return normalized
+
+
+def build_runtime_config_payload(config_obj: object) -> dict:
+    payload = {field: getattr(config_obj, field, None) for field in BOT_CONFIG_CACHE_FIELDS}
+    return normalize_runtime_config_payload(payload) or {}
 
 
 def redis_coordination_available() -> bool:
@@ -53,7 +101,7 @@ def read_is_active_from_redis() -> Optional[bool]:
 
 
 def write_is_active_to_redis(value: bool) -> bool:
-    """Escribe en Redis. Devuelve True si Redis estaba disponible (independiente del éxito)."""
+    """Escribe en Redis. Devuelve True si Redis estaba disponible."""
     if not redis_coordination_available():
         return False
     try:
