@@ -26,7 +26,7 @@ from rag.retrieval import HierarchicalRetriever
 from rag.retrieval.reranker import build_parent_reranker
 from rag.vector_store.vector_store import VectorStore
 from storage.documents import PDFManager
-from .routes.bot.config_routes import (
+from .bot_config_service import (
     apply_runtime_config,
     read_runtime_config_from_cache,
     write_runtime_config_to_cache,

@@ -40,10 +40,8 @@ from .routes.chat.chat_analytics_routes import router as chat_analytics_router
 from .routes.chat.chat_export_routes import router as chat_export_router
 from .routes.whatsapp.webhook_routes import router as whatsapp_router
 from .routes.bot.bot_routes import router as bot_router
-from .routes.bot.config_routes import (
-    router as bot_config_router,
-    apply_runtime_config,
-)
+from .routes.bot.config_routes import router as bot_config_router
+from .bot_config_service import apply_runtime_config
 from .routes.assets.assets_routes import router as assets_router
 from .routes.users.users_routes import router as users_router
 from .routes.inbox.inbox_routes import router as inbox_router

@@ -1,10 +1,9 @@
-﻿"""API routes for bot configuration management.
+"""API routes for bot configuration management.
 
 Proteccion: todos los endpoints (excepto /config/public) requieren manage_bot_config.
 Hoy manage_bot_config mapea a admin; /config/public sigue publico para el widget.
 """
 import logging
-import time
 from fastapi import APIRouter, HTTPException, Request, status, Depends
 
 from api.schemas.config import (
@@ -13,151 +12,22 @@ from api.schemas.config import (
     PersonalityHistoryEntry, PersonalityHistoryResponse,
 )
 from database.config_repository import ConfigRepository
+from database.bot_state_repo import build_runtime_config_payload
 from auth.permissions import require_manage_bot_config
 from domain.user import User
-from cache.manager import cache
 from infra.audit import audit
-from database.bot_state_repo import (
-    BOT_CONFIG_CACHE_FIELDS,
-    normalize_runtime_config_payload,
-    build_runtime_config_payload,
-    redis_coordination_available,
+from api.bot_config_service import (
+    apply_runtime_config,
+    write_runtime_config_to_cache,
+    read_public_config_from_cache,
+    write_public_config_to_cache,
+    build_public_config_payload,
+    SAFE_PUBLIC_BOT_CONFIG,
+    BOT_PUBLIC_CONFIG_FIELDS,
 )
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["bot"])
-
-BOT_CONFIG_CACHE_KEY = "bot:config"
-BOT_PUBLIC_CONFIG_CACHE_KEY = "bot:config:public"
-BOT_PUBLIC_CONFIG_CACHE_TTL_SECONDS = 3600
-RUNTIME_CONFIG_LOCAL_TTL_SECONDS = 5.0
-
-_runtime_config_local_cache: dict | None = None
-_runtime_config_local_expires_at: float = 0.0
-BOT_PUBLIC_CONFIG_FIELDS = (
-    "bot_name",
-    "theme_color",
-    "starters",
-    "input_placeholder",
-)
-SAFE_PUBLIC_BOT_CONFIG = {
-    "is_active": True,
-    "bot_name": "Asistente IA",
-    "theme_color": "#F97316",
-    "starters": [],
-    "input_placeholder": "Escribe aquÃ­...",
-}
-
-
-def normalize_public_config_payload(payload: object) -> dict | None:
-    normalized = normalize_runtime_config_payload(payload)
-    if normalized is None:
-        return None
-
-    return {
-        "bot_name": normalized.get("bot_name") or SAFE_PUBLIC_BOT_CONFIG["bot_name"],
-        "theme_color": normalized.get("theme_color") or SAFE_PUBLIC_BOT_CONFIG["theme_color"],
-        "starters": normalized.get("starters") or [],
-        "input_placeholder": normalized.get("input_placeholder") or SAFE_PUBLIC_BOT_CONFIG["input_placeholder"],
-    }
-
-
-def build_public_config_payload(config_obj: object) -> dict:
-    payload = {field: getattr(config_obj, field, None) for field in BOT_PUBLIC_CONFIG_FIELDS}
-    return normalize_public_config_payload(payload) or {
-        key: SAFE_PUBLIC_BOT_CONFIG[key] for key in BOT_PUBLIC_CONFIG_FIELDS
-    }
-
-
-def _invalidate_runtime_config_local_cache() -> None:
-    global _runtime_config_local_cache, _runtime_config_local_expires_at
-    _runtime_config_local_cache = None
-    _runtime_config_local_expires_at = 0.0
-
-
-def read_runtime_config_from_cache() -> dict | None:
-    """Read runtime config with a short-TTL local cache to avoid hitting Redis
-    on every request to /chat, /bot, /whatsapp.
-
-    Trade-off: a config change on another worker is visible after at most
-    RUNTIME_CONFIG_LOCAL_TTL_SECONDS. Acceptable for runtime tuning knobs.
-    """
-    global _runtime_config_local_cache, _runtime_config_local_expires_at
-
-    now = time.monotonic()
-    if _runtime_config_local_cache is not None and now < _runtime_config_local_expires_at:
-        return _runtime_config_local_cache
-
-    if not redis_coordination_available():
-        _invalidate_runtime_config_local_cache()
-        return None
-
-    try:
-        normalized = normalize_runtime_config_payload(cache.get(BOT_CONFIG_CACHE_KEY))
-    except Exception:
-        return None
-
-    _runtime_config_local_cache = normalized
-    _runtime_config_local_expires_at = now + RUNTIME_CONFIG_LOCAL_TTL_SECONDS
-    return normalized
-
-
-def write_runtime_config_to_cache(config_obj: object) -> None:
-    if not redis_coordination_available():
-        _invalidate_runtime_config_local_cache()
-        return
-
-    payload = config_obj if isinstance(config_obj, dict) else build_runtime_config_payload(config_obj)
-    normalized = normalize_runtime_config_payload(payload)
-    if normalized is None:
-        return
-
-    try:
-        cache.set(BOT_CONFIG_CACHE_KEY, normalized, ttl=0)
-    except Exception:
-        pass
-
-    _invalidate_runtime_config_local_cache()
-
-
-def read_public_config_from_cache() -> dict | None:
-    if not redis_coordination_available():
-        return None
-
-    try:
-        return normalize_public_config_payload(cache.get(BOT_PUBLIC_CONFIG_CACHE_KEY))
-    except Exception as exc:
-        logger.warning("No se pudo leer la configuraciÃ³n pÃºblica del bot desde Redis: %s", exc, exc_info=True)
-        return None
-
-
-def write_public_config_to_cache(config_obj: object) -> None:
-    if not redis_coordination_available():
-        return
-
-    payload = config_obj if isinstance(config_obj, dict) else build_public_config_payload(config_obj)
-    normalized = normalize_public_config_payload(payload)
-    if normalized is None:
-        return
-
-    try:
-        cache.set(BOT_PUBLIC_CONFIG_CACHE_KEY, normalized, ttl=BOT_PUBLIC_CONFIG_CACHE_TTL_SECONDS)
-    except Exception as exc:
-        logger.warning("No se pudo guardar la configuraciÃ³n pÃºblica del bot en Redis: %s", exc, exc_info=True)
-
-
-def apply_runtime_config(settings_obj: object, payload: object) -> bool:
-    normalized = normalize_runtime_config_payload(payload)
-    if settings_obj is None or normalized is None:
-        return False
-
-    changed = False
-    for field, value in normalized.items():
-        if getattr(settings_obj, field, None) != value:
-            setattr(settings_obj, field, value)
-            changed = True
-
-    return changed
 
 
 def _get_config_repo(request: Request) -> ConfigRepository:
