@@ -21,7 +21,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, Optional
 
-from common.chunk_utils import extract_text_from_chunk
+from infra.chunk_utils import extract_text_from_chunk
 from core.tools import ToolContext, ToolDefinition, ToolResult, registry as default_registry
 from core.tools.registry import ToolRegistry
 

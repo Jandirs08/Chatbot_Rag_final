@@ -16,7 +16,7 @@ from models import ModelTypes
 from common.objects import Message
 from infra.logging_utils import get_logger
 from config import Settings, settings as app_settings
-from common.chunk_utils import extract_text_from_chunk
+from infra.chunk_utils import extract_text_from_chunk
 from .chain import ChainManager
 from .tools import ToolDefinition
 from chat.turn_context import get_request_context
