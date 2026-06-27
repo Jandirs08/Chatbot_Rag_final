@@ -36,6 +36,8 @@ from .routes.health.health_routes import router as health_router
 from .routes.pdf.pdf_routes import router as pdf_router
 from .routes.rag.rag_routes import router as rag_router
 from .routes.chat.chat_routes import router as chat_router
+from .routes.chat.chat_analytics_routes import router as chat_analytics_router
+from .routes.chat.chat_export_routes import router as chat_export_router
 from .routes.whatsapp.webhook_routes import router as whatsapp_router
 from .routes.bot.bot_routes import router as bot_router
 from .routes.bot.config_routes import (
@@ -300,6 +302,8 @@ def create_app() -> FastAPI:
     app.include_router(pdf_router, prefix="/api/v1/pdfs", tags=["pdfs"])
     app.include_router(rag_router, prefix="/api/v1/rag", tags=["rag"])
     app.include_router(chat_router, prefix="/api/v1/chat", tags=["chat"])
+    app.include_router(chat_analytics_router, prefix="/api/v1/chat", tags=["chat"])
+    app.include_router(chat_export_router, prefix="/api/v1/chat", tags=["chat"])
     app.include_router(whatsapp_router, prefix="/api/v1/whatsapp", tags=["whatsapp"])
     app.include_router(bot_router, prefix="/api/v1/bot", tags=["bot"])
     app.include_router(bot_config_router, prefix="/api/v1/bot", tags=["bot"])
