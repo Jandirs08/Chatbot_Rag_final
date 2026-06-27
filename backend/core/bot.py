@@ -19,7 +19,7 @@ from config import Settings, settings as app_settings
 from common.chunk_utils import extract_text_from_chunk
 from .chain import ChainManager
 from .tools import ToolDefinition
-from .request_context import get_request_context
+from chat.turn_context import get_request_context
 from rag.retrieval import RAGRetriever, RetrievalBackendUnavailableError
 from database.retrieval_log_repository import GAP_REASONS, schedule_log_retrieval
 
