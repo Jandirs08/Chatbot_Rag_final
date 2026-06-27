@@ -108,6 +108,7 @@ export default function AdminSettingsPage() {
   const [temperature, setTemperature] = useState<number>(0.7);
   const [uiExtra, setUiExtra] = useState<string>("");
   const [appearanceLocked, setAppearanceLocked] = useState<boolean>(true);
+  const [brainLocked, setBrainLocked] = useState<boolean>(true);
   const [baselineUiExtra, setBaselineUiExtra] = useState<string>("");
   const [baselineTemperature, setBaselineTemperature] = useState<number>(0.7);
   const [savingBrain, setSavingBrain] = useState<boolean>(false);
@@ -158,6 +159,12 @@ export default function AdminSettingsPage() {
   }, []);
 
   React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      history.replaceState(null, "", "#" + activeTab);
+    }
+  }, [activeTab]);
+
+  React.useEffect(() => {
     if (!data) return;
     setTemperature(
       typeof data.temperature === "number" ? data.temperature : 0.7,
@@ -183,7 +190,9 @@ export default function AdminSettingsPage() {
 
   const handleSave = async () => {
     if (!/^#[0-9A-Fa-f]{6}$/.test(config.brandColor)) {
-      toast.error("Color de marca inválido. Usa un código hexadecimal de 6 dígitos (ej. #0EA5E9).");
+      toast.error(
+        "Color de marca inválido. Usa un código hexadecimal de 6 dígitos (ej. #0EA5E9).",
+      );
       return;
     }
     try {
@@ -216,6 +225,7 @@ export default function AdminSettingsPage() {
       setUiExtra(sanitizeUiExtra(updated.ui_prompt_extra));
       setBaselineUiExtra(sanitizeUiExtra(updated.ui_prompt_extra));
       setBaselineTemperature(updated.temperature ?? temperature);
+      setBrainLocked(true);
       mutate();
       toast.success("Configuración guardada. Cambios aplicados al bot.");
     } catch (e: unknown) {
@@ -231,6 +241,7 @@ export default function AdminSettingsPage() {
   const handleDiscardChanges = () => {
     setUiExtra(baselineUiExtra);
     setTemperature(baselineTemperature);
+    setBrainLocked(true);
   };
 
   const [resetConfirmOpen, setResetConfirmOpen] = useState<boolean>(false);
@@ -400,7 +411,10 @@ export default function AdminSettingsPage() {
 
       {/* ── Content ─────────────────────────────────────────────────────────── */}
       <main className="flex-1 min-w-0 overflow-hidden relative">
-        <div aria-hidden="true" className="absolute inset-0 bg-grid opacity-[0.04] pointer-events-none" />
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-grid opacity-[0.04] pointer-events-none"
+        />
         {activeTab === "appearance" && (
           <SettingsAppearanceTab
             isLoading={isLoading}
@@ -431,6 +445,8 @@ export default function AdminSettingsPage() {
             savingBrain={savingBrain}
             errorBrain={errorBrain}
             brainIsDirty={brainIsDirty}
+            brainLocked={brainLocked}
+            onBrainUnlock={() => setBrainLocked(false)}
           />
         </div>
         {activeTab === "system" && <SettingsSystemTab isLoading={isLoading} />}

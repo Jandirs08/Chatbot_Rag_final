@@ -18,6 +18,8 @@ interface SettingsBrainTabProps {
   savingBrain: boolean;
   errorBrain: string | null;
   brainIsDirty: boolean;
+  brainLocked: boolean;
+  onBrainUnlock: () => void;
 }
 
 export function SettingsBrainTab({
@@ -34,6 +36,8 @@ export function SettingsBrainTab({
   savingBrain,
   errorBrain,
   brainIsDirty,
+  brainLocked,
+  onBrainUnlock,
 }: SettingsBrainTabProps) {
   const disabled = isLoading || savingBrain;
   return (
@@ -51,6 +55,8 @@ export function SettingsBrainTab({
           error={errorBrain || undefined}
           canSave={brainIsDirty}
           canReset={true}
+          locked={brainLocked}
+          onUnlock={onBrainUnlock}
         />
       </div>
 
@@ -59,13 +65,15 @@ export function SettingsBrainTab({
         <TemperatureCard
           temperature={temperature}
           onTemperatureChange={setTemperature}
-          disabled={disabled}
+          disabled={disabled || brainLocked}
         />
-        <PersonalityPreviewCard
-          prompt={uiExtra}
-          temperature={temperature}
-          disabled={disabled}
-        />
+        {brainIsDirty && !brainLocked && (
+          <PersonalityPreviewCard
+            prompt={uiExtra}
+            temperature={temperature}
+            disabled={disabled}
+          />
+        )}
         <PersonalityHistoryPanel onRestored={onHistoryRestored} />
       </div>
     </div>

@@ -57,7 +57,6 @@ export function PersonalityHistoryPanel({ onRestored }: Props) {
         toast.success("Versión restaurada correctamente");
         setEntries([]);
         onRestored();
-        setOpen(false);
       } catch (err: unknown) {
         toast.error(err instanceof Error ? err.message : "Error al restaurar");
       } finally {
@@ -68,7 +67,10 @@ export function PersonalityHistoryPanel({ onRestored }: Props) {
   );
 
   return (
-    <div className="glass rounded-xl border border-border/60 overflow-hidden" style={{ boxShadow: "var(--shadow-card)" }}>
+    <div
+      className="glass rounded-xl border border-border/60 overflow-hidden"
+      style={{ boxShadow: "var(--shadow-card)" }}
+    >
       <button
         type="button"
         onClick={handleToggle}
@@ -84,9 +86,15 @@ export function PersonalityHistoryPanel({ onRestored }: Props) {
           Historial de versiones
         </span>
         {open ? (
-          <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
+          <ChevronUp
+            className="w-3.5 h-3.5 text-muted-foreground"
+            aria-hidden="true"
+          />
         ) : (
-          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
+          <ChevronDown
+            className="w-3.5 h-3.5 text-muted-foreground"
+            aria-hidden="true"
+          />
         )}
       </button>
 
@@ -98,7 +106,8 @@ export function PersonalityHistoryPanel({ onRestored }: Props) {
             </p>
           ) : entries.length === 0 ? (
             <p className="px-4 py-3 text-xs text-muted-foreground">
-              No hay versiones guardadas. Se crean automáticamente al guardar la personalidad.
+              No hay versiones guardadas. Se crean automáticamente al guardar la
+              personalidad.
             </p>
           ) : (
             <ul role="list" className="divide-y divide-border">

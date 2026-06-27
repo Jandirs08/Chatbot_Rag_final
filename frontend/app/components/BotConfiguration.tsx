@@ -8,6 +8,8 @@ import {
   GitCompareArrows,
   Download,
   Upload,
+  Pencil,
+  Lock,
 } from "lucide-react";
 import { PromptBuilderAssistant } from "@/app/components/PromptBuilderAssistant";
 import { toast } from "sonner";
@@ -23,9 +25,17 @@ export interface BotConfigurationProps {
   error?: string;
   canSave?: boolean;
   canReset?: boolean;
+  locked?: boolean;
+  onUnlock?: () => void;
 }
 
-function PromptDiff({ baseline, current }: { baseline: string; current: string }) {
+function PromptDiff({
+  baseline,
+  current,
+}: {
+  baseline: string;
+  current: string;
+}) {
   const diffs = useMemo(() => {
     const dmp = new diff_match_patch();
     const d = dmp.diff_main(baseline, current);
@@ -38,12 +48,18 @@ function PromptDiff({ baseline, current }: { baseline: string; current: string }
         if (op === 0) return <span key={i}>{text}</span>;
         if (op === 1)
           return (
-            <mark key={i} className="bg-green-500/20 text-green-700 dark:text-green-400 rounded-sm">
+            <mark
+              key={i}
+              className="bg-green-500/20 text-green-700 dark:text-green-400 rounded-sm"
+            >
               {text}
             </mark>
           );
         return (
-          <del key={i} className="bg-red-500/15 text-red-600 dark:text-red-400 rounded-sm line-through">
+          <del
+            key={i}
+            className="bg-red-500/15 text-red-600 dark:text-red-400 rounded-sm line-through"
+          >
             {text}
           </del>
         );
@@ -63,12 +79,16 @@ export function BotConfiguration({
   error,
   canSave,
   canReset,
+  locked,
+  onUnlock,
 }: BotConfigurationProps) {
   const [showDiff, setShowDiff] = useState(false);
 
   const handleExport = useCallback(() => {
     const data = JSON.stringify({ prompt }, null, 2);
-    const url = URL.createObjectURL(new Blob([data], { type: "application/json" }));
+    const url = URL.createObjectURL(
+      new Blob([data], { type: "application/json" }),
+    );
     const a = document.createElement("a");
     a.href = url;
     a.download = "bot-personality.json";
@@ -85,7 +105,9 @@ export function BotConfiguration({
         try {
           const parsed = JSON.parse(ev.target?.result as string);
           if (typeof parsed.prompt !== "string") {
-            toast.error("Archivo inválido: debe contener un campo prompt (string).");
+            toast.error(
+              "Archivo inválido: debe contener un campo prompt (string).",
+            );
             return;
           }
           onPromptChange(parsed.prompt);
@@ -105,18 +127,33 @@ export function BotConfiguration({
       {/* Header */}
       <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border/60 flex-shrink-0">
         <div>
-          <h2 className="text-sm font-semibold text-foreground">Personalidad del bot</h2>
+          <h2 className="text-sm font-semibold text-foreground">
+            Personalidad del bot
+          </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Define el tono, restricciones y comportamiento del asistente.
+            {locked ? "Modo lectura — haz clic en editar para modificar." : "Define el tono, restricciones y comportamiento del asistente."}
           </p>
         </div>
-        <div aria-live="polite" aria-atomic="true">
-          {error && (
-            <span className="flex items-center gap-1.5 text-xs text-destructive">
-              <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />
-              {error}
-            </span>
-          )}
+        <div className="flex items-center gap-2">
+          <div aria-live="polite" aria-atomic="true">
+            {error && (
+              <span className="flex items-center gap-1.5 text-xs text-destructive">
+                <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />
+                {error}
+              </span>
+            )}
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onUnlock}
+            disabled={!locked || !!isLoading}
+            aria-label={locked ? "Editar personalidad" : "Editando"}
+            className={`h-8 w-8 transition-colors ${locked ? "text-muted-foreground hover:text-accent-violet hover:bg-accent-violet/10" : "text-accent-violet bg-accent-violet/10"}`}
+          >
+            {locked ? <Lock className="w-3.5 h-3.5" aria-hidden="true" /> : <Pencil className="w-3.5 h-3.5" aria-hidden="true" />}
+          </Button>
         </div>
       </div>
 
@@ -126,73 +163,89 @@ export function BotConfiguration({
         aria-atomic="true"
         className={`flex-shrink-0 border-b border-amber-500/20 bg-amber-500/5 ${canSave ? "" : "hidden"}`}
       >
-          <div className="flex items-center justify-between gap-3 px-6 py-2">
-            <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400 font-medium">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0 animate-pulse" aria-hidden="true" />
-              Cambios sin guardar
-            </div>
-            <div className="flex items-center gap-1.5">
-              {baselinePrompt !== undefined && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowDiff((v) => !v)}
-                  className="h-6 text-[11px] font-mono text-muted-foreground hover:text-foreground gap-1"
-                >
-                  <GitCompareArrows className="w-3 h-3" aria-hidden="true" />
-                  {showDiff ? "Ocultar diff" : "Ver diff"}
-                </Button>
-              )}
-              {onDiscardChanges && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={onDiscardChanges}
-                  disabled={!!isLoading}
-                  className="h-6 text-[11px] font-mono text-muted-foreground hover:text-foreground"
-                >
-                  Descartar
-                </Button>
-              )}
+        <div className="flex items-center justify-between gap-3 px-6 py-2">
+          <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400 font-medium">
+            <span
+              className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0 animate-pulse"
+              aria-hidden="true"
+            />
+            Cambios sin guardar
+          </div>
+          <div className="flex items-center gap-1.5">
+            {baselinePrompt !== undefined && (
               <Button
                 type="button"
-                onClick={onSave}
+                variant="ghost"
                 size="sm"
-                className="h-6 text-[11px] gradient-primary hover:opacity-90"
-                disabled={!!isLoading}
+                onClick={() => setShowDiff((v) => !v)}
+                className="h-6 text-[11px] font-mono text-muted-foreground hover:text-foreground gap-1"
               >
-                <Save className="w-3 h-3 mr-1" aria-hidden="true" />
-                {isLoading ? "Guardando…" : "Guardar"}
+                <GitCompareArrows className="w-3 h-3" aria-hidden="true" />
+                {showDiff ? "Ocultar diff" : "Ver diff"}
               </Button>
-            </div>
+            )}
+            {onDiscardChanges && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onDiscardChanges}
+                disabled={!!isLoading}
+                className="h-6 text-[11px] font-mono text-muted-foreground hover:text-foreground"
+              >
+                Descartar
+              </Button>
+            )}
+            <Button
+              type="button"
+              onClick={onSave}
+              size="sm"
+              className="h-6 text-[11px] gradient-primary hover:opacity-90"
+              disabled={!!isLoading}
+            >
+              <Save className="w-3 h-3 mr-1" aria-hidden="true" />
+              {isLoading ? "Guardando…" : "Guardar"}
+            </Button>
           </div>
-          {showDiff && baselinePrompt !== undefined && (
-            <div className="px-6 pb-3">
-              <p className="text-[10px] text-muted-foreground mb-1.5 font-mono">
-                <mark className="bg-green-500/20 text-green-700 dark:text-green-400 rounded-sm px-1">verde</mark> = añadido &nbsp;
-                <del className="bg-red-500/15 text-red-600 dark:text-red-400 rounded-sm px-1">rojo</del> = eliminado
-              </p>
-              <PromptDiff baseline={baselinePrompt} current={prompt} />
-            </div>
-          )}
-      </div>{/* /aria-live dirty banner */}
+        </div>
+        {showDiff && baselinePrompt !== undefined && (
+          <div className="px-6 pb-3">
+            <p className="text-[10px] text-muted-foreground mb-1.5 font-mono">
+              <mark className="bg-green-500/20 text-green-700 dark:text-green-400 rounded-sm px-1">
+                verde
+              </mark>{" "}
+              = añadido &nbsp;
+              <del className="bg-red-500/15 text-red-600 dark:text-red-400 rounded-sm px-1">
+                rojo
+              </del>{" "}
+              = eliminado
+            </p>
+            <PromptDiff baseline={baselinePrompt} current={prompt} />
+          </div>
+        )}
+      </div>
+      {/* /aria-live dirty banner */}
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto">
         <div className="px-6 py-4 space-y-4">
           {/* Short prompt guardrail */}
-          {!canSave && prompt.trim().length > 0 && prompt.trim().length < 80 && (
-            <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-muted/60 border border-border text-[11px] text-muted-foreground">
-              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" aria-hidden="true" />
-              El prompt es muy corto para definir una personalidad útil. Considera agregar más contexto.
-            </div>
-          )}
+          {!canSave &&
+            prompt.trim().length > 0 &&
+            prompt.trim().length < 80 && (
+              <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-muted/60 border border-border text-[11px] text-muted-foreground">
+                <AlertCircle
+                  className="w-3.5 h-3.5 flex-shrink-0 mt-0.5"
+                  aria-hidden="true"
+                />
+                El prompt es muy corto para definir una personalidad útil.
+                Considera agregar más contexto.
+              </div>
+            )}
           <PromptBuilderAssistant
             prompt={prompt}
             onPromptChange={onPromptChange}
-            fieldsReadOnly={false}
+            fieldsReadOnly={!!locked}
           />
         </div>
       </div>
@@ -200,7 +253,7 @@ export function BotConfiguration({
       {/* Footer */}
       <div className="flex-shrink-0 border-t border-border/60 bg-card/80 backdrop-blur-sm px-6 py-3">
         <div className="flex items-center gap-2">
-          {!canSave && (
+          {!canSave && !locked && (
             <Button
               type="button"
               onClick={onSave}
@@ -233,20 +286,22 @@ export function BotConfiguration({
               <Download className="w-3 h-3" aria-hidden="true" />
               Exportar
             </Button>
-            <label
-              className="cursor-pointer h-7 px-2.5 inline-flex items-center gap-1 text-[11px] font-mono text-muted-foreground hover:text-foreground rounded-md hover:bg-accent transition-colors"
-              title="Importar prompt desde JSON"
-            >
-              <Upload className="w-3 h-3" aria-hidden="true" />
-              Importar
-              <input
-                type="file"
-                accept=".json,application/json"
-                className="sr-only"
-                onChange={handleImport}
-                aria-label="Importar prompt de personalidad"
-              />
-            </label>
+            {!locked && (
+              <label
+                className="cursor-pointer h-7 px-2.5 inline-flex items-center gap-1 text-[11px] font-mono text-muted-foreground hover:text-foreground rounded-md hover:bg-accent transition-colors"
+                title="Importar prompt desde JSON"
+              >
+                <Upload className="w-3 h-3" aria-hidden="true" />
+                Importar
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  className="sr-only"
+                  onChange={handleImport}
+                  aria-label="Importar prompt de personalidad"
+                />
+              </label>
+            )}
           </div>
         </div>
       </div>

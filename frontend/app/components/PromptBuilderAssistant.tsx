@@ -220,6 +220,7 @@ export function PromptBuilderAssistant({
       });
       onPromptChange(result);
       setHasGenerated(true);
+      setMode("manual");
     } catch {
       toast.error("No se pudo generar el prompt. Intenta de nuevo.");
     } finally {
