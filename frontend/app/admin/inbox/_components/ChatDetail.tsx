@@ -9,7 +9,7 @@ import {
   Message as BubbleMessage,
 } from "@/app/components/chat/ChatMessageBubble";
 import { cn } from "@/lib/utils";
-import { ChevronLeft, Copy, MessageSquare } from "lucide-react";
+import { ChevronLeft, Copy } from "lucide-react";
 import {
   type ConversationItem,
   type HistoryItem,
@@ -48,15 +48,39 @@ export function ChatDetail({
 
   if (!chatId) {
     return (
-      <div className="hidden md:flex flex-1 flex-col items-center justify-center px-6 text-center text-muted-foreground/60">
-        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-border/60 bg-muted/40">
-          <MessageSquare className="w-5 h-5" />
+      <div className="relative hidden flex-1 overflow-hidden md:flex">
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-grid opacity-20 pointer-events-none"
+        />
+        <div
+          aria-hidden="true"
+          className="absolute -bottom-16 -right-10 h-56 w-56 opacity-20 animate-orb-float pointer-events-none"
+        >
+          <img
+            src="/assets/decor/glow-orb-teal.svg"
+            alt=""
+            className="h-full w-full"
+            loading="lazy"
+          />
         </div>
-        <p className="text-[13px] font-medium">Selecciona una conversación</p>
-        <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-          La lista mantiene contexto y estados; el detalle aparece aquí sin
-          competir con el resto de la interfaz.
-        </p>
+        <div className="relative flex flex-1 flex-col items-center justify-center px-6 text-center">
+          <div className="mb-5 w-32 text-primary">
+            <img
+              src="/assets/decor/empty-conversations.svg"
+              alt=""
+              className="w-full"
+              loading="lazy"
+            />
+          </div>
+          <p className="font-heading text-sm font-semibold text-foreground">
+            Selecciona una conversación
+          </p>
+          <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+            La lista mantiene contexto y estados; el detalle aparece aquí sin
+            competir con el resto de la interfaz.
+          </p>
+        </div>
       </div>
     );
   }

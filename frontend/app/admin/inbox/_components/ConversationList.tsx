@@ -6,17 +6,15 @@ import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { CalendarDays, MessageSquare, RefreshCw, UserCircle2 } from "lucide-react";
+import { MessageSquare, RefreshCw, UserCircle2 } from "lucide-react";
 import { ConversationFilters } from "./ConversationFilters";
 import {
   type ConversationItem,
   type FilterConfig,
   colorFromId,
-  fmtConversationMeta,
   fmtDate,
   getConversationSection,
   humanizeId,
-  previewClampClass,
 } from "./utils";
 
 interface ConversationListProps {
@@ -156,26 +154,22 @@ export function ConversationList({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 py-3">
+      <div className="flex-1 overflow-y-auto px-2 py-2">
         {loading && conversations.length === 0 ? (
-          Array.from({ length: 5 }).map((_, i) => (
-            <div
-              key={i}
-              className="rounded-2xl border border-border/50 bg-background px-4 py-3"
-            >
-              <div className="flex gap-3">
-                <Skeleton className="h-11 w-11 rounded-2xl" />
-                <div className="space-y-2 flex-1">
+          <div className="space-y-1">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-2.5 px-2.5 py-2">
+                <Skeleton className="h-[34px] w-[34px] flex-none rounded-[10px]" />
+                <div className="flex-1 space-y-1.5">
                   <div className="flex items-center justify-between gap-3">
-                    <Skeleton className="h-4 w-28" />
-                    <Skeleton className="h-3 w-10" />
+                    <Skeleton className="h-3.5 w-28" />
+                    <Skeleton className="h-2.5 w-8" />
                   </div>
-                  <Skeleton className="h-3 w-2/3" />
-                  <Skeleton className="h-5 w-24 rounded-full" />
+                  <Skeleton className="h-2.5 w-2/3" />
                 </div>
               </div>
-            </div>
-          ))
+            ))}
+          </div>
         ) : filtered.length === 0 ? (
           <div className="flex h-40 flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 bg-background px-6 text-center">
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-muted/50 text-muted-foreground">
@@ -189,87 +183,71 @@ export function ConversationList({
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {grouped.map((section) => (
-              <div key={section.label} className="space-y-2">
-                <div className="px-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              <div key={section.label} className="space-y-1">
+                <div className="sticky top-0 z-[1] bg-surface/95 px-2 pb-1.5 pt-2 font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground supports-[backdrop-filter]:bg-surface/80 supports-[backdrop-filter]:backdrop-blur-sm">
                   {section.label}
                 </div>
-                <div className="space-y-2">
-                  {section.items.map((c) => {
-                    const isActive = selectedId === c.conversation_id;
-                    return (
-                      <button
-                        key={c.conversation_id}
-                        type="button"
-                        onClick={() => onSelect(c.conversation_id)}
-                        className={cn(
-                          "group w-full rounded-2xl border px-4 py-3 text-left transition-all duration-200",
-                          isActive
-                            ? "border-primary/20 bg-primary/10 shadow-sm"
-                            : "border-transparent bg-background hover:border-border/70 hover:bg-muted/60",
-                        )}
+                {section.items.map((c) => {
+                  const isActive = selectedId === c.conversation_id;
+                  const preview = c.last_message_preview;
+                  return (
+                    <button
+                      key={c.conversation_id}
+                      type="button"
+                      onClick={() => onSelect(c.conversation_id)}
+                      className={cn(
+                        "group flex w-full items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left transition-colors duration-150",
+                        isActive
+                          ? "border-primary/25 bg-primary/[0.07] shadow-sm"
+                          : "border-transparent hover:border-border/60 hover:bg-background",
+                      )}
+                    >
+                      <span
+                        className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[10px] border border-white/50 text-foreground shadow-sm"
+                        style={{
+                          backgroundColor: colorFromId(c.conversation_id),
+                        }}
                       >
-                        <div className="flex items-start gap-3">
-                          <div
-                            className="flex h-11 w-11 flex-none items-center justify-center rounded-2xl border border-white/50 text-foreground shadow-sm"
-                            style={{
-                              backgroundColor: colorFromId(c.conversation_id),
-                            }}
+                        <UserCircle2 className="h-4 w-4 opacity-75" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-baseline justify-between gap-2">
+                          <span
+                            className={cn(
+                              "truncate text-[13px] font-semibold",
+                              isActive ? "text-primary" : "text-foreground",
+                            )}
                           >
-                            <UserCircle2 className="h-5 w-5 opacity-80" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="mb-1 flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <span
-                                  className={cn(
-                                    "block truncate text-sm font-semibold",
-                                    isActive
-                                      ? "text-primary"
-                                      : "text-foreground",
-                                  )}
-                                >
-                                  {humanizeId(c.conversation_id)}
-                                </span>
-                                <span className="block truncate font-mono text-[11px] text-muted-foreground/70">
-                                  {c.conversation_id.slice(0, 10)}...
-                                </span>
-                              </div>
-                              <span className="ml-2 whitespace-nowrap text-[11px] font-medium text-muted-foreground">
-                                {fmtDate(c.updated_at)}
-                              </span>
-                            </div>
-                            <p
-                              className={cn(
-                                "text-[13px] leading-5 text-muted-foreground",
-                                previewClampClass,
-                              )}
-                            >
-                              {c.last_message_preview || (
-                                <span className="italic text-muted-foreground/70">
-                                  Sin mensajes
-                                </span>
-                              )}
-                            </p>
-                            <div className="mt-3 flex flex-wrap items-center gap-2">
-                              <Badge
-                                variant={isActive ? "default" : "secondary"}
-                                className="h-5 rounded-full px-2 text-[10px] font-medium"
-                              >
-                                {c.total_messages} mensajes
-                              </Badge>
-                              <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                                <CalendarDays className="h-3.5 w-3.5" />
-                                {fmtConversationMeta(c.updated_at)}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+                            {humanizeId(c.conversation_id)}
+                          </span>
+                          <span className="flex-none whitespace-nowrap font-mono text-[11px] text-muted-foreground/70">
+                            {fmtDate(c.updated_at)}
+                          </span>
+                        </span>
+                        <span className="mt-0.5 flex items-center gap-1.5">
+                          <span
+                            className={cn(
+                              "min-w-0 flex-1 truncate text-[12px] text-muted-foreground",
+                              !preview && "italic text-muted-foreground/70",
+                            )}
+                          >
+                            {preview || "Sin mensajes"}
+                          </span>
+                          <span className="inline-flex flex-none items-center gap-0.5 font-mono text-[11px] text-muted-foreground/70">
+                            <MessageSquare
+                              className="h-3 w-3"
+                              aria-hidden="true"
+                            />
+                            {c.total_messages}
+                            <span className="sr-only"> mensajes</span>
+                          </span>
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             ))}
           </div>
