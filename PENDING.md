@@ -41,9 +41,16 @@ yarn dlx shadcn@latest add button card input label textarea select badge dialog 
 
 ### 🔄 FASE ACTUAL: 3 — CORPUS (siguiente a atacar)
 
-Última actualización real: 2026-07-02. Commits sin pushear: 27263fd, b4a6280, ba5c84d.
+Última actualización real: 2026-07-02. Commits sin pushear: 27263fd, b4a6280, ba5c84d, **f459649** (densidad Conversaciones + a11y), **a7e00b6** (AdminPageShell + token ancho), **b3dbb0f** (tracker).
 
-Conversaciones se auditó y ya estaba a nivel Aleph v3 (page + ConversationList + ChatDetail, reusa `inbox/_components/`, committeado). PENDING la marcaba pendiente por desfase. Deuda menor: `ChatDetail.tsx:147` banner truncado usa palette amber-* cruda en vez de token `--amber` (verificar que exista util `bg-amber`/`border-amber` antes de recolorear).
+Conversaciones: pulida (filas densas ~54px, empty state ilustrado, a11y) + migrada a `AdminPageShell`. Validado en browser por Jandir (zoom 100/50, sin scroll de página, sin scroll-X).
+
+**⚠️ OBLIGATORIO para Corpus y toda vista nueva** (ver memoria `project_aleph_redesign.md` §Layout primitives):
+- Usar **`AdminPageShell`** (`app/admin/_components/`) para el layout de página. NUNCA hardcodear `h-[calc(100vh-…)]`, `min-h-[640px]`, ni `max-w-[…]` de página.
+- Ancho vía token **`--content-max-width`** (90rem) — ya lo aplica el shell. `bleed` solo para workspaces edge-to-edge (kanban/canvas).
+- Arquetipos: fill-height (split/tabla) → shell directo; document-flow (dashboard scrolleable) → NO envolver en shell, consumir el token en su `<main>`.
+
+Deuda menor: `ChatDetail.tsx` banner truncado usa palette amber-* cruda en vez de token `--amber`. Hero de `conversations/page.tsx` podría usar el `header` prop del shell (inline funciona igual).
 
 ---
 
