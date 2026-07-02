@@ -27,20 +27,6 @@ const STAGE_COLORS: Record<string, string> = {
 // Single source of truth for stage order — shared with page.tsx haltedStageId logic.
 const STAGE_DEFAULTS = PIPELINE_STAGES;
 
-// Generate pseudo-random bar heights seeded by index and value
-function barHeights(
-  base: number | null,
-  isBottleneck: boolean,
-  seed: number,
-): number[] {
-  return Array.from({ length: 10 }, (_, i) => {
-    const noise = Math.sin(seed * 7 + i * 3.7) * 0.5 + 0.5;
-    const min = isBottleneck ? 8 : 4;
-    const max = isBottleneck ? 20 : 14;
-    return min + noise * (max - min);
-  });
-}
-
 export function PipelineFlow({
   stages,
   bottleneckStageId,
@@ -62,8 +48,7 @@ export function PipelineFlow({
       ? "hsl(var(--muted-foreground))"
       : (STAGE_COLORS[def.key] ?? "hsl(var(--primary))");
     const x = START_X + i * SPACING;
-    const bars = barHeights(stage?.p95 ?? null, isBottleneck, i);
-    return { def, stage, isHalted, isDisabled, isBottleneck, color, x, bars };
+    return { def, stage, isHalted, isDisabled, isBottleneck, color, x };
   });
 
   // Summary label
@@ -105,8 +90,8 @@ export function PipelineFlow({
       >
         <svg
           width={svgWidth}
-          height={140}
-          viewBox={`0 0 ${svgWidth} 140`}
+          height={90}
+          viewBox={`0 0 ${svgWidth} 90`}
           style={{ display: "block", minWidth: svgWidth }}
           aria-label="Pipeline RAG: etapas y latencias"
         >
@@ -214,16 +199,7 @@ export function PipelineFlow({
 
           {/* Nodes */}
           {rendered.map(
-            ({
-              def,
-              stage,
-              isHalted,
-              isDisabled,
-              isBottleneck,
-              color,
-              x,
-              bars,
-            }) => {
+            ({ def, stage, isHalted, isDisabled, isBottleneck, color, x }) => {
               const strokeColor = isHalted
                 ? "hsl(var(--error))"
                 : isBottleneck
@@ -289,28 +265,6 @@ export function PipelineFlow({
                           ? fmtMs(stage.p95)
                           : "—"}
                   </text>
-
-                  {/* Mini histogram bars below node — hidden when disabled */}
-                  {!isDisabled &&
-                    bars.map((h, bi) => {
-                      const bx = x + bi * 6 + (NODE_W - 10 * 6 + 2) / 2;
-                      const by = NODE_Y + NODE_H + 10 - h;
-                      const opacity = isBottleneck
-                        ? 0.5 + (bi / bars.length) * 0.3
-                        : 0.25 + (bi / bars.length) * 0.2;
-                      return (
-                        <rect
-                          key={bi}
-                          x={bx}
-                          y={by}
-                          width={4}
-                          height={h}
-                          rx={1}
-                          fill={isHalted ? "hsl(var(--error))" : color}
-                          opacity={opacity}
-                        />
-                      );
-                    })}
                 </g>
               );
             },
@@ -319,7 +273,7 @@ export function PipelineFlow({
           {/* Summary label */}
           <text
             x={svgWidth / 2}
-            y={134}
+            y={82}
             textAnchor="middle"
             fill="hsl(var(--muted-foreground))"
             fontSize={10}

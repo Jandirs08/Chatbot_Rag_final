@@ -40,23 +40,37 @@ function StatusDot({
   );
 }
 
+const STATUS_BADGE: Record<
+  "ok" | "warn" | "crit" | "info",
+  { label: string; className: string } | null
+> = {
+  ok: null,
+  info: null,
+  warn: { label: "Degradado", className: "text-warning bg-warning/10" },
+  crit: { label: "Caído", className: "text-error bg-error/10" },
+};
+
 function ServiceTile({
   icon,
   name,
   latency,
   severity,
-  warn = false,
 }: {
   icon: string;
   name: string;
   latency: string;
   severity: "ok" | "warn" | "crit" | "info";
-  warn?: boolean;
 }) {
+  const badge = STATUS_BADGE[severity];
+  const alert = severity === "warn" || severity === "crit";
   return (
     <div
       className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${
-        warn ? "border-warning/30 bg-warning/5" : "border-border/50 bg-muted/30"
+        severity === "crit"
+          ? "border-error/30 bg-error/5"
+          : severity === "warn"
+            ? "border-warning/30 bg-warning/5"
+            : "border-border/50 bg-muted/30"
       }`}
     >
       <span className="text-sm flex-shrink-0" aria-hidden="true">
@@ -66,13 +80,21 @@ function ServiceTile({
         <div className="text-xs font-semibold leading-none">{name}</div>
         <div
           className={`text-[10px] font-mono mt-0.5 leading-none ${
-            warn ? "text-warning" : "text-muted-foreground"
+            alert ? "text-warning" : "text-muted-foreground"
           }`}
         >
           {latency}
         </div>
       </div>
-      <StatusDot severity={severity} />
+      {badge ? (
+        <span
+          className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${badge.className}`}
+        >
+          {badge.label}
+        </span>
+      ) : (
+        <StatusDot severity={severity} />
+      )}
     </div>
   );
 }
@@ -189,7 +211,6 @@ export function ServicesStrip({ health, status, obs }: Props) {
                 : "—"
             }
             severity={qdrantSev}
-            warn={qdrantSev === "warn"}
           />
           <ServiceTile
             icon="🧠"

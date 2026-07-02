@@ -7,8 +7,10 @@ import { AppSidebar } from "./AppSidebar";
 import { SidebarProvider, SidebarTrigger } from "./ui/sidebar";
 import { isProtectedPath } from "@/app/lib/auth/routeAccess";
 import { useAuth } from "@/app/hooks/useAuth";
+import { useAuthContext } from "@/app/contexts/AuthContext";
 import { useTheme } from "@/app/hooks/useTheme";
 import { useInactivityTimeout } from "@/app/hooks/useInactivityTimeout";
+import { BackendUnavailable } from "./BackendUnavailable";
 
 export function RootLayoutClient({ children }: { children: React.ReactNode }) {
   return (
@@ -22,6 +24,8 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { isAuthenticated, isInitialized } = useAuth();
+  const { error: authError, isLoading: authLoading, checkAuthStatus } =
+    useAuthContext();
   const forcedLight = pathname.startsWith("/chat");
   useTheme(forcedLight);
   useInactivityTimeout();
@@ -30,6 +34,10 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
   const isResolvingProtectedSession = shouldShowSidebar && !isInitialized;
   const shouldRedirectToLogin =
     shouldShowSidebar && isInitialized && !isAuthenticated;
+  // Backend unreachable: session can't resolve and we're not mid-retry.
+  // Show a branded fallback instead of an infinite "Validando sesión…" spinner.
+  const isBackendUnavailable =
+    isResolvingProtectedSession && !!authError && !authLoading;
 
   useEffect(() => {
     if (!shouldRedirectToLogin) {
@@ -43,6 +51,15 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
 
     router.replace(target);
   }, [pathname, router, shouldRedirectToLogin]);
+
+  if (isBackendUnavailable) {
+    return (
+      <BackendUnavailable
+        onRetry={() => void checkAuthStatus()}
+        isRetrying={authLoading}
+      />
+    );
+  }
 
   if (isResolvingProtectedSession || shouldRedirectToLogin) {
     return <ProtectedShellLoading />;
