@@ -39,9 +39,11 @@ Continuamos el redesign de Aleph. Siguiente vista: [nombre]."
 yarn dlx shadcn@latest add button card input label textarea select badge dialog sheet command tabs separator skeleton avatar tooltip dropdown-menu scroll-area progress slider popover table form calendar sonner
 ```
 
-### 🔄 FASE ACTUAL: 2 — CONVERSACIONES (siguiente a atacar)
+### 🔄 FASE ACTUAL: 3 — CORPUS (siguiente a atacar)
 
 Última actualización real: 2026-07-02. Commits sin pushear: 27263fd, b4a6280, ba5c84d.
+
+Conversaciones se auditó y ya estaba a nivel Aleph v3 (page + ConversationList + ChatDetail, reusa `inbox/_components/`, committeado). PENDING la marcaba pendiente por desfase. Deuda menor: `ChatDetail.tsx:147` banner truncado usa palette amber-* cruda en vez de token `--amber` (verificar que exista util `bg-amber`/`border-amber` antes de recolorear).
 
 ---
 
@@ -54,13 +56,13 @@ yarn dlx shadcn@latest add button card input label textarea select badge dialog 
 | — | Home (HomeClient) | ✅ HECHO | — |
 | 4 | Observabilidad | ✅ HECHO (Mission Control + error states + recolor) | 1.5 |
 | 5 | Settings/Brain | ✅ HECHO (bento + brainLocked) | 2 |
-| 2 | **Conversaciones** | ⏳ **SIGUIENTE** | 2 |
-| 3 | Corpus | ⏳ | 1.5 |
+| 2 | Conversaciones | ✅ HECHO (split-view Aleph v3, reusa inbox/_components) | 2 |
+| 3 | **Corpus** | ⏳ **SIGUIENTE** | 1.5 |
 | 6 | Inbox/Kanban (NUEVO) | ⏳ | 2 |
 | 7 | Auth | ⏳ | 1 |
 | 8 | Chat Widget embed | ⏳ | 2 |
 
-**Faltan 5 vistas: Conversaciones (siguiente) · Corpus · Inbox/Kanban · Auth · Chat Widget.**
+**Faltan 4 vistas: Corpus (siguiente) · Inbox/Kanban · Auth · Chat Widget.**
 
 ### Deuda técnica (ver memoria `project_aleph_redesign.md`)
 - Estructural: KPI bento 4→1hero+3, HandoffSection 3→4 cats (verificar API), KPI trend deltas, cards rojas críticas
