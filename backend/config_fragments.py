@@ -50,6 +50,9 @@ class AppMetaFields(BaseSettings):
 
 class RateLimitFields(BaseSettings):
     enable_rate_limiting: bool = Field(default=True, env="ENABLE_RATE_LIMITING")
+    # Fail-open when the rate-limit storage (Redis) is unreachable: allow the request
+    # instead of 500. Set False to fail-closed (block requests during a Redis outage).
+    rate_limit_swallow_errors: bool = Field(default=True, env="RATE_LIMIT_SWALLOW_ERRORS")
     rate_limit_strategy: str = Field(default="fixed-window", env="RATE_LIMIT_STRATEGY")
     global_rate_limit: str = Field(default="100/minute", env="GLOBAL_RATE_LIMIT")
     chat_rate_limit: str = Field(default="10/minute", env="CHAT_RATE_LIMIT")

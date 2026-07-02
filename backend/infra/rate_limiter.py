@@ -48,6 +48,10 @@ limiter = Limiter(
     enabled=bool(getattr(settings, "enable_rate_limiting", True)),
     headers_enabled=True,
     storage_uri=_storage_uri,
+    # Fail-open: if the storage backend (Redis) is unreachable, allow the request
+    # instead of raising. Prevents a Redis outage from taking down auth/login,
+    # which are rate-limited endpoints. Coherent limits resume once Redis is back.
+    swallow_errors=bool(getattr(settings, "rate_limit_swallow_errors", True)),
 )
 
 
