@@ -119,7 +119,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Hero */}
-      <div className="px-6 pt-6 pb-4 max-w-screen-2xl mx-auto">
+      <div className="px-6 pt-6 pb-4 max-w-[var(--content-max-width)] mx-auto">
         <HeroBrief
           messages={overview?.today_messages ?? 0}
           conversations={overview?.today_conversations ?? 0}
@@ -130,7 +130,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Bento grid */}
-      <main className="px-6 pb-12 max-w-screen-2xl mx-auto grid grid-cols-12 gap-3">
+      <main className="px-6 pb-12 max-w-[var(--content-max-width)] mx-auto grid grid-cols-12 gap-3">
         {/* KPI cards */}
         <div className="col-span-6 md:col-span-3">
           <KpiCard

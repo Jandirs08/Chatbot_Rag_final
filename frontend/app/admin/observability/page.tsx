@@ -381,7 +381,7 @@ export default function ObservabilityPage() {
           style={{ minHeight: "calc(100vh - 97px)" }}
         >
           <main
-            className="p-5 flex flex-col gap-3 max-w-screen-xl mx-auto w-full"
+            className="p-5 flex flex-col gap-3 max-w-[var(--content-max-width)] mx-auto w-full"
             data-surface="telemetry"
             role="tabpanel"
             aria-label={

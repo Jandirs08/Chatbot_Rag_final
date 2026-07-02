@@ -22,7 +22,8 @@ import { Button } from "@/app/components/ui/button";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { Inbox as InboxIcon } from "lucide-react";
-import { FadeIn, PulseDot, TickNumber } from "@/app/_components/motion";
+import { PulseDot, TickNumber } from "@/app/_components/motion";
+import { AdminPageShell } from "../_components/AdminPageShell";
 import {
   DndContext,
   DragOverlay,
@@ -571,308 +572,312 @@ function InboxContent() {
   if (!isAuthorized) return null;
 
   return (
-    <FadeIn className="flex h-[calc(100vh-4rem)] min-h-[640px] flex-col overflow-hidden rounded-2xl border border-border/60 bg-card">
-      {/* ── Top bar (hero strip) ── */}
-      <div className="flex-none border-b border-border/60 bg-card px-6 py-5 relative overflow-hidden">
-        <div
-          aria-hidden="true"
-          className="absolute -top-16 -right-8 w-56 h-56 opacity-25 animate-orb-float pointer-events-none"
-        >
-          <img
-            src="/assets/decor/glow-orb-magenta.svg"
-            alt=""
-            className="w-full h-full"
-            loading="lazy"
-          />
-        </div>
-        <div
-          aria-hidden="true"
-          className="absolute -bottom-20 left-32 w-48 h-48 opacity-22 animate-orb-float pointer-events-none"
-          style={{ animationDelay: "-9s" }}
-        >
-          <img
-            src="/assets/decor/glow-orb-cyan.svg"
-            alt=""
-            className="w-full h-full"
-            loading="lazy"
-          />
-        </div>
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 bg-grid opacity-25 pointer-events-none"
-        />
-
-        <div className="relative flex items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2.5 mb-2">
-              <span className="font-mono text-[10px] text-primary/70 tabular-nums">
-                04 / 09
-              </span>
-              <span className="h-px w-6 bg-primary/40" />
-              <span className="text-[10px] uppercase tracking-[0.18em] font-heading text-muted-foreground">
-                Buzón operativo · drag &amp; drop
-              </span>
-            </div>
-            <div className="flex items-center gap-3">
-              <InboxIcon className="h-7 w-7 text-amber" />
-              <h1 className="text-3xl md:text-4xl font-heading font-bold tracking-tighter leading-none">
-                <span className="gradient-hero-display">Inbox</span>
-              </h1>
-            </div>
-            <p
-              className="mt-2.5 inline-flex items-center gap-1.5 text-[12px] text-muted-foreground"
-              aria-live="polite"
-              aria-atomic="true"
-            >
-              <span className="font-mono font-semibold tabular-nums text-foreground">
-                <TickNumber value={visibleCardCount} />
-              </span>
-              <span>
-                {visibleCardCount === 1
-                  ? "conversación visible"
-                  : "conversaciones visibles"}
-              </span>
-            </p>
+    <AdminPageShell bleed>
+      <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-border/60 bg-card">
+        {/* ── Top bar (hero strip) ── */}
+        <div className="flex-none border-b border-border/60 bg-card px-6 py-5 relative overflow-hidden">
+          <div
+            aria-hidden="true"
+            className="absolute -top-16 -right-8 w-56 h-56 opacity-25 animate-orb-float pointer-events-none"
+          >
+            <img
+              src="/assets/decor/glow-orb-magenta.svg"
+              alt=""
+              className="w-full h-full"
+              loading="lazy"
+            />
           </div>
-          <div className="flex flex-none items-center gap-2">
-            <div className="inline-flex items-center gap-2 rounded-full border border-accent-cyan/30 bg-accent-cyan/10 px-2.5 py-1">
-              <PulseDot color="cyan" size={6} />
-              <span className="text-[10px] font-mono uppercase tracking-wider text-accent-cyan">
-                en vivo · 5s
-              </span>
+          <div
+            aria-hidden="true"
+            className="absolute -bottom-20 left-32 w-48 h-48 opacity-22 animate-orb-float pointer-events-none"
+            style={{ animationDelay: "-9s" }}
+          >
+            <img
+              src="/assets/decor/glow-orb-cyan.svg"
+              alt=""
+              className="w-full h-full"
+              loading="lazy"
+            />
+          </div>
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 bg-grid opacity-25 pointer-events-none"
+          />
+
+          <div className="relative flex items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2.5 mb-2">
+                <span className="font-mono text-[10px] text-primary/70 tabular-nums">
+                  04 / 09
+                </span>
+                <span className="h-px w-6 bg-primary/40" />
+                <span className="text-[10px] uppercase tracking-[0.18em] font-heading text-muted-foreground">
+                  Buzón operativo · drag &amp; drop
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <InboxIcon className="h-7 w-7 text-amber" />
+                <h1 className="text-3xl md:text-4xl font-heading font-bold tracking-tighter leading-none">
+                  <span className="gradient-hero-display">Inbox</span>
+                </h1>
+              </div>
+              <p
+                className="mt-2.5 inline-flex items-center gap-1.5 text-[12px] text-muted-foreground"
+                aria-live="polite"
+                aria-atomic="true"
+              >
+                <span className="font-mono font-semibold tabular-nums text-foreground">
+                  <TickNumber value={visibleCardCount} />
+                </span>
+                <span>
+                  {visibleCardCount === 1
+                    ? "conversación visible"
+                    : "conversaciones visibles"}
+                </span>
+              </p>
             </div>
+            <div className="flex flex-none items-center gap-2">
+              <div className="inline-flex items-center gap-2 rounded-full border border-accent-cyan/30 bg-accent-cyan/10 px-2.5 py-1">
+                <PulseDot color="cyan" size={6} />
+                <span className="text-[10px] font-mono uppercase tracking-wider text-accent-cyan">
+                  en vivo · 5s
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Single dense filter row — replaces the prior 2-3 stacked rows. */}
+          <div className="mt-3">
+            <InboxToolbar
+              activeTab={activeTab}
+              tabCounts={tabCounts}
+              onTabChange={setActiveTab}
+              activeChannel={activeChannel}
+              onChannelChange={setActiveChannel}
+              activeDatos={activeDatos}
+              onDatosChange={setActiveDatos}
+              onlyUnseen={onlyUnseen}
+              onOnlyUnseenChange={setOnlyUnseen}
+              extras={extras}
+              onExtraToggle={toggleExtra}
+              refreshing={loadingList}
+              onRefresh={() => refreshList()}
+            />
+          </div>
+
+          {/* Contextual stats per tab */}
+          <div className="mt-3">
+            <ContextualStats
+              tab={activeTab}
+              conversations={filteredConversations}
+              agentId={agentId}
+            />
+          </div>
+
+          {/* Mobile column tabs */}
+          <div className="mt-3">
+            <MobileColumnTabs
+              columns={visibleColumns}
+              counts={columnCounts}
+              activeKey={mobileColumnKey}
+              onChange={setMobileColumnKey}
+            />
           </div>
         </div>
 
-        {/* Single dense filter row — replaces the prior 2-3 stacked rows. */}
-        <div className="mt-3">
-          <InboxToolbar
-            activeTab={activeTab}
-            tabCounts={tabCounts}
-            onTabChange={setActiveTab}
-            activeChannel={activeChannel}
-            onChannelChange={setActiveChannel}
-            activeDatos={activeDatos}
-            onDatosChange={setActiveDatos}
-            onlyUnseen={onlyUnseen}
-            onOnlyUnseenChange={setOnlyUnseen}
-            extras={extras}
-            onExtraToggle={toggleExtra}
-            refreshing={loadingList}
-            onRefresh={() => refreshList()}
-          />
-        </div>
-
-        {/* Contextual stats per tab */}
-        <div className="mt-3">
-          <ContextualStats
-            tab={activeTab}
-            conversations={filteredConversations}
-            agentId={agentId}
-          />
-        </div>
-
-        {/* Mobile column tabs */}
-        <div className="mt-3">
-          <MobileColumnTabs
-            columns={visibleColumns}
-            counts={columnCounts}
-            activeKey={mobileColumnKey}
-            onChange={setMobileColumnKey}
-          />
-        </div>
-      </div>
-
-      {/* ── Board ── */}
-      <DndContext
-        sensors={sensors}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-        onDragCancel={handleDragCancel}
-      >
-        <div className="flex min-h-0 flex-1 overflow-hidden bg-muted/30">
-          {allColumnsEmpty ? (
-            <EmptyState tab={activeTab} datos={activeDatos} />
-          ) : (
-            <>
-              {/* Desktop: visible columns.
+        {/* ── Board ── */}
+        <DndContext
+          sensors={sensors}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
+        >
+          <div className="flex min-h-0 flex-1 overflow-hidden bg-muted/30">
+            {allColumnsEmpty ? (
+              <EmptyState tab={activeTab} datos={activeDatos} />
+            ) : (
+              <>
+                {/* Desktop: visible columns.
                     ≤4 cols → fill the board width (no horizontal scroll).
                     5+ cols → fixed widths + horizontal scroll. */}
-              <div
-                className={cn(
-                  "hidden min-h-0 flex-1 overflow-y-hidden md:flex",
-                  expandColumns ? "overflow-x-hidden" : "overflow-x-auto",
-                )}
-              >
                 <div
                   className={cn(
-                    "flex h-full gap-3 p-4",
-                    expandColumns ? "w-full" : "",
+                    "hidden min-h-0 flex-1 overflow-y-hidden md:flex",
+                    expandColumns ? "overflow-x-hidden" : "overflow-x-auto",
                   )}
                 >
-                  {visibleColumns.map((col) => {
-                    const key = col.key ?? "__null__";
-                    return (
-                      <KanbanColumn
-                        key={key}
-                        col={col}
-                        conversations={columnedConversations[key] ?? []}
-                        loading={loadingList}
-                        selectedId={selectedId}
-                        mutatingId={mutatingId}
-                        agentId={agentId}
-                        onSelect={handleSelect}
-                        onTakeover={handleTakeover}
-                        onRelease={handleRelease}
-                        onMarkViewed={handleMarkViewed}
-                        isDragActive={draggedConv != null}
-                        draggedFromCompleted={draggedFromCompleted}
-                        expand={expandColumns}
-                      />
-                    );
-                  })}
+                  <div
+                    className={cn(
+                      "flex h-full gap-3 p-4",
+                      expandColumns ? "w-full" : "",
+                    )}
+                  >
+                    {visibleColumns.map((col) => {
+                      const key = col.key ?? "__null__";
+                      return (
+                        <KanbanColumn
+                          key={key}
+                          col={col}
+                          conversations={columnedConversations[key] ?? []}
+                          loading={loadingList}
+                          selectedId={selectedId}
+                          mutatingId={mutatingId}
+                          agentId={agentId}
+                          onSelect={handleSelect}
+                          onTakeover={handleTakeover}
+                          onRelease={handleRelease}
+                          onMarkViewed={handleMarkViewed}
+                          isDragActive={draggedConv != null}
+                          draggedFromCompleted={draggedFromCompleted}
+                          expand={expandColumns}
+                        />
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
 
-              {/* Mobile: single active column */}
-              <div className="flex min-h-0 w-full flex-col overflow-y-auto p-3 md:hidden">
-                {(() => {
-                  const col = visibleColumns.find(
-                    (c) => (c.key ?? "__null__") === mobileColumnKey,
-                  );
-                  if (!col) return null;
-                  const key = col.key ?? "__null__";
-                  const colConvs = columnedConversations[key] ?? [];
-                  return (
-                    <div className="flex flex-col gap-2">
-                      {loadingList && colConvs.length === 0 ? (
-                        <>
-                          <SkeletonCard />
-                          <SkeletonCard />
-                        </>
-                      ) : colConvs.length === 0 ? (
-                        <div className="flex min-h-[160px] items-center justify-center rounded-xl border border-dashed border-border/60 bg-background px-4 text-center">
-                          <p className="text-[12px] text-muted-foreground/50">
-                            {col.emptyLabel}
-                          </p>
-                        </div>
-                      ) : (
-                        colConvs.map((c) => (
-                          <KanbanCard
-                            key={c.conversation_id}
-                            conversation={c}
-                            isActive={selectedId === c.conversation_id}
-                            isMutating={mutatingId === c.conversation_id}
-                            agentId={agentId}
-                            onSelect={handleSelect}
-                            onTakeover={handleTakeover}
-                            onRelease={handleRelease}
-                            onMarkViewed={handleMarkViewed}
-                          />
-                        ))
-                      )}
-                    </div>
-                  );
-                })()}
+                {/* Mobile: single active column */}
+                <div className="flex min-h-0 w-full flex-col overflow-y-auto p-3 md:hidden">
+                  {(() => {
+                    const col = visibleColumns.find(
+                      (c) => (c.key ?? "__null__") === mobileColumnKey,
+                    );
+                    if (!col) return null;
+                    const key = col.key ?? "__null__";
+                    const colConvs = columnedConversations[key] ?? [];
+                    return (
+                      <div className="flex flex-col gap-2">
+                        {loadingList && colConvs.length === 0 ? (
+                          <>
+                            <SkeletonCard />
+                            <SkeletonCard />
+                          </>
+                        ) : colConvs.length === 0 ? (
+                          <div className="flex min-h-[160px] items-center justify-center rounded-xl border border-dashed border-border/60 bg-background px-4 text-center">
+                            <p className="text-[12px] text-muted-foreground/50">
+                              {col.emptyLabel}
+                            </p>
+                          </div>
+                        ) : (
+                          colConvs.map((c) => (
+                            <KanbanCard
+                              key={c.conversation_id}
+                              conversation={c}
+                              isActive={selectedId === c.conversation_id}
+                              isMutating={mutatingId === c.conversation_id}
+                              agentId={agentId}
+                              onSelect={handleSelect}
+                              onTakeover={handleTakeover}
+                              onRelease={handleRelease}
+                              onMarkViewed={handleMarkViewed}
+                            />
+                          ))
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </>
+            )}
+          </div>
+          <DragOverlay
+            dropAnimation={{
+              duration: 200,
+              easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+            }}
+          >
+            {draggedConv ? (
+              <div className="pointer-events-none rotate-1 opacity-95 shadow-2xl">
+                <InboxConversationCard
+                  conversation={draggedConv}
+                  isActive={false}
+                  isMutating={false}
+                  agentId={agentId}
+                  onSelect={() => {}}
+                  onTakeover={() => {}}
+                  onRelease={() => {}}
+                  onMarkViewed={() => {}}
+                />
               </div>
-            </>
-          )}
-        </div>
-        <DragOverlay
-          dropAnimation={{
-            duration: 200,
-            easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-          }}
-        >
-          {draggedConv ? (
-            <div className="pointer-events-none rotate-1 opacity-95 shadow-2xl">
-              <InboxConversationCard
-                conversation={draggedConv}
-                isActive={false}
-                isMutating={false}
-                agentId={agentId}
-                onSelect={() => {}}
-                onTakeover={() => {}}
-                onRelease={() => {}}
-                onMarkViewed={() => {}}
-              />
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+
+        {/* Conversation dialog — URL-driven (?conv=<id>). */}
+        <ConversationDialog
+          conversationId={convParam || null}
+          onClose={handleDialogClose}
+          fallbackData={dialogFallback}
+          agentId={agentId}
+          onConversationUpdate={patchListItem}
+        />
+
+        {/* Pagination — inside the bordered container, only shown when paging is meaningful */}
+        {listData && listData.total_pages > 1 && (
+          <div className="flex flex-none items-center justify-between border-t border-border/60 bg-card px-4 py-2.5">
+            <div className="font-mono text-[11px] tabular-nums text-muted-foreground">
+              Página{" "}
+              <span className="font-semibold text-foreground">
+                {listData.page}
+              </span>{" "}
+              de {listData.total_pages}
+              <span className="ml-2 text-muted-foreground/60">
+                ({listData.total} en total)
+              </span>
             </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
-
-      {/* Conversation dialog — URL-driven (?conv=<id>). */}
-      <ConversationDialog
-        conversationId={convParam || null}
-        onClose={handleDialogClose}
-        fallbackData={dialogFallback}
-        agentId={agentId}
-        onConversationUpdate={patchListItem}
-      />
-
-      {/* Pagination — inside the bordered container, only shown when paging is meaningful */}
-      {listData && listData.total_pages > 1 && (
-        <div className="flex flex-none items-center justify-between border-t border-border/60 bg-card px-4 py-2.5">
-          <div className="font-mono text-[11px] tabular-nums text-muted-foreground">
-            Página{" "}
-            <span className="font-semibold text-foreground">
-              {listData.page}
-            </span>{" "}
-            de {listData.total_pages}
-            <span className="ml-2 text-muted-foreground/60">
-              ({listData.total} en total)
-            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePrevPage}
+                disabled={page === 1}
+                className="h-8 rounded-lg"
+              >
+                Anterior
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleNextPage}
+                disabled={!listData.has_next}
+                className="h-8 rounded-lg"
+              >
+                Siguiente
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handlePrevPage}
-              disabled={page === 1}
-              className="h-8 rounded-lg"
-            >
-              Anterior
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleNextPage}
-              disabled={!listData.has_next}
-              className="h-8 rounded-lg"
-            >
-              Siguiente
-            </Button>
-          </div>
-        </div>
-      )}
-    </FadeIn>
+        )}
+      </div>
+    </AdminPageShell>
   );
 }
 
 function InboxLoading() {
   return (
-    <div className="flex h-[calc(100vh-4rem)] min-h-[640px] flex-col overflow-hidden rounded-2xl border border-border/60 bg-card">
-      <div className="flex-none border-b border-border/60 p-6 space-y-4">
-        <div className="flex items-start justify-between">
-          <div className="space-y-2">
-            <Skeleton className="h-3 w-40 rounded" />
-            <Skeleton className="h-9 w-32 rounded" />
-            <Skeleton className="h-3 w-48 rounded" />
+    <AdminPageShell bleed>
+      <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-border/60 bg-card">
+        <div className="flex-none border-b border-border/60 p-6 space-y-4">
+          <div className="flex items-start justify-between">
+            <div className="space-y-2">
+              <Skeleton className="h-3 w-40 rounded" />
+              <Skeleton className="h-9 w-32 rounded" />
+              <Skeleton className="h-3 w-48 rounded" />
+            </div>
+            <Skeleton className="h-7 w-20 rounded-full" />
           </div>
-          <Skeleton className="h-7 w-20 rounded-full" />
+          <Skeleton className="h-10 w-full rounded-lg" />
         </div>
-        <Skeleton className="h-10 w-full rounded-lg" />
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-3 p-4 bg-muted/30">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="space-y-2">
+              <Skeleton className="h-6 w-3/4 rounded" />
+              <Skeleton className="h-24 w-full rounded-xl" />
+              <Skeleton className="h-24 w-full rounded-xl" />
+            </div>
+          ))}
+        </div>
       </div>
-      <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-3 p-4 bg-muted/30">
-        {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="space-y-2">
-            <Skeleton className="h-6 w-3/4 rounded" />
-            <Skeleton className="h-24 w-full rounded-xl" />
-            <Skeleton className="h-24 w-full rounded-xl" />
-          </div>
-        ))}
-      </div>
-    </div>
+    </AdminPageShell>
   );
 }
 
