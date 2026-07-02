@@ -23,6 +23,7 @@ import {
   evalSuccess,
   evalLatency,
   aggregate,
+  depSeverity,
   type ObservabilityData,
   type HealthReadyData,
   type SystemStatusData,
@@ -34,7 +35,7 @@ import { GatingSection } from "./_components/GatingSection";
 import { TokensSection } from "./_components/TokensSection";
 import { KnowledgeGapsTab } from "./_components/KnowledgeGapsTab";
 import { ServicesStrip } from "./_components/ServicesStrip";
-import { FloatingAlert } from "./_components/FloatingAlert";
+import { StatusBanner, type BannerAlert } from "./_components/StatusBanner";
 import { RefreshCountdown } from "./_components/RefreshCountdown";
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -143,6 +144,15 @@ export default function ObservabilityPage() {
       .key;
   }, [stages]);
 
+  // Pipeline halt = a REAL retrieval outage (RAG offline or Qdrant circuit breaker open),
+  // not merely a slow stage. Retrieval breaks at dense search (first Qdrant-dependent stage).
+  const haltedStageId = useMemo(() => {
+    if (!statusData) return undefined;
+    const retrievalDown =
+      !statusData.rag_available || statusData.qdrant_circuit_breaker?.is_open;
+    return retrievalDown ? "dense_ms" : undefined;
+  }, [statusData]);
+
   const { filteredGatingItems, filteredGatingTotal, cantAnswerCount } =
     useMemo(() => {
       if (!obsData)
@@ -173,48 +183,87 @@ export default function ObservabilityPage() {
       };
     }, [obsData]);
 
-  // ── Alerts ────────────────────────────────────────────────────────────────
+  // ── Alerts — root-cause driven from real health/status data ─────────────────
   const rawAlerts = useMemo(() => {
-    const list: Array<{
-      severity: "ok" | "warn" | "crit" | "info";
-      message: string;
-    }> = [];
+    const list: BannerAlert[] = [];
     if (error && !obsData) {
       list.push({
         severity: "crit",
-        message: "No se pudo cargar las métricas",
+        message: "No se pudo cargar las métricas del sistema",
       });
     }
-    if (overall === "crit") {
-      list.push({ severity: "crit", message: "Sistema en estado crítico" });
-    } else if (overall === "warn") {
+
+    // Per-dependency root causes
+    const mongo = depSeverity(healthData?.mongodb);
+    if (mongo === "crit")
+      list.push({
+        severity: "crit",
+        message: "MongoDB no responde — persistencia caída",
+      });
+    else if (mongo === "warn")
+      list.push({ severity: "warn", message: "MongoDB degradado" });
+
+    const qdrant = depSeverity(healthData?.qdrant);
+    if (qdrant === "crit")
+      list.push({
+        severity: "crit",
+        message: "Qdrant no responde — recuperación RAG interrumpida",
+      });
+    else if (qdrant === "warn")
       list.push({
         severity: "warn",
-        message: "Una o más métricas fuera de objetivo",
+        message: "Qdrant degradado — latencia de búsqueda alta",
       });
+
+    const redis = depSeverity(healthData?.redis);
+    if (redis === "crit")
+      list.push({
+        severity: "crit",
+        message: "Redis caído — caché no disponible",
+      });
+
+    if (statusData?.qdrant_circuit_breaker?.is_open)
+      list.push({
+        severity: "crit",
+        message: "Circuit breaker de Qdrant ABIERTO — reintentos suspendidos",
+      });
+    if (statusData && !statusData.rag_available)
+      list.push({
+        severity: "warn",
+        message: "Motor RAG no disponible — respuestas sin contexto",
+      });
+
+    // Generic fallback only when no specific cause was found
+    if (list.length === 0) {
+      if (overall === "crit")
+        list.push({
+          severity: "crit",
+          message: "Sistema en estado crítico — métricas fuera de umbral",
+        });
+      else if (overall === "warn")
+        list.push({
+          severity: "warn",
+          message: "Rendimiento degradado — métricas fuera de objetivo",
+        });
     }
     return list;
-  }, [overall, error, obsData]);
+  }, [overall, error, obsData, healthData, statusData]);
 
   const activeAlerts = useMemo(
     () => rawAlerts.filter((a) => !dismissedMessages.includes(a.message)),
     [rawAlerts, dismissedMessages],
   );
 
-  const dismissAlert = useCallback(
-    (index: number) => {
-      const alert = activeAlerts[index];
-      if (alert) {
-        setDismissedMessages((prev) => [...prev, alert.message]);
-      }
-    },
-    [activeAlerts],
-  );
+  const dismissAlert = useCallback((message: string) => {
+    setDismissedMessages((prev) => [...prev, message]);
+  }, []);
 
-  // Reset dismissed when overall severity changes
+  // Drop a dismissal once its underlying condition clears, so a recurring incident
+  // (same message) re-surfaces instead of staying permanently hidden.
   useEffect(() => {
-    setDismissedMessages([]);
-  }, [overall]);
+    const active = new Set(rawAlerts.map((a) => a.message));
+    setDismissedMessages((prev) => prev.filter((m) => active.has(m)));
+  }, [rawAlerts]);
 
   if (isChecking || !isAuthorized) return null;
 
@@ -238,21 +287,21 @@ export default function ObservabilityPage() {
 
   const statusTextColor =
     overall === "ok"
-      ? "text-emerald-400"
+      ? "text-success"
       : overall === "warn"
-        ? "text-amber-400"
+        ? "text-warning"
         : overall === "crit"
-          ? "text-rose-400"
-          : "text-cyan-400";
+          ? "text-error"
+          : "text-accent-cyan";
 
   const statusBgBorder =
     overall === "ok"
-      ? "bg-emerald-500/[0.08] border-emerald-500/20"
+      ? "bg-success/[0.08] border-success/20"
       : overall === "warn"
-        ? "bg-amber-500/[0.08] border-amber-500/20"
+        ? "bg-warning/[0.08] border-warning/20"
         : overall === "crit"
-          ? "bg-rose-500/[0.08] border-rose-500/20"
-          : "bg-cyan-500/[0.08] border-cyan-500/20";
+          ? "bg-error/[0.08] border-error/20"
+          : "bg-accent-cyan/[0.08] border-accent-cyan/20";
 
   return (
     <TooltipProvider>
@@ -290,7 +339,7 @@ export default function ObservabilityPage() {
                 onClick={() => setTab("metrics")}
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold uppercase tracking-wide transition-all ${
                   tab === "metrics"
-                    ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"
+                    ? "bg-primary/10 text-primary border border-primary/20"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -304,7 +353,7 @@ export default function ObservabilityPage() {
                 onClick={() => setTab("gaps")}
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold uppercase tracking-wide transition-all ${
                   tab === "gaps"
-                    ? "bg-violet-500/10 text-violet-400 border border-violet-500/20"
+                    ? "bg-primary/10 text-primary border border-primary/20"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -315,8 +364,8 @@ export default function ObservabilityPage() {
           </div>
         </header>
 
-        {/* ── FLOATING ALERT ─────────────────────────────────────────────────── */}
-        <FloatingAlert alerts={activeAlerts} onDismiss={dismissAlert} />
+        {/* ── STATUS BANNER (root-cause, degraded/critical) ─────────────────── */}
+        <StatusBanner alerts={activeAlerts} onDismiss={dismissAlert} />
 
         {/* ── SERVICES STRIP ───────────────────────────────────────────────── */}
         <ServicesStrip
@@ -357,6 +406,7 @@ export default function ObservabilityPage() {
                     <PipelineFlow
                       stages={stages}
                       bottleneckStageId={bottleneckStageId}
+                      haltedStageId={haltedStageId}
                     />
 
                     <div className="grid grid-cols-2 gap-3">

@@ -5,7 +5,7 @@ import { FadeIn } from "@/app/_components/motion/FadeIn";
 import { Sparkline } from "@/app/_components/charts/Sparkline";
 
 type Variant = "hero" | "compact" | "mini";
-type Color = "indigo" | "cyan" | "emerald" | "amber" | "default";
+type Color = "teal" | "indigo" | "cyan" | "emerald" | "amber" | "default";
 
 interface MetricCardProps {
   label: string;
@@ -22,25 +22,30 @@ const colorConfig: Record<
   Color,
   { text: string; gradient: string; sparkline: string }
 > = {
+  teal: {
+    text: "text-primary",
+    gradient: "from-primary/60 via-primary/20 to-transparent",
+    sparkline: "hsl(var(--primary))",
+  },
   indigo: {
-    text: "text-violet-400",
-    gradient: "from-violet-500/60 via-violet-500/20 to-transparent",
-    sparkline: "hsl(255 75% 60%)",
+    text: "text-accent-violet",
+    gradient: "from-accent-violet/60 via-accent-violet/20 to-transparent",
+    sparkline: "hsl(var(--accent-violet))",
   },
   cyan: {
-    text: "text-cyan-400",
-    gradient: "from-cyan-500/60 via-cyan-500/20 to-transparent",
-    sparkline: "hsl(188 90% 42%)",
+    text: "text-accent-cyan",
+    gradient: "from-accent-cyan/60 via-accent-cyan/20 to-transparent",
+    sparkline: "hsl(var(--accent-cyan))",
   },
   emerald: {
-    text: "text-emerald-400",
-    gradient: "from-emerald-500/60 via-emerald-500/20 to-transparent",
-    sparkline: "hsl(154 65% 45%)",
+    text: "text-success",
+    gradient: "from-success/60 via-success/20 to-transparent",
+    sparkline: "hsl(var(--success))",
   },
   amber: {
-    text: "text-amber-400",
-    gradient: "from-amber-500/60 via-amber-500/20 to-transparent",
-    sparkline: "hsl(38 85% 52%)",
+    text: "text-amber",
+    gradient: "from-amber/60 via-amber/20 to-transparent",
+    sparkline: "hsl(var(--amber))",
   },
   default: {
     text: "text-foreground",
@@ -105,7 +110,7 @@ export function MetricCard({
           <p
             className={cn(
               "text-[11px] font-semibold mt-1.5",
-              trend.up ? "text-emerald-400" : "text-rose-400",
+              trend.up ? "text-success" : "text-error",
             )}
           >
             {trend.up ? "▲" : "▼"} {Math.abs(trend.value)}%

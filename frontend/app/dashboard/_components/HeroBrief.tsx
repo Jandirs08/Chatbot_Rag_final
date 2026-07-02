@@ -2,6 +2,7 @@
 
 import { FadeIn } from "@/app/_components/motion/FadeIn";
 import { TickNumber } from "@/app/_components/motion/TickNumber";
+import { Skeleton } from "@/app/components/ui/skeleton";
 
 interface HeroBriefProps {
   messages: number;
@@ -9,6 +10,7 @@ interface HeroBriefProps {
   leads: number;
   docs: number;
   vsYesterday?: number;
+  loading?: boolean;
 }
 
 export function HeroBrief({
@@ -17,10 +19,27 @@ export function HeroBrief({
   leads,
   docs,
   vsYesterday,
+  loading = false,
 }: HeroBriefProps) {
   const hasVs = vsYesterday != null;
   const trendUp = hasVs && vsYesterday >= 0;
   const trendPct = hasVs ? Math.abs(vsYesterday) : 0;
+
+  if (loading) {
+    return (
+      <div>
+        <Skeleton className="h-2.5 w-24 mb-3" />
+        <div className="flex flex-wrap items-end gap-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex flex-col gap-1.5">
+              <Skeleton className="h-9 w-16" />
+              <Skeleton className="h-2 w-20" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <FadeIn delay={0}>
@@ -34,7 +53,7 @@ export function HeroBrief({
         <div className="flex flex-wrap items-end gap-0">
           {/* Messages */}
           <div className="flex flex-col">
-            <span className="text-4xl font-heading font-bold tabular-nums leading-none text-violet-400">
+            <span className="text-4xl font-heading font-bold tabular-nums leading-none text-primary">
               <TickNumber value={messages} />
             </span>
             <span className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground mt-1">
@@ -46,7 +65,7 @@ export function HeroBrief({
 
           {/* Conversations */}
           <div className="flex flex-col">
-            <span className="text-4xl font-heading font-bold tabular-nums leading-none text-cyan-400">
+            <span className="text-4xl font-heading font-bold tabular-nums leading-none text-accent-cyan">
               <TickNumber value={conversations} />
             </span>
             <span className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground mt-1">
@@ -58,7 +77,7 @@ export function HeroBrief({
 
           {/* Leads */}
           <div className="flex flex-col">
-            <span className="text-4xl font-heading font-bold tabular-nums leading-none text-emerald-400">
+            <span className="text-4xl font-heading font-bold tabular-nums leading-none text-success">
               <TickNumber value={leads} />
             </span>
             <span className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground mt-1">
@@ -85,8 +104,8 @@ export function HeroBrief({
             <span
               className={`text-[11px] font-mono px-2 py-0.5 rounded-full border tabular-nums ${
                 trendUp
-                  ? "text-emerald-400 bg-emerald-400/10 border-emerald-400/25"
-                  : "text-rose-400 bg-rose-400/10 border-rose-400/25"
+                  ? "text-success bg-success/10 border-success/25"
+                  : "text-error bg-error/10 border-error/25"
               }`}
             >
               {trendUp ? "↑" : "↓"} {trendPct}% vs ayer

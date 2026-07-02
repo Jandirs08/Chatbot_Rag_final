@@ -22,10 +22,10 @@ function StatusDot({
   severity: "ok" | "warn" | "crit" | "info";
 }) {
   const colors: Record<string, string> = {
-    ok: "#34d399",
-    warn: "#fbbf24",
-    crit: "#f87171",
-    info: "#22d3ee",
+    ok: "hsl(var(--success))",
+    warn: "hsl(var(--warning))",
+    crit: "hsl(var(--error))",
+    info: "hsl(var(--accent-cyan))",
   };
   return (
     <span
@@ -56,9 +56,7 @@ function ServiceTile({
   return (
     <div
       className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${
-        warn
-          ? "border-amber-500/30 bg-amber-500/5"
-          : "border-border/50 bg-muted/30"
+        warn ? "border-warning/30 bg-warning/5" : "border-border/50 bg-muted/30"
       }`}
     >
       <span className="text-sm flex-shrink-0" aria-hidden="true">
@@ -68,7 +66,7 @@ function ServiceTile({
         <div className="text-xs font-semibold leading-none">{name}</div>
         <div
           className={`text-[10px] font-mono mt-0.5 leading-none ${
-            warn ? "text-amber-500" : "text-muted-foreground"
+            warn ? "text-warning" : "text-muted-foreground"
           }`}
         >
           {latency}
@@ -99,7 +97,11 @@ export function ServicesStrip({ health, status, obs }: Props) {
   }, [health, status, mongoSev, redisSev, qdrantSev]);
 
   const ringColor =
-    healthPct >= 90 ? "#34d399" : healthPct >= 50 ? "#fbbf24" : "#f87171";
+    healthPct >= 90
+      ? "hsl(var(--success))"
+      : healthPct >= 50
+        ? "hsl(var(--warning))"
+        : "hsl(var(--error))";
 
   const uptimeLabel = status?.uptime_seconds
     ? fmtUptime(status.uptime_seconds)
@@ -115,10 +117,10 @@ export function ServicesStrip({ health, status, obs }: Props) {
     successRate == null
       ? "text-muted-foreground"
       : successRate >= 0.99
-        ? "text-emerald-400"
+        ? "text-success"
         : successRate >= 0.95
-          ? "text-amber-400"
-          : "text-rose-400";
+          ? "text-warning"
+          : "text-error";
 
   return (
     <div className="px-5 py-2.5 border-b border-border/60 bg-muted/10">
@@ -208,7 +210,7 @@ export function ServicesStrip({ health, status, obs }: Props) {
             </div>
           </div>
           <div className="text-center">
-            <div className="text-xs font-mono font-bold text-cyan-400">
+            <div className="text-xs font-mono font-bold text-accent-cyan">
               {reqPerMin != null ? reqPerMin.toFixed(1) : "—"}
             </div>
             <div className="text-[9px] text-muted-foreground uppercase tracking-wide mt-0.5">

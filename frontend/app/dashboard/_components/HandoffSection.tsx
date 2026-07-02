@@ -10,20 +10,20 @@ const BARS = [
   {
     key: "user_request" as const,
     label: "Solicitud de usuario",
-    colorBar: "bg-gradient-to-r from-violet-500 to-violet-400",
-    colorText: "text-violet-400",
+    colorBar: "bg-gradient-to-r from-accent-violet/80 to-accent-violet",
+    colorText: "text-accent-violet",
   },
   {
     key: "low_confidence" as const,
     label: "Bot sin confianza",
-    colorBar: "bg-gradient-to-r from-cyan-500 to-cyan-400",
-    colorText: "text-cyan-400",
+    colorBar: "bg-gradient-to-r from-accent-cyan/80 to-accent-cyan",
+    colorText: "text-accent-cyan",
   },
   {
     key: "out_of_scope" as const,
     label: "Fuera de alcance",
-    colorBar: "bg-gradient-to-r from-amber-500 to-amber-400",
-    colorText: "text-amber-400",
+    colorBar: "bg-gradient-to-r from-amber/80 to-amber",
+    colorText: "text-amber",
   },
 ];
 

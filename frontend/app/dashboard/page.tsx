@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import { useRequireAdmin } from "@/app/hooks/useAuthGuard";
 import { API_URL } from "@/app/lib/config";
@@ -31,6 +32,7 @@ const DAYS_MAP: Record<ActivityWindow, number> = {
 
 export default function DashboardPage() {
   const { isAuthorized } = useRequireAdmin();
+  const router = useRouter();
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [activityWindow, setActivityWindow] = useState<ActivityWindow>("7d");
 
@@ -123,6 +125,7 @@ export default function DashboardPage() {
           conversations={overview?.today_conversations ?? 0}
           leads={overview?.leads_this_week ?? 0}
           docs={overview?.pdfs_ready ?? 0}
+          loading={overviewLoading && !overview}
         />
       </div>
 
@@ -134,8 +137,9 @@ export default function DashboardPage() {
             label="Mensajes hoy"
             value={overview?.today_messages ?? 0}
             total={overview?.total_messages}
-            color="indigo"
+            color="teal"
             sparklineData={messagesSeries}
+            loading={overviewLoading && !overview}
           />
         </div>
         <div className="col-span-6 md:col-span-3">
@@ -145,6 +149,7 @@ export default function DashboardPage() {
             total={overview?.total_conversations}
             color="cyan"
             sparklineData={usersSeries}
+            loading={overviewLoading && !overview}
           />
         </div>
         <div className="col-span-6 md:col-span-3">
@@ -154,6 +159,7 @@ export default function DashboardPage() {
             total={overview?.leads_total}
             color="emerald"
             sparklineData={[]}
+            loading={overviewLoading && !overview}
           />
         </div>
         <div className="col-span-6 md:col-span-3">
@@ -162,6 +168,7 @@ export default function DashboardPage() {
             value={overview?.pdfs_ready ?? 0}
             color="amber"
             sparklineData={[]}
+            loading={overviewLoading && !overview}
           />
         </div>
 
@@ -179,9 +186,7 @@ export default function DashboardPage() {
           <LeadsTimeline
             leads={leads?.items ?? []}
             total={leads?.total ?? 0}
-            onViewAll={() => {
-              /* navigate to leads page */
-            }}
+            onViewAll={() => router.push("/admin/inbox")}
           />
         </div>
 

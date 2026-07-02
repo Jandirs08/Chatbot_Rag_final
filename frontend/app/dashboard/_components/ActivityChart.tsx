@@ -123,12 +123,28 @@ export function ActivityChart({
           >
             <defs>
               <linearGradient id={gradMensajes} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#6366f1" stopOpacity={0.35} />
-                <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
+                <stop
+                  offset="0%"
+                  stopColor="hsl(var(--primary))"
+                  stopOpacity={0.35}
+                />
+                <stop
+                  offset="100%"
+                  stopColor="hsl(var(--primary))"
+                  stopOpacity={0}
+                />
               </linearGradient>
               <linearGradient id={gradUsuarios} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#22d3ee" stopOpacity={0.2} />
-                <stop offset="100%" stopColor="#22d3ee" stopOpacity={0} />
+                <stop
+                  offset="0%"
+                  stopColor="hsl(var(--accent-cyan))"
+                  stopOpacity={0.2}
+                />
+                <stop
+                  offset="100%"
+                  stopColor="hsl(var(--accent-cyan))"
+                  stopOpacity={0}
+                />
               </linearGradient>
             </defs>
             <XAxis
@@ -150,7 +166,7 @@ export function ActivityChart({
             <Area
               type="monotone"
               dataKey="Mensajes"
-              stroke="#6366f1"
+              stroke="hsl(var(--primary))"
               fill={`url(#${gradMensajes})`}
               strokeWidth={1.75}
               dot={false}
@@ -160,7 +176,7 @@ export function ActivityChart({
             <Area
               type="monotone"
               dataKey="Usuarios"
-              stroke="#22d3ee"
+              stroke="hsl(var(--accent-cyan))"
               strokeDasharray="4 3"
               fill={`url(#${gradUsuarios})`}
               strokeWidth={1.5}

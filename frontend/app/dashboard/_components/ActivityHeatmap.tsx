@@ -9,10 +9,10 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
 function getIntensityClass(value: number, max: number): string {
   if (value === 0 || max === 0) return "bg-muted/60";
   const ratio = value / max;
-  if (ratio < 0.2) return "bg-violet-500/20";
-  if (ratio < 0.4) return "bg-violet-500/45";
-  if (ratio < 0.7) return "bg-violet-500/70";
-  return "bg-violet-500 shadow-[0_0_4px_rgba(99,102,241,0.5)]";
+  if (ratio < 0.2) return "bg-primary/20";
+  if (ratio < 0.4) return "bg-primary/45";
+  if (ratio < 0.7) return "bg-primary/70";
+  return "bg-primary shadow-[0_0_4px_hsl(var(--primary)/0.5)]";
 }
 
 interface ActivityHeatmapProps {

@@ -5,9 +5,9 @@ import { fmtDate } from "@/app/lib/format";
 import type { LeadItem } from "../types";
 
 const DOT_COLORS = [
-  "bg-violet-500 border-background",
-  "bg-cyan-400 border-background",
-  "bg-violet-500/60 border-background",
+  "bg-success border-background",
+  "bg-accent-cyan border-background",
+  "bg-success/60 border-background",
   "bg-muted-foreground border-background",
 ];
 
@@ -31,7 +31,7 @@ export function LeadsTimeline({ leads, total, onViewAll }: LeadsTimelineProps) {
 
       <div className="relative">
         {/* Timeline line */}
-        <div className="absolute left-[7px] top-2 bottom-0 w-px bg-gradient-to-b from-violet-500/50 to-transparent pointer-events-none" />
+        <div className="absolute left-[7px] top-2 bottom-0 w-px bg-gradient-to-b from-success/50 to-transparent pointer-events-none" />
 
         <Stagger className="space-y-0">
           {visible.map((lead, idx) => (
@@ -42,7 +42,7 @@ export function LeadsTimeline({ leads, total, onViewAll }: LeadsTimelineProps) {
                   className={`mt-1.5 w-3.5 h-3.5 flex-shrink-0 rounded-full border-2 z-10 ${DOT_COLORS[idx % DOT_COLORS.length]}`}
                 />
                 {/* Card */}
-                <div className="flex-1 bg-card/60 rounded-lg border border-border p-2.5 hover:border-violet-500/25 transition-colors">
+                <div className="flex-1 bg-card/60 rounded-lg border border-border p-2.5 hover:border-primary/25 transition-colors">
                   <p className="text-sm font-semibold leading-tight">
                     {lead.lead_name ?? (
                       <span className="text-muted-foreground italic font-normal text-xs">
@@ -66,7 +66,7 @@ export function LeadsTimeline({ leads, total, onViewAll }: LeadsTimelineProps) {
           <button
             type="button"
             onClick={onViewAll}
-            className="text-violet-600 dark:text-violet-400 text-xs font-mono ml-6 hover:text-violet-700 dark:hover:text-violet-300 transition-colors"
+            className="text-primary text-xs font-mono ml-6 hover:opacity-80 transition-opacity"
           >
             Ver {remaining} leads más →
           </button>
