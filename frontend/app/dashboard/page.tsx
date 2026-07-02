@@ -99,9 +99,9 @@ export default function DashboardPage() {
       {/* Sticky header */}
       <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-3 border-b border-border/60 bg-background/80 backdrop-blur-md">
         <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-violet-500 shadow-[0_0_8px_rgba(99,102,241,0.6)]" />
+          <div className="w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.5)]" />
           <span className="text-xs font-bold tracking-[0.12em] uppercase text-muted-foreground">
-            Intelligence Brief
+            Métricas
           </span>
         </div>
         <div className="flex items-center gap-3">

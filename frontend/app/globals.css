@@ -1,17 +1,18 @@
-/* ─── Design tokens: Aleph — Deep Signal identity ────────────────────────── */
+/* ─── Design tokens: Aleph v3 — Light-first, professional SaaS ──────────── */
 /*
- * Primary: deep teal (hue 168) — signal, precision, intelligence
- * Background light: cool morning mist (hue 210) — not white, not warm
- * Background dark: petroleum void (hue 218) — depth, not just "dark gray"
- * Amber: personality token — notifications, highlights, warmth moments
- * Shadows: teal-tinted depth, hover glows with signal color
+ * Direction: clean, light, professional. Teal (#0d9488) as brand.
+ * Semantic colors: each color owns ONE domain (see DESIGN.md §2).
+ * Surfaces: white cards on light-gray page background.
+ * Motion: functional, subtle. Never decorative.
  */
 :root {
-  /* Page backgrounds — cool morning mist */
-  --background: 210 20% 97%;
-  --surface: 210 20% 97%;
-  --surface-elevated: 210 28% 99%;
-  --foreground: 218 32% 10%;
+  /* Page background — off-white */
+  --background: 214 18% 97%;   /* #f8f9fb */
+  --surface:          0 0% 100%;
+  --surface-elevated: 0 0% 100%;
+  --surface-2:        214 15% 95%;   /* #f2f4f7 — hover, inputs */
+  --surface-3:        214 18% 91%;   /* #e8ecf2 — badges, kbd */
+  --foreground: 222 47% 11%;   /* #0f172a */
 
   /* Layout tokens */
   --container-max-width: 1440px;
@@ -27,104 +28,114 @@
 
   --radius-card: 0.75rem;
 
-  --card: 210 28% 99%;
-  --card-foreground: 218 32% 10%;
+  --card:     0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --popover:  0 0% 100%;
+  --popover-foreground: 222 47% 11%;
 
-  --popover: 210 28% 99%;
-  --popover-foreground: 218 32% 10%;
-
-  /* Primary — deep teal signal */
-  --primary: 168 65% 30%;
+  /* Brand — Teal: CTA, nav activo, acción principal */
+  --primary:          168 83% 32%;  /* #0d9488 */
   --primary-foreground: 0 0% 100%;
-  --primary-faint: 168 50% 94%;
-  --primary-muted: 168 28% 52%;
+  --primary-faint:    168 60% 95%;  /* #f0fdfa */
+  --primary-muted:    168 40% 75%;
 
-  /* Secondary / accent */
-  --secondary: 168 50% 94%;
-  --secondary-foreground: 168 65% 30%;
+  /* Secondary / accent (neutral) */
+  --secondary:          214 15% 95%;
+  --secondary-foreground: 222 47% 11%;
+  --accent:          214 15% 95%;
+  --accent-foreground: 222 47% 11%;
 
-  --accent: 168 50% 94%;
-  --accent-foreground: 218 32% 10%;
+  /* Muted */
+  --muted:          214 15% 95%;
+  --muted-foreground: 215 16% 56%;  /* #94a3b8 */
 
-  /* Semantic */
-  --success: 154 76% 38%;
+  /* Semantic — cada color tiene UN dominio funcional */
+  --success:          142 71% 36%;   /* green: éxito, resuelto */
   --success-foreground: 0 0% 100%;
-
-  --warning: 38 90% 46%;
-  --warning-foreground: 0 0% 100%;
-
-  --error: 0 72% 51%;
+  --warning:          38 88% 46%;   /* amber alias */
+  --warning-foreground: 28 30% 12%;
+  --error:            0 72% 51%;
   --error-foreground: 0 0% 100%;
+  --info:             220 75% 54%;
+  --info-foreground:  0 0% 100%;
 
-  --info: 220 75% 54%;
-  --info-foreground: 0 0% 100%;
-
-  /* Amber — identity personality token (not warning: warmer, richer) */
-  --amber: 40 85% 52%;
+  /* Amber: handoff humano, atención manual */
+  --amber:            38 88% 46%;   /* #d97706 */
   --amber-foreground: 28 30% 12%;
 
-  /* Domain accent signals (v2) — use sparingly, max 2 per view */
-  --accent-violet: 255 75% 60%;
-  --accent-violet-foreground: 0 0% 100%;
-  --accent-cyan: 188 90% 42%;
+  /* Cyan: datos live, RAG activo, canal Web */
+  --accent-cyan:          188 84% 38%;
   --accent-cyan-foreground: 0 0% 100%;
-  --accent-magenta: 330 80% 55%;
+
+  /* Violet: IA / modelo / sistema */
+  --accent-violet:          263 70% 56%;  /* #7c3aed */
+  --accent-violet-foreground: 0 0% 100%;
+
+  /* Magenta: VIP, urgente, alertas críticas */
+  --accent-magenta:          330 72% 52%;  /* #db2777 */
   --accent-magenta-foreground: 0 0% 100%;
 
-  /* Glow shadows — signal halos (v2) */
-  --shadow-glow-primary: 0 0 0 1px hsl(var(--primary) / 0.35), 0 8px 32px -4px hsl(var(--primary) / 0.25);
-  --shadow-glow-violet:  0 0 0 1px hsl(var(--accent-violet) / 0.35), 0 8px 32px -4px hsl(var(--accent-violet) / 0.25);
-  --shadow-glow-cyan:    0 0 0 1px hsl(var(--accent-cyan) / 0.35), 0 8px 32px -4px hsl(var(--accent-cyan) / 0.25);
-  --shadow-glow-magenta: 0 0 0 1px hsl(var(--accent-magenta) / 0.35), 0 8px 32px -4px hsl(var(--accent-magenta) / 0.25);
-
-  /* Motion tokens (v2) */
-  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --ease-in-out-circ: cubic-bezier(0.85, 0, 0.15, 1);
-  --duration-instant: 120ms;
-  --duration-fast: 200ms;
-  --duration-base: 320ms;
-  --duration-slow: 560ms;
-
-  --muted: 210 18% 93%;
-  --muted-foreground: 215 15% 46%;
-
-  --destructive: 0 72% 51%;
+  /* Destructive (shadcn) */
+  --destructive:      0 72% 51%;
   --destructive-foreground: 0 0% 100%;
 
-  --border: 210 22% 88%;
-  --input: 210 18% 93%;
-  --ring: 168 65% 30%;
-  --radius: 0.75rem;
+  /* Borders / inputs */
+  --border:        214 20% 90%;   /* #e2e6ed */
+  --border-strong: 214 18% 80%;
+  --input:         214 15% 95%;
+  --ring:          168 83% 32%;
+  --radius:        0.5rem;
 
-  /* Sidebar — light mode */
-  --sidebar-background: 210 28% 99%;
-  --sidebar-foreground: 215 15% 46%;
-  --sidebar-primary: 168 65% 30%;
+  /* Shadows */
+  --shadow-sm:    0 1px 3px 0 rgb(15 23 42 / 0.07);
+  --shadow-card:  0 1px 3px 0 rgb(15 23 42 / 0.07), 0 1px 2px -1px rgb(15 23 42 / 0.05);
+  --shadow-md:    0 4px 16px -2px rgb(15 23 42 / 0.09);
+  --shadow-lg:    0 12px 40px -4px rgb(15 23 42 / 0.14);
+  --shadow-hover: 0 4px 20px rgb(15 23 42 / 0.11);
+
+  /* Focus glows */
+  --shadow-glow-primary: 0 0 0 3px hsl(168 83% 32% / 0.18);
+  --shadow-glow-violet:  0 0 0 3px hsl(263 70% 56% / 0.18);
+  --shadow-glow-cyan:    0 0 0 3px hsl(188 84% 38% / 0.18);
+  --shadow-glow-magenta: 0 0 0 3px hsl(330 72% 52% / 0.18);
+
+  /* Motion */
+  --ease-out-expo:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-back:    cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-in-out-circ: cubic-bezier(0.85, 0, 0.15, 1);
+  --duration-instant: 120ms;
+  --duration-fast:    200ms;
+  --duration-base:    300ms;
+  --duration-slow:    500ms;
+
+  /* Sidebar */
+  --sidebar-background: 0 0% 100%;
+  --sidebar-foreground: 215 16% 56%;
+  --sidebar-primary: 168 83% 32%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 168 50% 94%;
-  --sidebar-accent-foreground: 218 32% 10%;
-  --sidebar-border: 210 22% 88%;
-  --sidebar-ring: 168 65% 30%;
-  --sidebar-item-hover: 168 50% 94%;
-  --sidebar-item-active: 168 65% 30%;
+  --sidebar-accent: 168 60% 95%;
+  --sidebar-accent-foreground: 222 47% 11%;
+  --sidebar-border: 214 20% 90%;
+  --sidebar-ring: 168 83% 32%;
+  --sidebar-item-hover: 214 15% 95%;
+  --sidebar-item-active: 168 60% 95%;
 
-  /* Bot brand color — admin-configurable, deep teal as default */
-  --brand-color: #1a9980;
+  /* Bot brand (admin-configurable) */
+  --brand-color: #0d9488;
 
-  /* Font families — loaded via next/font */
+  /* Font families (loaded via next/font) */
   --font-heading: 'Space Grotesk', system-ui, sans-serif;
   --font-mono-ui: 'DM Mono', 'Fira Code', 'Courier New', monospace;
 
-  /* Severity tokens */
-  --severity-ok: hsl(154 76% 38%);
-  --severity-warn: hsl(38 90% 46%);
+  /* Severity (observabilidad) */
+  --severity-ok:   hsl(142 71% 36%);
+  --severity-warn: hsl(38 88% 46%);
   --severity-crit: hsl(0 72% 51%);
-  /* Mission Control */
-  --mc-bg: hsl(220 40% 4%);
-  --mc-surface: hsl(220 30% 8%);
-  --mc-surface2: hsl(220 28% 12%);
-  --mc-border: rgba(99, 179, 255, 0.07);
+
+  /* Layout */
+  --container-max-width: 1440px;
+  --spacing-page-x: 2rem;
+  --spacing-page-y: 2rem;
 }
 
 .dark {

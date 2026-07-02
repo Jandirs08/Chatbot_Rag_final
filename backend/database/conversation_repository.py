@@ -22,6 +22,70 @@ _INBOX_PROJECTION = {
     "recommended_action": 1, "confidence": 1, "viewed_at": 1,
 }
 
+# No-match sentinel: $expr always-false, so no docs leak when caller forgets agent_id.
+_NO_MATCH = {"$expr": {"$eq": [1, 0]}}
+
+
+def _tab_mode_filter(tab: str, agent_id) -> dict:
+    """Mode/assignment delta for a tab. Empty dict for 'todos' (use base mode set)."""
+    if tab == "pendientes":
+        return {"mode": "pending"}
+    if tab == "mias":
+        # Without an agent context, "mías" is meaningless — return no-match so
+        # we never accidentally show every human/paused conv to an unidentified caller.
+        if not agent_id:
+            return dict(_NO_MATCH)
+        return {"mode": {"$in": ["human", "paused"]}, "assigned_agent_id": agent_id}
+    if tab == "otras":
+        m = {"mode": {"$in": ["human", "paused"]}}
+        if agent_id:
+            m["$or"] = [
+                {"assigned_agent_id": None},
+                {"assigned_agent_id": {"$exists": False}},
+                {"assigned_agent_id": {"$ne": agent_id}},
+            ]
+        else:
+            m["$or"] = [
+                {"assigned_agent_id": None},
+                {"assigned_agent_id": {"$exists": False}},
+            ]
+        return m
+    if tab == "bot":
+        return {"mode": "bot"}
+    return {}
+
+
+def _build_inbox_query(days, tab, channel, has_lead, only_unseen, category, min_score, agent_id) -> dict:
+    since = datetime.now(timezone.utc) - timedelta(days=max(1, int(days)))
+    query: dict = {"updated_at": {"$gte": since}}
+    and_clauses: list[dict] = []
+
+    tab_filter = _tab_mode_filter(tab, agent_id)
+    if tab_filter:
+        query.update(tab_filter)
+    else:
+        query["mode"] = {"$in": ["bot", "human", "pending", "paused"]}
+
+    if channel:
+        query["channel"] = channel
+    if has_lead is True:
+        query["lead_email"] = {"$ne": None}
+    elif has_lead is False:
+        and_clauses.append(
+            {"$or": [{"lead_email": None}, {"lead_email": {"$exists": False}}]}
+        )
+    if only_unseen:
+        and_clauses.append(
+            {"$or": [{"viewed_at": None}, {"viewed_at": {"$exists": False}}]}
+        )
+    if category is not None:
+        query["category"] = category
+    if min_score is not None:
+        query["lead_score"] = {"$gte": min_score}
+    if and_clauses:
+        query["$and"] = and_clauses
+    return query
+
 
 class ConversationRepository:
     def __init__(self, mongodb_client: Optional[MongodbClient] = None):
@@ -238,78 +302,6 @@ class ConversationRepository:
         )
         return docs
 
-    # No-match sentinel: $expr always-false, so no docs leak when caller forgets agent_id.
-    _NO_MATCH = {"$expr": {"$eq": [1, 0]}}
-
-    def _tab_mode_filter(self, tab: str, agent_id: Optional[str]) -> dict:
-        """Mode/assignment delta for a tab. Empty dict for 'todos' (use base mode set)."""
-        if tab == "pendientes":
-            return {"mode": "pending"}
-        if tab == "mias":
-            # Without an agent context, "mías" is meaningless — return no-match so
-            # we never accidentally show every human/paused conv to an unidentified caller.
-            if not agent_id:
-                return dict(self._NO_MATCH)
-            return {"mode": {"$in": ["human", "paused"]}, "assigned_agent_id": agent_id}
-        if tab == "otras":
-            m = {"mode": {"$in": ["human", "paused"]}}
-            if agent_id:
-                m["$or"] = [
-                    {"assigned_agent_id": None},
-                    {"assigned_agent_id": {"$exists": False}},
-                    {"assigned_agent_id": {"$ne": agent_id}},
-                ]
-            else:
-                m["$or"] = [
-                    {"assigned_agent_id": None},
-                    {"assigned_agent_id": {"$exists": False}},
-                ]
-            return m
-        if tab == "bot":
-            return {"mode": "bot"}
-        return {}
-
-    def _build_inbox_query(
-        self,
-        days: int,
-        tab: str,
-        channel: Optional[str],
-        has_lead: Optional[bool],
-        only_unseen: bool,
-        category: Optional[str],
-        min_score: Optional[int],
-        agent_id: Optional[str],
-    ) -> dict:
-        since = datetime.now(timezone.utc) - timedelta(days=max(1, int(days)))
-        query: dict = {"updated_at": {"$gte": since}}
-        and_clauses: list[dict] = []
-
-        tab_filter = self._tab_mode_filter(tab, agent_id)
-        if tab_filter:
-            query.update(tab_filter)
-        else:
-            query["mode"] = {"$in": ["bot", "human", "pending", "paused"]}
-
-        if channel:
-            query["channel"] = channel
-        if has_lead is True:
-            query["lead_email"] = {"$ne": None}
-        elif has_lead is False:
-            and_clauses.append(
-                {"$or": [{"lead_email": None}, {"lead_email": {"$exists": False}}]}
-            )
-        if only_unseen:
-            and_clauses.append(
-                {"$or": [{"viewed_at": None}, {"viewed_at": {"$exists": False}}]}
-            )
-        if category is not None:
-            query["category"] = category
-        if min_score is not None:
-            query["lead_score"] = {"$gte": min_score}
-        if and_clauses:
-            query["$and"] = and_clauses
-        return query
-
     async def list_inbox_conversations(
         self,
         days: int = 30,
@@ -324,7 +316,7 @@ class ConversationRepository:
         agent_id: Optional[str] = None,
     ) -> tuple[list, int]:
         coll = self.mongodb_client.db[self.collection_name]
-        query = self._build_inbox_query(
+        query = _build_inbox_query(
             days, tab, channel, has_lead, only_unseen, category, min_score, agent_id
         )
         total = await coll.count_documents(query)
@@ -360,12 +352,12 @@ class ConversationRepository:
         """
         coll = self.mongodb_client.db[self.collection_name]
 
-        base = self._build_inbox_query(
+        base = _build_inbox_query(
             days, "todos", channel, has_lead, False, None, min_score, None
         )
-        cat_tab_match = self._tab_mode_filter(tab, agent_id)
-        mine_match = self._tab_mode_filter("mias", agent_id)
-        otras_match = self._tab_mode_filter("otras", agent_id)
+        cat_tab_match = _tab_mode_filter(tab, agent_id)
+        mine_match = _tab_mode_filter("mias", agent_id)
+        otras_match = _tab_mode_filter("otras", agent_id)
 
         now = datetime.now(timezone.utc)
         stale_cutoff = now - timedelta(minutes=5)

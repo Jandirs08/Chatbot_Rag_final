@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Observabilidad — Estados de Error</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: #0f172a;
+    color: #0f172a;
+    padding: 32px 24px;
+    min-height: 100vh;
+  }
+
+  h1.page-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: #94a3b8;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+    text-align: center;
+  }
+
+  /* ── PANEL WRAPPER ─────────────────────────────── */
+  .panel-wrapper {
+    max-width: 1100px;
+    margin: 0 auto 40px;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.45);
+  }
+
+  .panel-label {
+    background: #1e293b;
+    color: #e2e8f0;
+    padding: 9px 20px;
+    font-size: 13px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid #334155;
+  }
+  .panel-label .badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+  }
+  .badge-warn  { background: #fef3c7; color: #92400e; }
+  .badge-info  { background: #dbeafe; color: #1e40af; }
+  .badge-error { background: #fee2e2; color: #991b1b; }
+
+  /* ── APP SHELL ─────────────────────────────────── */
+  .app-shell {
+    display: flex;
+    background: #f8fafc;
+    height: auto;
+  }
+
+  /* ── SIDEBAR ───────────────────────────────────── */
+  .sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    background: #0f172a;
+    display: flex;
+    flex-direction: column;
+    padding: 16px 0;
+    min-height: 500px;
+  }
+
+  .sidebar-logo {
+    padding: 0 16px 16px;
+    border-bottom: 1px solid #1e293b;
+    margin-bottom: 12px;
+  }
+  .sidebar-logo span {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    color: #f1f5f9;
+    letter-spacing: -0.02em;
+  }
+  .sidebar-logo small {
+    display: block;
+    font-size: 10px;
+    color: #64748b;
+    font-family: 'DM Mono', monospace;
+    margin-top: 2px;
+  }
+
+  .nav-section {
+    padding: 0 8px;
+    margin-bottom: 4px;
+  }
+  .nav-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: #475569;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 8px 10px 4px;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #94a3b8;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+  }
+  .nav-item:hover { background: #1e293b; color: #e2e8f0; }
+  .nav-item.active {
+    background: #1e3a5f;
+    color: #93c5fd;
+  }
+  .nav-item svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+  /* ── MAIN CONTENT ──────────────────────────────── */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── TOPBAR ────────────────────────────────────── */
+  .topbar {
+    background: white;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .topbar-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    color: #0f172a;
+  }
+  .topbar-meta {
+    font-size: 12px;
+    color: #64748b;
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* ── STATUS BANNER ─────────────────────────────── */
+  .banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: 'Inter', sans-serif;
+  }
+  .banner-warn {
+    background: #fffbeb;
+    border-bottom: 1px solid #fde68a;
+    color: #78350f;
+  }
+  .banner-error {
+    background: #fef2f2;
+    border-bottom: 1px solid #fecaca;
+    color: #991b1b;
+  }
+  .banner a {
+    color: #b45309;
+    text-decoration: underline;
+    cursor: pointer;
+    margin-left: 6px;
+    font-size: 12px;
+  }
+  .banner-error a { color: #dc2626; }
+
+  /* ── CONTENT AREA ──────────────────────────────── */
+  .content {
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: #f1f5f9;
+  }
+
+  /* ── CARD ──────────────────────────────────────── */
+  .card {
+    background: white;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+  }
+  .card-header {
+    padding: 10px 14px;
+    border-bottom: 1px solid #f1f5f9;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 12px;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* ── ESTADO SYSTEM CARD ────────────────────────── */
+  .estado-body {
+    display: flex;
+    gap: 0;
+  }
+  .health-panel {
+    padding: 16px 20px;
+    border-right: 1px solid #f1f5f9;
+    min-width: 160px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+  }
+  .health-pct {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 40px;
+    line-height: 1;
+  }
+  .health-pct.ok    { color: #059669; }
+  .health-pct.warn  { color: #d97706; }
+  .health-pct.error { color: #dc2626; }
+  .health-label {
+    font-size: 12px;
+    color: #64748b;
+    font-weight: 500;
+    margin-top: 4px;
+  }
+
+  .deps-panel {
+    flex: 1;
+    padding: 12px 16px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 16px;
+  }
+  .dep-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    background: #f8fafc;
+    border-radius: 6px;
+    border: 1px solid #f1f5f9;
+  }
+  .dep-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: #334155;
+    min-width: 68px;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+  .dep-val {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: #059669;
+  }
+  .dep-val.warn  { color: #d97706; }
+  .dep-val.error { color: #dc2626; }
+  .dep-note {
+    font-size: 10px;
+    color: #d97706;
+    font-style: italic;
+  }
+
+  .status-badge {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    padding: 2px 7px;
+    border-radius: 4px;
+  }
+  .status-badge.error { background: #fee2e2; color: #dc2626; }
+  .status-badge.warn  { background: #fef3c7; color: #92400e; }
+
+  /* tiny sparkline placeholder */
+  .sparkline {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 1px;
+    height: 14px;
+  }
+  .sparkline span {
+    width: 3px;
+    background: #059669;
+    border-radius: 1px;
+  }
+
+  /* ── KPI STRIP ─────────────────────────────────── */
+  .kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+  }
+  .kpi-cell {
+    padding: 12px 16px;
+    border-right: 1px solid #f1f5f9;
+  }
+  .kpi-cell:last-child { border-right: none; }
+  .kpi-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 4px;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+  .kpi-val {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 22px;
+  }
+  .kpi-val.ok    { color: #059669; }
+  .kpi-val.warn  { color: #d97706; }
+  .kpi-val.error { color: #dc2626; }
+  .kpi-sub {
+    font-size: 10px;
+    color: #94a3b8;
+    font-family: 'DM Mono', monospace;
+    margin-top: 2px;
+  }
+
+  /* ── PIPELINE ──────────────────────────────────── */
+  .pipeline-body {
+    padding: 14px 16px;
+  }
+  .pipeline-stages {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    overflow-x: auto;
+  }
+
+  .stage {
+    --accent: #64748b;
+    --accent-bg: #f8fafc;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    min-width: 90px;
+    padding: 10px 8px 8px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    border-top: 3px solid var(--accent);
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .stage.error-glow {
+    box-shadow: 0 0 0 2px rgba(220,38,38,0.15), 0 0 16px rgba(220,38,38,0.1);
+  }
+
+  .stage-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: var(--accent-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .stage-icon svg { width: 15px; height: 15px; }
+  .stage-name {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    color: #334155;
+  }
+  .stage-lat {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  .stage.disabled {
+    opacity: 0.45;
+  }
+
+  /* connectors */
+  .conn {
+    width: 28px;
+    height: 2px;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .conn.active {
+    background: linear-gradient(90deg, #06b6d4, #8b5cf6);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .conn.active::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.7), transparent);
+    animation: shimmer 1.4s linear infinite;
+  }
+  .conn.static {
+    background: #cbd5e1;
+    border-radius: 2px;
+  }
+
+  @keyframes shimmer {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+
+  .pipeline-note {
+    font-size: 11px;
+    color: #b45309;
+    margin-top: 10px;
+    padding: 6px 10px;
+    background: #fffbeb;
+    border-radius: 5px;
+    border: 1px solid #fde68a;
+    font-family: 'Inter', sans-serif;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .pipeline-note.error {
+    color: #dc2626;
+    background: #fef2f2;
+    border-color: #fecaca;
+  }
+
+  .pipeline-stopped-overlay {
+    margin-top: 6px;
+    text-align: center;
+    font-size: 13px;
+    color: #dc2626;
+    font-weight: 600;
+    font-family: 'Space Grotesk', sans-serif;
+    padding: 6px;
+  }
+
+  /* ── TRAFFIC NOTE ──────────────────────────────── */
+  .traffic-note {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: #64748b;
+    font-family: 'Inter', sans-serif;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .traffic-note.warn { border-color: #fde68a; background: #fffbeb; color: #78350f; }
+  .traffic-note.error { border-color: #fecaca; background: #fef2f2; color: #991b1b; }
+
+  /* ── DOT STYLES ────────────────────────────────── */
+  @keyframes redPulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.5); }
+    50%     { box-shadow: 0 0 0 6px rgba(220,38,38,0); }
+  }
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+  .dot-ok    { background: #059669; }
+  .dot-warn  { background: #d97706; }
+  .dot-error { background: #dc2626; animation: redPulse 1.2s ease infinite; }
+  .dot-off   { background: #94a3b8; }
+</style>
+</head>
+<body>
+
+<h1 class="page-title">Observabilidad — Estados de Error · Preview</h1>
+
+<!-- ═══════════════════════════════════════════════════════
+     PANEL 1 — Estado: Degradado (Qdrant caído)
+════════════════════════════════════════════════════════ -->
+<div class="panel-wrapper">
+  <div class="panel-label">
+    <span>Panel 1</span>
+    <span class="badge badge-warn">Estado: Degradado (Qdrant caído)</span>
+  </div>
+
+  <div class="app-shell">
+    <!-- Sidebar -->
+    <nav class="sidebar">
+      <div class="sidebar-logo">
+        <span>AlephRAG</span>
+        <small>admin · v2.1.0</small>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Principal</div>
+        <div class="nav-item">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
+          Dashboard
+        </div>
+        <div class="nav-item active">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5"/><path d="M8 5v3l2 1.5"/></svg>
+          Observabilidad
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12l4-4 3 3 5-7"/></svg>
+          Métricas
+        </div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Gestión</div>
+        <div class="nav-item">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v4M8 10v4M2 8h4M10 8h4"/><circle cx="8" cy="8" r="2"/></svg>
+          Pipeline
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 4H3a1 1 0 00-1 1v6a1 1 0 001 1h10a1 1 0 001-1V5a1 1 0 00-1-1z"/><path d="M9 8H7M11 8h.5M5 8h.5"/></svg>
+          Logs
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="2"/><path d="M3 13c0-2.8 2.2-5 5-5s5 2.2 5 5"/></svg>
+          Usuarios
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2L10.5 6H13l-2 3 .8 3.5L8 11l-3.8 1.5.8-3.5L3 6h2.5L8 2z"/></svg>
+          Configuración
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main -->
+    <div class="main">
+      <div class="topbar">
+        <span class="topbar-title">Observabilidad</span>
+        <span class="topbar-meta">Última actualización: 27/06/2026 16:31</span>
+      </div>
+
+      <!-- Banner -->
+      <div class="banner banner-warn">
+        ⚠ Qdrant no responde — el pipeline RAG está degradado
+        <a href="#">Ver detalles</a>
+      </div>
+
+      <div class="content">
+
+        <!-- Estado del Sistema -->
+        <div class="card">
+          <div class="card-header">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#64748b" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>
+            Estado del Sistema
+          </div>
+          <div class="estado-body">
+            <div class="health-panel">
+              <div class="health-pct warn">67%</div>
+              <div class="health-label">Servicio degradado</div>
+            </div>
+            <div class="deps-panel">
+              <div class="dep-row">
+                <span class="dot dot-ok"></span>
+                <span class="dep-name">MongoDB</span>
+                <span class="dep-val">9.96 ms</span>
+              </div>
+              <div class="dep-row">
+                <span class="dot dot-ok"></span>
+                <span class="dep-name">Redis</span>
+                <span class="dep-val">10.77 ms</span>
+              </div>
+              <div class="dep-row">
+                <span class="dot dot-error"></span>
+                <span class="dep-name">Qdrant</span>
+                <span class="status-badge error">Sin respuesta</span>
+              </div>
+              <div class="dep-row">
+                <span class="dot dot-warn"></span>
+                <span class="dep-name">RAG Engine</span>
+                <span class="status-badge warn">Degradado</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPI Strip -->
+        <div class="card">
+          <div class="kpi-strip">
+            <div class="kpi-cell">
+              <div class="kpi-label">Tasa Éxito</div>
+              <div class="kpi-val error">43%</div>
+              <div class="kpi-sub">↓ desde 94%</div>
+            </div>
+            <div class="kpi-cell">
+              <div class="kpi-label">Primer Token P95</div>
+              <div class="kpi-val warn">2,340 ms</div>
+              <div class="kpi-sub">+1,200 ms</div>
+            </div>
+            <div class="kpi-cell">
+              <div class="kpi-label">Latencia P95</div>
+              <div class="kpi-val error">8,920 ms</div>
+              <div class="kpi-sub">umbral: 3,000 ms</div>
+            </div>
+            <div class="kpi-cell">
+              <div class="kpi-label">Sin Respuesta RAG</div>
+              <div class="kpi-val error">12</div>
+              <div class="kpi-sub">última hora</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pipeline -->
+        <div class="card">
+          <div class="card-header">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#64748b" stroke-width="1.5"><path d="M2 8h3M11 8h3M5 8a3 3 0 006 0M5 8a3 3 0 016 0"/></svg>
+            Pipeline RAG
+          </div>
+          <div class="pipeline-body">
+            <div class="pipeline-stages">
+
+              <!-- Embed — cyan -->
+              <div class="stage" style="--accent:#0891b2;--accent-bg:#ecfeff">
+                <div class="stage-icon">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="#0891b2" stroke-width="1.5"><path d="M2 8h3M11 8h3"/><circle cx="8" cy="8" r="3"/></svg>
+                </div>
+                <div class="stage-name">Embed</div>
+                <div class="stage-lat">124 ms</div>
+              </div>
+              <div class="conn active"></div>
+
+              <!-- Dense — violet -->
+              <div class="stage" style="--accent:#7c3aed;--accent-bg:#f5f3ff">
+                <div class="stage-icon">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="#7c3aed" stroke-width="1.5"><rect x="3" y="3" width="4" height="4" rx="1"/><rect x="9" y="3" width="4" height="4" rx="1"/><rect x="3" y="9" width="4" height="4" rx="1"/><rect x="9" y="9" width="4" height="4" rx="1"/></svg>
+                </div>
+                <div class="stage-name">Dense</div>
+                <div class="stage-lat">280 ms</div>
+              </div>
+              <div class="conn active"></div>
+
+              <!-- Lexical — amber -->
+              <div class="stage" style="--accent:#d97706;--accent-bg:#fffbeb">
+                <div class="stage-icon">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="#d97706" stroke-width="1.5"><path d="M3 4h10M3 8h7M3 12h5"/></svg>
+                </div>
+                <div class="stage-name">Lexical</div>
+                <div class="stage-lat">195 ms</div>
+              </div>
+              <div class="conn active"></div>
+
+              <!-- Hydrate — ERROR -->
+              <div class="stage error-glow" style="--accent:#dc2626;--accent-bg:#fef2f2">
+                <div class="stage-icon">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="#dc2626" stroke-width="1.5"><path d="M8 2l1.5 4H14l-3.5 2.5 1.3 4.5L8 11l-3.8 2 1.3-4.5L2 6h4.5L8 2z"/></svg>
+                </div>
+                <div class="stage-name">Hydrate</div>
+                <div class="stage-lat" style="color:#dc2626;font-weight:600">TIMEOUT</div>
+              </div>
+              <div class="conn static"></div>
+
+              <!-- Rerank — disabled -->
+              <div class="stage disabled" style="--accent:#94a3b8;--accent-bg:#f8fafc">
+                <div class="stage-icon">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M3 4l5 4 5-4M3 8l5 4 5-4"/></svg>
+                </div>
+                <div class="stage-name">Rerank</div>
+                <div class="stage-lat">—</div>
+              </div>
+              <div class="conn static"></div>
+
+              <!-- LLM — disabled -->
+              <div class="stage disabled" style="--accent:#94a3b8;--accent-bg:#f8fafc">
+                <div class="stage-icon">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M3 5h10M3 8h7M5 11h5"/><rect x="1" y="2" width="14" height="12" rx="2"/></svg>
+                </div>
+                <div class="stage-name">LLM</div>
+                <div class="stage-lat">—</div>
+              </div>
+
+            </div>
+
+            <div class="pipeline-note">
+              ⚠ Pipeline interrumpido en etapa Hydrate — Qdrant sin respuesta
+            </div>
+          </div>
+        </div>
+
+        <!-- Traffic note -->
+        <div class="traffic-note warn">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#d97706" stroke-width="1.5"><path d="M8 2L2 14h12L8 2zM8 7v3M8 12h.01"/></svg>
+          Tráfico entrante normal — las peticiones fallan en Hydrate. Usuarios afectados ven respuesta de error.
+        </div>
+
+      </div><!-- /content -->
+    </div><!-- /main -->
+  </div><!-- /app-shell -->
+</div><!-- /panel-wrapper -->
+
+
+<!-- ═══════════════════════════════════════════════════════
+     PANEL 2 — Estado: Advertencia menor (Redis lento)
+════════════════════════════════════════════════════════ -->
+<div class="panel-wrapper">
+  <div class="panel-label">
+    <span>Panel 2</span>
+    <span class="badge badge-info">Estado: Advertencia menor (Redis lento)</span>
+  </div>
+
+  <div class="app-shell">
+    <!-- Sidebar identical -->
+    <nav class="sidebar">
+      <div class="sidebar-logo">
+        <span>AlephRAG</span>
+        <small>admin · v2.1.0</small>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Principal</div>
+        <div class="nav-item">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
+          Dashboard
+        </div>
+        <div class="nav-item active">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5"/><path d="M8 5v3l2 1.5"/></svg>
+          Observabilidad
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12l4-4 3 3 5-7"/></svg>
+          Métricas
+        </div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Gestión</div>
+        <div class="nav-item">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v4M8 10v4M2 8h4M10 8h4"/><circle cx="8" cy="8" r="2"/></svg>
+          Pipeline
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 4H3a1 1 0 00-1 1v6a1 1 0 001 1h10a1 1 0 001-1V5a1 1 0 00-1-1z"/><path d="M9 8H7M11 8h.5M5 8h.5"/></svg>
+          Logs
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="2"/><path d="M3 13c0-2.8 2.2-5 5-5s5 2.2 5 5"/></svg>
+          Usuarios
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2L10.5 6H13l-2 3 .8 3.5L8 11l-3.8 1.5.8-3.5L3 6h2.5L8 2z"/></svg>
+          Configuración
+        </div>
+      </div>
+    </nav>
+
+    <div class="main">
+      <div class="topbar">
+        <span class="topbar-title">Observabilidad</span>
+        <span class="topbar-meta">Última actualización: 27/06/2026 16:31</span>
+      </div>
+      <!-- no banner -->
+
+      <div class="content">
+
+        <!-- Estado del Sistema -->
+        <div class="card">
+          <div class="card-header">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#64748b" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>
+            Estado del Sistema
+          </div>
+          <div class="estado-body">
+            <div class="health-panel">
+              <div class="health-pct warn">89%</div>
+              <div class="health-label">Funcionando con advertencias</div>
+            </div>
+            <div class="deps-panel">
+              <div class="dep-row">
+                <span class="dot dot-ok"></span>
+                <span class="dep-name">MongoDB</span>
+                <span class="dep-val">9.96 ms</span>
+              </div>
+              <div class="dep-row" style="border-color:#fde68a">
+                <span class="dot dot-warn"></span>
+                <span class="dep-name">Redis</span>
+                <span class="dep-val warn">15.2 ms</span>
+                <span class="dep-note">(lento)</span>
+              </div>
+              <div class="dep-row">
+                <span class="dot dot-ok"></span>
+                <span class="dep-name">Qdrant</span>
+                <span class="sparkline">
+                  <span style="height:4px"></span><span style="height:8px"></span><span style="height:6px"></span><span style="height:10px"></span><span style="height:7px"></span><span style="height:9px"></span><span style="height:5px"></span>
+                </span>
+              </div>
+              <div class="dep-row">
+                <span class="dot dot-ok"></span>
+                <span class="dep-name">RAG Engine</span>
+                <span class="dep-val" style="font-size:10px;font-family:'DM Mono',monospace;color:#059669">v1.0.0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPI Strip -->
+        <div class="card">
+          <div class="kpi-strip">
+            <div class="kpi-cell">
+              <div class="kpi-label">Tasa Éxito</div>
+              <div class="kpi-val warn">87%</div>
+              <div class="kpi-sub">↓ leve</div>
+            </div>
+            <div class="kpi-cell">
+              <div class="kpi-label">Primer Token P95</div>
+              <div class="kpi-val warn">890 ms</div>
+              <div class="kpi-sub">+190 ms</div>
+            </div>
+            <div class="kpi-cell">
+              <div class="kpi-label">Latencia P95</div>
+              <div class="kpi-val warn">2,100 ms</div>
+              <div class="kpi-sub">cerca del umbral</div>
+            </div>
+            <div class="kpi-cell">
+              <div class="kpi-label">Sin Respuesta RAG</div>
+              <div class="kpi-val warn">3</div>
+              <div class="kpi-sub">última hora</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pipeline — all running, Rerank amber -->
+        <div class="card">
+          <div class="card-header">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#64748b" stroke-width="1.5"><path d="M2 8h3M11 8h3M5 8a3 3 0 006 0M5 8a3 3 0 016 0"/></svg>
+            Pipeline RAG
+          </div>
+          <div class="pipeline-body">
+            <div class="pipeline-stages">
+
+              <div class="stage" style="--accent:#0891b2;--accent-bg:#ecfeff">
+                <div class="stage-icon"><svg viewBox="0 0 16 16" fill="none" stroke="#0891b2" stroke-width="1.5"><path d="M2 8h3M11 8h3"/><circle cx="8" cy="8" r="3"/></svg></div>
+                <div class="stage-name">Embed</div>
+                <div class="stage-lat">118 ms</div>
+              </div>
+              <div class="conn active"></div>
+
+              <div class="stage" style="--accent:#7c3aed;--accent-bg:#f5f3ff">
+                <div class="stage-icon"><svg viewBox="0 0 16 16" fill="none" stroke="#7c3aed" stroke-width="1.5"><rect x="3" y="3" width="4" height="4" rx="1"/><rect x="9" y="3" width="4" height="4" rx="1"/><rect x="3" y="9" width="4" height="4" rx="1"/><rect x="9" y="9" width="4" height="4" rx="1"/></svg></div>
+                <div class="stage-name">Dense</div>
+                <div class="stage-lat">265 ms</div>
+              </div>
+              <div class="conn active"></div>
+
+              <div class="stage" style="--accent:#d97706;--accent-bg:#fffbeb">
+                <div class="stage-icon"><svg viewBox="0 0 16 16" fill="none" stroke="#d97706" stroke-width="1.5"><path d="M3 4h10M3 8h7M3 12h5"/></svg></div>
+                <div class="stage-name">Lexical</div>
+                <div class="stage-lat">180 ms</div>
+              </div>
+              <div class="conn active"></div>
+
+              <div class="stage" style="--accent:#059669;--accent-bg:#ecfdf5">
+                <div class="stage-icon"><svg viewBox="0 0 16 16" fill="none" stroke="#059669" stroke-width="1.5"><path d="M8 2l1.5 4H14l-3.5 2.5 1.3 4.5L8 11l-3.8 2 1.3-4.5L2 6h4.5L8 2z"/></svg></div>
+                <div class="stage-name">Hydrate</div>
+                <div class="stage-lat">420 ms</div>
+              </div>
+              <div class="conn active"></div>
+
+              <!-- Rerank — amber slow -->
+              <div class="stage" style="--accent:#d97706;--accent-bg:#fffbeb">
+                <div class="stage-icon"><svg viewBox="0 0 16 16" fill="none" stroke="#d97706" stroke-width="1.5"><path d="M3 4l5 4 5-4M3 8l5 4 5-4"/></svg></div>
+                <div class="stage-name">Rerank</div>
+                <div class="stage-lat">1,240 ms</div>
+              </div>
+              <div class="conn active"></div>
+
+              <div class="stage" style="--accent:#6366f1;--accent-bg:#eef2ff">
+                <div class="stage-icon"><svg viewBox="0 0 16 16" fill="none" stroke="#6366f1" stroke-width="1.5"><path d="M3 5h10M3 8h7M5 11h5"/><rect x="1" y="2" width="14" height="12" rx="2"/></svg></div>
+                <div class="stage-name">LLM</div>
+                <div class="stage-lat">710 ms</div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- Traffic note -->
+        <div class="traffic-note warn">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#d97706" stroke-width="1.5"><path d="M8 2L2 14h12L8 2zM8 7v3M8 12h.01"/></svg>
+          Tráfico normal. Redis más lento de lo habitual — monitorear tendencia en próximos 15 min.
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     PANEL 3 — Estado: Crítico (Caída total)
+════════════════════════════════════════════════════════ -->
+<div class="panel-wrapper">
+  <div class="panel-label">
+    <span>Panel 3</span>
+    <span class="badge badge-error">Estado: Crítico (Caída total)</span>
+  </div>
+
+  <div class="app-shell">
+    <nav class="sidebar">
+      <div class="sidebar-logo">
+        <span>AlephRAG</span>
+        <small>admin · v2.1.0</small>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Principal</div>
+        <div class="nav-item">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
+          Dashboard
+        </div>
+        <div class="nav-item active">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5"/><path d="M8 5v3l2 1.5"/></svg>
+          Observabilidad
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12l4-4 3 3 5-7"/></svg>
+          Métricas
+        </div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Gestión</div>
+        <div class="nav-item">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v4M8 10v4M2 8h4M10 8h4"/><circle cx="8" cy="8" r="2"/></svg>
+          Pipeline
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 4H3a1 1 0 00-1 1v6a1 1 0 001 1h10a1 1 0 001-1V5a1 1 0 00-1-1z"/><path d="M9 8H7M11 8h.5M5 8h.5"/></svg>
+          Logs
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="2"/><path d="M3 13c0-2.8 2.2-5 5-5s5 2.2 5 5"/></svg>
+          Usuarios
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2L10.5 6H13l-2 3 .8 3.5L8 11l-3.8 1.5.8-3.5L3 6h2.5L8 2z"/></svg>
+          Configuración
+        </div>
+      </div>
+    </nav>
+
+    <div class="main">
+      <div class="topbar">
+        <span class="topbar-title">Observabilidad</span>
+        <span class="topbar-meta">Última actualización: 27/06/2026 16:47</span>
+      </div>
+
+      <!-- Red banner -->
+      <div class="banner banner-error" style="justify-content:space-between">
+        <span>🔴 Sistema inoperativo — múltiples servicios no responden · 27/06/2026 16:47</span>
+        <a href="#">Incidente #2847</a>
+      </div>
+
+      <div class="content">
+
+        <!-- Estado del Sistema -->
+        <div class="card" style="border-color:#fecaca">
+          <div class="card-header" style="background:#fef2f2;border-bottom-color:#fecaca">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#dc2626" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>
+            <span style="color:#dc2626">Estado del Sistema</span>
+          </div>
+          <div class="estado-body">
+            <div class="health-panel" style="border-right-color:#fecaca">
+              <div class="health-pct error">0%</div>
+              <div class="health-label" style="color:#dc2626;font-weight:600">Sistema inoperativo</div>
+            </div>
+            <div class="deps-panel">
+              <div class="dep-row" style="border-color:#fecaca;background:#fef2f2">
+                <span class="dot dot-error"></span>
+                <span class="dep-name">MongoDB</span>
+                <span class="status-badge error">Sin respuesta</span>
+              </div>
+              <div class="dep-row" style="border-color:#fecaca;background:#fef2f2">
+                <span class="dot dot-error"></span>
+                <span class="dep-name">Redis</span>
+                <span class="status-badge error">Sin respuesta</span>
+              </div>
+              <div class="dep-row" style="border-color:#fecaca;background:#fef2f2">
+                <span class="dot dot-error"></span>
+                <span class="dep-name">Qdrant</span>
+                <span class="status-badge error">Sin respuesta</span>
+              </div>
+              <div class="dep-row" style="border-color:#fecaca;background:#fef2f2">
+                <span class="dot dot-error"></span>
+                <span class="dep-name">RAG Engine</span>
+                <span class="status-badge error">Sin respuesta</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPI Strip -->
+        <div class="card" style="border-color:#fecaca">
+          <div class="kpi-strip">
+            <div class="kpi-cell">
+              <div class="kpi-label">Tasa Éxito</div>
+              <div class="kpi-val error">0%</div>
+              <div class="kpi-sub" style="color:#dc2626">100% fallos</div>
+            </div>
+            <div class="kpi-cell">
+              <div class="kpi-label">Primer Token P95</div>
+              <div class="kpi-val error">—</div>
+              <div class="kpi-sub" style="color:#dc2626">sin datos</div>
+            </div>
+            <div class="kpi-cell">
+              <div class="kpi-label">Latencia P95</div>
+              <div class="kpi-val error">—</div>
+              <div class="kpi-sub" style="color:#dc2626">sin datos</div>
+            </div>
+            <div class="kpi-cell">
+              <div class="kpi-label">Sin Respuesta RAG</div>
+              <div class="kpi-val error">∞</div>
+              <div class="kpi-sub" style="color:#dc2626">todas las peticiones</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pipeline — all gray + overlay -->
+        <div class="card" style="border-color:#fecaca">
+          <div class="card-header" style="background:#fef2f2;border-bottom-color:#fecaca">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#dc2626" stroke-width="1.5"><path d="M2 8h3M11 8h3M5 8a3 3 0 006 0M5 8a3 3 0 016 0"/></svg>
+            <span style="color:#dc2626">Pipeline RAG</span>
+          </div>
+          <div class="pipeline-body">
+            <div class="pipeline-stages">
+              <div class="stage disabled" style="--accent:#94a3b8;--accent-bg:#f8fafc">
+                <div class="stage-icon"><svg viewBox="0 0 16 16" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M2 8h3M11 8h3"/><circle cx="8" cy="8" r="3"/></svg></div>
+                <div class="stage-name">Embed</div>
+                <div class="stage-lat">—</div>
+              </div>
+              <div class="conn static"></div>
+              <div class="stage disabled" style="--accent:#94a3b8;--accent-bg:#f8fafc">
+                <div class="stage-icon"><svg viewBox="0 0 16 16" fill="none" stroke="#94a3b8" stroke-width="1.5"><rect x="3" y="3" width="4" height="4" rx="1"/><rect x="9" y="3" width="4" height="4" rx="1"/><rect x="3" y="9" width="4" height="4" rx="1"/><rect x="9" y="9" width="4" height="4" rx="1"/></svg></div>
+                <div class="stage-name">Dense</div>
+                <div class="stage-lat">—</div>
+              </div>
+              <div class="conn static"></div>
+              <div class="stage disabled" style="--accent:#94a3b8;--accent-bg:#f8fafc">
+                <div class="stage-icon"><svg viewBox="0 0 16 16" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M3 4h10M3 8h7M3 12h5"/></svg></div>
+                <div class="stage-name">Lexical</div>
+                <div class="stage-lat">—</div>
+              </div>
+              <div class="conn static"></div>
+              <div class="stage disabled" style="--accent:#94a3b8;--accent-bg:#f8fafc">
+                <div class="stage-icon"><svg viewBox="0 0 16 16" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M8 2l1.5 4H14l-3.5 2.5 1.3 4.5L8 11l-3.8 2 1.3-4.5L2 6h4.5L8 2z"/></svg></div>
+                <div class="stage-name">Hydrate</div>
+                <div class="stage-lat">—</div>
+              </div>
+              <div class="conn static"></div>
+              <div class="stage disabled" style="--accent:#94a3b8;--accent-bg:#f8fafc">
+                <div class="stage-icon"><svg viewBox="0 0 16 16" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M3 4l5 4 5-4M3 8l5 4 5-4"/></svg></div>
+                <div class="stage-name">Rerank</div>
+                <div class="stage-lat">—</div>
+              </div>
+              <div class="conn static"></div>
+              <div class="stage disabled" style="--accent:#94a3b8;--accent-bg:#f8fafc">
+                <div class="stage-icon"><svg viewBox="0 0 16 16" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M3 5h10M3 8h7M5 11h5"/><rect x="1" y="2" width="14" height="12" rx="2"/></svg></div>
+                <div class="stage-name">LLM</div>
+                <div class="stage-lat">—</div>
+              </div>
+            </div>
+
+            <div class="pipeline-stopped-overlay">
+              🔴 Pipeline detenido
+            </div>
+          </div>
+        </div>
+
+        <!-- Traffic note -->
+        <div class="traffic-note error">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#dc2626" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v3M8 11h.01"/></svg>
+          Tráfico entrante activo — 100% de peticiones respondiendo con error 503. Escalar incidente inmediatamente.
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

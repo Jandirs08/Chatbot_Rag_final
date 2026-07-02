@@ -1,13 +1,12 @@
-import type { HTMLAttributes } from "react"
 import { cn } from "@/lib/utils"
 
 function Skeleton({
   className,
   ...props
-}: HTMLAttributes<HTMLDivElement>) {
+}: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("skeleton-shimmer rounded-md", className)}
+      className={cn("animate-pulse rounded-md bg-muted", className)}
       {...props}
     />
   )

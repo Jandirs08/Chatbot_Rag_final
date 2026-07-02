@@ -6,8 +6,6 @@ import json
 import logging
 import statistics
 import time
-from contextvars import ContextVar
-from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -22,50 +20,13 @@ from ..corpus_centroid import get_centroid, is_out_of_scope
 from .gating import CheapGateDecision, cheap_gate
 from .metrics import measure_time, PerformanceMetrics, _METRICS_LOG_INTERVAL
 from .sanitize import sanitize_doc_content, sanitize_metadata_field
+from .retrieval_types import (
+    RETRIEVAL_CACHE_PREFIX, RETRIEVAL_UNAVAILABLE_MESSAGE, NO_CONTEXT_MESSAGE,
+    _CONTENT_TYPE_SCORES, _CONTENT_TYPE_SCORE_DEFAULT,
+    RetrievalBackendUnavailableError, CachedRetrievalResult, _gating_reason_var,
+)
 
 logger = logging.getLogger(__name__)
-
-RETRIEVAL_CACHE_PREFIX = "rag:retrieval:"
-RETRIEVAL_UNAVAILABLE_MESSAGE = (
-    "La base documental no esta disponible en este momento. "
-    "Por favor, intentalo nuevamente mas tarde."
-)
-NO_CONTEXT_MESSAGE = "No se encontro informacion relevante para esta pregunta."
-_CONTENT_TYPE_SCORES: Dict[str, float] = {
-    "header": 1.0,
-    "title": 0.95,
-    "subtitle": 0.9,
-    "paragraph": 0.8,
-    "text": 0.75,
-    "list": 0.7,
-    "bullet": 0.7,
-    "numbered_list": 0.7,
-    "table": 0.6,
-    "code": 0.5,
-}
-_CONTENT_TYPE_SCORE_DEFAULT = 0.6
-
-
-class RetrievalBackendUnavailableError(RuntimeError):
-    pass
-
-
-@dataclass(frozen=True)
-class CachedRetrievalResult:
-    documents: List[Document]
-    reason: str
-    kind: str
-
-
-
-# Per-coroutine gating reason. The retriever is a singleton; without
-# ContextVar isolation, concurrent requests would overwrite each other's
-# value via the (legacy) instance attribute, leaking cross-request state
-# into the dashboard's knowledge-gaps log. ContextVar makes the value
-# automatically scoped to the asyncio Task that owns the retrieve call.
-_gating_reason_var: ContextVar[Optional[str]] = ContextVar(
-    "retriever_gating_reason", default=None,
-)
 
 
 class RAGRetriever:
@@ -814,40 +775,9 @@ class RAGRetriever:
             return docs[:k]
 
     def format_context_from_documents(self, documents: List[Document]) -> str:
-        if not documents:
-            return NO_CONTEXT_MESSAGE
-
-        # Preserve reranking order — grouping by type would destroy relevance ranking.
-        emit_doc_marker = len(documents) > 1
-
-        def _format_chunk(idx: int, doc: Document) -> str:
-            content = sanitize_doc_content(doc.page_content.strip())
-            source = sanitize_metadata_field(doc.metadata.get("source") or "")
-            page_number = doc.metadata.get("page_number")
-            source_parts = []
-            if source:
-                source_parts.append(source)
-            if page_number is not None and str(page_number).strip():
-                source_parts.append(f"pagina {sanitize_metadata_field(page_number)}")
-            header_lines: list[str] = []
-            if emit_doc_marker:
-                header_lines.append(f"--- DOC {idx} ---")
-            if source_parts:
-                header_lines.append(f"[Fuente: {', '.join(source_parts)}]")
-            if header_lines:
-                return "\n".join(header_lines + [content])
-            return content
-
-        parts = ["Informacion relevante encontrada:"]
-        for i, doc in enumerate(documents, start=1):
-            chunk = _format_chunk(i, doc)
-            if chunk:
-                parts.append(chunk)
-        return "\n\n".join(filter(None, parts))
+        from .context_builder import format_context_from_documents as _fmt
+        return _fmt(documents)
 
     def _group_documents_by_type(self, documents: List[Document]) -> Dict[str, List[Document]]:
-        grouped: Dict[str, List[Document]] = {}
-        for doc in documents:
-            chunk_type = doc.metadata.get("chunk_type", "text")
-            grouped.setdefault(chunk_type, []).append(doc)
-        return grouped
+        from .context_builder import _group_documents_by_type as _grp
+        return _grp(documents)

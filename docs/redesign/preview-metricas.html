@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aleph — Métricas (Preview Rediseño)</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --teal: #0d9488;
+    --teal-light: #f0fdfa;
+    --teal-mid: #99f6e4;
+    --cyan: #0891b2;
+    --cyan-light: #ecfeff;
+    --amber: #d97706;
+    --amber-light: #fffbeb;
+    --violet: #7c3aed;
+    --violet-light: #f5f3ff;
+    --green: #16a34a;
+    --green-light: #f0fdf4;
+    --red: #dc2626;
+    --surface: #ffffff;
+    --surface-2: #f8fafc;
+    --border: #e2e8f0;
+    --border-soft: #f1f5f9;
+    --text-primary: #0f172a;
+    --text-secondary: #64748b;
+    --text-muted: #94a3b8;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --sidebar-w: 56px;
+  }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--surface-2);
+    color: var(--text-primary);
+    display: flex;
+    min-height: 100vh;
+    font-size: 14px;
+  }
+
+  h1, h2, h3, h4, .heading { font-family: 'Space Grotesk', sans-serif; }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: var(--sidebar-w);
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px 0;
+    gap: 4px;
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    z-index: 100;
+  }
+
+  .sidebar-logo {
+    width: 32px; height: 32px;
+    background: var(--teal);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 16px;
+  }
+
+  .sidebar-logo svg { color: white; }
+
+  .sidebar-nav { display: flex; flex-direction: column; gap: 2px; flex: 1; width: 100%; padding: 0 8px; }
+
+  .nav-item {
+    width: 40px; height: 40px;
+    border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    position: relative;
+  }
+
+  .nav-item:hover { background: var(--surface-2); color: var(--text-secondary); }
+  .nav-item.active { background: var(--teal-light); color: var(--teal); }
+
+  .sidebar-bottom { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 0 8px; }
+
+  .avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--teal) 0%, var(--cyan) 100%);
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-size: 12px; font-weight: 600; font-family: 'Space Grotesk', sans-serif;
+  }
+
+  /* ── Main ── */
+  .main {
+    margin-left: var(--sidebar-w);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  .page-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 28px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky; top: 0; z-index: 50;
+  }
+
+  .header-left { display: flex; align-items: center; gap: 12px; }
+
+  .page-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 18px; font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .live-badge {
+    display: flex; align-items: center; gap: 5px;
+    background: var(--green-light);
+    color: var(--green);
+    font-size: 11px; font-weight: 600;
+    padding: 3px 8px; border-radius: 20px;
+    font-family: 'Space Grotesk', sans-serif;
+    letter-spacing: 0.02em;
+  }
+
+  .live-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .header-right { display: flex; align-items: center; gap: 8px; }
+
+  .period-tabs {
+    display: flex;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 2px;
+    gap: 2px;
+  }
+
+  .period-tab {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px; font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+
+  .period-tab.active {
+    background: var(--surface);
+    color: var(--text-primary);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+
+  .btn-csv {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text-secondary);
+    font-size: 12px; font-weight: 500;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    transition: all 0.15s;
+  }
+
+  .btn-csv:hover { border-color: var(--teal); color: var(--teal); }
+
+  /* ── Content ── */
+  .content { padding: 24px 28px; display: flex; flex-direction: column; gap: 20px; }
+
+  /* ── Annotation ── */
+  .annotation {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10px; font-weight: 600; letter-spacing: 0.05em;
+    padding: 2px 7px; border-radius: 4px;
+    font-family: 'Space Grotesk', sans-serif;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .annotation.new { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+  .annotation.moved { background: #ede9fe; color: #6d28d9; border: 1px solid #c4b5fd; }
+  .annotation.improved { background: #dbeafe; color: #1d4ed8; border: 1px solid #93c5fd; }
+
+  /* ── KPI Bento ── */
+  .kpi-bento {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 12px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+
+  .card-hero {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    padding: 24px;
+    display: flex; flex-direction: column;
+    gap: 16px;
+  }
+
+  .card-label {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--text-muted);
+    font-family: 'Space Grotesk', sans-serif;
+  }
+
+  .card-value {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 42px; font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1;
+  }
+
+  .card-value-sm {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 28px; font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1;
+  }
+
+  .card-delta {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 12px; font-weight: 500;
+    color: var(--green);
+    background: var(--green-light);
+    padding: 2px 7px; border-radius: 20px;
+  }
+
+  .card-delta.down { color: var(--red); background: #fef2f2; }
+
+  .kpi-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .kpi-header { display: flex; align-items: flex-start; justify-content: space-between; }
+
+  .card-small { display: flex; flex-direction: column; gap: 10px; padding: 16px 20px; }
+
+  .card-small .card-meta {
+    font-size: 12px; color: var(--text-muted);
+    display: flex; align-items: center; gap: 4px;
+  }
+
+  /* Sparkline */
+  .sparkline-wrap { flex: 1; display: flex; align-items: flex-end; }
+
+  /* ── Charts row ── */
+  .charts-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 12px;
+  }
+
+  .chart-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .chart-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 15px; font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .chart-legend {
+    display: flex; gap: 16px; margin-top: 12px;
+  }
+
+  .legend-item {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--text-secondary);
+  }
+
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .legend-dash {
+    width: 16px; height: 2px;
+    border-top: 2px dashed var(--cyan);
+    display: inline-block;
+  }
+
+  /* Heatmap */
+  .heatmap-grid {
+    display: grid;
+    grid-template-columns: 28px repeat(24, 1fr);
+    gap: 2px;
+    margin-top: 4px;
+  }
+
+  .hm-label {
+    font-size: 9px; color: var(--text-muted);
+    display: flex; align-items: center; justify-content: flex-end;
+    padding-right: 4px; font-weight: 500;
+  }
+
+  .hm-cell {
+    height: 14px; border-radius: 2px;
+    background: #f0fdfa;
+  }
+
+  .hm-hour-label {
+    font-size: 8px; color: var(--text-muted);
+    grid-column: span 1;
+    text-align: center;
+  }
+
+  .hm-peak-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; font-weight: 600;
+    color: var(--teal);
+    background: var(--teal-light);
+    border: 1px solid var(--teal-mid);
+    padding: 4px 10px; border-radius: 20px;
+    margin-top: 10px;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+
+  /* ── Bottom section ── */
+  .bottom-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 12px;
+  }
+
+  /* Table */
+  .table-search-wrap { position: relative; margin-bottom: 14px; }
+
+  .table-search {
+    width: 100%;
+    padding: 8px 12px 8px 36px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 13px; color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    background: var(--surface-2);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .table-search:focus { border-color: var(--teal); background: var(--surface); }
+
+  .search-icon {
+    position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+    color: var(--text-muted);
+  }
+
+  table { width: 100%; border-collapse: collapse; }
+
+  thead th {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--text-muted);
+    padding: 0 8px 10px 8px;
+    text-align: left; border-bottom: 1px solid var(--border-soft);
+    font-family: 'Space Grotesk', sans-serif;
+  }
+
+  thead th:last-child { text-align: center; }
+
+  tbody tr { border-bottom: 1px solid var(--border-soft); }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--surface-2); }
+
+  tbody td {
+    padding: 10px 8px;
+    font-size: 13px; color: var(--text-primary);
+    vertical-align: middle;
+  }
+
+  .freq-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--amber-light);
+    color: var(--amber);
+    font-size: 11px; font-weight: 700;
+    min-width: 24px; padding: 1px 6px;
+    border-radius: 20px;
+    font-family: 'Space Grotesk', sans-serif;
+    border: 1px solid #fde68a;
+  }
+
+  .action-link {
+    color: var(--teal);
+    font-size: 12px; font-weight: 500;
+    text-decoration: none;
+    display: inline-flex; align-items: center; gap: 3px;
+    white-space: nowrap;
+  }
+
+  .action-link:hover { text-decoration: underline; }
+
+  .table-footer {
+    margin-top: 14px; padding-top: 12px;
+    border-top: 1px solid var(--border-soft);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+
+  .table-count { font-size: 12px; color: var(--text-muted); }
+
+  .export-link {
+    color: var(--teal); font-size: 12px; font-weight: 500;
+    text-decoration: none;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+
+  .export-link:hover { text-decoration: underline; }
+
+  /* Escalaciones bars */
+  .esc-row { margin-bottom: 16px; }
+  .esc-row:last-child { margin-bottom: 0; }
+  .esc-meta { display: flex; justify-content: space-between; margin-bottom: 6px; }
+  .esc-label { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+  .esc-pct { font-size: 13px; font-weight: 600; color: var(--text-secondary); font-family: 'Space Grotesk', sans-serif; }
+  .esc-track {
+    height: 8px; background: var(--surface-2);
+    border-radius: 20px; overflow: hidden;
+  }
+  .esc-fill { height: 100%; border-radius: 20px; }
+
+  .esc-total {
+    margin-top: 20px; padding-top: 16px;
+    border-top: 1px solid var(--border-soft);
+    font-size: 12px; color: var(--text-muted);
+    text-align: center;
+  }
+
+  .esc-total strong {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 22px; font-weight: 700;
+    color: var(--text-primary);
+    display: block; margin-top: 2px;
+  }
+
+  /* Section label row */
+  .section-label {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 11px; font-weight: 600;
+    color: var(--text-muted); letter-spacing: 0.06em;
+    text-transform: uppercase;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1; height: 1px;
+    background: var(--border-soft);
+  }
+</style>
+</head>
+<body>
+
+<!-- ══ Sidebar ══ -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <svg width="18" height="18" fill="none" viewBox="0 0 24 24">
+      <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-item" title="Inicio">
+      <svg width="18" height="18" fill="none" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/><polyline points="9,22 9,12 15,12 15,22" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="nav-item" title="Conversaciones">
+      <svg width="18" height="18" fill="none" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="nav-item active" title="Métricas">
+      <svg width="18" height="18" fill="none" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/><line x1="12" y1="20" x2="12" y2="4" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/><line x1="6" y1="20" x2="6" y2="14" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
+    </div>
+    <div class="nav-item" title="Corpus">
+      <svg width="18" height="18" fill="none" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/><polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="nav-item" title="Configuración">
+      <svg width="18" height="18" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.75"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" stroke="currentColor" stroke-width="1.75"/></svg>
+    </div>
+  </nav>
+
+  <div class="sidebar-bottom">
+    <div class="avatar">JR</div>
+  </div>
+</aside>
+
+<!-- ══ Main ══ -->
+<div class="main">
+
+  <!-- Header -->
+  <header class="page-header">
+    <div class="header-left">
+      <h1 class="page-title">Métricas</h1>
+      <span class="live-badge"><span class="live-dot"></span>En vivo</span>
+    </div>
+    <div class="header-right">
+      <div class="period-tabs">
+        <div class="period-tab active">7d</div>
+        <div class="period-tab">30d</div>
+        <div class="period-tab">90d</div>
+      </div>
+      <button class="btn-csv">
+        <svg width="13" height="13" fill="none" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="7,10 12,15 17,10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="15" x2="12" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Exportar CSV
+      </button>
+    </div>
+  </header>
+
+  <!-- Content -->
+  <div class="content">
+
+    <!-- Section label -->
+    <div class="section-label">
+      <span>Resumen del período</span>
+    </div>
+
+    <!-- ── KPI Bento ── -->
+    <div style="position: relative;">
+      <span class="annotation new">✦ Nuevo — Bento con jerarquía visual</span>
+      <div class="kpi-bento">
+
+        <!-- Hero card: Mensajes -->
+        <div class="card card-hero">
+          <div class="kpi-header">
+            <div>
+              <div class="card-label">Mensajes totales</div>
+              <div class="card-value" style="margin-top: 8px;">1,847</div>
+              <div style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
+                <span class="card-delta">↑ 12.4%</span>
+                <span style="font-size: 12px; color: var(--text-muted);">vs semana anterior</span>
+              </div>
+            </div>
+            <div class="kpi-icon" style="background: var(--teal-light);">
+              <svg width="18" height="18" fill="none" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="#0d9488" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+          </div>
+
+          <!-- Sparkline SVG -->
+          <div class="sparkline-wrap" style="min-height: 70px;">
+            <svg width="100%" height="70" viewBox="0 0 320 70" preserveAspectRatio="none" style="overflow: visible;">
+              <defs>
+                <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#0d9488" stop-opacity="0.18"/>
+                  <stop offset="100%" stop-color="#0d9488" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <!-- Area fill -->
+              <path d="M0,52 C18,52 30,38 48,36 C72,34 90,44 120,30 C144,18 168,28 192,20 C216,12 240,22 268,14 C286,8 304,16 320,10 L320,70 L0,70 Z" fill="url(#sparkGrad)"/>
+              <!-- Line -->
+              <path d="M0,52 C18,52 30,38 48,36 C72,34 90,44 120,30 C144,18 168,28 192,20 C216,12 240,22 268,14 C286,8 304,16 320,10" fill="none" stroke="#0d9488" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <!-- End dot -->
+              <circle cx="320" cy="10" r="4" fill="#0d9488"/>
+            </svg>
+          </div>
+
+          <!-- Day labels -->
+          <div style="display: flex; justify-content: space-between; margin-top: -4px;">
+            <span style="font-size: 10px; color: var(--text-muted);">21 jun</span>
+            <span style="font-size: 10px; color: var(--text-muted);">23 jun</span>
+            <span style="font-size: 10px; color: var(--text-muted);">25 jun</span>
+            <span style="font-size: 10px; color: var(--text-muted);">27 jun</span>
+          </div>
+        </div>
+
+        <!-- Conversaciones -->
+        <div class="card card-small">
+          <div class="kpi-header">
+            <div class="card-label">Conversaciones</div>
+            <div class="kpi-icon" style="background: var(--cyan-light);">
+              <svg width="15" height="15" fill="none" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="#0891b2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="7" r="4" stroke="#0891b2" stroke-width="2"/><path d="M23 21v-2a4 4 0 00-3-3.87" stroke="#0891b2" stroke-width="2" stroke-linecap="round"/><path d="M16 3.13a4 4 0 010 7.75" stroke="#0891b2" stroke-width="2" stroke-linecap="round"/></svg>
+            </div>
+          </div>
+          <div class="card-value-sm">342</div>
+          <div class="card-meta">
+            <span class="card-delta">↑ 8.1%</span>
+            <span style="font-size: 11px; color: var(--text-muted);">vs sem. ant.</span>
+          </div>
+        </div>
+
+        <!-- Escalaciones -->
+        <div class="card card-small">
+          <div class="kpi-header">
+            <div class="card-label">Escalaciones</div>
+            <div class="kpi-icon" style="background: var(--amber-light);">
+              <svg width="15" height="15" fill="none" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="9" x2="12" y2="13" stroke="#d97706" stroke-width="2" stroke-linecap="round"/><line x1="12" y1="17" x2="12.01" y2="17" stroke="#d97706" stroke-width="2" stroke-linecap="round"/></svg>
+            </div>
+          </div>
+          <div class="card-value-sm" style="color: var(--amber);">18</div>
+          <div class="card-meta" style="font-size: 11px; color: var(--text-muted);">handoffs esta semana</div>
+        </div>
+
+        <!-- Leads -->
+        <div class="card card-small">
+          <div class="kpi-header">
+            <div class="card-label">Leads captados</div>
+            <div class="kpi-icon" style="background: var(--green-light);">
+              <svg width="15" height="15" fill="none" viewBox="0 0 24 24"><polyline points="22,7 13.5,15.5 8.5,10.5 2,17" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="16,7 22,7 22,13" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+          </div>
+          <div class="card-value-sm" style="color: var(--green);">47</div>
+          <div class="card-meta">
+            <span class="card-delta">↑ 23.7%</span>
+            <span style="font-size: 11px; color: var(--text-muted);">vs sem. ant.</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Section label -->
+    <div class="section-label">
+      <span>Actividad temporal</span>
+    </div>
+
+    <!-- ── Charts row ── -->
+    <div class="charts-row">
+
+      <!-- Tendencia de Actividad -->
+      <div class="card">
+        <div class="chart-header">
+          <span class="chart-title">Tendencia de Actividad</span>
+          <div class="period-tabs">
+            <div class="period-tab active" style="font-size: 11px; padding: 3px 8px;">7d</div>
+            <div class="period-tab" style="font-size: 11px; padding: 3px 8px;">30d</div>
+            <div class="period-tab" style="font-size: 11px; padding: 3px 8px;">90d</div>
+          </div>
+        </div>
+
+        <!-- Line chart SVG -->
+        <svg width="100%" height="160" viewBox="0 0 560 160" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#0d9488" stop-opacity="0.12"/>
+              <stop offset="100%" stop-color="#0d9488" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+
+          <!-- Y-axis labels -->
+          <text x="0" y="14" font-size="9" fill="#94a3b8" font-family="Inter">220</text>
+          <text x="0" y="54" font-size="9" fill="#94a3b8" font-family="Inter">165</text>
+          <text x="0" y="94" font-size="9" fill="#94a3b8" font-family="Inter">110</text>
+          <text x="0" y="134" font-size="9" fill="#94a3b8" font-family="Inter">55</text>
+
+          <!-- Grid lines -->
+          <line x1="28" y1="10" x2="556" y2="10" stroke="#f1f5f9" stroke-width="1"/>
+          <line x1="28" y1="50" x2="556" y2="50" stroke="#f1f5f9" stroke-width="1"/>
+          <line x1="28" y1="90" x2="556" y2="90" stroke="#f1f5f9" stroke-width="1"/>
+          <line x1="28" y1="130" x2="556" y2="130" stroke="#f1f5f9" stroke-width="1"/>
+
+          <!-- Area under messages line -->
+          <path d="M40,110 C95,100 150,60 215,48 C270,38 320,80 375,44 C415,18 460,55 520,32 L520,130 L40,130 Z" fill="url(#lineGrad)"/>
+
+          <!-- Messages line (teal) -->
+          <path d="M40,110 C95,100 150,60 215,48 C270,38 320,80 375,44 C415,18 460,55 520,32" fill="none" stroke="#0d9488" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+          <!-- Conversations line (cyan dashed) -->
+          <path d="M40,125 C95,118 150,96 215,90 C270,84 320,102 375,86 C415,74 460,88 520,76" fill="none" stroke="#0891b2" stroke-width="2" stroke-dasharray="5,4" stroke-linecap="round" stroke-linejoin="round"/>
+
+          <!-- Data point dots (messages) -->
+          <circle cx="40" cy="110" r="3.5" fill="white" stroke="#0d9488" stroke-width="2"/>
+          <circle cx="130" cy="78" r="3.5" fill="white" stroke="#0d9488" stroke-width="2"/>
+          <circle cx="215" cy="48" r="3.5" fill="white" stroke="#0d9488" stroke-width="2"/>
+          <circle cx="300" cy="68" r="3.5" fill="white" stroke="#0d9488" stroke-width="2"/>
+          <circle cx="375" cy="44" r="3.5" fill="white" stroke="#0d9488" stroke-width="2"/>
+          <circle cx="450" cy="44" r="3.5" fill="white" stroke="#0d9488" stroke-width="2"/>
+          <circle cx="520" cy="32" r="3.5" fill="#0d9488" stroke="#0d9488" stroke-width="2"/>
+
+          <!-- X-axis labels -->
+          <text x="36" y="152" font-size="9" fill="#94a3b8" font-family="Inter" text-anchor="middle">21 jun</text>
+          <text x="120" y="152" font-size="9" fill="#94a3b8" font-family="Inter" text-anchor="middle">22 jun</text>
+          <text x="215" y="152" font-size="9" fill="#94a3b8" font-family="Inter" text-anchor="middle">23 jun</text>
+          <text x="300" y="152" font-size="9" fill="#94a3b8" font-family="Inter" text-anchor="middle">24 jun</text>
+          <text x="375" y="152" font-size="9" fill="#94a3b8" font-family="Inter" text-anchor="middle">25 jun</text>
+          <text x="450" y="152" font-size="9" fill="#94a3b8" font-family="Inter" text-anchor="middle">26 jun</text>
+          <text x="520" y="152" font-size="9" fill="#94a3b8" font-family="Inter" text-anchor="middle">27 jun</text>
+        </svg>
+
+        <div class="chart-legend">
+          <div class="legend-item">
+            <span class="legend-dot" style="background: var(--teal);"></span>
+            Mensajes
+          </div>
+          <div class="legend-item">
+            <span class="legend-dash"></span>
+            Conversaciones
+          </div>
+        </div>
+      </div>
+
+      <!-- Horas Pico heatmap -->
+      <div class="card">
+        <div class="chart-header">
+          <span class="chart-title">Horas Pico</span>
+        </div>
+
+        <div class="heatmap-grid">
+          <!-- Hour labels row (col 0 empty, then 0-23 every 4h) -->
+          <div></div>
+          <div class="hm-hour-label" style="grid-column: span 4; text-align:left;">0h</div>
+          <div class="hm-hour-label" style="grid-column: span 4;">4h</div>
+          <div class="hm-hour-label" style="grid-column: span 4;">8h</div>
+          <div class="hm-hour-label" style="grid-column: span 4;">12h</div>
+          <div class="hm-hour-label" style="grid-column: span 4;">16h</div>
+          <div class="hm-hour-label" style="grid-column: span 4; text-align:right;">23h</div>
+
+          <!-- Each row: label + 24 cells. Intensity: 0=lightest, 5=darkest teal -->
+          <!-- Helper: opacity values for teal cells -->
+          <!-- Lun -->
+          <div class="hm-label">Lun</div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.04)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.05)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.06)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.05)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.04)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.06)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.12)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.18)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.22)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.28)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.40)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.52)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.58)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.44)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.30)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.22)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.16)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.10)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.08)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.06)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.04)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div>
+
+          <!-- Mar -->
+          <div class="hm-label">Mar</div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.04)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.05)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.06)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.08)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.10)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.16)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.22)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.30)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.38)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.55)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.72)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.80)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.65)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.42)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.28)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.18)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.12)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.08)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.06)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.04)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div>
+
+          <!-- Mié -->
+          <div class="hm-label">Mié</div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.04)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.05)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.05)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.06)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.09)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.14)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.20)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.30)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.42)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.50)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.62)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.75)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.70)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.55)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.38)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.25)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.16)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.10)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.07)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.05)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.04)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div>
+
+          <!-- Jue (PEAK day) -->
+          <div class="hm-label" style="color: var(--teal); font-weight: 700;">Jue</div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.04)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.06)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.07)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.09)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.12)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.18)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.28)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.42)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.58)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.68)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.80)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.95); outline: 2px solid #0d9488; outline-offset: 1px; border-radius: 3px;"></div><div class="hm-cell" style="background:rgba(13,148,136,0.85)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.70)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.48)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.32)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.20)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.12)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.08)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.06)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.04)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div>
+
+          <!-- Vie -->
+          <div class="hm-label">Vie</div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.05)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.06)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.08)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.10)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.15)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.22)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.34)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.46)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.54)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.60)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.68)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.62)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.48)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.30)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.20)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.12)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.08)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.06)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.05)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div>
+
+          <!-- Sáb -->
+          <div class="hm-label">Sáb</div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.04)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.04)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.05)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.06)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.08)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.10)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.14)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.18)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.22)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.26)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.24)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.18)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.12)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.08)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.06)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.05)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.04)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div>
+
+          <!-- Dom -->
+          <div class="hm-label">Dom</div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.04)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.04)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.05)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.06)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.08)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.10)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.12)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.14)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.16)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.15)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.12)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.08)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.06)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.05)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.04)"></div>
+          <div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div><div class="hm-cell" style="background:rgba(13,148,136,0.03)"></div>
+        </div>
+
+        <div style="margin-top: 14px;">
+          <span class="hm-peak-badge">
+            <svg width="12" height="12" fill="none" viewBox="0 0 24 24"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26 12,2" fill="#0d9488"/></svg>
+            Pico máximo: Jue 14h
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section label -->
+    <div class="section-label">
+      <span>Datos accionables</span>
+    </div>
+
+    <!-- ── Bottom row ── -->
+    <div class="bottom-row" style="padding-bottom: 32px;">
+
+      <!-- Preguntas sin Respuesta -->
+      <div style="position: relative;">
+        <span class="annotation moved">↑ Movida arriba — Era lo más útil, estaba enterrada</span>
+        <div class="card">
+          <div class="chart-header">
+            <span class="chart-title">Preguntas sin Respuesta</span>
+            <span style="font-size: 12px; color: var(--text-muted); font-weight: 500;">Última actualización: hace 3 min</span>
+          </div>
+
+          <div class="table-search-wrap">
+            <svg class="search-icon" width="14" height="14" fill="none" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2"/><line x1="21" y1="21" x2="16.65" y2="16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <input class="table-search" type="text" placeholder="Buscar preguntas sin respuesta..." readonly>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 55%;">Pregunta</th>
+                <th style="width: 10%; text-align: center;">Freq</th>
+                <th style="width: 18%;">Última vez</th>
+                <th style="width: 17%; text-align: center;">Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>¿Cuánto cuesta el plan empresarial?</td>
+                <td style="text-align: center;"><span class="freq-badge">24</span></td>
+                <td style="color: var(--text-muted);">Hoy, 14:32</td>
+                <td style="text-align: center;"><a class="action-link" href="#">Añadir al corpus →</a></td>
+              </tr>
+              <tr>
+                <td>¿Tienen integración con Salesforce?</td>
+                <td style="text-align: center;"><span class="freq-badge">18</span></td>
+                <td style="color: var(--text-muted);">Hoy, 13:15</td>
+                <td style="text-align: center;"><a class="action-link" href="#">Añadir al corpus →</a></td>
+              </tr>
+              <tr>
+                <td>¿Cómo puedo cancelar mi suscripción?</td>
+                <td style="text-align: center;"><span class="freq-badge">15</span></td>
+                <td style="color: var(--text-muted);">Ayer, 18:40</td>
+                <td style="text-align: center;"><a class="action-link" href="#">Añadir al corpus →</a></td>
+              </tr>
+              <tr>
+                <td>¿Ofrecen soporte en español 24/7?</td>
+                <td style="text-align: center;"><span class="freq-badge">12</span></td>
+                <td style="color: var(--text-muted);">Ayer, 16:22</td>
+                <td style="text-align: center;"><a class="action-link" href="#">Añadir al corpus →</a></td>
+              </tr>
+              <tr>
+                <td>¿Pueden importar datos desde HubSpot?</td>
+                <td style="text-align: center;"><span class="freq-badge">11</span></td>
+                <td style="color: var(--text-muted);">Ayer, 11:05</td>
+                <td style="text-align: center;"><a class="action-link" href="#">Añadir al corpus →</a></td>
+              </tr>
+              <tr>
+                <td>¿Hay período de prueba gratuito?</td>
+                <td style="text-align: center;"><span class="freq-badge">9</span></td>
+                <td style="color: var(--text-muted);">25 jun</td>
+                <td style="text-align: center;"><a class="action-link" href="#">Añadir al corpus →</a></td>
+              </tr>
+              <tr>
+                <td>¿Cuántos usuarios incluye la licencia?</td>
+                <td style="text-align: center;"><span class="freq-badge">8</span></td>
+                <td style="color: var(--text-muted);">25 jun</td>
+                <td style="text-align: center;"><a class="action-link" href="#">Añadir al corpus →</a></td>
+              </tr>
+              <tr>
+                <td>¿El chatbot puede responder en inglés también?</td>
+                <td style="text-align: center;"><span class="freq-badge">7</span></td>
+                <td style="color: var(--text-muted);">24 jun</td>
+                <td style="text-align: center;"><a class="action-link" href="#">Añadir al corpus →</a></td>
+              </tr>
+              <tr>
+                <td>¿Tienen API para desarrolladores?</td>
+                <td style="text-align: center;"><span class="freq-badge">6</span></td>
+                <td style="color: var(--text-muted);">24 jun</td>
+                <td style="text-align: center;"><a class="action-link" href="#">Añadir al corpus →</a></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="table-footer">
+            <span class="table-count">Mostrando 9 de 34 preguntas sin respuesta</span>
+            <a class="export-link" href="#">
+              <svg width="12" height="12" fill="none" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="7,10 12,15 17,10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="15" x2="12" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Exportar CSV →
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Distribución de Escalaciones -->
+      <div style="position: relative;">
+        <span class="annotation improved">✦ Rediseñado — Antes texto plano</span>
+        <div class="card" style="height: calc(100% - 28px);">
+          <div class="chart-header">
+            <span class="chart-title">Distribución de Escalaciones</span>
+          </div>
+
+          <div class="esc-row">
+            <div class="esc-meta">
+              <span class="esc-label">
+                <span style="display:inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--amber); margin-right: 6px; vertical-align: middle;"></span>
+                Baja confianza
+              </span>
+              <span class="esc-pct">58%</span>
+            </div>
+            <div class="esc-track">
+              <div class="esc-fill" style="width: 58%; background: var(--amber);"></div>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">42 handoffs</div>
+          </div>
+
+          <div class="esc-row">
+            <div class="esc-meta">
+              <span class="esc-label">
+                <span style="display:inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--cyan); margin-right: 6px; vertical-align: middle;"></span>
+                Solicitud de usuario
+              </span>
+              <span class="esc-pct">21%</span>
+            </div>
+            <div class="esc-track">
+              <div class="esc-fill" style="width: 21%; background: var(--cyan);"></div>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">15 handoffs</div>
+          </div>
+
+          <div class="esc-row">
+            <div class="esc-meta">
+              <span class="esc-label">
+                <span style="display:inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--violet); margin-right: 6px; vertical-align: middle;"></span>
+                Fuera de alcance
+              </span>
+              <span class="esc-pct">8%</span>
+            </div>
+            <div class="esc-track">
+              <div class="esc-fill" style="width: 8%; background: var(--violet);"></div>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">6 handoffs</div>
+          </div>
+
+          <div class="esc-row">
+            <div class="esc-meta">
+              <span class="esc-label">
+                <span style="display:inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); margin-right: 6px; vertical-align: middle;"></span>
+                Otros
+              </span>
+              <span class="esc-pct">13%</span>
+            </div>
+            <div class="esc-track">
+              <div class="esc-fill" style="width: 13%; background: var(--text-muted);"></div>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">10 handoffs</div>
+          </div>
+
+          <div class="esc-total">
+            73 escalaciones en 30 días
+            <strong>73</strong>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

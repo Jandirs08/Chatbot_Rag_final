@@ -1,14 +1,12 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-  darkMode: 'class',
-  content: [
-    "./app/**/*.{js,ts,jsx,tsx,mdx}",
-    "./src/**/*.{js,ts,jsx,tsx,mdx}",
-  ],
+  darkMode: "class",
+  content: ["./app/**/*.{js,ts,jsx,tsx,mdx}", "./src/**/*.{js,ts,jsx,tsx,mdx}"],
   theme: {
     extend: {
-      colors: { // <--- Añade esta sección
+      colors: {
+        // <--- Añade esta sección
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -17,9 +15,13 @@ const config: Config = {
         surface: {
           DEFAULT: "hsl(var(--surface))",
           elevated: "hsl(var(--surface-elevated))",
+          2: "hsl(var(--surface-2))",
+          3: "hsl(var(--surface-3))",
         },
         brand: {
-          DEFAULT: "var(--brand-color)",
+          DEFAULT: "hsl(var(--primary))",
+          hover: "hsl(var(--primary))",
+          light: "hsl(var(--primary-faint))",
           foreground: "#ffffff",
         },
         primary: {
@@ -82,7 +84,8 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        sidebar: { // <--- Añade esta sección para los colores del sidebar
+        sidebar: {
+          // <--- Añade esta sección para los colores del sidebar
           background: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
           primary: "hsl(var(--sidebar-primary))",
@@ -95,13 +98,20 @@ const config: Config = {
       },
       fontFamily: {
         sans: ["var(--font-sans)", "Inter", "system-ui", "sans-serif"],
-        heading: ["var(--font-heading)", "'Space Grotesk'", "system-ui", "sans-serif"],
+        heading: [
+          "var(--font-heading)",
+          "'Space Grotesk'",
+          "system-ui",
+          "sans-serif",
+        ],
         mono: ["var(--font-mono-ui)", "'DM Mono'", "'Fira Code'", "monospace"],
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        md: "calc(var(--radius) - 2px)",
+        lg: "var(--radius)",
+        xl: "calc(var(--radius) + 4px)",
+        "2xl": "calc(var(--radius) + 8px)",
       },
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
@@ -118,6 +128,11 @@ const config: Config = {
         "560": "560ms",
       },
       boxShadow: {
+        sm: "var(--shadow-sm)",
+        card: "var(--shadow-card)",
+        md: "var(--shadow-md)",
+        lg: "var(--shadow-lg)",
+        hover: "var(--shadow-hover)",
         "glow-primary": "var(--shadow-glow-primary)",
         "glow-violet": "var(--shadow-glow-violet)",
         "glow-cyan": "var(--shadow-glow-cyan)",
@@ -131,9 +146,9 @@ const config: Config = {
       try {
         return require("@tailwindcss/typography");
       } catch (_e) {
-        return () => { };
+        return () => {};
       }
-    })()
+    })(),
   ],
 };
 export default config;

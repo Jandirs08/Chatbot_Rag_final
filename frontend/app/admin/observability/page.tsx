@@ -33,7 +33,7 @@ import { ThroughputSection } from "./_components/ThroughputSection";
 import { GatingSection } from "./_components/GatingSection";
 import { TokensSection } from "./_components/TokensSection";
 import { KnowledgeGapsTab } from "./_components/KnowledgeGapsTab";
-import { ServicePanel } from "./_components/ServicePanel";
+import { ServicesStrip } from "./_components/ServicesStrip";
 import { FloatingAlert } from "./_components/FloatingAlert";
 import { RefreshCountdown } from "./_components/RefreshCountdown";
 
@@ -261,7 +261,7 @@ export default function ObservabilityPage() {
         <header className="sticky top-0 z-50 flex items-center justify-between px-6 py-3 border-b border-border bg-background/80 backdrop-blur-md">
           <div className="flex items-center gap-3">
             <span className="text-[11px] font-bold tracking-[0.18em] uppercase text-muted-foreground">
-              Mission Control
+              Observabilidad
             </span>
             <span
               className={`flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1 rounded-full border ${statusTextColor} ${statusBgBorder}`}
@@ -318,24 +318,21 @@ export default function ObservabilityPage() {
         {/* ── FLOATING ALERT ─────────────────────────────────────────────────── */}
         <FloatingAlert alerts={activeAlerts} onDismiss={dismissAlert} />
 
-        {/* ── BODY: sidebar + main ─────────────────────────────────────────── */}
-        <div
-          className="grid"
-          style={{
-            gridTemplateColumns: "264px 1fr",
-            minHeight: "calc(100vh - 49px)",
-          }}
-        >
-          {/* Left panel */}
-          <ServicePanel
-            health={healthData ?? null}
-            status={statusData ?? null}
-            obs={obsData ?? null}
-          />
+        {/* ── SERVICES STRIP ───────────────────────────────────────────────── */}
+        <ServicesStrip
+          health={healthData ?? null}
+          status={statusData ?? null}
+          obs={obsData ?? null}
+        />
 
-          {/* Main content */}
+        {/* ── BODY: full-width main ─────────────────────────────────────────── */}
+        {/* header ~48px + services strip ~49px = 97px */}
+        <div
+          className="flex flex-col"
+          style={{ minHeight: "calc(100vh - 97px)" }}
+        >
           <main
-            className="overflow-y-auto p-5 flex flex-col gap-3"
+            className="p-5 flex flex-col gap-3 max-w-screen-xl mx-auto w-full"
             data-surface="telemetry"
             role="tabpanel"
             aria-label={

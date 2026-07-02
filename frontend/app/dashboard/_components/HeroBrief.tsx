@@ -27,7 +27,7 @@ export function HeroBrief({
       <div>
         {/* Eyebrow */}
         <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground mb-2">
-          Intelligence Brief · Hoy
+          Métricas · Hoy
         </div>
 
         {/* Main metrics row */}

@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Aleph — Design Preview v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f8f9fb;--surface:#fff;--surface-2:#f2f4f7;--surface-3:#e8ecf2;
+  --border:#e2e6ed;--border-strong:#c8cfd9;
+  --text:#0f172a;--text-2:#475569;--text-3:#94a3b8;--text-inv:#fff;
+  --brand:#0d9488;--brand-hover:#0b7c72;--brand-light:#f0fdfa;--brand-mid:#99f6e4;
+  --cyan:#0891b2;--cyan-light:#e0f9ff;
+  --amber:#d97706;--amber-light:#fffbeb;
+  --violet:#7c3aed;--violet-light:#f5f3ff;
+  --magenta:#db2777;--magenta-light:#fdf2f8;
+  --red:#dc2626;--red-light:#fef2f2;
+  --green:#16a34a;--green-light:#f0fdf4;
+  --shadow-sm:0 1px 3px rgba(15,23,42,.07);
+  --shadow:0 4px 16px rgba(15,23,42,.09);
+  --shadow-lg:0 12px 40px rgba(15,23,42,.14);
+  --radius:8px;--radius-lg:12px;--radius-xl:16px;
+  --font-body:'Inter',sans-serif;--font-head:'Space Grotesk',sans-serif;--font-mono:'DM Mono',monospace;
+}
+body{font-family:var(--font-body);background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;display:flex;height:100vh;overflow:hidden}
+.sidebar{width:220px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0}
+.sidebar-brand{padding:16px 16px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.brand-mark{width:32px;height:32px;background:var(--brand);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--font-head);font-weight:700;font-size:14px}
+.brand-name{font-family:var(--font-head);font-weight:700;font-size:16px}
+.sidebar-nav{flex:1;padding:8px;overflow-y:auto}
+.nav-section{font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;padding:12px 8px 4px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:var(--radius);cursor:pointer;color:var(--text-2);font-weight:500;font-size:13px;transition:.12s}
+.nav-item:hover{background:var(--surface-2);color:var(--text)}
+.nav-item.active{background:var(--brand-light);color:var(--brand);font-weight:600}
+.nav-item i{width:16px;height:16px;flex-shrink:0}
+.nav-badge{margin-left:auto;background:var(--magenta);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px}
+.sidebar-footer{padding:12px;border-top:1px solid var(--border)}
+.user-row{display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px;border-radius:var(--radius)}
+.user-row:hover{background:var(--surface-2)}
+.avatar{width:30px;height:30px;border-radius:50%;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0}
+.user-name{font-weight:600;font-size:12px}
+.user-role{font-size:11px;color:var(--text-3)}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.topbar{height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:12px;flex-shrink:0}
+.topbar-title{font-family:var(--font-head);font-weight:700;font-size:18px;flex:1}
+.search-trigger{display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:6px 12px;cursor:pointer;color:var(--text-3);font-size:13px;min-width:200px}
+.search-trigger kbd{background:var(--surface-3);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:11px;font-family:var(--font-mono)}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--radius);font-weight:600;font-size:13px;cursor:pointer;border:none;transition:.12s;white-space:nowrap}
+.btn-primary{background:var(--brand);color:#fff}.btn-primary:hover{background:var(--brand-hover)}
+.btn-secondary{background:var(--surface-2);color:var(--text);border:1px solid var(--border)}.btn-secondary:hover{background:var(--surface-3)}
+.btn-ghost{background:transparent;color:var(--text-2)}.btn-ghost:hover{background:var(--surface-2)}
+.btn-danger{background:var(--red);color:#fff}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-icon{padding:7px;border-radius:var(--radius);background:transparent;border:none;cursor:pointer;color:var(--text-2);display:flex;align-items:center}.btn-icon:hover{background:var(--surface-2)}
+.view{flex:1;overflow-y:auto;display:none;padding:24px}
+.view.active{display:block}
+.grid{display:grid;gap:16px}
+.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr 1fr 1fr}.g4{grid-template-columns:repeat(4,1fr)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;box-shadow:var(--shadow-sm)}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.card-title{font-family:var(--font-head);font-weight:700;font-size:15px}
+.kpi-value{font-family:var(--font-head);font-size:28px;font-weight:700;line-height:1.1}
+.kpi-label{font-size:12px;color:var(--text-3);margin-top:2px}
+.kpi-delta{font-size:12px;font-weight:600;margin-top:8px;display:flex;align-items:center;gap:4px}
+.delta-up{color:var(--green)}.delta-down{color:var(--red)}
+.kpi-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-teal{background:var(--brand-light);color:var(--brand)}
+.badge-cyan{background:var(--cyan-light);color:var(--cyan)}
+.badge-amber{background:var(--amber-light);color:var(--amber)}
+.badge-violet{background:var(--violet-light);color:var(--violet)}
+.badge-magenta{background:var(--magenta-light);color:var(--magenta)}
+.badge-red{background:var(--red-light);color:var(--red)}
+.badge-green{background:var(--green-light);color:var(--green)}
+.badge-gray{background:var(--surface-2);color:var(--text-2)}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;padding:8px 12px;border-bottom:2px solid var(--border)}
+td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
+tr:hover td{background:var(--surface-2)}
+input[type=checkbox]{width:15px;height:15px;accent-color:var(--brand);cursor:pointer}
+.form-group{margin-bottom:16px}
+label{display:block;font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:5px}
+.input,.select,.textarea{width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font-body);background:var(--surface);color:var(--text);transition:.12s;outline:none}
+.input:focus,.select:focus,.textarea:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(13,148,136,.12)}
+.textarea{resize:vertical;min-height:80px}
+.input-group{display:flex;gap:0}
+.input-group .input{border-radius:var(--radius) 0 0 var(--radius)}
+.input-group .btn{border-radius:0 var(--radius) var(--radius) 0}
+.input-hint{font-size:11px;color:var(--text-3);margin-top:4px}
+.input-error{border-color:var(--red)!important}
+.input-error-msg{font-size:11px;color:var(--red);margin-top:4px;display:flex;align-items:center;gap:4px}
+.toggle{position:relative;width:36px;height:20px;display:inline-block}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;inset:0;background:var(--surface-3);border-radius:20px;cursor:pointer;transition:.2s}
+.toggle-slider:before{content:'';position:absolute;width:14px;height:14px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s;box-shadow:var(--shadow-sm)}
+.toggle input:checked+.toggle-slider{background:var(--brand)}
+.toggle input:checked+.toggle-slider:before{transform:translateX(16px)}
+.radio-group,.check-group{display:flex;flex-direction:column;gap:8px}
+.radio-opt,.check-opt{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:normal}
+.slider-input{width:100%;accent-color:var(--brand);margin-top:6px}
+.chat-layout{display:flex;height:calc(100vh - 100px);min-height:400px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+.convo-list{width:280px;border-right:1px solid var(--border);overflow-y:auto;flex-shrink:0}
+.convo-item{padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:.12s}
+.convo-item:hover{background:var(--surface-2)}
+.convo-item.active{background:var(--brand-light);border-left:3px solid var(--brand)}
+.convo-meta{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px}
+.convo-name{font-weight:600;font-size:13px}
+.convo-time{font-size:11px;color:var(--text-3)}
+.convo-preview{font-size:12px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.chat-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.chat-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+.msg{max-width:70%;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.5}
+.msg-user{background:var(--brand);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+.msg-bot{background:var(--surface-2);color:var(--text);align-self:flex-start;border-bottom-left-radius:4px}
+.msg-label{font-size:11px;color:var(--text-3);margin-bottom:3px}
+.chat-sources{background:var(--brand-light);border:1px solid var(--brand-mid);border-radius:var(--radius);padding:10px 14px;font-size:12px;color:var(--text-2)}
+.chat-input-row{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px}
+.chat-input-row .input{flex:1}
+.dropzone{border:2px dashed var(--border-strong);border-radius:var(--radius-lg);padding:32px;text-align:center;cursor:pointer;transition:.2s}
+.dropzone:hover{border-color:var(--brand);background:var(--brand-light)}
+.dropzone-icon{width:48px;height:48px;background:var(--surface-2);border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px}
+.empty-state{text-align:center;padding:48px 24px}
+.empty-icon{width:64px;height:64px;background:var(--surface-2);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
+.empty-title{font-family:var(--font-head);font-weight:700;font-size:16px;margin-bottom:6px}
+.empty-desc{color:var(--text-3);font-size:13px;max-width:280px;margin:0 auto 20px}
+.skeleton{background:linear-gradient(90deg,var(--surface-2) 25%,var(--surface-3) 50%,var(--surface-2) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:4px}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.chart-area{height:180px;background:var(--surface-2);border-radius:var(--radius);display:flex;align-items:flex-end;gap:6px;padding:12px;overflow:hidden}
+.bar{flex:1;border-radius:4px 4px 0 0}
+.stat-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)}
+.stat-row:last-child{border:0}
+.kanban{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px}
+.kan-col{min-width:220px;background:var(--surface-2);border-radius:var(--radius-lg);padding:12px}
+.kan-col-header{font-weight:700;font-size:13px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.kan-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px;margin-bottom:8px;cursor:pointer;transition:.12s}
+.kan-card:hover{box-shadow:var(--shadow)}
+.overlay{position:fixed;inset:0;background:rgba(15,23,42,.4);backdrop-filter:blur(3px);z-index:100;display:none;align-items:center;justify-content:center}
+.overlay.open{display:flex}
+.modal{background:var(--surface);border-radius:var(--radius-xl);box-shadow:var(--shadow-lg);width:480px;max-width:90vw;overflow:hidden}
+.modal-header{padding:20px 24px 0;display:flex;align-items:flex-start;justify-content:space-between}
+.modal-title{font-family:var(--font-head);font-weight:700;font-size:18px}
+.modal-body{padding:16px 24px}
+.modal-footer{padding:0 24px 20px;display:flex;gap:8px;justify-content:flex-end}
+.drawer{position:fixed;right:0;top:0;bottom:0;width:420px;background:var(--surface);border-left:1px solid var(--border);z-index:101;transform:translateX(100%);transition:.25s cubic-bezier(.4,0,.2,1);box-shadow:var(--shadow-lg);display:flex;flex-direction:column}
+.drawer.open{transform:translateX(0)}
+.drawer-header{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.drawer-body{flex:1;overflow-y:auto;padding:20px 24px}
+.cmd-palette{background:var(--surface);border-radius:var(--radius-xl);box-shadow:var(--shadow-lg);width:560px;max-width:90vw;overflow:hidden;border:1px solid var(--border)}
+.cmd-input{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border)}
+.cmd-input input{flex:1;border:0;outline:none;font-size:15px;font-family:var(--font-body);background:transparent}
+.cmd-results{max-height:340px;overflow-y:auto}
+.cmd-group-label{font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;padding:10px 14px 4px}
+.cmd-item{display:flex;align-items:center;gap:10px;padding:8px 14px;cursor:pointer;font-size:13px}
+.cmd-item:hover,.cmd-item.selected{background:var(--brand-light);color:var(--brand)}
+.cmd-item-icon{width:28px;height:28px;border-radius:6px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.cmd-shortcut{margin-left:auto;font-family:var(--font-mono);font-size:11px;color:var(--text-3);background:var(--surface-2);border-radius:4px;padding:2px 6px}
+.toast-area{position:fixed;bottom:24px;right:24px;z-index:200;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);padding:12px 16px;display:flex;align-items:center;gap:10px;min-width:280px;pointer-events:all;animation:slideIn .2s ease}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+.toast-success{border-left:4px solid var(--green)}.toast-error{border-left:4px solid var(--red)}.toast-info{border-left:4px solid var(--brand)}
+.color-swatch{width:100%;height:48px;border-radius:var(--radius);border:1px solid rgba(0,0,0,.06)}
+.color-label{font-size:11px;font-weight:600;margin-top:5px}
+.color-hex{font-size:10px;font-family:var(--font-mono);color:var(--text-3)}
+.icon-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px}
+.icon-cell{display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px;border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:.12s}
+.icon-cell:hover{background:var(--brand-light);border-color:var(--brand)}
+.icon-cell span{font-size:10px;color:var(--text-3);text-align:center;word-break:break-all}
+.progress-bar{height:6px;background:var(--surface-2);border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;border-radius:3px}
+.tooltip-demo{position:relative;display:inline-block}
+.tooltip-demo .tooltip-box{position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--text);color:#fff;font-size:11px;padding:4px 8px;border-radius:5px;white-space:nowrap;pointer-events:none;opacity:0;transition:.15s}
+.tooltip-demo:hover .tooltip-box{opacity:1}
+.ux-note{background:var(--amber-light);border:1px solid #fde68a;border-left:4px solid var(--amber);border-radius:var(--radius);padding:10px 14px;font-size:12px;color:#92400e;margin:12px 0;display:flex;gap:8px}
+.ux-add{background:var(--green-light);border-color:#bbf7d0;border-left-color:var(--green);color:#14532d}
+.ux-remove{background:var(--red-light);border-color:#fecaca;border-left-color:var(--red);color:#7f1d1d}
+.ux-move{background:var(--violet-light);border-color:#ddd6fe;border-left-color:var(--violet);color:#4c1d95}
+.section-title{font-family:var(--font-head);font-weight:700;font-size:22px;margin-bottom:4px}
+.section-sub{color:var(--text-3);font-size:14px;margin-bottom:20px}
+</style>
+</head>
+<body>
+<div class="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-mark">A</div>
+    <div><div class="brand-name">Aleph</div></div>
+  </div>
+  <div class="sidebar-nav">
+    <div class="nav-section">Principal</div>
+    <div class="nav-item active" onclick="show('dashboard',this)"><i data-lucide="layout-dashboard"></i>Dashboard</div>
+    <div class="nav-item" onclick="show('convos',this)"><i data-lucide="message-square"></i>Conversaciones<span class="nav-badge">3</span></div>
+    <div class="nav-item" onclick="show('inbox',this)"><i data-lucide="inbox"></i>Inbox / Kanban</div>
+    <div class="nav-item" onclick="show('corpus',this)"><i data-lucide="database"></i>Corpus</div>
+    <div class="nav-section">Analítica</div>
+    <div class="nav-item" onclick="show('observability',this)"><i data-lucide="activity"></i>Observabilidad</div>
+    <div class="nav-section">Sistema</div>
+    <div class="nav-item" onclick="show('settings',this)"><i data-lucide="settings"></i>Configuración</div>
+    <div class="nav-item" onclick="show('components',this)"><i data-lucide="component"></i>Componentes</div>
+    <div class="nav-item" onclick="show('colors',this)"><i data-lucide="palette"></i>Sistema de Color</div>
+    <div class="nav-item" onclick="show('icons',this)"><i data-lucide="shapes"></i>Iconos</div>
+  </div>
+  <div class="sidebar-footer">
+    <div class="user-row">
+      <div class="avatar">JR</div>
+      <div style="flex:1"><div class="user-name">Jandir Romero</div><div class="user-role">Administrador</div></div>
+      <i data-lucide="chevron-up" style="width:14px;height:14px;color:var(--text-3)"></i>
+    </div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title" id="page-title">Dashboard</div>
+    <div class="search-trigger" onclick="openCmd()"><i data-lucide="search" style="width:14px;height:14px"></i>Buscar…<kbd>⌘K</kbd></div>
+    <button class="btn-icon"><i data-lucide="bell" style="width:16px;height:16px"></i></button>
+    <button class="btn-icon"><i data-lucide="help-circle" style="width:16px;height:16px"></i></button>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="view active" id="v-dashboard">
+    <div class="ux-note ux-add"><i data-lucide="plus-circle" style="width:14px;height:14px;flex-shrink:0;margin-top:1px"></i><div><strong>PROPUESTA ADD:</strong> Quick Actions bar — Nuevo corpus · Test chatbot · Ver handoffs. Reduce clics desde dashboard.</div></div>
+    <div class="grid g4" style="margin-bottom:16px">
+      <div class="card" style="display:flex;align-items:center;gap:14px">
+        <div class="kpi-icon" style="background:var(--brand-light)"><i data-lucide="message-square" style="color:var(--brand);width:20px;height:20px"></i></div>
+        <div><div class="kpi-value">1,284</div><div class="kpi-label">Conversaciones</div><div class="kpi-delta delta-up"><i data-lucide="trending-up" style="width:12px;height:12px"></i>+12% esta semana</div></div>
+      </div>
+      <div class="card" style="display:flex;align-items:center;gap:14px">
+        <div class="kpi-icon" style="background:var(--cyan-light)"><i data-lucide="users" style="color:var(--cyan);width:20px;height:20px"></i></div>
+        <div><div class="kpi-value">347</div><div class="kpi-label">Leads capturados</div><div class="kpi-delta delta-up"><i data-lucide="trending-up" style="width:12px;height:12px"></i>+8%</div></div>
+      </div>
+      <div class="card" style="display:flex;align-items:center;gap:14px">
+        <div class="kpi-icon" style="background:var(--amber-light)"><i data-lucide="hand" style="color:var(--amber);width:20px;height:20px"></i></div>
+        <div><div class="kpi-value">29</div><div class="kpi-label">Handoffs humanos</div><div class="kpi-delta delta-down"><i data-lucide="trending-down" style="width:12px;height:12px"></i>-3%</div></div>
+      </div>
+      <div class="card" style="display:flex;align-items:center;gap:14px">
+        <div class="kpi-icon" style="background:var(--green-light)"><i data-lucide="check-circle-2" style="color:var(--green);width:20px;height:20px"></i></div>
+        <div><div class="kpi-value">94%</div><div class="kpi-label">Tasa resolución</div><div class="kpi-delta delta-up"><i data-lucide="trending-up" style="width:12px;height:12px"></i>+2pts</div></div>
+      </div>
+    </div>
+    <div class="grid g2" style="margin-bottom:16px">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Conversaciones / día</div><div class="badge badge-teal">Últimos 7 días</div></div>
+        <div class="chart-area">
+          <div class="bar" style="height:55%;background:var(--brand-mid)"></div>
+          <div class="bar" style="height:70%;background:var(--brand-mid)"></div>
+          <div class="bar" style="height:45%;background:var(--brand-mid)"></div>
+          <div class="bar" style="height:85%;background:var(--brand)"></div>
+          <div class="bar" style="height:60%;background:var(--brand-mid)"></div>
+          <div class="bar" style="height:90%;background:var(--brand)"></div>
+          <div class="bar" style="height:75%;background:var(--brand-mid)"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Salud del Corpus</div><button class="btn btn-secondary btn-sm">Ver detalles</button></div>
+        <div class="stat-row"><span>Documentos activos</span><strong>142</strong></div>
+        <div class="stat-row"><span>Chunks indexados</span><strong>8,491</strong></div>
+        <div class="stat-row"><span>Última actualización</span><span class="badge badge-green">Hace 2h</span></div>
+        <div style="margin-top:10px">
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-3);margin-bottom:4px"><span>Productos</span><span>87%</span></div>
+          <div class="progress-bar"><div class="progress-fill" style="width:87%;background:var(--brand)"></div></div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-3);margin:8px 0 4px"><span>Precios</span><span>62%</span></div>
+          <div class="progress-bar"><div class="progress-fill" style="width:62%;background:var(--amber)"></div></div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-3);margin:8px 0 4px"><span>Garantías</span><span>40%</span></div>
+          <div class="progress-bar"><div class="progress-fill" style="width:40%;background:var(--red)"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Conversaciones recientes</div><button class="btn btn-secondary btn-sm">Ver todas</button></div>
+      <div class="ux-note ux-move" style="margin-bottom:12px"><i data-lucide="move" style="width:14px;height:14px;flex-shrink:0;margin-top:1px"></i><strong>PROPUESTA MOVE:</strong> El estado "handoff" debe ser pill amber visible, no texto plano — facilita escaneo en tabla.</div>
+      <table>
+        <tr><th style="width:36px"><input type="checkbox"></th><th>Usuario</th><th>Último mensaje</th><th>Canal</th><th>Estado</th><th>Tiempo</th><th></th></tr>
+        <tr><td><input type="checkbox"></td><td><div style="font-weight:600">María García</div><div style="font-size:11px;color:var(--text-3)">+51 999 000 111</div></td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">¿Tienen el modelo XP200 en stock?</td><td><span class="badge badge-green">WhatsApp</span></td><td><span class="badge badge-teal">Activa</span></td><td style="color:var(--text-3)">2 min</td><td><button class="btn-icon"><i data-lucide="external-link" style="width:14px;height:14px"></i></button></td></tr>
+        <tr><td><input type="checkbox"></td><td><div style="font-weight:600">Carlos Ramos</div><div style="font-size:11px;color:var(--text-3)">cramos@corp.pe</div></td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Necesito hablar con un asesor</td><td><span class="badge badge-cyan">Web</span></td><td><span class="badge badge-amber">Handoff</span></td><td style="color:var(--text-3)">15 min</td><td><button class="btn-icon"><i data-lucide="external-link" style="width:14px;height:14px"></i></button></td></tr>
+        <tr><td><input type="checkbox"></td><td><div style="font-weight:600">Ana Torres</div><div style="font-size:11px;color:var(--text-3)">ana@empresa.com</div></td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Gracias, muy útil la información!</td><td><span class="badge badge-green">WhatsApp</span></td><td><span class="badge badge-gray">Cerrada</span></td><td style="color:var(--text-3)">1h</td><td><button class="btn-icon"><i data-lucide="external-link" style="width:14px;height:14px"></i></button></td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- CONVERSATIONS -->
+  <div class="view" id="v-convos">
+    <div class="ux-note ux-add" style="margin-bottom:12px"><i data-lucide="plus-circle" style="width:14px;height:14px;flex-shrink:0;margin-top:1px"></i><strong>PROPUESTA ADD:</strong> Panel "Fuentes RAG usadas" — muestra qué docs respondieron la consulta. Hoy no existe. Crítico para auditar respuestas del bot.</div>
+    <div class="chat-layout">
+      <div class="convo-list">
+        <div style="padding:10px;border-bottom:1px solid var(--border)"><input class="input" placeholder="Buscar conversaciones…"></div>
+        <div class="convo-item active"><div class="convo-meta"><span class="convo-name">María García</span><span class="convo-time">2m</span></div><div class="convo-preview">¿Tienen el modelo XP200 en stock?</div></div>
+        <div class="convo-item"><div class="convo-meta"><span class="convo-name">Carlos Ramos</span><span class="convo-time">15m</span></div><div class="convo-preview">Necesito hablar con un asesor</div></div>
+        <div class="convo-item"><div class="convo-meta"><span class="convo-name">Ana Torres</span><span class="convo-time">1h</span></div><div class="convo-preview">Gracias, muy útil la información!</div></div>
+        <div class="convo-item"><div class="convo-meta"><span class="convo-name">Pedro Nuñez</span><span class="convo-time">3h</span></div><div class="convo-preview">Cuánto cuesta el plan premium?</div></div>
+      </div>
+      <div class="chat-main">
+        <div class="chat-header">
+          <div class="avatar" style="width:34px;height:34px;font-size:13px">MG</div>
+          <div style="flex:1"><div style="font-weight:700">María García</div><div style="font-size:11px;color:var(--text-3)">WhatsApp · +51 999 000 111 · Activa hace 2 min</div></div>
+          <span class="badge badge-teal">Bot activo</span>
+          <button class="btn btn-secondary btn-sm" onclick="openDrawer()"><i data-lucide="user" style="width:12px;height:12px"></i>Perfil</button>
+          <button class="btn btn-sm" style="background:var(--amber-light);color:var(--amber);border:1px solid #fde68a"><i data-lucide="hand" style="width:12px;height:12px"></i>Tomar control</button>
+        </div>
+        <div class="chat-messages">
+          <div><div class="msg-label">María García</div><div class="msg msg-user">Hola, ¿tienen el modelo XP200 disponible?</div></div>
+          <div><div class="msg-label">Aleph Bot</div><div class="msg msg-bot">¡Hola María! Sí, el modelo XP200 está disponible. Tenemos en negro y plata. ¿Te gustaría más detalles?</div></div>
+          <div class="chat-sources"><strong>Fuentes RAG:</strong> catalogo-2024.pdf (p.12) · precios-vigentes.xlsx</div>
+          <div><div class="msg-label">María García</div><div class="msg msg-user">¿Cuál es el precio?</div></div>
+          <div><div class="msg-label">Aleph Bot</div><div class="msg msg-bot">El XP200 cuesta S/. 1,299 (estándar) o S/. 1,599 (Pro con garantía extendida).</div></div>
+        </div>
+        <div class="chat-input-row">
+          <input class="input" placeholder="Responder como agente humano…">
+          <button class="btn btn-secondary btn-sm"><i data-lucide="paperclip" style="width:14px;height:14px"></i></button>
+          <button class="btn btn-primary btn-sm"><i data-lucide="send" style="width:14px;height:14px"></i></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- INBOX KANBAN -->
+  <div class="view" id="v-inbox">
+    <div class="section-title">Inbox / Kanban</div>
+    <div class="section-sub">Gestiona handoffs y casos activos</div>
+    <div class="ux-note ux-add" style="margin-bottom:16px"><i data-lucide="plus-circle" style="width:14px;height:14px;flex-shrink:0;margin-top:1px"></i><strong>VISTA NUEVA PROPUESTA:</strong> Esta vista no existe actualmente. Kanban de handoffs — cuando el bot no puede responder, la conversación llega aquí para asignación y seguimiento por el equipo humano.</div>
+    <div class="kanban">
+      <div class="kan-col">
+        <div class="kan-col-header"><span class="badge badge-amber">Pendiente</span> 2</div>
+        <div class="kan-card"><div style="font-weight:600;font-size:13px">Carlos Ramos</div><div style="font-size:12px;color:var(--text-3);margin:4px 0">Quiere hablar con asesor</div><div style="display:flex;gap:6px;align-items:center"><span class="badge badge-cyan">Web</span><span style="font-size:11px;color:var(--text-3);margin-left:auto">15m</span></div></div>
+        <div class="kan-card"><div style="font-weight:600;font-size:13px">Luis Vera</div><div style="font-size:12px;color:var(--text-3);margin:4px 0">Reclamo por demora</div><div style="display:flex;gap:6px;align-items:center"><span class="badge badge-green">WhatsApp</span><span style="font-size:11px;color:var(--text-3);margin-left:auto">1h</span></div></div>
+        <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:4px;justify-content:center"><i data-lucide="plus" style="width:12px;height:12px"></i>Añadir</button>
+      </div>
+      <div class="kan-col">
+        <div class="kan-col-header"><span class="badge badge-violet">En atención</span> 1</div>
+        <div class="kan-card"><div style="font-weight:600;font-size:13px">Sandra Díaz</div><div style="font-size:12px;color:var(--text-3);margin:4px 0">Consulta sobre garantía</div><div style="display:flex;gap:6px;align-items:center"><span class="badge badge-green">WhatsApp</span><div class="avatar" style="width:20px;height:20px;font-size:9px;margin-left:auto">JR</div></div></div>
+      </div>
+      <div class="kan-col">
+        <div class="kan-col-header"><span class="badge badge-green">Resuelto hoy</span> 8</div>
+        <div class="kan-card" style="opacity:.6"><div style="font-weight:600;font-size:13px">Ana Torres</div><div style="font-size:12px;color:var(--text-3);margin:4px 0">Info de precios</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CORPUS -->
+  <div class="view" id="v-corpus">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+      <div><div class="section-title">Corpus</div><div class="section-sub">Documentos que alimentan el RAG</div></div>
+      <button class="btn btn-primary" onclick="openModal()"><i data-lucide="upload" style="width:14px;height:14px"></i>Subir documento</button>
+    </div>
+    <div class="dropzone" style="margin-bottom:20px">
+      <div class="dropzone-icon"><i data-lucide="file-up" style="width:24px;height:24px;color:var(--text-3)"></i></div>
+      <div style="font-weight:600;margin-bottom:4px">Arrastra archivos aquí</div>
+      <div style="color:var(--text-3);font-size:13px">PDF, DOCX, TXT, CSV — máx. 50MB por archivo</div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Documentos (142)</div>
+        <div style="display:flex;gap:8px"><input class="input" style="width:200px" placeholder="Filtrar…">
+        <select class="select" style="width:140px"><option>Todos los tipos</option><option>PDF</option><option>DOCX</option></select></div>
+      </div>
+      <table>
+        <tr><th style="width:36px"><input type="checkbox"></th><th>Nombre</th><th>Tipo</th><th>Chunks</th><th>Estado</th><th>Subido</th><th></th></tr>
+        <tr><td><input type="checkbox"></td><td><div style="font-weight:600">catalogo-2024.pdf</div></td><td><span class="badge badge-red">PDF</span></td><td>1,204</td><td><span class="badge badge-green">Indexado</span></td><td style="color:var(--text-3)">Hace 2h</td><td><div style="display:flex;gap:4px"><button class="btn-icon"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="btn-icon" style="color:var(--red)"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button></div></td></tr>
+        <tr><td><input type="checkbox"></td><td><div style="font-weight:600">precios-vigentes.xlsx</div></td><td><span class="badge badge-green">XLS</span></td><td>89</td><td><span class="badge badge-amber">Procesando…</span></td><td style="color:var(--text-3)">Hace 30min</td><td><div style="display:flex;gap:4px"><button class="btn-icon"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="btn-icon" style="color:var(--red)"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button></div></td></tr>
+        <tr><td><input type="checkbox"></td><td><div style="font-weight:600">faq-clientes.docx</div></td><td><span class="badge badge-cyan">DOCX</span></td><td>341</td><td><span class="badge badge-green">Indexado</span></td><td style="color:var(--text-3)">Ayer</td><td><div style="display:flex;gap:4px"><button class="btn-icon"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="btn-icon" style="color:var(--red)"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button></div></td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- OBSERVABILITY -->
+  <div class="view" id="v-observability">
+    <div class="section-title">Observabilidad</div>
+    <div class="section-sub">Calidad de respuestas y brechas de conocimiento</div>
+    <div class="ux-note ux-remove" style="margin-bottom:16px"><i data-lucide="minus-circle" style="width:14px;height:14px;flex-shrink:0;margin-top:1px"></i><strong>PROPUESTA REMOVE:</strong> Sección "Logs técnicos" actual muestra demasiado ruido. Ocultar por defecto, toggle "Modo desarrollador" para verlos.</div>
+    <div class="grid g3" style="margin-bottom:16px">
+      <div class="card"><div class="kpi-value" style="font-size:24px;color:var(--green)">4.6 / 5</div><div class="kpi-label">Satisfacción promedio</div></div>
+      <div class="card"><div class="kpi-value" style="font-size:24px;color:var(--red)">23</div><div class="kpi-label">Preguntas sin respuesta</div></div>
+      <div class="card"><div class="kpi-value" style="font-size:24px;color:var(--brand)">1.3s</div><div class="kpi-label">Latencia promedio RAG</div></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Brechas de conocimiento detectadas</div><span class="badge badge-red">23 sin cubrir</span></div>
+      <table>
+        <tr><th>Pregunta frecuente no respondida</th><th>Veces</th><th>Acción sugerida</th></tr>
+        <tr><td>¿Tienen financiamiento?</td><td><strong>47</strong></td><td><button class="btn btn-primary btn-sm">Agregar al corpus</button></td></tr>
+        <tr><td>¿Hacen envíos a provincia?</td><td><strong>31</strong></td><td><button class="btn btn-primary btn-sm">Agregar al corpus</button></td></tr>
+        <tr><td>¿Cuál es el tiempo de garantía?</td><td><strong>28</strong></td><td><button class="btn btn-primary btn-sm">Agregar al corpus</button></td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="view" id="v-settings">
+    <div class="section-title">Configuración</div>
+    <div class="section-sub">Personaliza tu chatbot y canales</div>
+    <div class="grid g2">
+      <div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-header"><div class="card-title">Identidad del Bot</div></div>
+          <div class="form-group"><label>Nombre del asistente</label><input class="input" value="Aleph Assistant"></div>
+          <div class="form-group"><label>Mensaje de bienvenida</label><textarea class="textarea">¡Hola! Soy el asistente virtual. ¿En qué puedo ayudarte hoy?</textarea></div>
+          <div class="form-group"><label>Tono de respuesta</label>
+            <div class="radio-group">
+              <label class="radio-opt"><input type="radio" name="tone" checked> Profesional y amigable</label>
+              <label class="radio-opt"><input type="radio" name="tone"> Formal y técnico</label>
+              <label class="radio-opt"><input type="radio" name="tone"> Casual y cercano</label>
+            </div>
+          </div>
+          <div class="form-group"><label>Confianza mínima de respuesta (%)</label>
+            <input type="range" class="slider-input" min="0" max="100" value="70">
+            <div class="input-hint">Actualmente: 70% — por debajo se deriva a agente humano</div>
+          </div>
+          <button class="btn btn-primary">Guardar cambios</button>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Notificaciones</div></div>
+          <div class="stat-row"><span>Handoff solicitado</span><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+          <div class="stat-row"><span>Nuevo lead capturado</span><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+          <div class="stat-row"><span>Error en indexación</span><label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label></div>
+          <div class="stat-row"><span>Reporte semanal por email</span><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+        </div>
+      </div>
+      <div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-header"><div class="card-title">Integraciones</div></div>
+          <div class="form-group"><label>API Key OpenAI</label>
+            <div class="input-group"><input class="input" type="password" value="sk-••••••••••••••••••••••"><button class="btn btn-secondary">Ver</button></div>
+          </div>
+          <div class="form-group"><label>Webhook URL (handoff)</label><input class="input" value="https://crm.empresa.pe/aleph/hook"></div>
+          <div class="form-group"><label>Canal WhatsApp</label>
+            <select class="select"><option>Conectado — +51 1 234 5678</option><option>No conectado</option></select>
+          </div>
+          <div class="form-group"><label>Modelo LLM</label>
+            <select class="select"><option>gpt-4o</option><option>gpt-4o-mini</option><option>claude-sonnet-4-6</option></select>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Límites y control</div></div>
+          <div class="form-group"><label>Tokens máx por respuesta</label><input class="input" type="number" value="500"></div>
+          <div class="form-group"><label>Idiomas permitidos</label>
+            <div class="check-group">
+              <label class="check-opt"><input type="checkbox" checked> Español</label>
+              <label class="check-opt"><input type="checkbox"> Inglés</label>
+              <label class="check-opt"><input type="checkbox"> Portugués</label>
+            </div>
+          </div>
+          <div class="stat-row"><span>Modo mantenimiento</span><label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label></div>
+          <div class="stat-row"><span>Modo desarrollador (logs)</span><label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COMPONENTS -->
+  <div class="view" id="v-components">
+    <div class="section-title">Showcase de Componentes</div>
+    <div class="section-sub">Todos los elementos del sistema de diseño</div>
+    <div class="grid g2">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">Botones</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <button class="btn btn-primary"><i data-lucide="plus" style="width:14px;height:14px"></i>Primario</button>
+          <button class="btn btn-secondary">Secundario</button>
+          <button class="btn btn-ghost">Ghost</button>
+          <button class="btn btn-danger"><i data-lucide="trash-2" style="width:14px;height:14px"></i>Peligro</button>
+          <button class="btn btn-primary btn-sm">Small</button>
+          <button class="btn btn-primary" style="opacity:.4;cursor:not-allowed">Disabled</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">Badges — mapeo semántico</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <span class="badge badge-teal">Activa</span>
+          <span class="badge badge-cyan">RAG / Live</span>
+          <span class="badge badge-amber">Handoff</span>
+          <span class="badge badge-violet">IA / Sistema</span>
+          <span class="badge badge-magenta">VIP / Urgente</span>
+          <span class="badge badge-green">Éxito</span>
+          <span class="badge badge-red">Error</span>
+          <span class="badge badge-gray">Cerrada</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">Inputs y Formularios</div>
+        <div class="form-group"><label>Input normal</label><input class="input" placeholder="Escribe algo…"></div>
+        <div class="form-group"><label>Input con error</label><input class="input input-error" value="email-invalido"><div class="input-error-msg"><i data-lucide="alert-circle" style="width:12px;height:12px"></i>Ingresa un email válido</div></div>
+        <div class="form-group"><label>Textarea</label><textarea class="textarea" placeholder="Mensaje largo…"></textarea></div>
+        <div class="form-group"><label>Select</label><select class="select"><option>Opción A</option><option>Opción B</option></select></div>
+        <div class="form-group"><label>Rango</label><input type="range" class="slider-input" value="60"></div>
+        <div class="form-group"><label>Toggles</label>
+          <div style="display:flex;gap:16px;align-items:center">
+            <label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+            <label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">Overlays interactivos</div>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+          <button class="btn btn-secondary" onclick="openModal()"><i data-lucide="layers" style="width:14px;height:14px"></i>Modal — subir documento</button>
+          <button class="btn btn-secondary" onclick="openDrawer()"><i data-lucide="panel-right" style="width:14px;height:14px"></i>Drawer — perfil de contacto</button>
+          <button class="btn btn-secondary" onclick="openCmd()"><i data-lucide="command" style="width:14px;height:14px"></i>Command Palette (⌘K)</button>
+          <button class="btn btn-secondary" onclick="showToast()"><i data-lucide="bell" style="width:14px;height:14px"></i>Toast notification</button>
+        </div>
+        <div class="card-title" style="font-size:13px;margin-bottom:8px">Tooltips</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <div class="tooltip-demo"><button class="btn btn-secondary btn-sm">Hover me<span class="tooltip-box">Tooltip informativo</span></button></div>
+          <div class="tooltip-demo"><span class="badge badge-amber" style="cursor:default">Sin respuesta<span class="tooltip-box">El bot no encontró info en el corpus</span></span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">Skeleton — estado de carga</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div class="skeleton" style="height:16px;width:60%"></div>
+          <div class="skeleton" style="height:16px;width:80%"></div>
+          <div class="skeleton" style="height:16px;width:45%"></div>
+          <div style="display:flex;gap:10px;margin-top:4px">
+            <div class="skeleton" style="width:40px;height:40px;border-radius:50%;flex-shrink:0"></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:8px;justify-content:center">
+              <div class="skeleton" style="height:12px;width:70%"></div>
+              <div class="skeleton" style="height:12px;width:50%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">Empty State</div>
+        <div class="empty-state">
+          <div class="empty-icon"><i data-lucide="file-search" style="width:28px;height:28px;color:var(--text-3)"></i></div>
+          <div class="empty-title">Sin conversaciones aún</div>
+          <div class="empty-desc">Cuando lleguen mensajes por WhatsApp o Web aparecerán aquí.</div>
+          <button class="btn btn-primary btn-sm"><i data-lucide="play" style="width:12px;height:12px"></i>Simular conversación</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COLORS -->
+  <div class="view" id="v-colors">
+    <div class="section-title">Sistema de Color</div>
+    <div class="section-sub">Cada color tiene un dominio funcional — no decorativo</div>
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title" style="margin-bottom:12px">Colores semánticos</div>
+      <div class="grid g4">
+        <div><div class="color-swatch" style="background:#0d9488"></div><div class="color-label">Brand / Teal</div><div class="color-hex">#0d9488 — CTA, acción principal</div></div>
+        <div><div class="color-swatch" style="background:#0891b2"></div><div class="color-label">Cyan — Datos / Live</div><div class="color-hex">#0891b2 — RAG activo, streaming</div></div>
+        <div><div class="color-swatch" style="background:#d97706"></div><div class="color-label">Amber — Humano</div><div class="color-hex">#d97706 — Handoff, atención humana</div></div>
+        <div><div class="color-swatch" style="background:#7c3aed"></div><div class="color-label">Violet — IA</div><div class="color-hex">#7c3aed — Respuesta modelo, sistema</div></div>
+        <div><div class="color-swatch" style="background:#db2777"></div><div class="color-label">Magenta — Urgente</div><div class="color-hex">#db2777 — VIP, alertas críticas</div></div>
+        <div><div class="color-swatch" style="background:#16a34a"></div><div class="color-label">Green — Éxito</div><div class="color-hex">#16a34a — OK, resuelto, conectado</div></div>
+        <div><div class="color-swatch" style="background:#dc2626"></div><div class="color-label">Red — Error</div><div class="color-hex">#dc2626 — Error, eliminar, crítico</div></div>
+        <div><div class="color-swatch" style="background:#e8ecf2;border:1px solid #c8cfd9"></div><div class="color-label">Neutral</div><div class="color-hex">#e8ecf2 — Fondos, separadores</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px">Tokens de superficie</div>
+      <div class="grid g4">
+        <div><div class="color-swatch" style="background:#f8f9fb"></div><div class="color-label">--bg</div><div class="color-hex">Fondo de página</div></div>
+        <div><div class="color-swatch" style="background:#fff;border:1px solid #e2e6ed"></div><div class="color-label">--surface</div><div class="color-hex">Cards, sidebar, modals</div></div>
+        <div><div class="color-swatch" style="background:#f2f4f7"></div><div class="color-label">--surface-2</div><div class="color-hex">Hover, inputs</div></div>
+        <div><div class="color-swatch" style="background:#e8ecf2"></div><div class="color-label">--surface-3</div><div class="color-hex">Badges neutros, kbd</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ICONS -->
+  <div class="view" id="v-icons">
+    <div class="section-title">Biblioteca de Iconos — Lucide</div>
+    <div class="section-sub">lucide-react ^0.513 · set consistente, 24px grid, 1.5px stroke</div>
+    <div class="card">
+      <div class="icon-grid">
+        <div class="icon-cell"><i data-lucide="layout-dashboard" style="width:22px;height:22px;color:var(--text-2)"></i><span>layout-dashboard</span></div>
+        <div class="icon-cell"><i data-lucide="message-square" style="width:22px;height:22px;color:var(--text-2)"></i><span>message-square</span></div>
+        <div class="icon-cell"><i data-lucide="database" style="width:22px;height:22px;color:var(--text-2)"></i><span>database</span></div>
+        <div class="icon-cell"><i data-lucide="users" style="width:22px;height:22px;color:var(--text-2)"></i><span>users</span></div>
+        <div class="icon-cell"><i data-lucide="settings" style="width:22px;height:22px;color:var(--text-2)"></i><span>settings</span></div>
+        <div class="icon-cell"><i data-lucide="upload" style="width:22px;height:22px;color:var(--text-2)"></i><span>upload</span></div>
+        <div class="icon-cell"><i data-lucide="activity" style="width:22px;height:22px;color:var(--text-2)"></i><span>activity</span></div>
+        <div class="icon-cell"><i data-lucide="bell" style="width:22px;height:22px;color:var(--text-2)"></i><span>bell</span></div>
+        <div class="icon-cell"><i data-lucide="hand" style="width:22px;height:22px;color:var(--amber)"></i><span>hand (handoff)</span></div>
+        <div class="icon-cell"><i data-lucide="bot" style="width:22px;height:22px;color:var(--violet)"></i><span>bot</span></div>
+        <div class="icon-cell"><i data-lucide="brain" style="width:22px;height:22px;color:var(--violet)"></i><span>brain</span></div>
+        <div class="icon-cell"><i data-lucide="zap" style="width:22px;height:22px;color:var(--cyan)"></i><span>zap</span></div>
+        <div class="icon-cell"><i data-lucide="file-text" style="width:22px;height:22px;color:var(--text-2)"></i><span>file-text</span></div>
+        <div class="icon-cell"><i data-lucide="search" style="width:22px;height:22px;color:var(--text-2)"></i><span>search</span></div>
+        <div class="icon-cell"><i data-lucide="send" style="width:22px;height:22px;color:var(--brand)"></i><span>send</span></div>
+        <div class="icon-cell"><i data-lucide="trash-2" style="width:22px;height:22px;color:var(--red)"></i><span>trash-2</span></div>
+        <div class="icon-cell"><i data-lucide="check-circle-2" style="width:22px;height:22px;color:var(--green)"></i><span>check-circle-2</span></div>
+        <div class="icon-cell"><i data-lucide="alert-circle" style="width:22px;height:22px;color:var(--red)"></i><span>alert-circle</span></div>
+        <div class="icon-cell"><i data-lucide="inbox" style="width:22px;height:22px;color:var(--text-2)"></i><span>inbox</span></div>
+        <div class="icon-cell"><i data-lucide="command" style="width:22px;height:22px;color:var(--text-2)"></i><span>command</span></div>
+        <div class="icon-cell"><i data-lucide="external-link" style="width:22px;height:22px;color:var(--text-2)"></i><span>external-link</span></div>
+        <div class="icon-cell"><i data-lucide="paperclip" style="width:22px;height:22px;color:var(--text-2)"></i><span>paperclip</span></div>
+        <div class="icon-cell"><i data-lucide="panel-right" style="width:22px;height:22px;color:var(--text-2)"></i><span>panel-right</span></div>
+        <div class="icon-cell"><i data-lucide="move" style="width:22px;height:22px;color:var(--text-2)"></i><span>move</span></div>
+        <div class="icon-cell"><i data-lucide="trending-up" style="width:22px;height:22px;color:var(--green)"></i><span>trending-up</span></div>
+        <div class="icon-cell"><i data-lucide="trending-down" style="width:22px;height:22px;color:var(--red)"></i><span>trending-down</span></div>
+        <div class="icon-cell"><i data-lucide="file-up" style="width:22px;height:22px;color:var(--text-2)"></i><span>file-up</span></div>
+        <div class="icon-cell"><i data-lucide="file-search" style="width:22px;height:22px;color:var(--text-2)"></i><span>file-search</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- COMMAND PALETTE -->
+<div class="overlay" id="cmd-overlay" onclick="closeCmd(event)">
+  <div class="cmd-palette" onclick="event.stopPropagation()">
+    <div class="cmd-input"><i data-lucide="search" style="width:18px;height:18px;color:var(--text-3)"></i><input id="cmd-input" placeholder="Buscar vistas, acciones, documentos…"></div>
+    <div class="cmd-results">
+      <div class="cmd-group-label">Vistas</div>
+      <div class="cmd-item selected" onclick="show('dashboard',null);closeCmd()"><div class="cmd-item-icon"><i data-lucide="layout-dashboard" style="width:14px;height:14px;color:var(--brand)"></i></div>Dashboard<span class="cmd-shortcut">G D</span></div>
+      <div class="cmd-item" onclick="show('convos',null);closeCmd()"><div class="cmd-item-icon"><i data-lucide="message-square" style="width:14px;height:14px"></i></div>Conversaciones<span class="cmd-shortcut">G C</span></div>
+      <div class="cmd-item" onclick="show('corpus',null);closeCmd()"><div class="cmd-item-icon"><i data-lucide="database" style="width:14px;height:14px"></i></div>Corpus</div>
+      <div class="cmd-group-label">Acciones rápidas</div>
+      <div class="cmd-item" onclick="openModal();closeCmd()"><div class="cmd-item-icon"><i data-lucide="upload" style="width:14px;height:14px;color:var(--cyan)"></i></div>Subir documento al corpus</div>
+      <div class="cmd-item"><div class="cmd-item-icon"><i data-lucide="play" style="width:14px;height:14px;color:var(--green)"></i></div>Probar chatbot en playground</div>
+      <div class="cmd-item"><div class="cmd-item-icon"><i data-lucide="hand" style="width:14px;height:14px;color:var(--amber)"></i></div>Ver handoffs pendientes<span class="badge badge-amber" style="margin-left:auto">2</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div><div class="modal-title">Subir documento al corpus</div><div style="font-size:13px;color:var(--text-3);margin-top:2px">Se procesará e indexará automáticamente</div></div>
+      <button class="btn-icon" onclick="closeModal()"><i data-lucide="x" style="width:16px;height:16px"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="dropzone" style="margin-bottom:16px"><div class="dropzone-icon"><i data-lucide="file-up" style="width:20px;height:20px;color:var(--text-3)"></i></div><div style="font-weight:600">Seleccionar archivo</div><div style="font-size:12px;color:var(--text-3)">PDF, DOCX, TXT — máx. 50MB</div></div>
+      <div class="form-group"><label>Etiqueta (opcional)</label><input class="input" placeholder="ej: catalogo, precios, FAQ"></div>
+      <div class="form-group"><label>Visibilidad</label><select class="select"><option>Activo — el bot puede usarlo</option><option>Borrador — solo backoffice</option></select></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="showToast();closeModal()"><i data-lucide="upload" style="width:14px;height:14px"></i>Subir e indexar</button>
+    </div>
+  </div>
+</div>
+
+<!-- DRAWER -->
+<div class="drawer" id="drawer">
+  <div class="drawer-header">
+    <div style="font-family:var(--font-head);font-weight:700;font-size:16px">Perfil del contacto</div>
+    <button class="btn-icon" onclick="closeDrawer()"><i data-lucide="x" style="width:16px;height:16px"></i></button>
+  </div>
+  <div class="drawer-body">
+    <div style="text-align:center;padding:16px 0;border-bottom:1px solid var(--border);margin-bottom:16px">
+      <div class="avatar" style="width:52px;height:52px;font-size:20px;margin:0 auto 10px">MG</div>
+      <div style="font-weight:700;font-size:16px">María García</div>
+      <div style="color:var(--text-3);font-size:13px">+51 999 000 111</div>
+      <div style="margin-top:8px;display:flex;gap:6px;justify-content:center"><span class="badge badge-green">WhatsApp</span><span class="badge badge-teal">Lead calificado</span></div>
+    </div>
+    <div class="stat-row"><span style="color:var(--text-3)">Primera conversación</span><span>15 Jun 2025</span></div>
+    <div class="stat-row"><span style="color:var(--text-3)">Total conversaciones</span><span>7</span></div>
+    <div class="stat-row"><span style="color:var(--text-3)">Producto de interés</span><span>XP200</span></div>
+    <div style="margin-top:16px">
+      <div style="font-weight:600;font-size:13px;margin-bottom:8px">Nota del agente</div>
+      <textarea class="textarea" placeholder="Agrega una nota sobre este contacto…"></textarea>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <button class="btn btn-primary" style="flex:1">Guardar nota</button>
+      <button class="btn btn-secondary"><i data-lucide="external-link" style="width:14px;height:14px"></i></button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-area" id="toast-area"></div>
+
+<script>
+const TITLES={dashboard:'Dashboard',convos:'Conversaciones',inbox:'Inbox / Kanban',corpus:'Corpus',observability:'Observabilidad',settings:'Configuración',components:'Componentes',colors:'Sistema de Color',icons:'Iconos'};
+function show(id,el){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('v-'+id).classList.add('active');
+  document.getElementById('page-title').textContent=TITLES[id]||id;
+  if(el)el.classList.add('active');
+}
+function openCmd(){document.getElementById('cmd-overlay').classList.add('open');setTimeout(()=>document.getElementById('cmd-input').focus(),50)}
+function closeCmd(e){if(!e||e.target===document.getElementById('cmd-overlay'))document.getElementById('cmd-overlay').classList.remove('open')}
+function openModal(){document.getElementById('modal-overlay').classList.add('open')}
+function closeModal(e){if(!e||e.target===document.getElementById('modal-overlay'))document.getElementById('modal-overlay').classList.remove('open')}
+function openDrawer(){document.getElementById('drawer').classList.add('open')}
+function closeDrawer(){document.getElementById('drawer').classList.remove('open')}
+let tc=0;
+const TOASTS=[{t:'success',m:'Documento subido e indexado correctamente',i:'check-circle-2'},{t:'info',m:'2 conversaciones nuevas desde las 14:00',i:'bell'},{t:'error',m:'Error al conectar con WhatsApp API — revisar credenciales',i:'alert-circle'}];
+function showToast(){
+  const d=TOASTS[tc%TOASTS.length];tc++;
+  const el=document.createElement('div');
+  el.className='toast toast-'+d.t;
+  const c={success:'var(--green)',error:'var(--red)',info:'var(--brand)'};
+  el.innerHTML='<i data-lucide="'+d.i+'" style="width:16px;height:16px;flex-shrink:0;color:'+c[d.t]+'"></i><span style="flex:1;font-size:13px">'+d.m+'</span><button onclick="this.parentNode.remove()" style="background:none;border:none;cursor:pointer;color:var(--text-3)"><i data-lucide="x" style="width:14px;height:14px"></i></button>';
+  document.getElementById('toast-area').appendChild(el);
+  lucide.createIcons({nodes:[el]});
+  setTimeout(()=>el.remove(),4500);
+}
+document.addEventListener('keydown',e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();openCmd()}
+  if(e.key==='Escape'){closeCmd();closeModal();closeDrawer()}
+});
+lucide.createIcons();
+</script>
+</body>
+</html>

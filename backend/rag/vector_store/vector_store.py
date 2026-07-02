@@ -24,12 +24,9 @@ from qdrant_client.http.models import (
 
 from config import settings
 from infra.circuit_breaker import CircuitBreaker, CircuitOpenError
+from .vector_store_types import VectorStoreUnavailableError
 
 logger = logging.getLogger(__name__)
-
-
-class VectorStoreUnavailableError(RuntimeError):
-    pass
 
 # =====================================================================
 #   VECTOR STORE (GOLDEN MASTER)
